@@ -10,7 +10,7 @@
  */
 
 import { component, signal, type Define } from 'sigx';
-import { LiveCodeModal, initRuntime, initDaisyUIRuntime, isRuntimeInitialized } from '@sigx/live-code';
+import { LiveCodeModal, initRuntime, initRegisteredModules, isRuntimeInitialized } from '@sigx/live-code';
 
 type CodeWindowProps = 
     & Define.Prop<'filename', string, false>
@@ -65,16 +65,19 @@ export const CodeWindow = component<CodeWindowProps>(({ props, slots }) => {
         return '';
     }
     
-    function openPlayground() {
+    async function openPlayground() {
         // Extract code from the rendered slot
         extractedCode.value = extractCodeFromSlot();
-        
+
         // Ensure runtime is initialized (includes DaisyUI for component examples)
         if (!isRuntimeInitialized()) {
             initRuntime();
-            // Initialize DaisyUI runtime for component examples
-            initDaisyUIRuntime();
         }
+        // Expose the modules registered in live-code-config (DaisyUI, router,
+        // store) on `window.__SIGX_*__`. We use the registered loaders (static
+        // bundled imports) rather than initDaisyUIRuntime()'s runtime dynamic
+        // import, which silently fails to resolve the package.
+        await initRegisteredModules();
         isModalOpen.value = true;
     }
     
