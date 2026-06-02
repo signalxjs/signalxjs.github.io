@@ -7,7 +7,7 @@
  * isn't installed).
  */
 
-import { configureLiveCode } from '@sigx/live-code';
+import { configureLiveCode, initRegisteredModules } from '@sigx/live-code';
 import * as daisyui from '@sigx/daisyui';
 import * as router from '@sigx/router';
 import * as store from '@sigx/store';
@@ -21,3 +21,17 @@ configureLiveCode({
         '@sigx/store': () => store,
     }
 });
+
+// Eagerly expose the registered modules on `window.__SIGX_*__`.
+//
+// The inline <LivePreview> blocks only initialize the runtimes when
+// `window.__SIGX__` is still unset. In the production bundle the SignalX
+// runtime is already initialized by the time previews mount, so that guard
+// short-circuits and the module globals (DaisyUI, router, store) never get
+// set — previews then fail with "Cannot destructure ... __SIGX_DAISYUI__".
+// Initializing here (before @sigx/live-code/client) guarantees they exist
+// regardless of runtime-init timing. In dev this is masked because previews
+// mount before `__SIGX__` is set, so the package's own init path still runs.
+if (typeof window !== 'undefined') {
+    await initRegisteredModules();
+}
