@@ -23,9 +23,12 @@ const ThemeGeneratorPage = component(() => {
     const router = useRouter();
 
     const close = () => {
-        // Return where the user came from if we have in-app history, else fall
-        // back to the daisyUI docs landing.
-        if (typeof window !== 'undefined' && window.history.length > 1) {
+        // Go back only when there's an in-app history entry to return to. The
+        // router stamps an incrementing `position` into history.state, so a
+        // fresh deep-link is position 0/absent — in that case land on the docs
+        // rather than risk `back()` navigating the user off-site.
+        const position = (typeof window !== 'undefined' && window.history.state?.position) || 0;
+        if (position > 0) {
             router.back();
         } else {
             router.push('/daisyui/docs/getting-started');
