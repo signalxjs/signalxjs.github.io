@@ -36,6 +36,32 @@ const Demo = component(() => {
 render(<Demo />, "#sandbox");
 ```
 
+## Links
+
+By default a `Menu.Item` wraps its content in an `<a>` for styling. To make it a
+real navigable link, pass `href`. To use your own interactive element (a router
+`<Link>`, a `<button>`, …) without nesting interactive elements, pass `asChild`
+and provide the element yourself.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Menu } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Menu background="base-200" rounded width="56">
+            <Menu.Item href="/daisyui/docs/getting-started">Getting started</Menu.Item>
+            <Menu.Item href="/daisyui/docs/components/button">Button</Menu.Item>
+            <Menu.Item asChild>
+                <button type="button" onClick={() => alert('clicked')}>Run action</button>
+            </Menu.Item>
+        </Menu>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
 ## Menu with Active Item
 
 Use model binding to track the active menu item:
@@ -362,6 +388,8 @@ render(<Demo />, "#sandbox");
 |------|------|---------|-------------|
 | `value` | `string` | - | Value for model binding |
 | `active` | `boolean` | `false` | Force active state |
+| `href` | `string` | - | Render the item as a real link (`<a href>`); `menu-active` is applied automatically |
+| `asChild` | `boolean` | `false` | Render the slot directly (no `<a>` wrap) so you can supply your own `<a>`/`<button>`/router `<Link>` without nesting interactive elements. You own the active styling |
 | `submenu` | `boolean` | `false` | Render slot directly (no `<a>` wrap) for a nested `<details>` submenu |
 | `disabled` | `boolean` | `false` | Disable the item |
 | `class` | `string` | - | Additional CSS classes |
