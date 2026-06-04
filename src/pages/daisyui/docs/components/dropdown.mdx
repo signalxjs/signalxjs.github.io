@@ -18,7 +18,7 @@ import { Dropdown } from '@sigx/daisyui';
 
 ## Basic Dropdown
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Dropdown, Button, Menu, Card, Row, Text } from '@sigx/daisyui';
 
@@ -47,7 +47,7 @@ render(<Demo />, "#sandbox");
 
 ## Dropdown Positions
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Dropdown, Button, Menu, Card, Row, Text } from '@sigx/daisyui';
 
@@ -61,7 +61,7 @@ const Demo = component(() => {
                     {positions.map(pos => (
                         <Dropdown 
                             position={pos}
-                            menuClass="w-40"
+                            width="40"
                             slots={{
                                 trigger: () => <Button>{pos}</Button>
                             }}
@@ -81,7 +81,7 @@ render(<Demo />, "#sandbox");
 
 ## Dropdown End Alignment
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Dropdown, Button, Menu, Card, Row, Text } from '@sigx/daisyui';
 
@@ -91,7 +91,7 @@ const Demo = component(() => {
             <Card.Body class="py-12">
                 <Row justify="center" gap="4">
                     <Dropdown
-                        menuClass="w-40"
+                        width="40"
                         slots={{
                             trigger: () => <Button>Start (default)</Button>
                         }}
@@ -102,7 +102,7 @@ const Demo = component(() => {
                     
                     <Dropdown 
                         position="end"
-                        menuClass="w-40"
+                        width="40"
                         slots={{
                             trigger: () => <Button>End aligned</Button>
                         }}
@@ -121,7 +121,7 @@ render(<Demo />, "#sandbox");
 
 ## Hover Dropdown
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Dropdown, Button, Menu, Card, Row, Text } from '@sigx/daisyui';
 
@@ -132,7 +132,7 @@ const Demo = component(() => {
                 <Row justify="center">
                     <Dropdown 
                         hover
-                        menuClass="w-52"
+                        width="52"
                         slots={{
                             trigger: () => <Button>Hover me</Button>
                         }}
@@ -152,7 +152,7 @@ render(<Demo />, "#sandbox");
 
 ## User Menu Example
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Dropdown, Button, Menu, Card, Badge, Col, Row, Text } from '@sigx/daisyui';
 
@@ -163,7 +163,7 @@ const Demo = component(() => {
                 <Row justify="center">
                     <Dropdown 
                         position="end"
-                        menuClass="w-56"
+                        width="56"
                         slots={{
                             trigger: () => (
                                 <Button variant="ghost" shape="circle">
@@ -201,7 +201,7 @@ render(<Demo />, "#sandbox");
 
 ## Navbar Dropdown
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Dropdown, Button, Menu, Card, Navbar, Row, Text } from '@sigx/daisyui';
 
@@ -209,14 +209,14 @@ const Demo = component(() => {
     return () => (
         <Card>
             <Navbar
-                class="bg-base-200 rounded-box"
+                background="base-200" rounded
                 slots={{
                     start: () => <Text as="span" size="xl" weight="bold">App</Text>,
                     end: () => (
                         <Row gap="2">
                             <Dropdown 
                                 position="end"
-                                menuClass="w-48 mt-2"
+                                width="48" menuClass="mt-2"
                                 slots={{
                                     trigger: () => <Button variant="ghost">Products</Button>
                                 }}
@@ -228,7 +228,7 @@ const Demo = component(() => {
                             
                             <Dropdown 
                                 position="end"
-                                menuClass="w-48 mt-2"
+                                width="48" menuClass="mt-2"
                                 slots={{
                                     trigger: () => <Button variant="ghost">About</Button>
                                 }}
@@ -250,7 +250,7 @@ render(<Demo />, "#sandbox");
 
 ## Context Menu Example
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Dropdown, Menu, Card, Badge, Col, Row, Text } from '@sigx/daisyui';
 
@@ -270,7 +270,7 @@ const Demo = component(() => {
                     {items.map(item => (
                         <Dropdown 
                             hover
-                            menuClass="w-48"
+                            width="48"
                             slots={{
                                 trigger: () => (
                                     <Row align="center" gap="3" class="p-3 bg-base-200 rounded-lg cursor-pointer hover:bg-base-300 w-full">
@@ -307,8 +307,12 @@ render(<Demo />, "#sandbox");
 |------|------|---------|-------------|
 | `position` | `'end' \| 'top' \| 'bottom' \| 'left' \| 'right'` | - | Dropdown position |
 | `hover` | `boolean` | `false` | Open on hover instead of click |
-| `menuClass` | `string` | - | Additional CSS classes for the dropdown menu |
-| `class` | `string` | - | Additional CSS classes for the container |
+| `menuClass` | `string` | - | Additional CSS classes for the content panel |
+| `background` | `BackgroundColor` | - | Content panel background (overrides default `bg-base-100`) |
+| `rounded` | `RadiusValue \| boolean` | - | Content panel rounding (default `rounded-box`) |
+| `width` | `SizeValue` | - | Content panel width — Tailwind step (`"52"`) or unitful value (`"560px"`) |
+| `padding` | `Spacing` | - | Content panel padding (overrides default `p-2`) |
+| `class` | `string` | - | Additional CSS classes for the container (root) |
 
 ## Slots
 

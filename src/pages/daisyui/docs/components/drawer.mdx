@@ -20,7 +20,7 @@ import { Drawer, Text } from '@sigx/daisyui';
 
 Use `model` for two-way binding to control drawer visibility. The Drawer component should wrap your main content:
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Drawer, Button, Card, Col, Menu, Text } from '@sigx/daisyui';
 
@@ -33,7 +33,7 @@ const Demo = component(({ signal }) => {
                 model={() => drawer.open}
                 slots={{
                     side: () => (
-                        <Menu class="p-4 w-60 md:w-80 min-h-full bg-base-200">
+                        <Menu padding="4" width="60" background="base-200" class="md:w-80 min-h-full">
                             <Menu.Item value="item-1">
                                 <Text as="span" onClick={() => drawer.open = false}>Sidebar Item 1</Text>
                             </Menu.Item>
@@ -63,7 +63,7 @@ render(<Demo />, "#sandbox");
 
 Use `side="right"` (adds `drawer-end` class) to open the drawer from the right:
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Drawer, Button, Card, Col, Menu, Text } from '@sigx/daisyui';
 
@@ -77,7 +77,7 @@ const Demo = component(({ signal }) => {
                 side="right"
                 slots={{
                     side: () => (
-                        <Menu class="p-4 w-60 md:w-80 min-h-full bg-base-200">
+                        <Menu padding="4" width="60" background="base-200" class="md:w-80 min-h-full">
                             <Menu.Item value="item-1">
                                 <Text as="span" onClick={() => drawer.open = false}>Sidebar Item 1</Text>
                             </Menu.Item>
@@ -105,7 +105,7 @@ render(<Demo />, "#sandbox");
 
 A common pattern with navbar and drawer for mobile navigation:
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Drawer, Button, Card, Navbar, Col, Row, Menu, Text } from '@sigx/daisyui';
 
@@ -118,7 +118,7 @@ const Demo = component(({ signal }) => {
                 model={() => drawer.open}
                 slots={{
                     side: () => (
-                        <Menu class="p-4 w-60 md:w-80 min-h-full bg-base-200">
+                        <Menu padding="4" width="60" background="base-200" class="md:w-80 min-h-full">
                             <Menu.Item value="item-1">
                                 <Text as="span" onClick={() => drawer.open = false}>Sidebar Item 1</Text>
                             </Menu.Item>
@@ -130,7 +130,7 @@ const Demo = component(({ signal }) => {
                 }}
             >
                 <Col class="drawer-content">
-                    <Navbar class="w-full bg-base-300">
+                    <Navbar width="full" background="base-300">
                         <Button variant="ghost" shape="square" onClick={() => drawer.open = true}>
                             <Text as="span" size="xl">☰</Text>
                         </Button>
@@ -154,7 +154,7 @@ render(<Demo />, "#sandbox");
 
 Drawer that's always visible on large screens using `responsive` prop (adds `lg:drawer-open` class):
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Drawer, Button, Card, Col, Menu, Text } from '@sigx/daisyui';
 
@@ -168,7 +168,7 @@ const Demo = component(({ signal }) => {
                 responsive
                 slots={{
                     side: () => (
-                        <Menu class="p-4 w-60 md:w-80 min-h-full bg-base-200">
+                        <Menu padding="4" width="60" background="base-200" class="md:w-80 min-h-full">
                             <Menu.Item value="item-1"><Text as="span">Sidebar Item 1</Text></Menu.Item>
                             <Menu.Item value="item-2"><Text as="span">Sidebar Item 2</Text></Menu.Item>
                         </Menu>
@@ -193,7 +193,7 @@ render(<Demo />, "#sandbox");
 
 A right-side filter panel commonly used in e-commerce:
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Drawer, Button, Card, Col, FormField, Heading, Range, Select, Text } from '@sigx/daisyui';
 
@@ -207,7 +207,7 @@ const Demo = component(({ signal }) => {
                 side="right"
                 slots={{
                     side: () => (
-                        <Col gap="4" class="p-4 w-60 md:w-80 min-h-full bg-base-200">
+                        <Col gap="4" padding="4" width="60" background="base-200" class="md:w-80 min-h-full">
                             <Heading level={2} size="xl">Filters</Heading>
                             <FormField label="Category">
                                 <Select
@@ -255,7 +255,11 @@ render(<Demo />, "#sandbox");
 | `model` | `() => boolean` | - | Two-way binding for open state |
 | `side` | `'left' \| 'right'` | `'left'` | Which side the drawer opens from |
 | `responsive` | `boolean` | `false` | Always visible on large screens (`lg:drawer-open`) |
-| `class` | `string` | - | Additional CSS classes |
+| `background` | `BackgroundColor` | - | Side panel (`.drawer-side`) background |
+| `rounded` | `RadiusValue \| boolean` | - | Side panel rounding |
+| `width` | `SizeValue` | - | Side panel width — Tailwind step (`"60"`) or unitful value |
+| `padding` | `Spacing` | - | Side panel padding |
+| `class` | `string` | - | Additional CSS classes (drawer root) |
 
 ## Slots
 

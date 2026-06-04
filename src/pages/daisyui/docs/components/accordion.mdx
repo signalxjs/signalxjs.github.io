@@ -22,7 +22,7 @@ Sub-components are available as `Accordion.Item` and `Accordion.Collapse`.
 
 Use the `items` prop for a simple accordion:
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Accordion, Card, Heading } from '@sigx/daisyui';
 
@@ -66,7 +66,7 @@ render(<Demo />, "#sandbox");
 
 ## With Plus/Minus Icon
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Accordion } from '@sigx/daisyui';
 
@@ -95,7 +95,7 @@ render(<Demo />, "#sandbox");
 
 Use the `join` prop to connect items visually:
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Accordion } from '@sigx/daisyui';
 
@@ -125,7 +125,7 @@ render(<Demo />, "#sandbox");
 
 Use the `type="details"` prop to use native HTML `<details>` elements. This makes the collapsed content searchable by the browser:
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Accordion } from '@sigx/daisyui';
 
@@ -155,7 +155,7 @@ render(<Demo />, "#sandbox");
 
 For a single collapsible panel, use `Accordion.Collapse`:
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Accordion, Card, Text } from '@sigx/daisyui';
 
@@ -189,7 +189,7 @@ render(<Demo />, "#sandbox");
 
 For custom content in each accordion item:
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Accordion, Card, Button, Badge, Row, Col, Text } from '@sigx/daisyui';
 const Demo = component(() => {
@@ -248,9 +248,9 @@ render(<Demo />, "#sandbox");
 
 Use `forceOpen` or `forceClose` to control the collapse state via CSS:
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
-import { Accordion, Card, Button, Row } from '@sigx/daisyui';
+import { Accordion, Card, Button, Row, Text } from '@sigx/daisyui';
 const Demo = component(({ signal }) => {
     const forceState = signal({ value: '' as '' | 'open' | 'close' });
     
@@ -281,7 +281,7 @@ render(<Demo />, "#sandbox");
 
 ## FAQ Section Example
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Accordion, Card, Heading, Input, Text } from '@sigx/daisyui';
 

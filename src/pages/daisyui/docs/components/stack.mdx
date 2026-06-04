@@ -20,13 +20,13 @@ import { Stack } from '@sigx/daisyui';
 
 Use `w-*` and `h-*` classes on the Stack to set the size of all stacked items.
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Stack, Card, Text } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Stack class="w-32 h-20">
+        <Stack width="32" height="20">
             <Card class="bg-primary text-primary-content">
                 <Card.Body class="items-center justify-center">
                     <Text weight="bold">1</Text>
@@ -51,13 +51,13 @@ render(<Demo />, "#sandbox");
 
 ## Stacked Images
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Stack } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Stack class="w-48">
+        <Stack width="48">
             <img src="https://img.daisyui.com/images/stock/photo-1572635148818-ef6fd45eb394.webp" alt="Example 1" class="rounded-box" />
             <img src="https://img.daisyui.com/images/stock/photo-1565098772267-60af42b81ef2.webp" alt="Example 2" class="rounded-box" />
             <img src="https://img.daisyui.com/images/stock/photo-1559703248-dcaaec9fab78.webp" alt="Example 3" class="rounded-box" />
@@ -70,7 +70,7 @@ render(<Demo />, "#sandbox");
 
 ## Stacked Cards
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Stack, Card, Text } from '@sigx/daisyui';
 
@@ -105,7 +105,7 @@ Use the `direction` prop to control the alignment of stacked elements.
 
 ### Top Direction
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Stack, Card, Text } from '@sigx/daisyui';
 
@@ -136,7 +136,7 @@ render(<Demo />, "#sandbox");
 
 ### Start Direction
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Stack, Card, Text } from '@sigx/daisyui';
 
@@ -167,7 +167,7 @@ render(<Demo />, "#sandbox");
 
 ### End Direction
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Stack, Card, Text } from '@sigx/daisyui';
 
@@ -200,7 +200,7 @@ render(<Demo />, "#sandbox");
 
 Add shadows to create depth in the stack.
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Stack, Card, Text } from '@sigx/daisyui';
 
@@ -233,7 +233,7 @@ render(<Demo />, "#sandbox");
 
 A practical example showing notification cards in a stack.
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Stack, Card, Text } from '@sigx/daisyui';
 
@@ -270,7 +270,12 @@ render(<Demo />, "#sandbox");
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `direction` | `'top' \| 'bottom' \| 'start' \| 'end'` | `'bottom'` | Alignment direction of the stacked elements |
-| `class` | `string` | - | Additional CSS classes. Use `w-*` and `h-*` to set stack size |
+| `width` | `SizeValue` | - | Stack width — Tailwind step (`"32"`) or unitful value (`"320px"`) |
+| `height` | `SizeValue` | - | Stack height — same value format as `width` |
+| `background` | `BackgroundColor` | - | Theme-aware background |
+| `rounded` | `RadiusValue \| boolean` | - | Corner rounding (theme `box`/`field`/`selector`, or fixed scale) |
+| `padding` | `Spacing` | - | Inner padding |
+| `class` | `string` | - | Additional CSS classes |
 
 ## CSS Classes
 

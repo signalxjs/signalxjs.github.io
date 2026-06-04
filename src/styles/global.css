@@ -10,6 +10,29 @@
    Define keyframes outside layers so they're always available
    ============================================ */
 
+/* @keyframes name-collision guard.
+   Monaco's bundled monaco.min.css defines its own `@keyframes progress`
+   (transform: translate/scaleX). It loads when the Try Live editor opens and,
+   sharing the generic name, overrides daisyUI's `@keyframes progress`
+   (a background-position sweep) globally — flinging indeterminate <progress>
+   bars ~4900% to the right and spawning a runaway horizontal scrollbar that
+   then persists on the inline previews too. Point daisyUI's indeterminate
+   animation at a uniquely-named keyframe so the collision can't hijack it.
+   Unlayered, so it overrides daisyUI's layered `.progress:indeterminate` rule. */
+@keyframes daisyui-progress-indeterminate {
+    50% { background-position-x: -115%; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .progress:indeterminate {
+        animation-name: daisyui-progress-indeterminate;
+    }
+    @supports (-moz-appearance: none) {
+        .progress:indeterminate::-moz-progress-bar {
+            animation-name: daisyui-progress-indeterminate;
+        }
+    }
+}
+
 @keyframes gradient {
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
@@ -293,6 +316,19 @@
         margin: 1.5rem 0;
     }
 
+    /* Live previews can contain popouts (dropdown/tooltip/popover menus) that
+       must escape the window. The rounded-corner overflow:hidden above clips
+       them — in many examples hiding most of the menu. Let the preview window
+       overflow and re-round the header's top corners so the look is preserved
+       (the window's own rounded background still rounds the bottom). */
+    .code-window.code-window-preview {
+        overflow: visible;
+    }
+    .code-window.code-window-preview > .code-window-header {
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+    }
+
     .code-window-header {
         display: flex;
         align-items: center;
@@ -506,8 +542,11 @@
        Uses DaisyUI 5 theme-aware CSS variables for light/dark mode support
        ============================================ */
 
-    /* Default button styling in preview - DaisyUI btn btn-primary btn-sm */
-    .code-window-preview-container button:not([class*="btn"]):not([class*="no-style"]) {
+    /* Default button styling in preview - DaisyUI btn btn-primary btn-sm.
+       :not([class*="tab"]) excludes the Tabs component's button tabs
+       (`<button class="tab">` in the no-content path) so they aren't styled as
+       primary buttons (purple/uppercase) instead of daisyUI tabs. */
+    .code-window-preview-container button:not([class*="btn"]):not([class*="tab"]):not([class*="no-style"]) {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -530,15 +569,15 @@
         white-space: nowrap;
     }
 
-    .code-window-preview-container button:not([class*="btn"]):not([class*="no-style"]):hover {
+    .code-window-preview-container button:not([class*="btn"]):not([class*="tab"]):not([class*="no-style"]):hover {
         background-color: color-mix(in oklch, var(--color-primary) 85%, black);
     }
 
-    .code-window-preview-container button:not([class*="btn"]):not([class*="no-style"]):active {
+    .code-window-preview-container button:not([class*="btn"]):not([class*="tab"]):not([class*="no-style"]):active {
         transform: scale(0.97);
     }
 
-    .code-window-preview-container button:not([class*="btn"]):not([class*="no-style"]):disabled {
+    .code-window-preview-container button:not([class*="btn"]):not([class*="tab"]):not([class*="no-style"]):disabled {
         opacity: 0.5;
         cursor: not-allowed;
     }
@@ -563,8 +602,10 @@
         box-shadow: 0 0 0 2px color-mix(in oklch, var(--color-primary) 20%, transparent);
     }
 
-    /* Checkbox styling in preview */
-    .code-window-preview-container input[type="checkbox"]:not([class*="checkbox"]):not([class*="toggle"]):not([class*="no-style"]) {
+    /* Checkbox styling in preview.
+       :not(.swap *) excludes component-internal checkboxes (e.g. Swap's hidden
+       toggle input) that must stay invisible — styling them paints a stray box. */
+    .code-window-preview-container input[type="checkbox"]:not([class*="checkbox"]):not([class*="toggle"]):not([class*="no-style"]):not(.swap *) {
         appearance: none;
         width: 1.25rem;
         height: 1.25rem;
@@ -576,12 +617,12 @@
         position: relative;
     }
 
-    .code-window-preview-container input[type="checkbox"]:not([class*="checkbox"]):not([class*="toggle"]):not([class*="no-style"]):checked {
+    .code-window-preview-container input[type="checkbox"]:not([class*="checkbox"]):not([class*="toggle"]):not([class*="no-style"]):not(.swap *):checked {
         background-color: var(--color-primary);
         border-color: var(--color-primary);
     }
 
-    .code-window-preview-container input[type="checkbox"]:not([class*="checkbox"]):not([class*="toggle"]):not([class*="no-style"]):checked::after {
+    .code-window-preview-container input[type="checkbox"]:not([class*="checkbox"]):not([class*="toggle"]):not([class*="no-style"]):not(.swap *):checked::after {
         content: "✓";
         position: absolute;
         top: 50%;
@@ -592,8 +633,11 @@
         font-weight: bold;
     }
 
-    /* Radio styling in preview */
-    .code-window-preview-container input[type="radio"]:not([class*="radio"]):not([class*="no-style"]) {
+    /* Radio styling in preview.
+       :not([class*="tab"]) excludes the Tabs component's internal radio inputs
+       (`<input class="tab">`), which daisyUI styles as tabs — form-radio styling
+       would give inactive tabs a base-100 fill and make every tab look boxed. */
+    .code-window-preview-container input[type="radio"]:not([class*="radio"]):not([class*="tab"]):not([class*="no-style"]) {
         appearance: none;
         width: 1.25rem;
         height: 1.25rem;
@@ -604,7 +648,7 @@
         transition: all 0.2s ease;
     }
 
-    .code-window-preview-container input[type="radio"]:not([class*="radio"]):not([class*="no-style"]):checked {
+    .code-window-preview-container input[type="radio"]:not([class*="radio"]):not([class*="tab"]):not([class*="no-style"]):checked {
         border-color: var(--color-primary);
         border-width: 5px;
     }
@@ -875,8 +919,13 @@
        Scoped to article.prose (docs content only)
        ============================================ */
 
-    /* H1 - Primary accent color, prominent title */
-    article.prose h1 {
+    /* H1 - Primary accent color, prominent title.
+       :not(.live-preview-island *) keeps these doc-prose styles from leaking
+       into rendered component demos (live-code islands), which emit real
+       h1-h6 tags that should display with their own component classes.
+       :not(.not-prose *) does the same for any explicitly opted-out block
+       (e.g. the theme-generator's `card-title` <h2>s). */
+    article.prose h1:not(.live-preview-island *):not(.not-prose *) {
         font-size: 2.25rem;
         line-height: 2.5rem;
         font-weight: 800;
@@ -888,7 +937,7 @@
     }
 
     /* H2 - Section headers with clear hierarchy */
-    article.prose h2 {
+    article.prose h2:not(.live-preview-island *):not(.not-prose *) {
         font-size: 1.5rem;
         line-height: 2rem;
         font-weight: 700;
@@ -901,7 +950,7 @@
     }
 
     /* H3 - Subsection headers */
-    article.prose h3 {
+    article.prose h3:not(.live-preview-island *):not(.not-prose *) {
         font-size: 1.25rem;
         line-height: 1.75rem;
         font-weight: 600;
@@ -914,7 +963,7 @@
     }
 
     /* H4 - Minor headers */
-    article.prose h4 {
+    article.prose h4:not(.live-preview-island *):not(.not-prose *) {
         font-size: 1.125rem;
         line-height: 1.75rem;
         font-weight: 600;
@@ -1073,20 +1122,24 @@
        PROSE LISTS - Clean minimal styling
        ============================================ */
 
-    article.prose ul {
+    /* :not(.live-preview-island *) keeps these doc-prose list styles from
+       leaking into rendered component demos — e.g. a dropdown's
+       <ul class="menu dropdown-content"> was getting prose's 1.25rem top margin
+       (pushing the menu down) and padding-left (overriding its own p-2). */
+    article.prose ul:not(.live-preview-island *) {
         list-style: none;
         padding-left: 1.25rem;
         margin: 1.25rem 0;
     }
 
-    article.prose ul li {
+    article.prose ul li:not(.live-preview-island *) {
         position: relative;
         margin-bottom: 0.5rem;
         line-height: 1.7;
         @apply text-base-content;
     }
 
-    article.prose ul ul {
+    article.prose ul ul:not(.live-preview-island *) {
         margin: 0.5rem 0;
     }
 

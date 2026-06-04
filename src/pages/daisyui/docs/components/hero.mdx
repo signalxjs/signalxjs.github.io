@@ -18,14 +18,14 @@ import { Hero, HeroContent, Text } from '@sigx/daisyui';
 
 ## Basic Hero
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Hero, HeroContent, Button, Card, Col, Heading, Text } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
         <Card>
-            <Hero minHeight="400px" class="bg-base-200">
+            <Hero minHeight="400px" background="base-200">
                 <HeroContent>
                     <Col gap="6" align="center">
                         <Heading level={1} size="5xl">Hello there</Heading>
@@ -47,14 +47,14 @@ render(<Demo />, "#sandbox");
 
 ### Image on Side
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Hero, HeroContent, Button, Card, Col, Row, Heading, Text } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
         <Card>
-            <Hero minHeight="400px" class="bg-base-200">
+            <Hero minHeight="400px" background="base-200">
                 <HeroContent>
                     <Row gap="8" wrap align="center" justify="center">
                         <Card.Image
@@ -81,7 +81,7 @@ render(<Demo />, "#sandbox");
 
 ## Hero with Overlay
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Hero, HeroContent, Button, Card, Col, Heading, Text } from '@sigx/daisyui';
 
@@ -112,7 +112,7 @@ render(<Demo />, "#sandbox");
 
 ## Hero with Form
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Hero, HeroContent, Button, Card, Input, FormField, Col, Row, Heading, Text } from '@sigx/daisyui';
 
@@ -121,7 +121,7 @@ const Demo = component(({ signal }) => {
     
     return () => (
         <Card>
-            <Hero minHeight="400px" class="bg-base-200">
+            <Hero minHeight="400px" background="base-200">
                 <HeroContent>
                     <Row gap="8" wrap align="center" justify="center">
                         <Col gap="6" maxWidth="24rem" align="center">
@@ -130,7 +130,7 @@ const Demo = component(({ signal }) => {
                                 Sign up to get exclusive access to our newsletter and early product announcements.
                             </Text>
                         </Col>
-                        <Card class="w-full max-w-sm" shadow="xl" bgColor="bg-base-100">
+                        <Card width="full" shadow="xl" background="base-100" class="max-w-sm">
                             <Card.Body>
                                 <Col gap="6">
                                     <FormField label="Email">
@@ -156,7 +156,7 @@ render(<Demo />, "#sandbox");
 
 ## Hero with Stats
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Hero, HeroContent, Button, Card, Badge, Col, Row, Heading, Stats, Text } from '@sigx/daisyui';
 
@@ -196,7 +196,7 @@ render(<Demo />, "#sandbox");
 
 ## Hero with Features
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Hero, HeroContent, Button, Card, Col, Heading, Row, Text } from '@sigx/daisyui';
 
@@ -209,7 +209,7 @@ const Demo = component(() => {
     
     return () => (
         <Card>
-            <Hero minHeight="500px" class="bg-base-200">
+            <Hero minHeight="500px" background="base-200">
                 <HeroContent>
                     <Col gap="8" align="center" maxWidth="56rem">
                         <Col gap="4" align="center">
@@ -221,7 +221,7 @@ const Demo = component(() => {
                     
                         <Row gap="6" wrap justify="center">
                             {features.map(feature => (
-                                <Card bgColor="bg-base-100" class="w-72">
+                                <Card background="base-100" width="72">
                                     <Card.Body center>
                                         <Text as="span" size="4xl">{feature.icon}</Text>
                                         <Heading level={3} size="xl">{feature.title}</Heading>
@@ -261,6 +261,11 @@ These are tracked as migration gap candidates for Milestone 5.
 | `overlay` | `boolean` | `false` | Show hero overlay |
 | `bgImage` | `string` | - | Background image URL |
 | `minHeight` | `string` | - | Minimum height (e.g., `'400px'`) |
+| `background` | `BackgroundColor` | - | Theme-aware background, e.g. `"base-200"` |
+| `rounded` | `RadiusValue \| boolean` | - | Corner rounding (`true` → theme `rounded-box`) |
+| `width` | `SizeValue` | - | Width — Tailwind step or unitful value |
+| `height` | `SizeValue` | - | Height — same value format as `width` |
+| `padding` | `Spacing` | - | Inner padding |
 | `class` | `string` | - | Additional CSS classes |
 
 ### Hero Slots

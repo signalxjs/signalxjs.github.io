@@ -10,6 +10,8 @@ order: 465
 
 Toast is a container for positioning alert notifications at the edges of the page.
 
+> A `Toast` is `position: fixed` to a corner of the **viewport**. The previews below wrap each example in a bordered box that acts as the positioning context, so the toasts stay inside their example instead of stacking in the page corner — in your app, drop the wrapper and the toast will anchor to the viewport.
+
 ## Import
 
 ```tsx
@@ -18,15 +20,17 @@ import { Toast, Alert } from '@sigx/daisyui';
 
 ## Basic Usage
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
-import { Toast, Alert } from '@sigx/daisyui';
+import { Toast, Alert, Col } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Toast position="bottom-end">
-            <Alert variant="info">New message arrived.</Alert>
-        </Toast>
+        <Col width="full" minHeight="140px" background="base-200" rounded class="border border-base-content/20 overflow-hidden [transform:translateZ(0)]">
+            <Toast position="bottom-end">
+                <Alert variant="info">New message arrived.</Alert>
+            </Toast>
+        </Col>
     );
 });
 
@@ -35,13 +39,13 @@ render(<Demo />, "#sandbox");
 
 ## Top Positions
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Toast, Alert, Col } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Col gap="4" class="relative min-h-[200px] w-full">
+        <Col width="full" minHeight="180px" background="base-200" rounded class="border border-base-content/20 overflow-hidden [transform:translateZ(0)]">
             <Toast position="top-start">
                 <Alert variant="info">Top start</Alert>
             </Toast>
@@ -60,13 +64,13 @@ render(<Demo />, "#sandbox");
 
 ## Middle Positions
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Toast, Alert, Col } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Col gap="4" class="relative min-h-[200px] w-full">
+        <Col width="full" minHeight="180px" background="base-200" rounded class="border border-base-content/20 overflow-hidden [transform:translateZ(0)]">
             <Toast position="middle-start">
                 <Alert variant="info">Middle start</Alert>
             </Toast>
@@ -85,13 +89,13 @@ render(<Demo />, "#sandbox");
 
 ## Bottom Positions
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Toast, Alert, Col } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Col gap="4" class="relative min-h-[200px] w-full">
+        <Col width="full" minHeight="180px" background="base-200" rounded class="border border-base-content/20 overflow-hidden [transform:translateZ(0)]">
             <Toast position="bottom-start">
                 <Alert variant="info">Bottom start</Alert>
             </Toast>
@@ -110,17 +114,19 @@ render(<Demo />, "#sandbox");
 
 ## Multiple Alerts
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
-import { Toast, Alert } from '@sigx/daisyui';
+import { Toast, Alert, Col } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Toast position="bottom-end">
-            <Alert variant="info">New mail arrived.</Alert>
-            <Alert variant="success">Message sent successfully.</Alert>
-            <Alert variant="warning">Connection is slow.</Alert>
-        </Toast>
+        <Col width="full" minHeight="200px" background="base-200" rounded class="border border-base-content/20 overflow-hidden [transform:translateZ(0)]">
+            <Toast position="bottom-end">
+                <Alert variant="info">New mail arrived.</Alert>
+                <Alert variant="success">Message sent successfully.</Alert>
+                <Alert variant="warning">Connection is slow.</Alert>
+            </Toast>
+        </Col>
     );
 });
 
@@ -129,15 +135,50 @@ render(<Demo />, "#sandbox");
 
 ## With Custom Class
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
-import { Toast, Alert } from '@sigx/daisyui';
+import { Toast, Alert, Col } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Toast position="top-end" class="z-50">
-            <Alert variant="error">Something went wrong!</Alert>
-        </Toast>
+        <Col width="full" minHeight="140px" background="base-200" rounded class="border border-base-content/20 overflow-hidden [transform:translateZ(0)]">
+            <Toast position="top-end" class="z-50">
+                <Alert variant="error">Something went wrong!</Alert>
+            </Toast>
+        </Col>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Interactive (Trigger on Click)
+
+Toasts are usually shown in response to an action and dismissed after a delay. Click the button to show one:
+
+```tsx preview code live
+import { component, render, signal } from 'sigx';
+import { Toast, Alert, Button, Col } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    const visible = signal(false);
+    let timer;
+
+    const showToast = () => {
+        visible.value = true;
+        clearTimeout(timer);
+        timer = setTimeout(() => { visible.value = false; }, 3000);
+    };
+
+    return () => (
+        <Col width="full" minHeight="160px" align="start" padding="4" background="base-200" rounded class="border border-base-content/20 overflow-hidden [transform:translateZ(0)]">
+            <Button variant="primary" onClick={showToast}>Show toast</Button>
+            {visible.value && (
+                <Toast position="bottom-end">
+                    <Alert variant="success">Saved successfully!</Alert>
+                </Toast>
+            )}
+        </Col>
     );
 });
 
