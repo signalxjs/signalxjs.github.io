@@ -18,7 +18,7 @@ import { Progress } from '@sigx/daisyui';
 
 ## Basic Usage
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Progress } from '@sigx/daisyui';
 
@@ -33,13 +33,13 @@ render(<Demo />, "#sandbox");
 
 ## Colors
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
-import { Progress, Stack } from '@sigx/daisyui';
+import { Progress, Col } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Stack gap="2">
+        <Col gap="2">
             <Progress value={20} color="primary" class="w-56" />
             <Progress value={30} color="secondary" class="w-56" />
             <Progress value={40} color="accent" class="w-56" />
@@ -48,7 +48,7 @@ const Demo = component(() => {
             <Progress value={70} color="success" class="w-56" />
             <Progress value={80} color="warning" class="w-56" />
             <Progress value={90} color="error" class="w-56" />
-        </Stack>
+        </Col>
     );
 });
 
@@ -59,16 +59,16 @@ render(<Demo />, "#sandbox");
 
 Omit the `value` prop for an indeterminate (animated) progress bar.
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
-import { Progress, Stack } from '@sigx/daisyui';
+import { Progress, Col } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Stack gap="2">
+        <Col gap="2">
             <Progress class="w-56" />
             <Progress color="primary" class="w-56" />
-        </Stack>
+        </Col>
     );
 });
 
@@ -77,19 +77,19 @@ render(<Demo />, "#sandbox");
 
 ## Different Values
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
-import { Progress, Stack } from '@sigx/daisyui';
+import { Progress, Col } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Stack gap="2">
+        <Col gap="2">
             <Progress value={0} class="w-56" />
             <Progress value={10} class="w-56" />
             <Progress value={40} class="w-56" />
             <Progress value={70} class="w-56" />
             <Progress value={100} class="w-56" />
-        </Stack>
+        </Col>
     );
 });
 
@@ -100,16 +100,16 @@ render(<Demo />, "#sandbox");
 
 Use the `max` prop to set a custom maximum value.
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
-import { Progress, Stack } from '@sigx/daisyui';
+import { Progress, Col } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Stack gap="2">
+        <Col gap="2">
             <Progress value={3} max={10} color="primary" class="w-56" />
             <Progress value={7} max={10} color="secondary" class="w-56" />
-        </Stack>
+        </Col>
     );
 });
 
@@ -120,7 +120,7 @@ render(<Demo />, "#sandbox");
 
 Use `class="w-full"` for a full-width progress bar.
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Progress } from '@sigx/daisyui';
 

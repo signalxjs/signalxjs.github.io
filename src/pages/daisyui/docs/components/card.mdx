@@ -24,7 +24,7 @@ import { Card, Button, Text } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Card class="w-80">
+        <Card width="80">
             <Card.Body>
                 <Card.Title>Card Title</Card.Title>
                 <Text as="p">This is a basic card with some content.</Text>
@@ -47,7 +47,7 @@ import { Card, Button, Text } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Card class="w-80">
+        <Card width="80">
             <Card.Image 
                 src="https://picsum.photos/400/200" 
                 alt="Random image"
@@ -77,7 +77,7 @@ import { Card, Text } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Card bordered class="w-80">
+        <Card bordered width="80">
             <Card.Body>
                 <Card.Title>Bordered Card</Card.Title>
                 <Text as="p">This card has a visible border.</Text>
@@ -97,7 +97,7 @@ import { Card, Text } from '@sigx/daisyui';
 
 const Demo = component(() => {
     return () => (
-        <Card variant="compact" class="w-80">
+        <Card variant="compact" width="80">
             <Card.Body>
                 <Card.Title>Compact Card</Card.Title>
                 <Text as="p">Less padding for compact layouts.</Text>
@@ -125,7 +125,7 @@ const Demo = component(() => {
     return () => (
         <Row gap="4" wrap>
             {items.map(item => (
-                <Card bordered class="w-72">
+                <Card bordered width="72">
                     <Card.Body>
                         <Col gap="3">
                             <Card.Title>{item.title}</Card.Title>
@@ -155,7 +155,12 @@ render(<Demo />, "#sandbox");
 | `bordered` | `boolean` | `false` | Add border style (`card-bordered`) |
 | `glass` | `boolean` | `false` | Glassmorphism style |
 | `imageFull` | `boolean` | `false` | Full-image overlay style |
-| `bgColor` | `string` | `'bg-base-100'` | Background utility class |
+| `bgColor` | `string` | `'bg-base-100'` | **Deprecated** — prefer `background`. Raw bg utility class |
+| `background` | `BackgroundColor` | - | Theme-aware background, e.g. `"base-200"` |
+| `rounded` | `RadiusValue \| boolean` | - | Corner rounding (`true` → theme `rounded-box`) |
+| `width` | `SizeValue` | - | Tailwind step (`"56"`=14rem/224px) or unitful value (`"560px"`, `"50%"`) |
+| `height` | `SizeValue` | - | Same value format as `width` |
+| `padding` | `Spacing` | - | Inner padding |
 | `class` | `string` | `undefined` | Additional CSS classes |
 
 ### Card.Body Props

@@ -154,7 +154,9 @@ render(<Demo />, "#sandbox");
 
 ## Without Backdrop
 
-Disable the backdrop to prevent closing by clicking outside.
+Set `backdrop={false}` to drop the dimming backdrop. The modal opens
+non-modally, so the rest of the page stays interactive — close it with the
+button or <kbd>Esc</kbd> (clicking outside does nothing).
 
 ```tsx preview code live
 import { component, render, signal } from 'sigx';
@@ -188,7 +190,12 @@ render(<Demo />, "#sandbox");
 | `model` | `Signal<boolean>` | `undefined` | Two-way binding for open/close state |
 | `position` | `'top' \| 'middle' \| 'bottom'` | `undefined` | Vertical position of the modal |
 | `align` | `'start' \| 'end'` | `undefined` | Horizontal alignment of the modal |
-| `backdrop` | `boolean` | `true` | Whether to show a clickable backdrop to close the modal |
+| `backdrop` | `boolean` | `true` | Show a dimming, click-to-close backdrop. `false` opens the modal non-modally (no dim, page stays interactive; close via button/Esc) |
+| `background` | `BackgroundColor` | - | Modal-box background |
+| `rounded` | `RadiusValue \| boolean` | - | Modal-box rounding (`true` → theme `rounded-box`) |
+| `width` | `SizeValue` | - | Modal-box width — Tailwind step or unitful value (`"560px"`, `"50%"`) |
+| `height` | `SizeValue` | - | Modal-box height — same value format as `width` |
+| `padding` | `Spacing` | - | Modal-box padding |
 | `class` | `string` | `undefined` | Additional CSS classes applied to the modal-box |
 
 ## Sub-components

@@ -62,14 +62,14 @@ export const HeroSection = component(({ signal }) => {
                             deletingSpeed={40}
                             pauseDuration={2500}
                         />
-                        {' '}Web Framework
+                        {' '}App Framework
                     </p>
                 </ScrollReveal>
 
                 {/* Description */}
                 <ScrollReveal animation="fade-up" delay={300}>
                     <p class="text-lg md:text-xl text-base-content/50 max-w-3xl mx-auto mb-12 leading-relaxed">
-                        Build blazing-fast web applications with fine-grained reactivity,
+                        Build blazing-fast applications with fine-grained reactivity,
                         minimal bundle size, and an intuitive developer experience.
                         <span class="text-primary font-semibold"> Pure signals. Pure performance.</span>
                     </p>

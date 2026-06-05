@@ -18,7 +18,7 @@ import { Carousel, CarouselItem } from '@sigx/daisyui';
 
 ## Basic Carousel
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Carousel, CarouselItem, Card, Text } from '@sigx/daisyui';
 
@@ -48,7 +48,7 @@ render(<Demo />, "#sandbox");
 
 ## Carousel with Navigation
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Carousel, CarouselItem, Card, Button, Row, Heading } from '@sigx/daisyui';
 
@@ -102,7 +102,7 @@ render(<Demo />, "#sandbox");
 
 ## Full-bleed Carousel
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Carousel, CarouselItem, Card, Heading } from '@sigx/daisyui';
 
@@ -136,7 +136,7 @@ render(<Demo />, "#sandbox");
 
 ## Carousel with Half-width Items
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Carousel, CarouselItem, Card, Text, Heading } from '@sigx/daisyui';
 
@@ -177,7 +177,7 @@ render(<Demo />, "#sandbox");
 
 ## Vertical Carousel
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Carousel, CarouselItem, Card, Heading } from '@sigx/daisyui';
 
@@ -210,7 +210,7 @@ render(<Demo />, "#sandbox");
 
 ## Center Snap
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Carousel, CarouselItem, Card, Heading } from '@sigx/daisyui';
 
@@ -241,7 +241,7 @@ render(<Demo />, "#sandbox");
 
 ## Carousel with Indicators
 
-```tsx live preview
+```tsx preview code live
 import { component, render } from 'sigx';
 import { Carousel, CarouselItem, Card, Row, Button, Heading } from '@sigx/daisyui';
 
@@ -285,8 +285,8 @@ render(<Demo />, "#sandbox");
 
 ## Auto-play Carousel
 
-```tsx live preview
-import { component, render, onMount, onUnmount } from 'sigx';
+```tsx preview code live
+import { component, render, onMounted, onUnmounted } from 'sigx';
 import { Carousel, CarouselItem, Card, Button, Badge, Row, Text } from '@sigx/daisyui';
 
 const Demo = component(({ signal }) => {
@@ -317,8 +317,8 @@ const Demo = component(({ signal }) => {
         if (intervalId) clearInterval(intervalId);
     };
     
-    onMount(() => startAutoplay());
-    onUnmount(() => stopAutoplay());
+    onMounted(() => startAutoplay());
+    onUnmounted(() => stopAutoplay());
     
     const togglePlay = () => {
         state.playing = !state.playing;

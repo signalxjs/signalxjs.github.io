@@ -20,7 +20,7 @@ import { Tabs, Row, Col } from '@sigx/daisyui';
 
 Simple tabs without content panels - just tab buttons:
 
-```tsx live preview
+```tsx preview code live
 import { component, signal, render } from 'sigx';
 import { Tabs } from '@sigx/daisyui';
 
@@ -49,7 +49,7 @@ render(<Demo />, "#sandbox");
 
 When tabs include a `content` property, the component uses DaisyUI's native radio input pattern for seamless content switching:
 
-```tsx live preview
+```tsx preview code live
 import { component, signal, render } from 'sigx';
 import { Tabs } from '@sigx/daisyui';
 
@@ -79,7 +79,7 @@ render(<Demo />, "#sandbox");
 
 ### Box
 
-```tsx live preview
+```tsx preview code live
 import { component, signal, render } from 'sigx';
 import { Tabs } from '@sigx/daisyui';
 
@@ -107,7 +107,7 @@ render(<Demo />, "#sandbox");
 
 ### Border
 
-```tsx live preview
+```tsx preview code live
 import { component, signal, render } from 'sigx';
 import { Tabs } from '@sigx/daisyui';
 
@@ -135,7 +135,7 @@ render(<Demo />, "#sandbox");
 
 ### Lift
 
-```tsx live preview
+```tsx preview code live
 import { component, signal, render } from 'sigx';
 import { Tabs } from '@sigx/daisyui';
 
@@ -165,7 +165,7 @@ render(<Demo />, "#sandbox");
 
 Tab content can include JSX elements and SignalX components:
 
-```tsx live preview
+```tsx preview code live
 import { component, signal, render } from 'sigx';
 import { Tabs, Button, Badge, Row, Col, Heading, Text, Card } from '@sigx/daisyui';
 const Demo = component(() => {
@@ -226,7 +226,7 @@ render(<Demo />, "#sandbox");
 
 ## Sizes
 
-```tsx live preview
+```tsx preview code live
 import { component, signal, render } from 'sigx';
 import { Tabs, Text, Col, Card } from '@sigx/daisyui';
 const Demo = component(() => {
@@ -278,7 +278,7 @@ render(<Demo />, "#sandbox");
 
 ## Disabled Tabs
 
-```tsx live preview
+```tsx preview code live
 import { component, signal, render } from 'sigx';
 import { Tabs } from '@sigx/daisyui';
 
@@ -315,7 +315,11 @@ render(<Demo />, "#sandbox");
 | `size` | `'xs' \| 'sm' \| 'md' \| 'lg' \| 'xl'` | `'md'` | Tab size |
 | `position` | `'top' \| 'bottom'` | `'top'` | Position of tabs relative to content |
 | `contentClass` | `string` | `undefined` | Additional CSS classes for tab content panels |
-| `class` | `string` | `undefined` | Additional CSS classes for the tabs container |
+| `background` | `BackgroundColor` | - | Content panel background (overrides default `bg-base-100`) |
+| `rounded` | `RadiusValue \| boolean` | - | Content panel rounding |
+| `width` | `SizeValue` | - | Content panel width — Tailwind step or unitful value |
+| `padding` | `Spacing` | - | Content panel padding (overrides default `p-6`) |
+| `class` | `string` | `undefined` | Additional CSS classes for the tabs container (root) |
 
 ### Tab Object
 
