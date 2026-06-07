@@ -24,7 +24,7 @@ export default defineSSGConfig({
         description: 'A lightweight reactive component framework',
         // origin only — the SSG appends Vite's `base` for sitemap and
         // canonical URLs, so site.url must NOT include it.
-        url: 'https://signalxjs.github.io',
+        url: 'https://sigx.dev',
         favicon: '/sigx.png',
         themeColor: '#000000',
         fonts: [
@@ -32,7 +32,7 @@ export default defineSSGConfig({
             'JetBrains+Mono:wght@400;500',
         ],
         // OG/Twitter support
-        ogImage: 'https://signalxjs.github.io/og-image.png',
+        ogImage: 'https://sigx.dev/og-image.png',
         twitter: 'signalxjs',
     },
     

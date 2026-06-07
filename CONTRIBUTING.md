@@ -1,6 +1,6 @@
 # Contributing to the SignalX docs
 
-Thanks for your interest! This repo holds the source for <https://signalxjs.github.io/> — the documentation site for [SignalX](https://github.com/signalxjs/core). Other SignalX packages (router, store, UI kit, SSG, live-code, monaco-editor) live in their own repositories under [`signalxjs`](https://github.com/signalxjs).
+Thanks for your interest! This repo holds the source for <https://sigx.dev/> — the documentation site for [SignalX](https://github.com/signalxjs/core). Other SignalX packages (router, store, UI kit, SSG, live-code, monaco-editor) live in their own repositories under [`signalxjs`](https://github.com/signalxjs).
 
 This is **not** a published npm package — it's a static site built with [`@sigx/ssg`](https://www.npmjs.com/package/@sigx/ssg) and deployed to GitHub Pages on every push to `main`.
 
