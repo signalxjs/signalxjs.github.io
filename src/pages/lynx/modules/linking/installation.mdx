@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Linking — Deep links & URL schemes"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-linking` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-linking
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Linking from '@sigx/lynx-linking';
+
+console.log(Object.keys(Linking));
+```

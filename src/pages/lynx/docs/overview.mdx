@@ -1,0 +1,28 @@
+---
+title: Overview
+description: SignalX Lynx — write one component tree, render real native views on iOS and Android
+layout: docs
+category: Getting Started
+order: 10
+---
+
+# SignalX on Lynx
+
+<p class="lede">Write one SignalX component tree, render it to real native views on iOS and Android — no webview, no diffing, the same signals you already use on the web.</p>
+
+`@sigx/lynx` brings the SignalX component model to [Lynx](https://lynxjs.org), ByteDance's cross-platform native rendering engine. Your components run on a background thread; fine-grained signal updates stream to the main thread as a compact op queue, so only the native views that read a changed signal update.
+
+## Why Lynx
+
+- **Real native views** — components render to UIView / Android View, not DOM in a webview.
+- **Fine-grained updates** — no virtual-DOM diff; a changed signal patches exactly the views that read it.
+- **One toolchain** — the same CLI, Vite-style DX and devtools as SignalX on the web.
+- **A module family** — 32 lockstep-versioned `@sigx/lynx-*` packages: navigation, gestures, motion, a DaisyUI component library and every native API you need.
+
+## The package family
+
+`@sigx/lynx` is a collection: the framework barrel plus sub-packages that each ship their own docs. Browse the [module catalog](/lynx/modules) or jump straight to a favorite — [Navigation](/lynx/modules/navigation/overview), [DaisyUI](/lynx/modules/daisyui/overview), [Gestures](/lynx/modules/gestures/overview), [Motion](/lynx/modules/motion/overview).
+
+## Next steps
+
+Head to [Installation](/lynx/docs/installation), then build [your first app](/lynx/docs/your-first-app).

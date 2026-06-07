@@ -13,7 +13,9 @@ import { component, onMounted, onUnmounted, type Define } from 'sigx';
 import { ThemeToggle } from '@sigx/daisyui';
 import { useRoute } from '@sigx/router';
 import { detectCollection } from 'virtual:ssg-navigation';
-import { byId, packageForCollection } from '@/lib/family';
+import { byId, moduleForCollection, packageForCollection } from '@/lib/family';
+import { moduleRoutePrefix } from '@/lib/modules';
+import { apiHref, docsHref } from '@/lib/packageLinks';
 import { FamilyMenu } from '@/components/FamilyMenu';
 import { Icon } from '@/components/ui/Icon';
 import { Kbd } from '@/components/ui/Kbd';
@@ -43,6 +45,11 @@ export const Navbar = component<NavbarProps>(({ props, signal, emit }) => {
 
     return () => {
         const pkg = currentPkg();
+        // API is package-local: the current package's reference, or — inside
+        // a sub-package's docs — that module's own API page. No collection,
+        // no link: jumping to another package's API would just mislead.
+        const mod = moduleForCollection(detectCollection(route.path));
+        const api = apiHref(pkg.id) ?? (mod ? `${moduleRoutePrefix(mod)}/api` : undefined);
         return (
             <header class="topbar">
                 <div class="topbar-left">
@@ -76,20 +83,24 @@ export const Navbar = component<NavbarProps>(({ props, signal, emit }) => {
                 </div>
 
                 <nav class="topbar-nav">
+                    {/* Docs/API follow the package you're in; packages without
+                        their own collection yet fall back to core's. */}
                     <SxLink
-                        to="/core/docs/getting-started"
+                        to={docsHref(pkg.id) ?? docsHref('core') ?? '/core/docs/getting-started'}
                         class="nav-link"
-                        active={/^\/[^/]+\/docs(\/|$)/.test(route.path)}
+                        active={/^\/[^/]+\/docs(\/|$)|^\/lynx\/modules\/.|^\/core\/packages\/./.test(route.path)}
                     >
                         Docs
                     </SxLink>
-                    <SxLink
-                        to="/core/api"
-                        class="nav-link"
-                        active={/^\/[^/]+\/api(\/|$)/.test(route.path)}
-                    >
-                        API
-                    </SxLink>
+                    {api && (
+                        <SxLink
+                            to={api}
+                            class="nav-link"
+                            active={/^\/[^/]+\/api(\/|$)|\/(modules|packages)\/[^/]+\/api(\/|$)/.test(route.path)}
+                        >
+                            API
+                        </SxLink>
+                    )}
                     <SxLink to="/examples" class="nav-link" active={route.path === '/examples'}>
                         Examples
                     </SxLink>

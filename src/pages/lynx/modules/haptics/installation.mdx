@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Haptics — Haptic feedback"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-haptics` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-haptics
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Haptics from '@sigx/lynx-haptics';
+
+console.log(Object.keys(Haptics));
+```

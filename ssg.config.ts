@@ -1,4 +1,21 @@
 import { defineSSGConfig } from '@sigx/ssg';
+// NOTE: explicit .ts extension — the SSG loads this config by transpiling it
+// to a temp .mjs and resolving imports with plain Node ESM (Node ≥22.18
+// type-strips the .ts import; the registry must stay dependency-free).
+import { MODULES, moduleDocsCollection, moduleRoutePrefix } from './src/lib/modules.ts';
+
+/**
+ * Sub-package docs collections, generated from the module registry —
+ * one `lynx-mod-<id>-docs` / `core-pkg-<id>-docs` collection per module
+ * (alias entries are documented by their top-level package and skipped).
+ * MDX stubs are scaffolded by `pnpm gen:modules`.
+ */
+const moduleCollections = Object.fromEntries(
+    MODULES.flatMap((m) => {
+        const name = moduleDocsCollection(m);
+        return name ? [[name, { path: moduleRoutePrefix(m), showDrafts: 'dev' as const }]] : [];
+    }),
+);
 
 export default defineSSGConfig({
     // Pages directory
@@ -77,6 +94,13 @@ export default defineSSGConfig({
             path: '/daisyui/api',
             showDrafts: 'dev',
         },
+        // Lynx package (collection meta-package — its modules follow)
+        'lynx-docs': {
+            path: '/lynx/docs',
+            showDrafts: 'dev',
+        },
+        // Sub-package collections (32 lynx modules + core repo packages)
+        ...moduleCollections,
     },
 
     // Navigation configuration

@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Share — Native share sheet"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-share` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-share
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Share from '@sigx/lynx-share';
+
+console.log(Object.keys(Share));
+```

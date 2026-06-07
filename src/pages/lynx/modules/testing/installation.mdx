@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Testing — Component testing"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-testing` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-testing
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Testing from '@sigx/lynx-testing';
+
+console.log(Object.keys(Testing));
+```

@@ -6,94 +6,10 @@ category: Core Concepts
 order: 20
 ---
 
-import { Card, Col, Heading, Row, Text } from '@sigx/daisyui';
-import { RouterLink } from '@sigx/router';
+import { ComponentCatalog } from '@/components/ComponentCatalog';
 
 # Components
 
-SignalX DaisyUI provides a comprehensive set of UI components organized by category. All form components support the **model binding pattern** for seamless two-way data synchronization.
+<p class="lede">Every component in @sigx/daisyui, by category. All form components support the <strong>model binding pattern</strong> for two-way data synchronization.</p>
 
-{(() => {
-    const sections = [
-        {
-            title: 'Actions',
-            description: 'Interactive elements for user actions.',
-            items: [
-                { to: '/daisyui/docs/components/button', name: 'Button', description: 'Clickable buttons with variants, sizes, and states' },
-                { to: '/daisyui/docs/components/swap', name: 'Swap', description: 'Toggle between two content states with animation' },
-            ],
-        },
-        {
-            title: 'Forms',
-            description: 'Input components with model binding for two-way data sync.',
-            items: [
-                { to: '/daisyui/docs/components/input', name: 'Input & Forms', description: 'Input, Textarea, Select, Checkbox, Toggle, Radio, Range' },
-                { to: '/daisyui/docs/components/file-input', name: 'File Input', description: 'File upload with model binding and previews' },
-                { to: '/daisyui/docs/components/rating', name: 'Rating', description: 'Star ratings with model binding and half-star support' },
-            ],
-        },
-        {
-            title: 'Layout',
-            description: 'Components for structuring page content.',
-            items: [
-                { to: '/daisyui/docs/components/card', name: 'Card', description: 'Flexible container for grouping content' },
-                { to: '/daisyui/docs/components/hero', name: 'Hero', description: 'Hero sections for landing pages and headers' },
-                { to: '/daisyui/docs/components/accordion', name: 'Accordion & Collapse', description: 'Collapsible content sections with model binding' },
-                { to: '/daisyui/docs/components/carousel', name: 'Carousel', description: 'Sliding content with navigation' },
-            ],
-        },
-        {
-            title: 'Feedback',
-            description: 'Components for user notifications and feedback.',
-            items: [
-                { to: '/daisyui/docs/components/modal', name: 'Modal', description: 'Dialog overlay with model binding' },
-                { to: '/daisyui/docs/components/toast', name: 'Toast & Alert', description: 'Notifications and feedback messages' },
-                { to: '/daisyui/docs/components/skeleton', name: 'Skeleton & Loading', description: 'Loading placeholders and spinners' },
-                { to: '/daisyui/docs/components/indicator', name: 'Badge & Indicator', description: 'Labels, counts, and status indicators' },
-                { to: '/daisyui/docs/components/steps', name: 'Steps & Timeline', description: 'Progress steps and timeline displays' },
-                { to: '/daisyui/docs/components/kbd', name: 'Kbd & Countdown', description: 'Keyboard keys, countdowns, and radial progress' },
-            ],
-        },
-        {
-            title: 'Navigation',
-            description: 'Components for moving through the application.',
-            items: [
-                { to: '/daisyui/docs/components/tabs', name: 'Tabs', description: 'Tabbed navigation for content sections' },
-                { to: '/daisyui/docs/components/menu', name: 'Menu', description: 'Vertical navigation menu with model binding' },
-                { to: '/daisyui/docs/components/dropdown', name: 'Dropdown', description: 'Action menus and context menus' },
-                { to: '/daisyui/docs/components/drawer', name: 'Drawer', description: 'Slide-out side panels with model binding' },
-            ],
-        },
-        {
-            title: 'Data Display',
-            description: 'Components for presenting data and content.',
-            items: [
-                { to: '/daisyui/docs/components/table', name: 'Table', description: 'Structured data in rows and columns' },
-                { to: '/daisyui/docs/components/chat', name: 'Chat', description: 'Chat bubbles for messaging interfaces' },
-            ],
-        },
-    ];
-
-    return (
-        <Col gap="8" class="not-prose">
-            {sections.map(section => (
-                <Col gap="4">
-                    <Heading level={2} size="xl">{section.title}</Heading>
-                    <Text as="p" color="muted">{section.description}</Text>
-                    <Row gap="4" wrap>
-                        {section.items.map(item => (
-                            <RouterLink to={item.to}>
-                                <Card bgColor="bg-base-200" class="w-80 hover:bg-base-300 transition-colors">
-                                    <Card.Body>
-                                        <Card.Title class="text-base">{item.name}</Card.Title>
-                                        <Text as="p" size="sm" color="muted">{item.description}</Text>
-                                    </Card.Body>
-                                </Card>
-                            </RouterLink>
-                        ))}
-                    </Row>
-                </Col>
-            ))}
-        </Col>
-    );
-})()}
+<ComponentCatalog catalogId="daisyui" collection="daisyui-docs" />

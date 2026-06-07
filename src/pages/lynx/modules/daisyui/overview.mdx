@@ -1,0 +1,51 @@
+---
+title: "Overview"
+description: "DaisyUI — Component library"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+# DaisyUI for Lynx
+
+<p class="lede">The DaisyUI-flavored component library for native apps — the same ~61-component surface as web DaisyUI (@sigx/daisyui), rendered to real native views with a stylesheet and Tailwind preset for Lynx.</p>
+
+<p class="mod-meta-row"><strong>27k</strong> weekly <span class="mmr-dot" /> v0.4.1 <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/lynx-daisyui
+```
+
+## Use components
+
+```tsx
+import { Button, Card, Modal } from '@sigx/lynx-daisyui';
+
+export const Hello = component(({ signal }) => {
+    const state = signal({ open: false });
+    return () => (
+        <Card title="Welcome">
+            <Button color="primary" onPress={() => (state.open = true)}>
+                Open modal
+            </Button>
+            <Modal open={state.open} onClose={() => (state.open = false)}>
+                Native modal, DaisyUI theme.
+            </Modal>
+        </Card>
+    );
+});
+```
+
+## Theming
+
+Themes are shared with web DaisyUI — the same theme tokens drive native colors, radii and typography, so a brand theme written once applies on both targets.
+
+## Web parity
+
+DaisyUI exists on two targets: `@sigx/daisyui` (web) and this package (native). Components, props and themes mirror each other — browse the full [component catalog](/lynx/modules/daisyui/components) or jump to the [web DaisyUI docs](/daisyui) for the sibling.
+
+## Next steps
+
+Browse [Components](/lynx/modules/daisyui/components), or see [Usage](/lynx/modules/daisyui/usage) for theming setup.

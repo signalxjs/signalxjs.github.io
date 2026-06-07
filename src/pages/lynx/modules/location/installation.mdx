@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Location — GPS coordinates"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-location` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-location
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Location from '@sigx/lynx-location';
+
+console.log(Object.keys(Location));
+```

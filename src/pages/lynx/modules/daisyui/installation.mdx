@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "DaisyUI — Component library"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-daisyui` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-daisyui
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as DaisyUI from '@sigx/lynx-daisyui';
+
+console.log(Object.keys(DaisyUI));
+```

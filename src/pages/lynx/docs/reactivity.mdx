@@ -1,0 +1,29 @@
+---
+title: Reactivity bridge
+description: How signals cross the background → main-thread boundary
+layout: docs
+category: Core Concepts
+order: 70
+---
+
+# Reactivity bridge
+
+<p class="lede">Your components run on a background thread; the views live on the main thread. Signals bridge the two.</p>
+
+## The op queue
+
+Signal updates batch into a compact op stream that `@sigx/lynx-runtime-main` applies via the Lynx PAPI — no serialization of your component tree, just the deltas.
+
+## SharedValue
+
+For values the main thread must read every frame (gestures, animations), use a `SharedValue`:
+
+```tsx
+import { useSharedValue } from '@sigx/lynx';
+
+const offset = useSharedValue(0);
+```
+
+[Motion](/lynx/modules/motion/overview) and [Gestures](/lynx/modules/gestures/overview) build on this — animation progress is observable from the background thread for free.
+
+{/* TODO: worklets, runOnMainThread, useMainThreadRef */}

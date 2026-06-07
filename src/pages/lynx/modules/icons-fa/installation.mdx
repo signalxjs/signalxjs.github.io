@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "FA Icons — Font Awesome adapter"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-icons-fa-free` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-icons-fa-free
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as FAIcons from '@sigx/lynx-icons-fa-free';
+
+console.log(Object.keys(FAIcons));
+```

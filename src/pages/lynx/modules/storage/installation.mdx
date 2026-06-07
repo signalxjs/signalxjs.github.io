@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Storage — Persistent KV store"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-storage` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-storage
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Storage from '@sigx/lynx-storage';
+
+console.log(Object.keys(Storage));
+```

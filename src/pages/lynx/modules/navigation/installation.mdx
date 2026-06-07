@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Navigation — Type-first native navigator"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-navigation` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-navigation
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Navigation from '@sigx/lynx-navigation';
+
+console.log(Object.keys(Navigation));
+```

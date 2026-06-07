@@ -1,0 +1,29 @@
+---
+title: Styling & layout
+description: Flexbox layout and the styling model on Lynx
+layout: docs
+category: Core Concepts
+order: 60
+---
+
+# Styling & layout
+
+<p class="lede">Every element lays out with flexbox; styles are typed objects (or DaisyUI classes via @sigx/lynx-daisyui).</p>
+
+## Style objects
+
+```tsx
+<View style={{ flexDirection: 'row', gap: 12, padding: 16 }}>
+    <Text style={{ fontSize: 16, color: '#e7e9f1' }}>Styled natively</Text>
+</View>
+```
+
+## Flexbox by default
+
+Lynx's layout engine speaks flexbox natively — `flexDirection`, `gap`, `alignItems`, `justifyContent` behave like the web.
+
+{/* TODO: styling reference + units, themes */}
+
+## Component library
+
+For a themed, ready-made component set, see [DaisyUI for Lynx](/lynx/modules/daisyui/overview).

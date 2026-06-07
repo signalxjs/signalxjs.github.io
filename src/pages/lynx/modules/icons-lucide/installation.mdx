@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Lucide Icons — Lucide adapter"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-icons-lucide` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-icons-lucide
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as LucideIcons from '@sigx/lynx-icons-lucide';
+
+console.log(Object.keys(LucideIcons));
+```

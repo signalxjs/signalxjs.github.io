@@ -181,6 +181,20 @@
   display: grid; grid-template-columns: repeat(5, 1fr);
   gap: 1px; background: var(--line);
 }
+/* Target-axis variant: one column per target (Foundation / Web / Lynx / Terminal) */
+.mega-body-targets { grid-template-columns: repeat(4, 1fr); }
+/* Capability sub-groups inside a target column */
+.mega-sub { margin-bottom: 10px; }
+.mega-subhead {
+  color: var(--fg-3); padding: 8px 8px 5px; letter-spacing: 0.12em;
+}
+.mega-browse {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+  margin-top: 8px; padding: 8px; border-radius: var(--r-sm); font-size: 12px; font-weight: 560;
+  color: var(--accent); background: var(--accent-soft); border: var(--hair) solid var(--accent-line);
+}
+.mega-browse:hover { border-color: var(--accent); }
+.mega-note { font-size: 11.5px; color: var(--fg-3); line-height: 1.5; padding: 8px; }
 .mega-col { background: var(--bg-elev); padding: 16px 14px; min-height: 280px; }
 .mega-col-head {
   display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px;

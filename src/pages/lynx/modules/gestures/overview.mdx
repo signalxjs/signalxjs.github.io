@@ -1,0 +1,55 @@
+---
+title: "Overview"
+description: "Gestures — Frame-locked touch handling"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+# Gestures
+
+<p class="lede">Frame-locked touch handling on the main thread — Pressable, Draggable and Swipeable components plus composable useTap / usePan / usePinch / useSwipe hooks.</p>
+
+<p class="mod-meta-row"><strong>31k</strong> weekly <span class="mmr-dot" /> v0.4.1 <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/lynx-gestures
+```
+
+## Components
+
+```tsx
+import { Pressable, Swipeable } from '@sigx/lynx-gestures';
+
+<Swipeable onSwipeLeft={archive} onSwipeRight={remove}>
+    <Pressable onPress={open}>
+        <Text>Swipe or tap me</Text>
+    </Pressable>
+</Swipeable>
+```
+
+## Hooks
+
+Gesture handlers run as **worklets on the main thread** — touch tracking never waits on the background thread, so dragging stays locked to the frame rate.
+
+```tsx
+import { usePan } from '@sigx/lynx-gestures';
+import { useSharedValue } from '@sigx/lynx';
+
+const x = useSharedValue(0);
+const pan = usePan((e) => { x.value = e.translationX; });
+```
+
+## Composition
+
+Combine recognizers with `useGesture` — simultaneous, exclusive or sequenced:
+
+```tsx
+const gesture = useGesture([pinch, pan], { simultaneous: true });
+```
+
+## Next steps
+
+Pair with [Motion](/lynx/modules/motion/overview) for spring-driven follow-through, or see the [API reference](/lynx/modules/gestures/api).

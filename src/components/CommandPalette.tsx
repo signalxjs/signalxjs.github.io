@@ -92,11 +92,11 @@ export const CommandPalette = component<CommandPaletteProps>(({ signal, emit }) 
                                     key={c.href}
                                     class="cmd-item"
                                     data-active={String(i === state.active)}
-                                    style={`--pkg-h:${pkg.hue}`}
+                                    style={`--pkg-h:${c.hue ?? pkg.hue}`}
                                     onMouseEnter={() => (state.active = i)}
                                     onClick={() => pick(c)}
                                 >
-                                    <span class="ci-tile">{pkg.glyph}</span>
+                                    <span class="ci-tile">{c.glyph ?? pkg.glyph}</span>
                                     <div class="ci-body">
                                         <div class="ci-label">{c.label}</div>
                                         <div class="ci-path">{c.path}</div>

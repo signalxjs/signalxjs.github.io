@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Native Bridge — Low-level NativeModules bridge"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-core` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-core
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as NativeBridge from '@sigx/lynx-core';
+
+console.log(Object.keys(NativeBridge));
+```

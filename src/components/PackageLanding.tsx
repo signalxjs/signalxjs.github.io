@@ -14,17 +14,29 @@ import { component, type Define } from 'sigx';
 import { useRouter } from '@sigx/router';
 import { SxLink } from '@/components/ui/SxLink';
 import { byId, PACKAGES, type SigxPackage } from '@/lib/family';
+import { modulesByParent, type SigxModule } from '@/lib/modules';
 import { featuresFor } from '@/lib/landing-features';
-import { docsHref, apiHref } from '@/lib/packageLinks';
+import { docsHref, apiHref, moduleHref } from '@/lib/packageLinks';
 import { Icon } from '@/components/ui/Icon';
 import { CopyLine } from '@/components/ui/CopyLine';
 import { PkgTile } from '@/components/ui/PkgTile';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { SiblingTargetPill } from '@/components/SiblingTargetPill';
 
 type PackageLandingProps = Define.Prop<'id', string, true>;
 
 export const PackageLanding = component<PackageLandingProps>(({ props }) => {
     const router = useRouter();
+
+    const moduleCard = (m: SigxModule) => (
+        <button key={m.id} class="lynx-mod-card" style={`--pkg-h:${m.hue}`} onClick={() => router.push(moduleHref(m))}>
+            <span class="lmc-tile">{m.glyph}</span>
+            <span class="lmc-meta">
+                <span class="lmc-name">{m.name}{m.role && <> <span class="lmc-role">{m.role}</span></>}</span>
+                <span class="lmc-tag">{m.role ? m.npm : m.tag}</span>
+            </span>
+        </button>
+    );
 
     return () => {
         const pkg: SigxPackage = byId[props.id] ?? byId.core;
@@ -49,6 +61,11 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                                 Get started <Icon name="arrowRight" size={15} />
                             </SxLink>
                         )}
+                        {pkg.id === 'lynx' && (
+                            <SxLink to="/lynx/modules" class="sx-btn sx-btn-outline">
+                                <Icon name="cube" size={15} /> Browse modules
+                            </SxLink>
+                        )}
                         {api && (
                             <SxLink to={api} class="sx-btn sx-btn-outline">
                                 API reference
@@ -71,6 +88,8 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                             <Icon name="external" size={15} /> npm
                         </a>
                         <StatusBadge status={pkg.status} />
+                        {/* DaisyUI exists on two targets — link the native sibling (local, never a global mode) */}
+                        {pkg.id === 'daisyui' && <SiblingTargetPill current="web" />}
                     </div>
                     {!docs && (
                         <p class="lh-soon">Documentation for {pkg.title} is on its way — watch this space.</p>
@@ -92,6 +111,34 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                 {/* Install */}
                 <div class="section-label"><span class="sl-text">Install</span><span class="sl-line" /></div>
                 <CopyLine text={`pnpm add ${pkg.npm}`} prefix="$" />
+
+                {/* Collection strips — core & lynx are meta-packages with sub-package docs */}
+                {pkg.id === 'core' && (
+                    <>
+                        <div class="section-label">
+                            <span class="sl-text">Packages in this repo</span>
+                            <span class="sl-line" />
+                            <span class="sl-note">core is a collection — the web renderer lives here</span>
+                        </div>
+                        <div class="lynx-mod-row">
+                            {modulesByParent('core').map(moduleCard)}
+                        </div>
+                    </>
+                )}
+                {pkg.id === 'lynx' && (
+                    <>
+                        <div class="section-label">
+                            <span class="sl-text">Native modules</span>
+                            <span class="sl-line" />
+                            <SxLink to="/lynx/modules" class="sl-link">
+                                Browse all {modulesByParent('lynx').length} <Icon name="arrowRight" size={14} />
+                            </SxLink>
+                        </div>
+                        <div class="lynx-mod-row">
+                            {modulesByParent('lynx').filter((m) => (m.shots ?? 0) > 0).slice(0, 8).map(moduleCard)}
+                        </div>
+                    </>
+                )}
 
                 {/* Works with the family */}
                 <div class="section-label"><span class="sl-text">Works with the family</span><span class="sl-line" /></div>

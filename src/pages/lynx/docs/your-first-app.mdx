@@ -1,0 +1,77 @@
+---
+title: Your first app
+description: Scaffold, run and make your first SignalX Lynx app reactive
+layout: docs
+category: Getting Started
+order: 30
+---
+
+# Your first app
+
+<p class="lede">Scaffold a Lynx project, run it on a simulator and make it reactive — in about five minutes.</p>
+
+## Prerequisites
+
+You'll need the toolchain from [Installation](/lynx/docs/installation) — run `sigx doctor` if you're not sure.
+
+## Scaffold the app
+
+### Using the CLI
+
+```bash
+npm create @sigx@latest hello-lynx -- --template lynx
+cd hello-lynx && pnpm install
+```
+
+### Run on a simulator
+
+```bash
+sigx dev
+sigx run:ios        # or run:android
+```
+
+The dev client connects to the dev server — edits hot-reload straight into the simulator.
+
+## Your first component
+
+```tsx
+import { component } from 'sigx';
+import { View, Text } from '@sigx/lynx';
+
+export const Hello = component(() => {
+    return () => (
+        <View style={{ padding: 24 }}>
+            <Text style={{ fontSize: 24, fontWeight: '600' }}>Hello, Lynx!</Text>
+        </View>
+    );
+});
+```
+
+The same `component()` you use on the web — only the elements differ: `View`, `Text`, `Image` and friends render to real native views.
+
+## Adding reactivity
+
+```tsx
+import { component } from 'sigx';
+import { View, Text, Pressable } from '@sigx/lynx';
+
+export const Counter = component(({ signal }) => {
+    const state = signal({ count: 0 });
+    return () => (
+        <View style={{ padding: 24, gap: 12 }}>
+            <Text style={{ fontSize: 32 }}>{state.count}</Text>
+            <Pressable onPress={() => state.count++}>
+                <Text>Tap me</Text>
+            </Pressable>
+        </View>
+    );
+});
+```
+
+When `state.count` changes, only the `Text` node that reads it updates — the op streams to the main thread and patches one native view.
+
+## Next steps
+
+- Learn the [native elements](/lynx/docs/elements) and [styling model](/lynx/docs/styling)
+- Add screens with [Navigation](/lynx/modules/navigation/overview)
+- Browse the [module catalog](/lynx/modules)

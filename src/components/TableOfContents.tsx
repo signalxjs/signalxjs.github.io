@@ -34,7 +34,10 @@ function extractHeadingsFromDOM(minLevel = 2, maxLevel = 3): Heading[] {
     const elements = contentArea.querySelectorAll(selectors.join(', '));
     elements.forEach((el) => {
         const id = el.id;
-        const text = el.textContent?.trim() || '';
+        // Exclude decorations (count badges etc.) from the TOC label
+        const clone = el.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('[data-toc-ignore]').forEach((n) => n.remove());
+        const text = clone.textContent?.trim() || '';
         const level = parseInt(el.tagName[1], 10);
         
         if (id && text) {
@@ -70,15 +73,23 @@ export const TableOfContents = component<TableOfContentsProps>(({ props, signal 
         
         // Use provided headings or fall back to DOM extraction
         let headings = props.headings || [];
-        
+
         if (headings.length === 0) {
-            // Client-side fallback for TSX pages
-            // Small delay to ensure DOM is updated after navigation
-            requestAnimationFrame(() => {
+            // Client-side fallback for pages whose headings are rendered by
+            // components (no build-time meta.headings). Content may render a
+            // few frames after us — retry briefly until headings appear.
+            let attempts = 0;
+            const tryExtract = () => {
+                attempts++;
                 headings = extractHeadingsFromDOM();
-                state.headings = headings;
-                waitForHeadingsAndSetup(headings);
-            });
+                if (headings.length > 0) {
+                    state.headings = headings;
+                    waitForHeadingsAndSetup(headings);
+                } else if (attempts < 20) {
+                    requestAnimationFrame(tryExtract);
+                }
+            };
+            requestAnimationFrame(tryExtract);
             return;
         }
         
@@ -171,9 +182,13 @@ export const TableOfContents = component<TableOfContentsProps>(({ props, signal 
     }
     
     onMounted(() => {
-        // Use requestAnimationFrame to wait for content to render
+        // Use requestAnimationFrame to wait for content to render.
+        // setupHeadings (not waitForHeadingsAndSetup) so the DOM-extraction
+        // fallback also runs on initial mount — pages whose headings are
+        // rendered by components (e.g. ComponentCatalog) have no
+        // build-time meta.headings.
         requestAnimationFrame(() => {
-            waitForHeadingsAndSetup(props.headings ?? []);
+            setupHeadings();
         });
     });
     

@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Secure Storage — Encrypted KV storage"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-secure-storage` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-secure-storage
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as SecureStorage from '@sigx/lynx-secure-storage';
+
+console.log(Object.keys(SecureStorage));
+```

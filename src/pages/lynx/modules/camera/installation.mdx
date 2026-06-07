@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Camera — Camera capture"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-camera` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-camera
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Camera from '@sigx/lynx-camera';
+
+console.log(Object.keys(Camera));
+```

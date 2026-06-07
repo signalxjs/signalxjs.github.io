@@ -11,14 +11,34 @@ import { component, type Define } from 'sigx';
 import { useRoute } from '@sigx/router';
 import { navigation, detectCollection } from 'virtual:ssg-navigation';
 import type { NavSection, NavItem } from '@sigx/ssg';
-import { byId, packageForCollection } from '@/lib/family';
+import { byId, moduleForCollection, packageForCollection } from '@/lib/family';
+import { modulesByParent, type ModuleParent } from '@/lib/modules';
 import { PackageSwitcher } from '@/components/PackageSwitcher';
+import { ModuleSwitcher } from '@/components/ModuleSwitcher';
+import { Icon } from '@/components/ui/Icon';
 import { SxLink } from '@/components/ui/SxLink';
 
 type DocsSidebarProps =
     & Define.Prop<'isOpen', boolean, false>
     & Define.Prop<'collection', string, false>
     & Define.Event<'close', void>;
+
+/** "All Lynx modules · 32" / "All Core packages · 6" catalog link. */
+const CatalogLink = component<Define.Prop<'parent', ModuleParent, true> & Define.Event<'pick', void>>(
+    ({ props, emit }) => () => (
+        <SxLink
+            to={props.parent === 'lynx' ? '/lynx/modules' : '/core/packages'}
+            class="side-catalog-link"
+            onClick={() => emit('pick')}
+        >
+            <Icon name="cube" size={15} />
+            <span class="scl-label">
+                {props.parent === 'lynx' ? 'All Lynx modules' : 'All Core packages'}
+            </span>
+            <span class="scl-count mono">{modulesByParent(props.parent).length}</span>
+        </SxLink>
+    ),
+);
 
 export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
     const route = useRoute();
@@ -86,7 +106,9 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
     };
 
     return () => {
-        const currentPkg = packageForCollection(getCollection()) ?? byId.core;
+        const collection = getCollection();
+        const currentModule = moduleForCollection(collection);
+        const currentPkg = packageForCollection(collection) ?? byId.core;
         return (
             <>
                 {/* Drawer scrim (visible ≤880px only, via CSS) */}
@@ -97,7 +119,24 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
                 {/* Sidebar */}
                 <aside class={`sidebar${props.isOpen ? ' is-open' : ''}`}>
                     <div class="sidebar-inner">
-                        <PackageSwitcher currentPkg={currentPkg} />
+                        {currentModule ? (
+                            <>
+                                {/* Module docs: switcher across the collection's modules */}
+                                <ModuleSwitcher currentModule={currentModule} />
+                                <CatalogLink parent={currentModule.parent} onPick={() => emit('close')} />
+                            </>
+                        ) : (
+                            <>
+                                <PackageSwitcher currentPkg={currentPkg} />
+                                {/* Collection packages keep their module catalog one step away */}
+                                {currentPkg.kind === 'collection' && (
+                                    <CatalogLink
+                                        parent={currentPkg.id as ModuleParent}
+                                        onPick={() => emit('close')}
+                                    />
+                                )}
+                            </>
+                        )}
                         <nav class="side-nav">
                             {getSections().map((section, idx) => (
                                 <div class="side-section" key={idx}>

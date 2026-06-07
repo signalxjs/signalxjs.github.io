@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "WebSocket — WebSocket global"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-websocket` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-websocket
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as WebSocket from '@sigx/lynx-websocket';
+
+console.log(Object.keys(WebSocket));
+```

@@ -1,0 +1,47 @@
+---
+title: "Overview"
+description: "Runtime DOM — The DOM renderer"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+# Runtime DOM
+
+<p class="lede">The DOM renderer — this is SignalX on the web. Web isn't a platform you switch to; it's the default render target that ships inside the core repo.</p>
+
+<p class="mod-meta-row">v0.4.9 <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+You rarely install this directly — the `sigx` umbrella re-exports it:
+
+```bash
+pnpm add sigx                # reactivity + runtime-core + runtime-dom
+pnpm add @sigx/runtime-dom   # direct, for custom setups
+```
+
+## What it does
+
+`@sigx/runtime-dom` binds the renderer-agnostic component model from `@sigx/runtime-core` to the browser DOM:
+
+- **Fine-grained DOM patches** — a changed signal updates exactly the text nodes, attributes and properties that read it. No virtual DOM.
+- **Event delegation** — `onClick` and friends attach once per root.
+- **Hydration** — pairs with `@sigx/server-renderer` to hydrate server-rendered HTML, selectively via islands.
+
+## Mount an app
+
+```tsx
+import { createApp } from 'sigx';
+import { App } from './App';
+
+createApp(App).mount('#root');
+```
+
+## The renderer family
+
+Every target implements the same `RuntimeRenderer` contract — this one for the DOM, `@sigx/lynx-runtime` for native views, `@sigx/terminal` for cells. Same components, different surfaces.
+
+## Next steps
+
+See [Usage](/core/packages/runtime-dom/usage), or start with the [Core getting-started guide](/core/docs/getting-started).
