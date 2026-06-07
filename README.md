@@ -1,6 +1,6 @@
 # SignalX docs
 
-Source for the SignalX documentation site at <https://signalxjs.github.io/>.
+Source for the SignalX documentation site at <https://sigx.dev/>.
 
 Built with [`@sigx/ssg`](https://www.npmjs.com/package/@sigx/ssg) and deployed to GitHub Pages on every push to `main`.
 

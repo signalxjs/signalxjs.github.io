@@ -10,7 +10,7 @@ import { resolve } from 'path';
 const MONACO_STRATEGY = (process.env.MONACO_STRATEGY as 'prebundled' | 'cdn') || 'prebundled';
 
 // Asset path prefix. Defaults to `/` for the GitHub Pages deployment at
-// the org root (https://signalxjs.github.io/); override with BASE_PATH if
+// the domain root (https://sigx.dev/); override with BASE_PATH if
 // serving from a subpath.
 const BASE_PATH = process.env.BASE_PATH ?? '/';
 
