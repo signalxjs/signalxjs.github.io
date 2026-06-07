@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Icons — Icon component + registry"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-icons` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-icons
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Icons from '@sigx/lynx-icons';
+
+console.log(Object.keys(Icons));
+```

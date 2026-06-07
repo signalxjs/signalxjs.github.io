@@ -34,4 +34,11 @@ configureLiveCode({
 // mount before `__SIGX__` is set, so the package's own init path still runs.
 if (typeof window !== 'undefined') {
     await initRegisteredModules();
+
+    // Route every runnable code block's Run button into the docs' own
+    // Live Playground (Monaco + interactive preview + console) instead
+    // of live-code's built-in modal. Capture-phase, so it wins over the
+    // handlers @sigx/live-code/client attaches right after this module.
+    const { installPlaygroundLauncher } = await import('@/components/PlaygroundHost');
+    installPlaygroundLauncher();
 }

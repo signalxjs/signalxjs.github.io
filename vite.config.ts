@@ -64,6 +64,13 @@ const daisyuiDevTailwindSource = (): Plugin | null =>
 
 export default defineConfig({
     base: BASE_PATH,
+    build: {
+        // LightningCSS (the default CSS minifier) doesn't support @scope yet
+        // and silently DROPS the whole rule — which would strip the prose
+        // preview-isolation donut in global.css from production builds.
+        // esbuild preserves at-rules it doesn't recognize.
+        cssMinify: 'esbuild',
+    },
     plugins: [
         daisyuiDevTailwindSource(),
         tailwindcss(),

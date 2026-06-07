@@ -1,0 +1,63 @@
+---
+title: "Overview"
+description: "Navigation — Type-first native navigator"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+# Navigation
+
+<p class="lede">A type-first native navigator for SignalX Lynx — Stack, Tabs, Drawer, modals, lazy routes and deep links, with platform-correct transitions.</p>
+
+<p class="mod-meta-row"><strong>48k</strong> weekly <span class="mmr-dot" /> v0.4.1 <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/lynx-navigation
+```
+
+## Define your routes
+
+Routes are plain typed objects — params infer end-to-end, so `navigate()` autocompletes both route names and their params.
+
+```tsx
+import { createNavigator, Stack } from '@sigx/lynx-navigation';
+
+export const nav = createNavigator({
+    home: { screen: HomeScreen },
+    profile: { screen: ProfileScreen, params: {} as { userId: string } },
+});
+
+export const App = () => <Stack navigator={nav} initial="home" />;
+```
+
+## Navigate
+
+```tsx
+import { useNavigation } from '@sigx/lynx-navigation';
+
+const { navigate, back } = useNavigation<typeof nav>();
+
+navigate('profile', { userId: '42' });   // fully typed
+```
+
+## Navigators
+
+- **Stack** — push/pop with native transitions and gestures
+- **Tabs** — bottom tabs with badges and lazy screens
+- **Drawer** — slide-in menu, gesture-driven
+- **Modals** — `present()` / `dismiss()` on any navigator
+
+## Deep links
+
+Map URL patterns to routes once; cold-start and runtime links both resolve through the same table.
+
+```tsx
+nav.linking({ 'app://profile/:userId': 'profile' });
+```
+
+## Next steps
+
+See [Usage](/lynx/modules/navigation/usage) for nesting navigators and guards, or the [API reference](/lynx/modules/navigation/api).

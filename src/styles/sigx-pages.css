@@ -1,0 +1,151 @@
+/* ============================================================
+   SignalX redesign — docs shell, sidebar, switcher, TOC rail.
+   Ported from the design prototype (pages.css), direction "Soft".
+   Import order: after sigx-design.css, BEFORE sigx-components.css
+   (the ≤880px drawer rules there must override the base sidebar).
+   ============================================================ */
+
+/* Docs 3-column shell */
+.docs-shell {
+  display: grid;
+  grid-template-columns: 274px minmax(0, 1fr) 240px;
+  max-width: 1480px; margin: 0 auto;
+  align-items: start;
+  width: 100%;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  position: sticky; top: 58px; height: calc(100vh - 58px);
+  border-right: var(--hair) solid var(--line); overflow-y: auto;
+}
+.sidebar-inner { padding: 18px 16px 40px; }
+
+/* Package switcher */
+.switcher { position: relative; margin-bottom: 22px; }
+.switcher-trigger {
+  width: 100%; display: flex; align-items: center; gap: 11px;
+  padding: 9px 11px; cursor: pointer; text-align: left;
+  background: var(--bg-1); border: var(--hair) solid var(--line);
+  border-radius: var(--r-md); transition: all .16s;
+}
+.switcher-trigger:hover, .switcher-trigger[data-open="true"] {
+  border-color: var(--accent-line); background: var(--bg-2);
+}
+.sw-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.sw-name { font-size: 13.5px; font-weight: 600; color: var(--fg); letter-spacing: -0.01em; }
+.sw-npm { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); }
+.sw-chev { color: var(--fg-3); transition: transform .2s var(--ease); }
+.switcher-trigger[data-open="true"] .sw-chev { transform: rotate(180deg); }
+
+.switcher-pop {
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 40;
+  background: var(--bg-elev); border: var(--hair) solid var(--line-2);
+  border-radius: var(--r-md); box-shadow: var(--shadow-lg);
+  overflow: hidden; animation: pop .18s var(--ease);
+}
+.sw-pop-search { padding: 11px 14px 7px; color: var(--fg-3); }
+.sw-pop-scroll { max-height: 50vh; overflow-y: auto; padding: 2px 8px 10px; }
+.sw-pop-group { margin-top: 6px; }
+.sw-pop-cat { color: var(--fg-3); padding: 7px 8px 4px; }
+.sw-pop-item {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 7px 9px; border-radius: var(--r-sm); cursor: pointer;
+  background: transparent; border: var(--hair) solid transparent; text-align: left;
+  transition: background .13s, border-color .13s;
+}
+.sw-pop-item:hover { background: var(--accent-soft); border-color: var(--accent-line); }
+.sw-pop-item[data-current="true"] { background: var(--accent-soft); }
+.swi-tile {
+  width: 24px; height: 24px; font-size: 13px; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 6px;
+  color: var(--accent); background: var(--accent-soft); border: var(--hair) solid var(--accent-line);
+}
+.swi-name { flex: 1; font-size: 13px; font-weight: 520; color: var(--fg); }
+.swi-status { width: 6px; height: 6px; border-radius: 99px; background: oklch(0.78 0.13 var(--st-h)); }
+.swi-check { color: var(--accent); }
+
+/* Side nav */
+.side-nav { display: flex; flex-direction: column; gap: 22px; }
+.side-section-title { color: var(--fg-3); margin-bottom: 9px; padding-left: 11px; }
+.side-nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.side-link {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 7px 11px; border-radius: var(--r-sm); font-size: 13.5px;
+  color: var(--fg-2); background: transparent; border: 0;
+  transition: all .14s;
+}
+.side-link:hover { color: var(--fg); background: var(--bg-2); }
+.side-link[data-active="true"] {
+  color: var(--accent); font-weight: 560; background: var(--accent-soft);
+}
+
+/* Collapsible nav group (nested NavItems from the SSG navigation) */
+.side-group > .side-subhead {
+  display: block; cursor: pointer; list-style: none;
+  padding: 7px 11px; font-size: 12.5px; font-weight: 600;
+  color: var(--fg-2); border-radius: var(--r-sm);
+  transition: color .14s, background .14s;
+}
+.side-group > .side-subhead::-webkit-details-marker { display: none; }
+.side-group > .side-subhead:hover { color: var(--fg); background: var(--bg-2); }
+.side-group .side-group-list {
+  margin: 2px 0 4px 11px; padding-left: 6px;
+  border-left: var(--hair) solid var(--line);
+}
+
+/* ---------- Main content column ---------- */
+.content { min-width: 0; padding: 44px 56px 120px; }
+.content-narrow { max-width: 760px; margin: 0 auto; }
+
+/* Breadcrumb */
+.crumbs { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fg-3); margin-bottom: 26px; }
+.crumbs .cr-sep { color: var(--fg-3); opacity: .6; }
+.crumbs .cr-cur { color: var(--fg-1); }
+.crumbs .cr-pkg { color: var(--accent); font-weight: 530; }
+
+/* ---------- TOC rail ---------- */
+.toc { position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; }
+.toc-inner { padding: 44px 22px; }
+.toc-title { color: var(--fg-3); margin-bottom: 14px; }
+.toc-nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.toc-link {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  font-size: 12.5px; line-height: 1.4; color: var(--fg-3);
+  padding: 5px 0 5px 13px; background: none; border: 0;
+  border-left: 2px solid var(--line); transition: color .14s, border-color .14s;
+}
+.toc-link:hover { color: var(--fg-1); }
+.toc-link[data-active="true"] { color: var(--accent); border-left-color: var(--accent); }
+.toc-link-sub { padding-left: 26px; font-size: 12px; }
+.toc-foot { margin-top: 20px; padding-top: 16px; border-top: var(--hair) solid var(--line); }
+.toc-edit { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--fg-3); cursor: pointer; }
+.toc-edit:hover { color: var(--fg-1); }
+
+/* Pager (prev/next) */
+.pager { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 56px; }
+.pager-card {
+  padding: 16px 18px; border-radius: var(--r-md); border: var(--hair) solid var(--line);
+  background: var(--bg-1); cursor: pointer; transition: border-color .16s, background .16s;
+}
+.pager-card:hover { border-color: var(--accent-line); background: var(--bg-2); }
+.pager-dir { font-size: 11.5px; color: var(--fg-3); margin-bottom: 5px; }
+.pager-title { font-size: 14.5px; font-weight: 560; color: var(--fg); display: flex; align-items: center; gap: 7px; }
+.pager-card.next { text-align: right; }
+.pager-card.next .pager-title { justify-content: flex-end; }
+
+/* ---------- Shell responsive ----------
+   (.sidebar's ≤880 drawer transform lives in sigx-components.css,
+   which is imported after this file and therefore wins.) */
+@media (max-width: 1180px) {
+  .docs-shell { grid-template-columns: 250px minmax(0,1fr); }
+  .toc { display: none; }
+  .content { padding: 40px 40px 100px; }
+}
+@media (max-width: 880px) {
+  .docs-shell { grid-template-columns: 1fr; }
+  .content { padding: 32px 22px 80px; }
+}
+@media (max-width: 720px) {
+  .content { padding: 28px 18px 72px; }
+}

@@ -1,16 +1,18 @@
 /**
  * CodeWindow - macOS-style code block wrapper
- * 
+ *
  * Wraps code blocks with a fancy window header including
  * traffic light buttons and optional filename.
- * 
- * When `live` prop is true, shows a "Try Live" button that
- * opens a full-screen playground modal. The code is extracted
+ *
+ * When `live` prop is true, shows an accent "Run" button that
+ * opens the Live Playground (Monaco editor + interactive preview +
+ * console — see components/Playground.tsx). The code is extracted
  * from the slot content automatically.
  */
 
 import { component, signal, type Define } from 'sigx';
-import { LiveCodeModal, initRuntime, initRegisteredModules, isRuntimeInitialized } from '@sigx/live-code';
+import { initRuntime, initRegisteredModules, isRuntimeInitialized } from '@sigx/live-code';
+import { Playground } from '@/components/Playground';
 
 type CodeWindowProps = 
     & Define.Prop<'filename', string, false>
@@ -111,14 +113,14 @@ export const CodeWindow = component<CodeWindowProps>(({ props, slots }) => {
                             )}
                         </div>
                         
-                        {/* Try Live button - only shown when live prop is true */}
+                        {/* Run button - only shown when live prop is true */}
                         {hasLiveCode && (
-                            <button 
+                            <button
                                 class="code-window-try-live"
                                 onClick={openPlayground}
                                 title="Open in Live Playground"
                             >
-                                ⚡ Try Live
+                                ⚡ Run
                             </button>
                         )}
                     </div>
@@ -132,9 +134,9 @@ export const CodeWindow = component<CodeWindowProps>(({ props, slots }) => {
                     </div>
                 </div>
                 
-                {/* Playground Modal - only rendered when live mode and modal is open */}
+                {/* Live Playground - only rendered when live mode and open */}
                 {hasLiveCode && isModalOpen.value && (
-                    <LiveCodeModal
+                    <Playground
                         code={extractedCode.value}
                         language={props.language ?? 'tsx'}
                         filename={filename}

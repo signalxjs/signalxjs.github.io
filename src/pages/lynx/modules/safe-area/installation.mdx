@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Safe Area — Safe-area insets"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-safe-area` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-safe-area
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as SafeArea from '@sigx/lynx-safe-area';
+
+console.log(Object.keys(SafeArea));
+```

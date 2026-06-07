@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "CLI Plugin — @sigx/cli plugin"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-cli` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-cli
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as CLIPlugin from '@sigx/lynx-cli';
+
+console.log(Object.keys(CLIPlugin));
+```

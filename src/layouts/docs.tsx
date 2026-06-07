@@ -6,47 +6,60 @@
 
 import { component, onMounted } from 'sigx';
 import type { LayoutProps, LayoutSlots } from '@sigx/ssg';
+import { useRoute } from '@sigx/router';
+import { detectCollection } from 'virtual:ssg-navigation';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { DocsSidebar } from '@/components/DocsSidebar';
 import { TableOfContents } from '@/components/TableOfContents';
+import { hueForCollection } from '@/lib/family';
+import { CommandPalette } from '@/components/CommandPalette';
+import { useCommandPalette } from '@/lib/useCommandPalette';
 import { initializeTheme } from '@sigx/daisyui';
 
 export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props, signal }) => {
     const state = signal({ sidebarOpen: false });
+    const route = useRoute();
+    const cmd = useCommandPalette();
 
     onMounted(() => {
         initializeTheme({ defaultTheme: 'dark' });
     });
-    
+
     return () => (
-        <div class="min-h-screen flex flex-col bg-base-100">
-            <Navbar onMenuClick={() => { state.sidebarOpen = !state.sidebarOpen; }} />
+        <div
+            class="min-h-screen flex flex-col bg-base-100"
+            style={`--pkg-h:${hueForCollection(detectCollection(route.path))}`}
+        >
+            <Navbar
+                showMenu
+                onMenuClick={() => { state.sidebarOpen = !state.sidebarOpen; }}
+                onOpenCmd={() => (cmd.open = true)}
+            />
+            {cmd.open && <CommandPalette onClose={() => (cmd.open = false)} />}
             
-            <div class="flex-1 w-full max-w-[90rem] mx-auto">
-                <div class="flex">
-                    {/* Sidebar */}
-                    <DocsSidebar 
-                        isOpen={state.sidebarOpen} 
-                        onClose={() => state.sidebarOpen = false}
-                    />
-                    
-                    {/* Main content */}
-                    <main class="flex-1 min-w-0 px-6 py-8 lg:px-12">
-                        <div class="max-w-4xl">
-                            <article class="prose prose-lg max-w-none">
-                                {slots.default()}
-                            </article>
-                        </div>
-                    </main>
-                    
-                    {/* Table of Contents - desktop only */}
-                    <aside class="hidden xl:block w-64 shrink-0 py-8 pr-8">
-                        <div class="sticky top-24">
-                            <TableOfContents headings={(props.meta?.headings || []) as { id: string; text: string; level: number }[]} />
-                        </div>
-                    </aside>
-                </div>
+            <div class="docs-shell flex-1">
+                {/* Sidebar (sticky desktop; drawer ≤880px) */}
+                <DocsSidebar
+                    isOpen={state.sidebarOpen}
+                    onClose={() => state.sidebarOpen = false}
+                />
+
+                {/* Main content */}
+                <main class="content">
+                    <div class="content-narrow">
+                        <article class="prose max-w-none">
+                            {slots.default()}
+                        </article>
+                    </div>
+                </main>
+
+                {/* Table of Contents rail (hidden ≤1180px via CSS) */}
+                <aside class="toc">
+                    <div class="toc-inner">
+                        <TableOfContents headings={(props.meta?.headings || []) as { id: string; text: string; level: number }[]} />
+                    </div>
+                </aside>
             </div>
             
             <Footer />

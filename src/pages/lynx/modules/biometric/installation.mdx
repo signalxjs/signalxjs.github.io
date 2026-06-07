@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Biometric — Face ID / Touch ID auth"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-biometric` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-biometric
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Biometric from '@sigx/lynx-biometric';
+
+console.log(Object.keys(Biometric));
+```

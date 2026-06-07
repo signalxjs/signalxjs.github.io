@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Clipboard — System clipboard"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-clipboard` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-clipboard
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Clipboard from '@sigx/lynx-clipboard';
+
+console.log(Object.keys(Clipboard));
+```

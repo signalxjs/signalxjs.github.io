@@ -1,0 +1,215 @@
+/* ============================================================
+   SignalX design tokens + HeroBackdrop
+   Additive layer — new variable names only, safe alongside daisyUI.
+   Import AFTER tailwind/daisyui in global.css:
+     @import './sigx-design.css';
+   ============================================================ */
+
+:root {
+  /* Type */
+  --font-sans: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Accent: lightness/chroma per theme, hue from --pkg-h (set per package) */
+  --accent-l: 0.76;
+  --accent-c: 0.172;
+  --pkg-h: 285;            /* default: core / violet */
+
+  /* Radii & geometry (direction "Soft") */
+  --r-xs: 7px;
+  --r-sm: 9px;
+  --r-md: 13px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --hair: 1px;
+
+  /* Spacing rhythm */
+  --gut: 26px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 0.42s;
+}
+
+/* Dark themes (default + daisyUI "dark"/"signalx").
+   --bg-0 matches base-100 so the hero's bottom fade is seamless. */
+:root,
+[data-theme='dark'],
+[data-theme='signalx'] {
+  --bg-0: #08080a;
+  --bg-1: #0d0d11;
+  --bg-2: #141419;
+  --bg-3: #1b1b22;
+  --bg-elev: #101015;
+
+  --fg:   #f4f4f6;
+  --fg-1: rgba(244, 244, 246, 0.74);
+  --fg-2: rgba(244, 244, 246, 0.50);
+  --fg-3: rgba(244, 244, 246, 0.34);
+
+  --line:   rgba(255, 255, 255, 0.085);
+  --line-2: rgba(255, 255, 255, 0.14);
+  --line-3: rgba(255, 255, 255, 0.22);
+
+  --accent-l: 0.76;
+  --accent-c: 0.172;
+
+  --shadow-lg: 0 24px 60px -18px rgba(0, 0, 0, 0.7), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 12px 32px -14px rgba(0, 0, 0, 0.66);
+  --scrim: rgba(4, 4, 6, 0.66);
+}
+
+/* Light theme */
+[data-theme='light'] {
+  --bg-0: #ffffff;
+  --bg-1: #fbfbfc;
+  --bg-2: #f5f5f7;
+  --bg-3: #ededf0;
+  --bg-elev: #ffffff;
+
+  --fg:   #16161a;
+  --fg-1: rgba(22, 22, 26, 0.72);
+  --fg-2: rgba(22, 22, 26, 0.52);
+  --fg-3: rgba(22, 22, 26, 0.36);
+
+  --line:   rgba(17, 17, 20, 0.09);
+  --line-2: rgba(17, 17, 20, 0.14);
+  --line-3: rgba(17, 17, 20, 0.22);
+
+  --accent-l: 0.55;
+  --accent-c: 0.185;
+
+  --shadow-lg: 0 24px 60px -22px rgba(17, 20, 32, 0.22), 0 6px 18px -10px rgba(17, 20, 32, 0.14);
+  --shadow-md: 0 10px 28px -16px rgba(17, 20, 32, 0.18);
+  --scrim: rgba(20, 22, 30, 0.34);
+}
+
+/* Derive accent per-element so a child's --pkg-h recomputes it
+   (declaring on :root alone freezes it at the default hue). */
+*, *::before, *::after {
+  --accent:        oklch(var(--accent-l) var(--accent-c) var(--pkg-h));
+  --accent-strong: oklch(calc(var(--accent-l) + 0.06) var(--accent-c) var(--pkg-h));
+  --accent-soft:   oklch(var(--accent-l) var(--accent-c) var(--pkg-h) / 0.17);
+  --accent-line:   oklch(var(--accent-l) var(--accent-c) var(--pkg-h) / 0.34);
+  --accent-glow:   oklch(var(--accent-l) var(--accent-c) var(--pkg-h) / 0.22);
+}
+
+/* Mono label — section eyebrows */
+.mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+/* ============================================================
+   Hero container helper — wrap your hero <section> with .sigx-hero
+   and drop <HeroBackdrop/> as its first child.
+   ============================================================ */
+.sigx-hero { position: relative; }
+.sigx-hero > :not(.hero-bg) { position: relative; z-index: 1; }
+
+/* ============================================================
+   HeroBackdrop
+   ============================================================ */
+.hero-bg {
+  position: absolute; top: 0; left: 0; right: 0; height: 680px;
+  z-index: 0; pointer-events: none; overflow: hidden; contain: paint;
+}
+@media (max-width: 720px) { .hero-bg { height: 460px; } }
+
+/* Color blooms */
+.hb-bloom {
+  position: absolute; border-radius: 50%; filter: blur(78px);
+  background: radial-gradient(circle, oklch(0.72 0.17 var(--h, var(--pkg-h)) / 0.5), transparent 68%);
+}
+.hero-bg:not(.is-family) .hb-bloom {
+  width: 840px; height: 560px; left: 50%; top: 70px;
+  transform: translateX(-50%); opacity: 0.52;
+}
+[data-theme='light'] .hb-bloom { opacity: 0.36; filter: blur(72px); }
+.is-family .hb-bloom.fb { width: 480px; height: 380px; opacity: 0.4; }
+[data-theme='light'] .is-family .hb-bloom.fb { opacity: 0.26; }
+.fb0 { left: 2%;  top: 40px; }
+.fb1 { left: 62%; top: 0; }
+.fb2 { left: 28%; top: 150px; }
+.fb3 { left: 82%; top: 170px; }
+.fb4 { left: 44%; top: -40px; }
+.v-aurora .hb-bloom { filter: blur(96px); }
+.v-aurora:not(.is-family) .hb-bloom { opacity: 0.6; width: 920px; }
+
+/* Signal: concentric rings */
+.hb-rings {
+  position: absolute; inset: -140px 0 auto 0; height: 820px;
+  background: repeating-radial-gradient(circle at 50% 24%,
+    transparent 0 41px, oklch(0.80 0.12 var(--pkg-h) / 0.11) 41px 42px);
+  -webkit-mask: radial-gradient(circle at 50% 24%, #000 0, transparent 56%);
+          mask: radial-gradient(circle at 50% 24%, #000 0, transparent 56%);
+}
+.is-family .hb-rings {
+  background: repeating-radial-gradient(circle at 50% 24%,
+    transparent 0 41px, oklch(0.82 0.05 280 / 0.10) 41px 42px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hb-rings { animation: hb-breathe 9s var(--ease) infinite; }
+}
+@keyframes hb-breathe { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; } }
+
+/* Grid: dissolving grid + beams */
+.hb-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(oklch(0.82 0.1 var(--pkg-h) / 0.085) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.82 0.1 var(--pkg-h) / 0.085) 1px, transparent 1px);
+  background-size: 50px 50px;
+  -webkit-mask: radial-gradient(135% 85% at 50% -8%, #000 10%, transparent 64%);
+          mask: radial-gradient(135% 85% at 50% -8%, #000 10%, transparent 64%);
+}
+.is-family .hb-grid {
+  background-image:
+    linear-gradient(oklch(0.85 0.02 280 / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.85 0.02 280 / 0.07) 1px, transparent 1px);
+}
+.hb-beam {
+  position: absolute; top: 0; width: 1px;
+  background: linear-gradient(to bottom, oklch(0.82 0.16 var(--bh, var(--pkg-h)) / 0.55), transparent);
+  box-shadow: 0 0 16px oklch(0.82 0.16 var(--bh, var(--pkg-h)) / 0.5);
+}
+.hb-beam.b1 { left: 21%; height: 400px; }
+.hb-beam.b2 { left: 79%; height: 300px; }
+.hb-beam.b3 { left: 56%; height: 220px; }
+.is-family .hb-beam.b1 { --bh: 210; }
+.is-family .hb-beam.b2 { --bh: 350; }
+.is-family .hb-beam.b3 { --bh: 158; }
+
+/* Prism: faceted shards */
+.hb-shards { position: absolute; inset: 0; }
+.hb-shards .s {
+  position: absolute; filter: blur(28px); opacity: 0.42;
+  background: linear-gradient(135deg, oklch(0.70 0.18 var(--sh) / 0.7), transparent 72%);
+}
+[data-theme='light'] .hb-shards .s { opacity: 0.28; }
+.hb-shards .s1 { width: 300px; height: 360px; left: 37%; top: 20px; --sh: var(--pkg-h);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.hb-shards .s2 { width: 260px; height: 300px; left: 52%; top: 60px; --sh: calc(var(--pkg-h) + 26);
+  clip-path: polygon(0 0, 100% 28%, 72% 100%, 0 70%); }
+.hb-shards .s3 { width: 240px; height: 320px; left: 28%; top: 40px; --sh: calc(var(--pkg-h) - 28);
+  clip-path: polygon(100% 0, 100% 100%, 0 60%, 24% 0); }
+.hb-shards .s4 { width: 180px; height: 200px; left: 60%; top: 150px; --sh: calc(var(--pkg-h) + 14);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.is-family .hb-shards .s1 { --sh: 270; }
+.is-family .hb-shards .s2 { --sh: 205; }
+.is-family .hb-shards .s3 { --sh: 350; }
+.is-family .hb-shards .s4 { --sh: 158; }
+
+/* Grain + bottom fade */
+.hb-grain {
+  position: absolute; inset: 0; opacity: 0.028; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.hb-fade {
+  position: absolute; inset: auto 0 0 0; height: 280px;
+  background: linear-gradient(to bottom, transparent, var(--bg-0));
+}

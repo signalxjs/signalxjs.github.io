@@ -1,0 +1,46 @@
+---
+title: Installation
+description: Install SignalX Lynx and set up the native toolchain
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+<p class="lede">Scaffold a Lynx app with the SignalX CLI, or add Lynx rendering to an existing SignalX project.</p>
+
+## Prerequisites
+
+- Node.js 20.19+ (or 22.12+)
+- For iOS: Xcode + an iOS simulator
+- For Android: Android Studio + an emulator
+
+## New project
+
+```bash
+npm create @sigx@latest my-app -- --template lynx
+cd my-app
+pnpm install
+```
+
+## Existing project
+
+```bash
+pnpm add @sigx/lynx @sigx/lynx-plugin
+pnpm add -D @sigx/lynx-cli
+```
+
+The CLI plugin registers the `dev`, `build`, `prebuild`, `doctor` and `run:ios` / `run:android` commands; the build plugin splits your source into the background + main-thread bundles Lynx requires.
+
+## Verify the toolchain
+
+```bash
+sigx doctor
+```
+
+`doctor` checks your native toolchains and reports anything missing.
+
+## Next steps
+
+Continue with [your first app](/lynx/docs/your-first-app).

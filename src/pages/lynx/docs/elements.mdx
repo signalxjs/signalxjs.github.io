@@ -1,0 +1,29 @@
+---
+title: Native elements
+description: The built-in Lynx elements — View, Text, Image, ScrollView and friends
+layout: docs
+category: Core Concepts
+order: 50
+---
+
+# Native elements
+
+<p class="lede">Instead of HTML tags, Lynx components compose a small set of native elements.</p>
+
+## The core set
+
+```tsx
+import { View, Text, Image, ScrollView, Input } from '@sigx/lynx';
+```
+
+- **View** — the flexbox container (UIView / ViewGroup)
+- **Text** — all text must live in a Text element
+- **Image** — local + remote sources
+- **ScrollView** — scrolling containers
+- **Input** — text entry
+
+{/* TODO: full element reference */}
+
+## Composition
+
+Elements nest exactly like web components — keys, conditionals and list rendering work unchanged from SignalX on the web.

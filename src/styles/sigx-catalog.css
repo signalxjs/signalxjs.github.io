@@ -1,0 +1,158 @@
+/* ============================================================
+   MODULE CATALOGS — Lynx module browser, Core package browser,
+   collection strips on landings, sidebar catalog link and the
+   component-library catalog. (Ported from the v2 prototype.)
+   ============================================================ */
+
+.back-link {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  background: none; border: 0; color: var(--accent); font-size: 13px; font-weight: 530;
+  padding: 0; margin-bottom: 18px;
+}
+.back-link:hover { color: var(--accent-strong); }
+
+/* ---- Catalog hero ---- */
+.cat-hero { padding: 36px 0 8px; }
+.cat-hero h1 { font-size: clamp(34px, 5vw, 50px); letter-spacing: -0.035em; font-weight: 680; margin: 0 0 12px; color: var(--fg); }
+.cat-accent { color: var(--accent); }
+.cat-hero > p { font-size: 16px; line-height: 1.55; color: var(--fg-2); max-width: 600px; margin: 0 0 26px; }
+
+.cat-toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.cat-search {
+  flex: 1; max-width: 420px; display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: var(--r-md); background: var(--bg-1);
+  border: var(--hair) solid var(--line); color: var(--fg-2);
+}
+.cat-search:focus-within { border-color: var(--accent-line); }
+.cat-search input { flex: 1; background: none; border: 0; outline: 0; color: var(--fg); font: inherit; font-size: 14px; }
+.cat-search input::placeholder { color: var(--fg-3); }
+.cat-count { font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); }
+
+.cat-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 30px; }
+.chip {
+  padding: 7px 14px; border-radius: 99px; cursor: pointer; font-size: 13px; font-weight: 500;
+  background: var(--bg-1); border: var(--hair) solid var(--line); color: var(--fg-2);
+  transition: all .15s;
+}
+.chip:hover { color: var(--fg); border-color: var(--line-2); }
+.chip[data-active="true"] { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); font-weight: 560; }
+
+/* ---- Module grid ---- */
+.module-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding-bottom: 100px; }
+.module-card {
+  display: flex; flex-direction: column; padding: 20px; cursor: pointer;
+  border-radius: var(--r-md); border: var(--hair) solid var(--line); background: var(--bg-1);
+  transition: border-color .18s, background .18s, transform .18s var(--ease);
+}
+.module-card:hover { border-color: var(--accent-line); background: var(--bg-2); transform: translateY(-2px); }
+.mc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.mc-tile {
+  width: 46px; height: 46px; display: grid; place-items: center; font-size: 23px;
+  border-radius: var(--r-sm); color: var(--accent); background: var(--accent-soft);
+  border: var(--hair) solid var(--accent-line);
+}
+.mc-name { font-size: 17px; font-weight: 640; letter-spacing: -0.015em; color: var(--fg); }
+.mc-npm { font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); margin-top: 2px; }
+.mc-blurb { font-size: 13px; line-height: 1.55; color: var(--fg-2); margin: 12px 0 16px; flex: 1; }
+.mc-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: var(--hair) solid var(--line); }
+.mc-dl { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-3); }
+.mc-open { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 560; color: var(--accent); }
+
+/* ---- Module docs meta row (under the overview lede) ---- */
+.prose .mod-meta-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  font-size: 13px; color: var(--fg-2); margin: 0 0 6px; }
+.prose .mod-meta-row strong { color: var(--fg); font-weight: 620; }
+.mmr-dot { width: 3px; height: 3px; border-radius: 99px; background: var(--fg-3); }
+
+/* ---- Component-library catalog ---- */
+.comp-catalog { padding-bottom: 20px; }
+.comp-search {
+  display: flex; align-items: center; gap: 10px; max-width: 360px; margin-bottom: 26px;
+  padding: 9px 13px; border-radius: var(--r-md); background: var(--bg-1);
+  border: var(--hair) solid var(--line); color: var(--fg-2);
+}
+.comp-search:focus-within { border-color: var(--accent-line); }
+.comp-search input { flex: 1; background: none; border: 0; outline: 0; color: var(--fg); font: inherit; font-size: 13.5px; }
+.comp-search input::placeholder { color: var(--fg-3); }
+.comp-empty { color: var(--fg-3); font-size: 13px; padding: 8px 2px; }
+.comp-group { margin-bottom: 24px; }
+.comp-cat { display: flex; align-items: center; gap: 8px; color: var(--fg-2); margin-bottom: 12px;
+  padding-bottom: 9px; border-bottom: var(--hair) solid var(--line);
+  font-size: 13px; font-weight: 600; scroll-margin-top: 90px; }
+.prose h2.comp-cat { font-size: 13px; margin: 26px 0 12px; border-top: 0; padding-top: 0; }
+.comp-cat-n { font-size: 10px; color: var(--fg-3); padding: 1px 6px; border-radius: 99px;
+  background: var(--bg-3); border: var(--hair) solid var(--line); }
+.comp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.comp-chip {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 8px 13px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500;
+  color: var(--fg-1); background: var(--bg-1); border: var(--hair) solid var(--line);
+  transition: all .14s;
+}
+.comp-chip:hover { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); transform: translateY(-1px); }
+.comp-chip-dot { width: 6px; height: 6px; border-radius: 99px; background: var(--accent); opacity: .5; }
+.comp-chip:hover .comp-chip-dot { opacity: 1; }
+/* Components without a docs page yet: same chip, no affordance */
+.comp-chip[data-soon="true"] { cursor: default; }
+.comp-chip[data-soon="true"]:hover { color: var(--fg-1); border-color: var(--line); background: var(--bg-1); transform: none; }
+.comp-chip[data-soon="true"]:hover .comp-chip-dot { opacity: .5; }
+
+/* ---- Sidebar "All modules / packages" catalog link ---- */
+.side-catalog-link {
+  width: 100%; display: flex; align-items: center; gap: 9px; cursor: pointer; text-align: left;
+  padding: 9px 11px; margin-bottom: 18px; border-radius: var(--r-sm);
+  font-size: 13.5px; font-weight: 540; color: var(--accent);
+  background: var(--accent-soft); border: var(--hair) solid var(--accent-line);
+  transition: border-color .15s, transform .15s var(--ease);
+}
+.side-catalog-link:hover { border-color: var(--accent); transform: translateX(1px); }
+.side-catalog-link .scl-label { flex: 1; }
+.scl-count {
+  font-family: var(--font-mono); font-size: 11px; padding: 1px 7px; border-radius: 99px;
+  background: color-mix(in oklab, var(--accent) 22%, transparent); color: var(--accent);
+}
+
+.crumbs .cr-spacer { flex: 1; }
+
+/* ---- Web ↔ native sibling pill (DaisyUI only) ---- */
+.sibling-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 6px 4px 11px; border-radius: 99px;
+  background: var(--bg-2); border: var(--hair) solid var(--line);
+  font-size: 11.5px; color: var(--fg-3);
+}
+.sibling-pill .sp-lead { margin-right: 4px; }
+.sibling-pill .sp-target {
+  padding: 2px 9px; border-radius: 99px; font-weight: 560; font-size: 11.5px;
+  color: var(--fg-2); border: var(--hair) solid transparent; line-height: 1.4;
+}
+.sibling-pill a.sp-target { cursor: pointer; }
+.sibling-pill a.sp-target:hover { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-line); }
+.sibling-pill .sp-target[data-current="true"] {
+  color: var(--accent); background: var(--accent-soft); border-color: var(--accent-line);
+}
+.sl-link { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; cursor: pointer;
+  font-size: 13px; font-weight: 540; color: var(--accent); white-space: nowrap; }
+.sl-link:hover { color: var(--accent-strong); }
+.sl-note { font-size: 12px; color: var(--fg-3); white-space: nowrap; }
+.lmc-role { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--accent); padding: 1px 6px; border-radius: 99px; background: var(--accent-soft); border: var(--hair) solid var(--accent-line); vertical-align: middle; }
+.lynx-mod-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.lynx-mod-card { display: flex; align-items: center; gap: 11px; text-align: left; cursor: pointer;
+  padding: 13px 14px; border-radius: var(--r-md); border: var(--hair) solid var(--line); background: var(--bg-1);
+  transition: border-color .16s, background .16s; }
+.lynx-mod-card:hover { border-color: var(--accent-line); background: var(--bg-2); }
+.lmc-tile { width: 34px; height: 34px; flex-shrink: 0; display: grid; place-items: center; font-size: 17px;
+  border-radius: var(--r-sm); color: var(--accent); background: var(--accent-soft); border: var(--hair) solid var(--accent-line); }
+.lmc-meta { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.lmc-name { font-size: 13.5px; font-weight: 580; color: var(--fg); }
+.lmc-tag { font-size: 11.5px; color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 980px) {
+  .lynx-mod-row { grid-template-columns: repeat(2, 1fr); }
+  .module-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 620px) {
+  .lynx-mod-row { grid-template-columns: 1fr; }
+  .module-grid { grid-template-columns: 1fr; }
+}

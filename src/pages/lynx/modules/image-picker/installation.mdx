@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Image Picker — Pick / capture images"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-image-picker` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-image-picker
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as ImagePicker from '@sigx/lynx-image-picker';
+
+console.log(Object.keys(ImagePicker));
+```

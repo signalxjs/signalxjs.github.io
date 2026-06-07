@@ -34,7 +34,10 @@ function extractHeadingsFromDOM(minLevel = 2, maxLevel = 3): Heading[] {
     const elements = contentArea.querySelectorAll(selectors.join(', '));
     elements.forEach((el) => {
         const id = el.id;
-        const text = el.textContent?.trim() || '';
+        // Exclude decorations (count badges etc.) from the TOC label
+        const clone = el.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('[data-toc-ignore]').forEach((n) => n.remove());
+        const text = clone.textContent?.trim() || '';
         const level = parseInt(el.tagName[1], 10);
         
         if (id && text) {
@@ -70,15 +73,23 @@ export const TableOfContents = component<TableOfContentsProps>(({ props, signal 
         
         // Use provided headings or fall back to DOM extraction
         let headings = props.headings || [];
-        
+
         if (headings.length === 0) {
-            // Client-side fallback for TSX pages
-            // Small delay to ensure DOM is updated after navigation
-            requestAnimationFrame(() => {
+            // Client-side fallback for pages whose headings are rendered by
+            // components (no build-time meta.headings). Content may render a
+            // few frames after us — retry briefly until headings appear.
+            let attempts = 0;
+            const tryExtract = () => {
+                attempts++;
                 headings = extractHeadingsFromDOM();
-                state.headings = headings;
-                waitForHeadingsAndSetup(headings);
-            });
+                if (headings.length > 0) {
+                    state.headings = headings;
+                    waitForHeadingsAndSetup(headings);
+                } else if (attempts < 20) {
+                    requestAnimationFrame(tryExtract);
+                }
+            };
+            requestAnimationFrame(tryExtract);
             return;
         }
         
@@ -171,9 +182,13 @@ export const TableOfContents = component<TableOfContentsProps>(({ props, signal 
     }
     
     onMounted(() => {
-        // Use requestAnimationFrame to wait for content to render
+        // Use requestAnimationFrame to wait for content to render.
+        // setupHeadings (not waitForHeadingsAndSetup) so the DOM-extraction
+        // fallback also runs on initial mount — pages whose headings are
+        // rendered by components (e.g. ComponentCatalog) have no
+        // build-time meta.headings.
         requestAnimationFrame(() => {
-            waitForHeadingsAndSetup(props.headings ?? []);
+            setupHeadings();
         });
     });
     
@@ -223,23 +238,19 @@ export const TableOfContents = component<TableOfContentsProps>(({ props, signal 
         };
         
         return (
-            <nav class="text-sm">
-                <h4 class="font-semibold mb-4 text-base-content">On this page</h4>
-                <ul class="space-y-1">
+            <nav class="toc-nav">
+                <div class="toc-title mono">On this page</div>
+                <ul>
                     {headings.map((heading, idx) => {
                         const isActive = currentActiveId === heading.id;
-                        const indent = (heading.level - 2) * 12;
-                        
+
                         return (
-                            <li key={idx} style={{ paddingLeft: `${indent}px` }}>
-                                <a 
+                            <li key={idx}>
+                                <a
                                     href={`#${heading.id}`}
                                     onClick={(e: MouseEvent) => handleClick(heading.id, e)}
-                                    class={`block py-1.5 px-3 rounded-md transition-all duration-200 border-l-2 ${
-                                        isActive 
-                                            ? 'text-primary font-medium bg-primary/10 border-primary' 
-                                            : 'text-base-content/50 hover:text-base-content hover:bg-base-200/50 border-transparent'
-                                    }`}
+                                    class={`toc-link${heading.level > 2 ? ' toc-link-sub' : ''}`}
+                                    data-active={String(isActive)}
                                 >
                                     {heading.text}
                                 </a>

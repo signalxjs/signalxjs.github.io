@@ -3,6 +3,8 @@ export { Footer } from './Footer';
 export { DocsSidebar } from './DocsSidebar';
 export { TableOfContents } from './TableOfContents';
 export { InteractiveCode } from './InteractiveCode';
-
-// Visual effects components
-export * from './effects';
+export { HeroBackdrop } from './HeroBackdrop';
+export { FamilyMenu } from './FamilyMenu';
+export { CommandPalette } from './CommandPalette';
+export { PackageSwitcher } from './PackageSwitcher';
+export { PackageLanding } from './PackageLanding';
