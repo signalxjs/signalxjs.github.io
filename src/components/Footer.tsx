@@ -3,7 +3,7 @@
  */
 
 import { component } from 'sigx';
-import { RouterLink } from '@sigx/router';
+import { SxLink } from '@/components/ui/SxLink';
 import { Select } from "@sigx/daisyui";
 
 export const Footer = component(() => {
@@ -16,8 +16,9 @@ export const Footer = component(() => {
                     {/* Brand */}
                     <div class="col-span-2 md:col-span-1">
                         <div class="text-xl font-bold mb-4">
-                            <span class="text-gradient">Signal</span>
-                            <span>X</span>
+                            <span class="logo-word">
+                                Signal<span class="logo-paren">(</span><span class="logo-x">X</span><span class="logo-paren">)</span>
+                            </span>
                         </div>
                         <p class="text-sm text-base-content/60 max-w-xs">
                             A lightweight reactive component framework for building modern applications.
@@ -29,24 +30,24 @@ export const Footer = component(() => {
                         <h4 class="font-semibold mb-4">Documentation</h4>
                         <ul class="space-y-2 text-sm text-base-content/60">
                             <li>
-                                <RouterLink to="/core/docs/getting-started" class="hover:text-base-content transition-colors">
+                                <SxLink to="/core/docs/getting-started" class="hover:text-base-content transition-colors">
                                     Getting Started
-                                </RouterLink>
+                                </SxLink>
                             </li>
                             <li>
-                                <RouterLink to="/core/docs/signals" class="hover:text-base-content transition-colors">
+                                <SxLink to="/core/docs/signals" class="hover:text-base-content transition-colors">
                                     Core Concepts
-                                </RouterLink>
+                                </SxLink>
                             </li>
                             <li>
-                                <RouterLink to="/core/api" class="hover:text-base-content transition-colors">
+                                <SxLink to="/core/api" class="hover:text-base-content transition-colors">
                                     API Reference
-                                </RouterLink>
+                                </SxLink>
                             </li>
                             <li>
-                                <RouterLink to="/core/docs/components" class="hover:text-base-content transition-colors">
+                                <SxLink to="/core/docs/components" class="hover:text-base-content transition-colors">
                                     Components
-                                </RouterLink>
+                                </SxLink>
                             </li>
                         </ul>
                     </div>
@@ -56,19 +57,19 @@ export const Footer = component(() => {
                         <h4 class="font-semibold mb-4">Ecosystem</h4>
                         <ul class="space-y-2 text-sm text-base-content/60">
                             <li>
-                                <RouterLink to="/router" class="hover:text-base-content transition-colors">
+                                <SxLink to="/router" class="hover:text-base-content transition-colors">
                                     Router
-                                </RouterLink>
+                                </SxLink>
                             </li>
                             <li>
-                                <RouterLink to="/core" class="hover:text-base-content transition-colors">
+                                <SxLink to="/core" class="hover:text-base-content transition-colors">
                                     Core
-                                </RouterLink>
+                                </SxLink>
                             </li>
                             <li>
-                                <RouterLink to="/daisyui" class="hover:text-base-content transition-colors">
+                                <SxLink to="/daisyui" class="hover:text-base-content transition-colors">
                                     DaisyUI
-                                </RouterLink>
+                                </SxLink>
                             </li>
                         </ul>
                     </div>

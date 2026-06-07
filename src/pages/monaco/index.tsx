@@ -1,5 +1,5 @@
 /**
- * DaisyUI Package Landing Page
+ * Monaco Package Landing Page
  *
  * Thin data-driven page - all content comes from src/lib/family.ts
  * via <PackageLanding>. (One file per package because @sigx/ssg uses
@@ -12,13 +12,13 @@ import { component } from 'sigx';
 import { PackageLanding } from '@/components/PackageLanding';
 
 const Landing = component(() => {
-    return () => <PackageLanding id="daisyui" />;
+    return () => <PackageLanding id="monaco" />;
 });
 
 export default Landing;
 
 export const meta = {
-    title: 'SignalX DaisyUI - Themed component library',
-    description: 'Accessible buttons, forms, modals and more with full DaisyUI theme support.',
+    title: 'SignalX Monaco - Editor + live-code playground',
+    description: 'A pluggable Monaco wrapper powering the live, runnable code samples in these docs.',
     layout: 'package',
 };

@@ -1,33 +1,37 @@
 /**
  * SignalX Documentation Homepage
- * 
- * This page uses the 'home' layout which provides:
- * - Full-width design without container constraints
- * - Background effects
- * - Navbar and Footer
- * 
+ *
+ * Family-overview home: hero with the multi-hue signal field, a stats
+ * band, and the family grid bridging to every package's landing page.
+ *
  * @layout home
  */
 
 import { component } from 'sigx';
 import { HeroSection } from '@/components/home/HeroSection';
-import { FeaturesGrid } from '@/components/home/FeaturesGrid';
-import { CodeShowcase } from '@/components/home/CodeShowcase';
-import { WhatIsSignalXSection } from '@/components/home/WhatIsSignalXSection';
-import { CTASection } from '@/components/home/CTASection';
+import { FamilyGrid } from '@/components/home/FamilyGrid';
+import { PACKAGES } from '@/lib/family';
 
 /**
  * Homepage content - layout handles navigation and footer
  */
 const HomePage = component(() => {
     return () => (
-        <>
+        <div class="page">
             <HeroSection />
-            <FeaturesGrid />
-            <CodeShowcase />
-            <WhatIsSignalXSection />
-            <CTASection />
-        </>
+
+            <div class="home-band">
+                <div class="hb-stat"><span class="hb-num">{PACKAGES.length}</span><span>packages</span></div>
+                <span class="hb-sep" />
+                <div class="hb-stat"><span class="hb-num">~7kb</span><span>core runtime</span></div>
+                <span class="hb-sep" />
+                <div class="hb-stat"><span class="hb-num">4</span><span>render targets</span></div>
+                <span class="hb-sep" />
+                <div class="hb-stat"><span class="hb-num">MIT</span><span>licensed</span></div>
+            </div>
+
+            <FamilyGrid />
+        </div>
     );
 });
 
@@ -38,7 +42,7 @@ export default HomePage;
  * The layout property tells SSG which layout to wrap this page with
  */
 export const meta = {
-    title: 'SignalX - The Reactive component Framework',
-    description: 'Build blazing-fast web applications with fine-grained reactivity, minimal bundle size, and an intuitive developer experience.',
+    title: 'SignalX - The Reactive Component Framework',
+    description: 'A fine-grained reactive framework with one core and a package for every surface - web, native, terminal and the tooling in between.',
     layout: 'home',
 };

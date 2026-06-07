@@ -28,8 +28,8 @@ export default defineSSGConfig({
         favicon: '/sigx.png',
         themeColor: '#000000',
         fonts: [
-            'Inter:wght@400;500;600;700;800',
-            'JetBrains+Mono:wght@400;500',
+            'Geist:wght@400..800',
+            'Geist+Mono:wght@400;500',
         ],
         // OG/Twitter support
         ogImage: 'https://sigx.dev/og-image.png',

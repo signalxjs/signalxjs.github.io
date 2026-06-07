@@ -1,5 +1,5 @@
 /**
- * DaisyUI Package Landing Page
+ * Core Package Landing Page
  *
  * Thin data-driven page - all content comes from src/lib/family.ts
  * via <PackageLanding>. (One file per package because @sigx/ssg uses
@@ -12,13 +12,13 @@ import { component } from 'sigx';
 import { PackageLanding } from '@/components/PackageLanding';
 
 const Landing = component(() => {
-    return () => <PackageLanding id="daisyui" />;
+    return () => <PackageLanding id="core" />;
 });
 
 export default Landing;
 
 export const meta = {
-    title: 'SignalX DaisyUI - Themed component library',
-    description: 'Accessible buttons, forms, modals and more with full DaisyUI theme support.',
+    title: 'SignalX Core - Signals, effects & the component model',
+    description: 'Fine-grained reactivity with signals and effects, plus a tiny TSX component runtime.',
     layout: 'package',
 };

@@ -11,9 +11,13 @@ import type { LayoutProps, LayoutSlots } from '@sigx/ssg';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { TableOfContents } from '@/components/TableOfContents';
+import { CommandPalette } from '@/components/CommandPalette';
+import { useCommandPalette } from '@/lib/useCommandPalette';
 import { initializeTheme } from '@sigx/daisyui';
 
 export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props }) => {
+    const cmd = useCommandPalette();
+
     onMounted(() => {
         initializeTheme({ defaultTheme: 'dark' });
     });
@@ -24,7 +28,8 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props }) =
 
         return (
             <div class="min-h-screen flex flex-col bg-base-100">
-                <Navbar />
+                <Navbar onOpenCmd={() => (cmd.open = true)} />
+                {cmd.open && <CommandPalette onClose={() => (cmd.open = false)} />}
                 
                 <div class="flex-1 w-full max-w-[90rem] mx-auto">
                     <div class="flex justify-center">

@@ -1,9 +1,39 @@
 @import 'tailwindcss';
 @plugin "daisyui";
+@import './sigx-design.css';
+@import './sigx-pages.css';
+@import './sigx-marketing.css';
+@import './sigx-components.css';
 
 /* Include the @sigx/daisyui package's compiled output so Tailwind scans it
    for button / form / etc. variant classes. */
 @source "../../node_modules/@sigx/daisyui/dist";
+
+/* Redesign type scale — Geist everywhere (matches sigx-design.css tokens). */
+@theme {
+    --font-sans: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+}
+
+/* Align daisyUI base surfaces with the redesign tokens (sigx-design.css)
+   so `bg-base-*` and `--bg-*` agree and the HeroBackdrop bottom fade is
+   seamless against the page background. Other theme values are inherited
+   from the built-in themes. */
+@plugin "daisyui/theme" {
+    name: "dark";
+    --color-base-100: #08080a;
+    --color-base-200: #0d0d11;
+    --color-base-300: #141419;
+    --color-base-content: #f4f4f6;
+}
+
+@plugin "daisyui/theme" {
+    name: "light";
+    --color-base-100: #ffffff;
+    --color-base-200: #fbfbfc;
+    --color-base-300: #f5f5f7;
+    --color-base-content: #16161a;
+}
 
 /* ============================================
    KEYFRAME ANIMATIONS
@@ -31,76 +61,6 @@
             animation-name: daisyui-progress-indeterminate;
         }
     }
-}
-
-@keyframes gradient {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-}
-
-@keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-20px); }
-}
-
-@keyframes pulse-ring {
-    0% { transform: scale(0.8); opacity: 0.5; }
-    100% { transform: scale(2); opacity: 0; }
-}
-
-@keyframes grid-scroll {
-    0% { background-position: 0 0; }
-    100% { background-position: 0 60px; }
-}
-
-@keyframes beam-slide {
-    0%, 100% { 
-        transform: translateY(-30%) scaleY(0.5);
-        opacity: 0;
-    }
-    10% { opacity: 1; }
-    50% { 
-        transform: translateY(0%) scaleY(1);
-        opacity: 1;
-    }
-    90% { opacity: 1; }
-    100% {
-        transform: translateY(30%) scaleY(0.5);
-        opacity: 0;
-    }
-}
-
-@keyframes orb-float {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    25% { transform: translate(30px, -30px) scale(1.05); }
-    50% { transform: translate(-20px, 20px) scale(0.95); }
-    75% { transform: translate(-30px, -20px) scale(1.02); }
-}
-
-@keyframes cursor-blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
-}
-
-@keyframes shimmer {
-    0% { left: -100%; }
-    100% { left: 100%; }
-}
-
-@keyframes pulse-ring-anim {
-    0% { transform: scale(1); opacity: 0.5; }
-    100% { transform: scale(1.5); opacity: 0; }
-}
-
-@keyframes badge-glow {
-    0% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.2); }
-    100% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.4); }
-}
-
-@keyframes stagger-fade-up {
-    0% { opacity: 0; transform: translateY(20px); }
-    100% { opacity: 1; transform: translateY(0); }
 }
 
 /* ============================================
@@ -152,21 +112,21 @@
         overflow-y: scroll; /* Always show scrollbar to prevent shift */
     }
 
-    /* Selection color */
+    /* Selection color — tracks the current package accent */
     ::selection {
-        background: rgba(99, 102, 241, 0.3);
+        background: var(--accent-soft);
     }
 
     /* Focus styles */
     :focus-visible {
-        outline: 2px solid #6366f1;
+        outline: 2px solid var(--accent);
         outline-offset: 2px;
     }
 
     /* Scrollbar styling */
     ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 10px;
+        height: 10px;
     }
 
     ::-webkit-scrollbar-track {
@@ -174,111 +134,15 @@
     }
 
     ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 4px;
+        background: var(--line-2);
+        border-radius: 99px;
+        border: 3px solid transparent;
+        background-clip: content-box;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.3);
-    }
-}
-
-/* ============================================
-   UTILITIES LAYER - Reusable utility classes
-   ============================================ */
-
-@layer utilities {
-    /* Gradient text utility */
-    .text-gradient {
-        background: linear-gradient(135deg, #6366f1 0%, #ec4899 50%, #14b8a6 100%);
-        background-size: 200% 200%;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        animation: gradient 8s ease infinite;
-    }
-
-    /* Gradient background */
-    .bg-gradient-vibrant {
-        background: linear-gradient(135deg, #6366f1 0%, #ec4899 50%, #14b8a6 100%);
-        background-size: 300% 300%;
-        animation: gradient 8s ease infinite;
-    }
-
-    /* Glass effect */
-    .glass-effect {
-        background: rgba(255, 255, 255, 0.05);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    /* Glow effects */
-    .glow-primary {
-        box-shadow: 0 0 40px rgba(99, 102, 241, 0.3);
-    }
-
-    .glow-secondary {
-        box-shadow: 0 0 40px rgba(236, 72, 153, 0.3);
-    }
-
-    .glow-accent {
-        box-shadow: 0 0 40px rgba(20, 184, 166, 0.3);
-    }
-
-    /* Enhanced glow effects */
-    .glow-primary-intense {
-        box-shadow: 
-            0 0 20px rgba(99, 102, 241, 0.4),
-            0 0 40px rgba(99, 102, 241, 0.2),
-            0 0 60px rgba(99, 102, 241, 0.1);
-    }
-
-    .glow-secondary-intense {
-        box-shadow: 
-            0 0 20px rgba(236, 72, 153, 0.4),
-            0 0 40px rgba(236, 72, 153, 0.2),
-            0 0 60px rgba(236, 72, 153, 0.1);
-    }
-
-    .glow-accent-intense {
-        box-shadow: 
-            0 0 20px rgba(20, 184, 166, 0.4),
-            0 0 40px rgba(20, 184, 166, 0.2),
-            0 0 60px rgba(20, 184, 166, 0.1);
-    }
-
-    /* Animated background dots */
-    .bg-dots {
-        background-image: radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
-        background-size: 30px 30px;
-    }
-
-    /* Float animations */
-    .animate-float {
-        animation: float 6s ease-in-out infinite;
-    }
-
-    .animate-float-delayed {
-        animation: float 6s ease-in-out infinite;
-        animation-delay: 2s;
-    }
-
-    .animate-float-1 {
-        animation: float 8s ease-in-out infinite;
-    }
-
-    .animate-float-2 {
-        animation: float 10s ease-in-out infinite;
-        animation-delay: -3s;
-    }
-
-    .animate-float-3 {
-        animation: float 12s ease-in-out infinite;
-        animation-delay: -6s;
-    }
-
-    .animate-pulse-ring {
-        animation: pulse-ring 2s ease-out infinite;
+        background: var(--line-3);
+        background-clip: content-box;
     }
 }
 
@@ -889,29 +753,40 @@
        ============================================ */
 
     .prose {
-        @apply max-w-none text-base-content;
+        @apply max-w-none;
+        color: var(--fg-1);
     }
 
     .prose p {
-        @apply text-base-content;
-        line-height: 1.75;
+        color: var(--fg-1);
+        font-size: 15px;
+        line-height: 1.72;
     }
 
     .prose pre {
-        @apply bg-base-300 border border-base-content/10;
+        @apply border;
+        background: var(--bg-1);
+        border-color: var(--line-2);
+        border-radius: var(--r-md);
     }
 
-    /* Inline code - more prominent with accent coloring */
+    /* Inline code - accent-tinted (tracks the current package hue) */
     .prose code {
-        @apply px-2 py-1 rounded-md text-sm before:content-[''] after:content-[''] font-medium;
-        background: oklch(var(--p) / 0.1);
-        color: oklch(var(--p));
-        border: 1px solid oklch(var(--p) / 0.12);
+        @apply before:content-[''] after:content-[''];
+        font-family: var(--font-mono);
+        font-size: 0.86em;
+        font-weight: 500;
+        padding: 2px 6px;
+        border-radius: 5px;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border: var(--hair) solid var(--accent-line);
     }
 
     .prose pre code {
         @apply bg-transparent p-0 border-0;
         color: inherit;
+        font-size: 13px;
     }
 
     /* ============================================
@@ -926,51 +801,47 @@
        :not(.not-prose *) does the same for any explicitly opted-out block
        (e.g. the theme-generator's `card-title` <h2>s). */
     article.prose h1:not(.live-preview-island *):not(.not-prose *) {
-        font-size: 2.25rem;
-        line-height: 2.5rem;
-        font-weight: 800;
-        letter-spacing: -0.025em;
-        margin-bottom: 1.5rem;
-        padding-bottom: 1rem;
-        color: #6366f1;
-        border-bottom: 2px solid rgba(99, 102, 241, 0.2);
+        font-size: 40px;
+        line-height: 1.08;
+        font-weight: 660;
+        letter-spacing: -0.03em;
+        margin: 0 0 16px;
+        color: var(--fg);
     }
 
-    /* H2 - Section headers with clear hierarchy */
+    /* H2 - Section headers with hairline top rule */
     article.prose h2:not(.live-preview-island *):not(.not-prose *) {
-        font-size: 1.5rem;
-        line-height: 2rem;
-        font-weight: 700;
-        letter-spacing: -0.025em;
-        margin-top: 3rem;
-        margin-bottom: 1rem;
-        scroll-margin-top: 6rem;
-        color: oklch(var(--bc));
+        font-size: 22px;
+        line-height: 1.25;
+        font-weight: 620;
+        letter-spacing: -0.02em;
+        margin: 52px 0 14px;
+        padding-top: 18px;
+        border-top: var(--hair) solid var(--line);
+        scroll-margin-top: 90px;
+        color: var(--fg);
         position: relative;
     }
 
     /* H3 - Subsection headers */
     article.prose h3:not(.live-preview-island *):not(.not-prose *) {
-        font-size: 1.25rem;
-        line-height: 1.75rem;
+        font-size: 16.5px;
         font-weight: 600;
-        letter-spacing: -0.025em;
-        margin-top: 2rem;
-        margin-bottom: 0.75rem;
-        scroll-margin-top: 6rem;
-        color: oklch(var(--bc) / 0.9);
+        letter-spacing: -0.01em;
+        margin: 30px 0 10px;
+        scroll-margin-top: 90px;
+        color: var(--fg);
         position: relative;
     }
 
     /* H4 - Minor headers */
     article.prose h4:not(.live-preview-island *):not(.not-prose *) {
-        font-size: 1.125rem;
-        line-height: 1.75rem;
+        font-size: 14.5px;
+        line-height: 1.5;
         font-weight: 600;
-        margin-top: 1.5rem;
-        margin-bottom: 0.5rem;
-        scroll-margin-top: 6rem;
-        color: oklch(var(--bc) / 0.85);
+        margin: 24px 0 8px;
+        scroll-margin-top: 90px;
+        color: var(--fg);
     }
 
     /* Heading anchor links (generated by rehype-autolink-headings) */
@@ -979,7 +850,7 @@
         text-decoration: none;
         opacity: 0;
         transition: opacity 0.2s ease;
-        color: oklch(var(--p));
+        color: var(--accent);
     }
 
     article.prose .heading-anchor-icon {
@@ -1003,9 +874,9 @@
     article.prose .table-container {
         overflow-x: auto;
         margin: 2rem 0;
-        border-radius: 12px;
-        border: 1px solid var(--code-window-header-border);
-        background: var(--code-window-bg);
+        border-radius: var(--r-md);
+        border: var(--hair) solid var(--line);
+        background: var(--bg-1);
     }
 
     article.prose .table-container table {
@@ -1019,36 +890,38 @@
         border-collapse: separate;
         border-spacing: 0;
         margin: 2rem 0;
-        font-size: 0.875rem;
-        border-radius: 12px;
-        background: var(--code-window-bg);
-        border: 1px solid var(--code-window-header-border);
+        font-size: 13px;
+        border-radius: var(--r-md);
+        background: var(--bg-1);
+        border: var(--hair) solid var(--line);
+        overflow: hidden;
     }
 
     article.prose thead {
-        background: var(--code-window-header-bg);
-        border-bottom: 1px solid var(--code-window-header-border);
+        background: var(--bg-2);
+        border-bottom: var(--hair) solid var(--line);
     }
 
     article.prose th {
         text-align: left;
-        padding: 0.875rem 1.25rem;
+        padding: 10px 14px;
+        font-family: var(--font-mono);
         font-weight: 600;
-        font-size: 0.75rem;
+        font-size: 10.5px;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        color: var(--code-window-text);
+        color: var(--fg-3);
         border-bottom: none;
     }
 
     article.prose th:not(:last-child) {
-        border-right: 1px solid var(--code-window-header-border);
+        border-right: var(--hair) solid var(--line);
     }
 
     article.prose td {
-        padding: 0.75rem 1rem;
-        border-bottom: 1px solid var(--code-window-header-border);
-        color: var(--code-window-text);
+        padding: 11px 14px;
+        border-bottom: var(--hair) solid var(--line);
+        color: var(--fg-1);
         vertical-align: top;
         line-height: 1.5;
     }
@@ -1068,13 +941,12 @@
     }
 
     article.prose td:not(:last-child) {
-        border-right: 1px solid var(--code-window-header-border);
+        border-right: var(--hair) solid var(--line);
     }
 
     /* First column styling - property names with emphasis */
     article.prose td:first-child code {
         font-weight: 600;
-        @apply text-base-content;
     }
 
     article.prose tbody tr:last-child td {
@@ -1086,26 +958,22 @@
     }
 
     article.prose tbody tr:hover {
-        background: oklch(var(--p) / 0.08);
+        background: var(--bg-2);
     }
 
     article.prose tbody tr:nth-child(even) {
-        background: oklch(var(--bc) / 0.02);
+        background: color-mix(in oklab, var(--bg-2) 45%, transparent);
     }
 
     article.prose tbody tr:nth-child(even):hover {
-        background: oklch(var(--p) / 0.1);
+        background: var(--bg-2);
     }
 
-    /* Code inside tables - more prominent styling */
+    /* Code inside tables - accent-tinted */
     article.prose table code {
-        background: oklch(var(--p) / 0.15);
-        @apply text-primary;
-        padding: 0.2rem 0.4rem;
-        border-radius: 0.25rem;
-        font-size: 0.8125rem;
+        font-size: 12.5px;
         font-weight: 500;
-        border: 1px solid oklch(var(--p) / 0.2);
+        padding: 0.15rem 0.35rem;
     }
 
     /* Type column - wrap on word boundaries */
@@ -1146,7 +1014,7 @@
     /* Definition-style content blocks - bold labels */
     article.prose li strong,
     article.prose p strong {
-        @apply text-primary;
+        color: var(--fg);
         font-weight: 600;
     }
 
@@ -1159,455 +1027,75 @@
        CALLOUT/INFO BLOCKS
        ============================================ */
 
+    /* Markdown blockquotes render as accent-tinted callouts that track
+       the current package hue. */
     article.prose blockquote {
-        border-left: 4px solid oklch(var(--p));
-        background: var(--code-window-bg);
-        padding: 1rem 1.5rem;
-        margin: 1.5rem 0;
-        border-radius: 0 12px 12px 0;
-        color: var(--code-window-text);
-        border: 1px solid var(--code-window-header-border);
-        border-left: 4px solid #6366f1;
+        background: var(--accent-soft);
+        border: var(--hair) solid var(--accent-line);
+        padding: 15px 17px;
+        margin: 22px 0;
+        border-radius: var(--r-md);
+        color: var(--fg-1);
+        font-size: 13.5px;
+        line-height: 1.6;
     }
 
     article.prose blockquote p {
         margin: 0;
+        font-size: 13.5px;
     }
 
     article.prose blockquote code {
-        background: rgba(99, 102, 241, 0.15);
+        background: color-mix(in oklab, var(--accent-soft) 60%, var(--bg-0));
     }
 
-    /* ============================================
-       ANIMATED GRID BACKGROUND
-       ============================================ */
-
-    .animated-grid-container {
-        position: absolute;
-        inset: 0;
-        overflow: hidden;
-        pointer-events: none;
+    /* Prose links — accent underline */
+    article.prose a:not(.live-preview-island *):not(.not-prose *):not(.heading-anchor):not(.sx-btn) {
+        color: var(--accent);
+        text-decoration: none;
+        border-bottom: 1px solid var(--accent-line);
+        transition: border-color 0.14s;
     }
 
-    .animated-grid {
-        position: absolute;
-        inset: -50%;
-        background-image: 
-            linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
-        background-size: 60px 60px;
-        transform: perspective(500px) rotateX(60deg);
-        animation: grid-scroll 20s linear infinite;
+    article.prose a:not(.live-preview-island *):not(.not-prose *):not(.heading-anchor):not(.sx-btn):hover {
+        border-bottom-color: var(--accent);
     }
 
-    .grid-beam {
-        position: absolute;
-        width: 1px;
-        height: 200%;
-        top: -50%;
-        background: linear-gradient(
-            180deg,
-            transparent 0%,
-            rgba(99, 102, 241, 0) 10%,
-            rgba(99, 102, 241, 0.5) 50%,
-            rgba(236, 72, 153, 0.5) 60%,
-            rgba(99, 102, 241, 0) 90%,
-            transparent 100%
-        );
-        animation: beam-slide 8s ease-in-out infinite;
+    /* Lead paragraph + eyebrow helpers (opt-in from MDX) */
+    article.prose .lede {
+        font-size: 18px;
+        line-height: 1.6;
+        color: var(--fg-2);
+        margin: 0 0 14px;
     }
 
-    .grid-beam-1 {
-        left: 20%;
-        animation-delay: 0s;
-    }
-
-    .grid-beam-2 {
-        left: 50%;
-        animation-delay: 2.5s;
-    }
-
-    .grid-beam-3 {
-        left: 80%;
-        animation-delay: 5s;
-    }
-
-    .grid-fade {
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(
-            ellipse 80% 50% at 50% 50%,
-            transparent 0%,
-            rgba(15, 23, 42, 0.5) 50%,
-            rgba(15, 23, 42, 1) 100%
-        );
-    }
-
-    /* ============================================
-       GLOWING ORBS
-       ============================================ */
-
-    .glowing-orbs-container {
-        position: absolute;
-        inset: 0;
-        overflow: hidden;
-        pointer-events: none;
-    }
-
-    .orb {
-        position: absolute;
-        border-radius: 50%;
-        filter: blur(80px);
-        opacity: 0.5;
-        animation: orb-float 10s ease-in-out infinite;
-    }
-
-    .orb-primary {
-        background: radial-gradient(circle, rgba(99, 102, 241, 0.6) 0%, transparent 70%);
-    }
-
-    .orb-secondary {
-        background: radial-gradient(circle, rgba(236, 72, 153, 0.5) 0%, transparent 70%);
-    }
-
-    .orb-accent {
-        background: radial-gradient(circle, rgba(20, 184, 166, 0.5) 0%, transparent 70%);
-    }
-
-    .orb-1 {
-        width: 600px;
-        height: 600px;
-        top: -10%;
-        left: -10%;
-        animation-duration: 15s;
-    }
-
-    .orb-2 {
-        width: 400px;
-        height: 400px;
-        bottom: 10%;
-        right: -5%;
-        animation-delay: -5s;
-        animation-duration: 12s;
-    }
-
-    .orb-3 {
-        width: 300px;
-        height: 300px;
-        top: 50%;
-        left: 30%;
-        animation-delay: -8s;
-        animation-duration: 18s;
-    }
-
-    .orb-4 {
-        width: 200px;
-        height: 200px;
-        top: 20%;
-        right: 20%;
-        animation-delay: -3s;
-        animation-duration: 14s;
-    }
-
-    .orb-5 {
-        width: 250px;
-        height: 250px;
-        bottom: 30%;
-        left: 10%;
-        animation-delay: -10s;
-        animation-duration: 16s;
-    }
-
-    .orb-section-1 {
-        width: 400px;
-        height: 400px;
-        top: 20%;
-        right: -10%;
-        animation-duration: 12s;
-    }
-
-    .orb-section-2 {
-        width: 300px;
-        height: 300px;
-        bottom: 10%;
-        left: -5%;
-        animation-delay: -4s;
-        animation-duration: 14s;
-    }
-
-    /* ============================================
-       TYPEWRITER EFFECT
-       ============================================ */
-
-    .typewriter {
+    article.prose .eyebrow {
         display: inline-flex;
         align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 600;
     }
 
-    .typewriter-text {
-        display: inline;
+    /* Callout block (opt-in from MDX) */
+    article.prose .callout {
+        display: flex;
+        gap: 13px;
+        padding: 15px 17px;
+        margin: 22px 0;
+        border-radius: var(--r-md);
+        background: var(--accent-soft);
+        border: var(--hair) solid var(--accent-line);
     }
 
-    .typewriter-cursor {
-        display: inline-block;
-        margin-left: 2px;
-        animation: cursor-blink 1s step-end infinite;
-        font-weight: 100;
-    }
-
-    /* ============================================
-       TILT CARD
-       ============================================ */
-
-    .tilt-card {
-        position: relative;
-        transform-style: preserve-3d;
-        transition: transform 0.15s ease-out;
-        will-change: transform;
-    }
-
-    .tilt-card-glare {
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        pointer-events: none;
-        transition: background 0.15s ease-out;
-    }
-
-    /* ============================================
-       SCROLL REVEAL ANIMATIONS
-       ============================================ */
-
-    .scroll-reveal {
-        opacity: 0;
-        transition-property: opacity, transform;
-        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-        will-change: opacity, transform;
-    }
-
-    .scroll-reveal-visible {
-        opacity: 1;
-    }
-
-    /* Fade Up */
-    .scroll-reveal-fade-up {
-        transform: translateY(40px);
-    }
-    .scroll-reveal-fade-up.scroll-reveal-visible {
-        transform: translateY(0);
-    }
-
-    /* Fade Down */
-    .scroll-reveal-fade-down {
-        transform: translateY(-40px);
-    }
-    .scroll-reveal-fade-down.scroll-reveal-visible {
-        transform: translateY(0);
-    }
-
-    /* Fade Left */
-    .scroll-reveal-fade-left {
-        transform: translateX(40px);
-    }
-    .scroll-reveal-fade-left.scroll-reveal-visible {
-        transform: translateX(0);
-    }
-
-    /* Fade Right */
-    .scroll-reveal-fade-right {
-        transform: translateX(-40px);
-    }
-    .scroll-reveal-fade-right.scroll-reveal-visible {
-        transform: translateX(0);
-    }
-
-    /* Zoom */
-    .scroll-reveal-zoom {
-        transform: scale(0.9);
-    }
-    .scroll-reveal-zoom.scroll-reveal-visible {
-        transform: scale(1);
-    }
-
-    /* Flip */
-    .scroll-reveal-flip {
-        transform: perspective(600px) rotateX(-30deg);
-    }
-    .scroll-reveal-flip.scroll-reveal-visible {
-        transform: perspective(600px) rotateX(0);
-    }
-
-    /* ============================================
-       GRADIENT BORDER
-       ============================================ */
-
-    .gradient-border {
-        position: relative;
-        background: var(--fallback-b1,oklch(var(--b1)));
-        border-radius: 1rem;
-    }
-
-    .gradient-border::before {
-        content: '';
-        position: absolute;
-        inset: -2px;
-        border-radius: inherit;
-        background: linear-gradient(135deg, #6366f1, #ec4899, #14b8a6, #6366f1);
-        background-size: 300% 300%;
-        animation: gradient 4s ease infinite;
-        z-index: -1;
-    }
-
-    /* ============================================
-       SHIMMER EFFECT
-       ============================================ */
-
-    .shimmer {
-        position: relative;
-        overflow: hidden;
-    }
-
-    .shimmer::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255, 255, 255, 0.1) 50%,
-            transparent 100%
-        );
-        animation: shimmer 3s ease-in-out infinite;
-    }
-
-    /* ============================================
-       PULSE RING EFFECT
-       ============================================ */
-
-    .pulse-ring {
-        position: relative;
-    }
-
-    .pulse-ring::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        border: 2px solid currentColor;
-        animation: pulse-ring-anim 2s ease-out infinite;
-    }
-
-    /* ============================================
-       FEATURE CARD HOVER EFFECTS
-       ============================================ */
-
-    .feature-card {
-        position: relative;
-        overflow: hidden;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .feature-card::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.03) 100%);
-        opacity: 0;
-        transition: opacity 0.3s ease;
-    }
-
-    .feature-card:hover::before {
-        opacity: 1;
-    }
-
-    .feature-card:hover {
-        transform: translateY(-8px);
-        box-shadow: 
-            0 20px 40px rgba(0, 0, 0, 0.3),
-            0 0 40px rgba(99, 102, 241, 0.1);
-    }
-
-    /* ============================================
-       ANIMATED STATS
-       ============================================ */
-
-    .stat-card {
-        position: relative;
-        overflow: hidden;
-    }
-
-    .stat-card::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, #6366f1, #ec4899, #14b8a6);
-        background-size: 200% 100%;
-        animation: gradient 3s ease infinite;
-        transform: scaleX(0);
-        transform-origin: left;
-        transition: transform 0.5s ease;
-    }
-
-    .stat-card:hover::after {
-        transform: scaleX(1);
-    }
-
-    /* ============================================
-       NAVBAR ENHANCEMENTS
-       ============================================ */
-
-    .nav-link {
-        position: relative;
-    }
-
-    .nav-link::after {
-        content: '';
-        position: absolute;
-        bottom: -4px;
-        left: 0;
-        width: 100%;
-        height: 2px;
-        background: linear-gradient(90deg, #6366f1, #ec4899);
-        transform: scaleX(0);
-        transform-origin: right;
-        transition: transform 0.3s ease;
-    }
-
-    .nav-link:hover::after {
-        transform: scaleX(1);
-        transform-origin: left;
-    }
-
-    /* ============================================
-       HERO ENHANCEMENTS
-       ============================================ */
-
-    .hero-headline {
-        text-shadow: 0 0 80px rgba(99, 102, 241, 0.3);
-    }
-
-    .hero-badge {
-        animation: badge-glow 2s ease-in-out infinite alternate;
-    }
-
-    /* Staggered reveal for children */
-    .stagger-children > * {
-        opacity: 0;
-        animation: stagger-fade-up 0.6s ease forwards;
-    }
-
-    .stagger-children > *:nth-child(1) { animation-delay: 0.1s; }
-    .stagger-children > *:nth-child(2) { animation-delay: 0.2s; }
-    .stagger-children > *:nth-child(3) { animation-delay: 0.3s; }
-    .stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
-    .stagger-children > *:nth-child(5) { animation-delay: 0.5s; }
-    .stagger-children > *:nth-child(6) { animation-delay: 0.6s; }
+    article.prose .callout .co-icon { color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+    article.prose .callout .co-title { font-size: 13.5px; font-weight: 600; color: var(--fg); margin-bottom: 3px; }
+    article.prose .callout .co-body { font-size: 13.5px; line-height: 1.6; color: var(--fg-1); }
 }
 
 /* ============================================

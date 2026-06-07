@@ -1,15 +1,21 @@
 /**
  * Documentation Sidebar Navigation
- * 
- * Uses auto-generated navigation from virtual:ssg-navigation
+ *
+ * Auto-generated from virtual:ssg-navigation; headed by the package
+ * switcher. Sticky on desktop, off-canvas drawer ≤880px (hamburger
+ * opens it, scrim closes — see sigx-components.css responsive rules).
+ * Active links tint to the current package accent.
  */
 
 import { component, type Define } from 'sigx';
-import { RouterLink, useRoute } from '@sigx/router';
+import { useRoute } from '@sigx/router';
 import { navigation, detectCollection } from 'virtual:ssg-navigation';
 import type { NavSection, NavItem } from '@sigx/ssg';
+import { byId, packageForCollection } from '@/lib/family';
+import { PackageSwitcher } from '@/components/PackageSwitcher';
+import { SxLink } from '@/components/ui/SxLink';
 
-type DocsSidebarProps = 
+type DocsSidebarProps =
     & Define.Prop<'isOpen', boolean, false>
     & Define.Prop<'collection', string, false>
     & Define.Event<'close', void>;
@@ -17,15 +23,17 @@ type DocsSidebarProps =
 export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
     const route = useRoute();
 
+    const getCollection = () => props.collection || detectCollection(route.path);
+
     /**
      * Get sidebar sections for the current collection
      */
     const getSections = (): NavSection[] => {
-        const collectionName = props.collection || detectCollection(route.path);
+        const collectionName = getCollection();
         if (!collectionName) return [];
         return navigation[collectionName]?.sidebar || [];
     };
-    
+
     /**
      * Check if a nav item or any of its children is active
      */
@@ -50,11 +58,9 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
             // Group with nested items
             return (
                 <li>
-                    <details open={depth === 0 || hasActiveChild}>
-                        <summary class="font-medium text-base-content/50 cursor-pointer hover:text-base-content">
-                            {item.title}
-                        </summary>
-                        <ul class="pl-2 mt-1 space-y-1 border-l border-base-content/10">
+                    <details class="side-group" open={depth === 0 || hasActiveChild}>
+                        <summary class="side-subhead">{item.title}</summary>
+                        <ul class="side-group-list">
                             {item.items.map((child, idx) => (
                                 <li key={idx}>
                                     {renderNavItem(child, depth + 1)}
@@ -68,53 +74,47 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
 
         // Leaf item with link
         return (
-            <RouterLink 
+            <SxLink
                 to={item.href || '#'}
-                class={`block px-3 py-2 rounded-lg text-sm transition-colors ${
-                    isActive 
-                        ? 'bg-primary/10 text-primary font-medium' 
-                        : 'text-base-content/50 hover:text-base-content hover:bg-base-200/50'
-                }`}
+                class="side-link"
+                active={isActive}
                 onClick={() => emit('close')}
             >
                 {item.title}
-            </RouterLink>
+            </SxLink>
         );
     };
-    
-    return () => (
-        <>
-            {/* Mobile overlay */}
-            {props.isOpen && (
-                <div 
-                    class="fixed inset-0 bg-black/50 z-40 lg:hidden"
-                    onClick={() => emit('close')}
-                />
-            )}
-            
-            {/* Sidebar */}
-            <aside 
-                class={`fixed lg:relative top-16 lg:top-0 left-0 z-40 w-64 shrink-0 h-[calc(100vh-4rem)] lg:h-auto lg:sticky lg:top-16 bg-base-100 lg:bg-transparent border-r border-base-content/10 overflow-y-auto transition-transform lg:translate-x-0 ${
-                    props.isOpen ? 'translate-x-0' : '-translate-x-full'
-                }`}
-            >
-                <nav class="px-6 py-8 space-y-6">
-                    {getSections().map((section, idx) => (
-                        <div key={idx}>
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-3">
-                                {section.title}
-                            </h3>
-                            <ul class="space-y-1">
-                                {section.items.map((item, itemIdx) => (
-                                    <li key={itemIdx}>
-                                        {renderNavItem(item)}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    ))}
-                </nav>
-            </aside>
-        </>
-    );
+
+    return () => {
+        const currentPkg = packageForCollection(getCollection()) ?? byId.core;
+        return (
+            <>
+                {/* Drawer scrim (visible ≤880px only, via CSS) */}
+                {props.isOpen && (
+                    <div class="sidebar-scrim" onClick={() => emit('close')} />
+                )}
+
+                {/* Sidebar */}
+                <aside class={`sidebar${props.isOpen ? ' is-open' : ''}`}>
+                    <div class="sidebar-inner">
+                        <PackageSwitcher currentPkg={currentPkg} />
+                        <nav class="side-nav">
+                            {getSections().map((section, idx) => (
+                                <div class="side-section" key={idx}>
+                                    <div class="side-section-title mono">{section.title}</div>
+                                    <ul>
+                                        {section.items.map((item, itemIdx) => (
+                                            <li key={itemIdx}>
+                                                {renderNavItem(item)}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ))}
+                        </nav>
+                    </div>
+                </aside>
+            </>
+        );
+    };
 });
