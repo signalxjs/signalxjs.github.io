@@ -1,0 +1,122 @@
+---
+title: Steps
+description: "Steps — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Feedback"]
+order: 146
+---
+
+# Steps
+
+<p class="lede">Display a list of ordered steps to show progress through a multi-stage process.</p>
+
+## Import
+
+```tsx
+import { Steps } from '@sigx/lynx-daisyui';
+```
+
+`Steps` is a compound component: the container is `Steps` and each step is rendered with `Steps.Step`.
+
+## Props
+
+### `Steps`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `vertical` | `boolean` | `false` | Lay the steps out vertically. When `false` (the default) the steps are arranged horizontally. |
+| `class` | `string` | - | Additional CSS classes applied to the container. |
+| `children` | slot | - | The `Steps.Step` elements that make up the sequence. |
+
+### `Steps.Step`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'neutral' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Color of the step indicator and connector. Apply it to completed/active steps to visualize progress. |
+| `content` | `string` | - | Short text shown inside the step indicator (for example a number, a checkmark glyph, or an initial). |
+| `class` | `string` | - | Additional CSS classes applied to the step. |
+| `children` | slot | - | Label content rendered next to the step indicator. |
+
+## Basic Usage
+
+Wrap each stage in a `Steps.Step`. Mark the steps that are done or active with a `color`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Steps, Text } from '@sigx/lynx-daisyui';
+
+const Checkout = component(() => {
+    return () => (
+        <Steps>
+            <Steps.Step color="primary" content="1">
+                <Text>Cart</Text>
+            </Steps.Step>
+            <Steps.Step color="primary" content="2">
+                <Text>Shipping</Text>
+            </Steps.Step>
+            <Steps.Step content="3">
+                <Text>Payment</Text>
+            </Steps.Step>
+            <Steps.Step content="4">
+                <Text>Confirm</Text>
+            </Steps.Step>
+        </Steps>
+    );
+});
+```
+
+## Vertical
+
+Set `vertical` to stack the steps in a column, which suits narrow native layouts:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Steps, Text } from '@sigx/lynx-daisyui';
+
+const Onboarding = component(() => {
+    return () => (
+        <Steps vertical>
+            <Steps.Step color="success" content="✓">
+                <Text>Create account</Text>
+            </Steps.Step>
+            <Steps.Step color="success" content="✓">
+                <Text>Verify email</Text>
+            </Steps.Step>
+            <Steps.Step color="primary" content="3">
+                <Text>Add payment method</Text>
+            </Steps.Step>
+            <Steps.Step content="4">
+                <Text>Invite team</Text>
+            </Steps.Step>
+        </Steps>
+    );
+});
+```
+
+## Colors
+
+Each step takes its own `color`, so you can mix states across the sequence — for example `success` for completed steps, `warning` for one needing attention, and no color for upcoming steps:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Steps, Text } from '@sigx/lynx-daisyui';
+
+const Pipeline = component(() => {
+    return () => (
+        <Steps>
+            <Steps.Step color="success" content="✓">
+                <Text>Build</Text>
+            </Steps.Step>
+            <Steps.Step color="success" content="✓">
+                <Text>Test</Text>
+            </Steps.Step>
+            <Steps.Step color="warning" content="!">
+                <Text>Review</Text>
+            </Steps.Step>
+            <Steps.Step color="info" content="4">
+                <Text>Deploy</Text>
+            </Steps.Step>
+        </Steps>
+    );
+});
+```

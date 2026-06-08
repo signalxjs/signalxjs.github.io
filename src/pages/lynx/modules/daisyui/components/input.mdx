@@ -1,0 +1,124 @@
+---
+title: Input
+description: "Input — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 143
+---
+
+# Input
+
+<p class="lede">Single-line text field for native Lynx apps, with daisyUI styling, two-way model binding, and theme-aware text and placeholder colors.</p>
+
+## Import
+
+```tsx
+import { Input } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `Model<string>` | - | Two-way binding to a signal string value. Pass a model accessor (e.g. `() => form.email`) so edits flow back into your state. |
+| `placeholder` | `string` | - | Placeholder text shown when the field is empty. |
+| `type` | `'text' \| 'number' \| 'password'` | `'text'` | Native input type. `'password'` masks input; `'number'` constrains to numeric entry. |
+| `size` | `'xs' \| 'sm' \| 'md' \| 'lg'` | `'md'` | Field size. `'md'` is the default and adds no size class. |
+| `variant` | `'bordered' \| 'ghost'` | - | Visual style. `'bordered'` adds an outlined border; `'ghost'` removes the background for a minimal look. |
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Accent color applied to the field (e.g. for validation states). |
+| `disabled` | `boolean` | `false` | Disables the field and blocks input. |
+| `class` | `string` | - | Additional CSS classes appended to the input. |
+
+The typed-text and placeholder colors are resolved from the active theme palette to literal hex values, because native text widgets cannot read CSS custom properties. Switching themes recolors the field automatically.
+
+## Basic usage
+
+Use `model` for two-way binding. The accessor points at a signal property, and edits are written straight back to it:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Input, Col, Text } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const form = signal({ name: '' });
+
+    return () => (
+        <Col gap="4">
+            <Input
+                model={() => form.name}
+                placeholder="Enter your name"
+                variant="bordered"
+            />
+            <Text size="sm">Hello, {form.name || 'stranger'}</Text>
+        </Col>
+    );
+});
+
+render(<Demo />, '#sandbox');
+```
+
+## Sizes and variants
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Input, Col } from '@sigx/lynx-daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Col gap="4">
+            <Input size="xs" variant="bordered" placeholder="Extra small" />
+            <Input size="sm" variant="bordered" placeholder="Small" />
+            <Input size="md" variant="bordered" placeholder="Medium (default)" />
+            <Input size="lg" variant="bordered" placeholder="Large" />
+            <Input variant="ghost" placeholder="Ghost variant" />
+        </Col>
+    );
+});
+
+render(<Demo />, '#sandbox');
+```
+
+## Colors, types, and disabled state
+
+Use `color` to signal validation state, `type` to mask or constrain input, and `disabled` to lock a field:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Input, Col } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const form = signal({ email: '', password: '', amount: '' });
+
+    return () => (
+        <Col gap="4">
+            <Input
+                model={() => form.email}
+                type="text"
+                color="success"
+                variant="bordered"
+                placeholder="valid@example.com"
+            />
+            <Input
+                model={() => form.password}
+                type="password"
+                color="error"
+                variant="bordered"
+                placeholder="Password"
+            />
+            <Input
+                model={() => form.amount}
+                type="number"
+                variant="bordered"
+                placeholder="0"
+            />
+            <Input
+                variant="bordered"
+                placeholder="Disabled field"
+                disabled
+            />
+        </Col>
+    );
+});
+
+render(<Demo />, '#sandbox');
+```

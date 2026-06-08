@@ -10,8 +10,159 @@ order: 40
 
 <p class="lede">Exports of `@sigx/lynx-websocket` v0.4.1.</p>
 
-## Exports
+The package entry re-exports exactly two named symbols: the `WebSocket` class and the `isWebSocketAvailable` function. Both run on iOS and Android. Importing the package (or merely listing it in `modules:`) also installs a global `WebSocket` on `globalThis` when one is not already defined.
 
-{/* TODO: document the public API of @sigx/lynx-websocket */}
+## Classes
 
-See the package source for the complete typed surface.
+### WebSocket
+
+A WHATWG-compatible WebSocket client — a drop-in for browser code, backed by `URLSessionWebSocketTask` on iOS and OkHttp's WebSocket on Android.
+
+```ts
+declare class WebSocket {
+  static readonly CONNECTING: 0;
+  static readonly OPEN: 1;
+  static readonly CLOSING: 2;
+  static readonly CLOSED: 3;
+  readonly CONNECTING: 0;
+  readonly OPEN: 1;
+  readonly CLOSING: 2;
+  readonly CLOSED: 3;
+
+  readonly url: string;
+  protocol: string;
+  extensions: string;
+  bufferedAmount: number;
+  binaryType: 'arraybuffer';
+
+  onopen: ((ev: WebSocketEventLike) => void) | null;
+  onmessage: ((ev: WebSocketEventLike) => void) | null;
+  onerror: ((ev: WebSocketEventLike) => void) | null;
+  onclose: ((ev: WebSocketEventLike) => void) | null;
+
+  get readyState(): 0 | 1 | 2 | 3;
+
+  constructor(url: string, protocols?: string | string[]);
+
+  send(data: string | ArrayBuffer | ArrayBufferView): void;
+  close(code?: number, reason?: string): void;
+  addEventListener(type: string, listener: EventListenerLike): void;
+  removeEventListener(type: string, listener: EventListenerLike): void;
+  dispatchEvent(event: WebSocketEventLike): boolean;
+}
+```
+
+**Platform:** iOS and Android. The constructor throws if the native module is not registered, so guard with [`isWebSocketAvailable`](#iswebsocketavailable) on web, SSR, or test environments.
+
+#### Constructor
+
+```ts
+constructor(url: string, protocols?: string | string[])
+```
+
+- `url` — the endpoint to connect to. Allowed schemes are `ws`, `wss`, `http`, and `https`; `http` / `https` are normalised and handled natively. An empty or non-string URL throws a `TypeError`; a URL with no scheme or an unsupported scheme throws a `SyntaxError`.
+- `protocols` — an optional subprotocol name, or an array of candidates, sent via the `Sec-WebSocket-Protocol` header. The negotiated value lands on `protocol` once the socket opens.
+
+#### Static constants
+
+`WebSocket.CONNECTING` (`0`), `WebSocket.OPEN` (`1`), `WebSocket.CLOSING` (`2`), and `WebSocket.CLOSED` (`3`) are the ready-state codes. The same four values are also available as instance properties.
+
+#### Properties
+
+- `readyState` (getter) — the current connection state: `0` CONNECTING, `1` OPEN, `2` CLOSING, `3` CLOSED.
+- `url` — the URL passed to the constructor (read-only).
+- `protocol` — the subprotocol selected by the server, available after the `open` event.
+- `extensions` — extensions negotiated for the connection.
+- `bufferedAmount` — a JS-side approximation of bytes handed to native that have not yet been flushed. This is a write-through estimate, not the OS socket buffer level; treat it as a hint.
+- `binaryType` — fixed to `'arraybuffer'`. Setting `'blob'` is unsupported (Lynx ships no `Blob` polyfill).
+- `onopen` / `onmessage` / `onerror` / `onclose` — event-handler properties; each is either a callback or `null`.
+
+#### Methods
+
+```ts
+send(data: string | ArrayBuffer | ArrayBufferView): void
+```
+
+Sends a text or binary frame. Binary payloads are base64-encoded across the bridge and decoded to raw bytes natively. Throws an `InvalidStateError` if called while still `CONNECTING`; silently no-ops if `CLOSING` or `CLOSED`; throws a `TypeError` on unsupported data types.
+
+```ts
+close(code?: number, reason?: string): void
+```
+
+Closes the connection. `code` must be `1000` or in the `3000–4999` range (otherwise throws an `InvalidAccessError`); `reason` must be 123 UTF-8 bytes or fewer (otherwise throws a `SyntaxError`). Defaults to code `1000` and an empty reason. No-op if the socket is already closing or closed.
+
+```ts
+addEventListener(type: string, listener: EventListenerLike): void
+removeEventListener(type: string, listener: EventListenerLike): void
+```
+
+Register or unregister a listener for an event type (`'open'`, `'message'`, `'error'`, `'close'`). The listener may be a function or an object with a `handleEvent` method.
+
+```ts
+dispatchEvent(event: WebSocketEventLike): boolean
+```
+
+Dispatches an event to the registered listeners, returning `true` if it was not cancelled.
+
+## Functions
+
+### isWebSocketAvailable
+
+```ts
+declare function isWebSocketAvailable(): boolean
+```
+
+Returns whether the native WebSocket module is registered in this build.
+
+**Returns:** `true` in real iOS / Android builds where the native module is present, and `false` on web, SSR, or test environments. Use it to guard construction, since events from a socket created without the native module will never arrive.
+
+**Platform:** iOS and Android (returns `false` everywhere the native module is absent).
+
+## Types
+
+These types appear in the `WebSocket` signatures above. They are referenced structurally but are **not** exported from the package entry, so you cannot import them by name.
+
+### WebSocketEventLike
+
+The minimal WHATWG `Event` shape passed to the `on*` handlers and `addEventListener` callbacks.
+
+```ts
+interface WebSocketEventLike {
+  type: string;
+  target: WebSocket;
+  currentTarget: WebSocket;
+  data?: unknown;      // string | ArrayBuffer on 'message' events
+  code?: number;       // 'close' events
+  reason?: string;     // 'close' events
+  wasClean?: boolean;  // 'close' events
+  message?: string;    // 'error' events
+}
+```
+
+On a `message` event, `data` is a `string` for text frames or an `ArrayBuffer` for binary frames.
+
+### ReadyState
+
+```ts
+type ReadyState = 0 | 1 | 2 | 3;
+```
+
+The type of the `readyState` getter: CONNECTING (`0`), OPEN (`1`), CLOSING (`2`), CLOSED (`3`).
+
+### BinaryType
+
+```ts
+type BinaryType = 'arraybuffer';
+```
+
+The type of the `binaryType` property. Only `'arraybuffer'` is supported; `'blob'` is unavailable.
+
+### EventListenerLike
+
+```ts
+type EventListenerLike =
+  | ((ev: WebSocketEventLike) => void)
+  | { handleEvent(ev: WebSocketEventLike): void };
+```
+
+The listener form accepted by `addEventListener` and `removeEventListener`.

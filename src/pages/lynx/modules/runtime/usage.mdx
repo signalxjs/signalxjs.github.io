@@ -8,16 +8,177 @@ order: 30
 
 # Using Runtime
 
-<p class="lede">Background-thread renderer — the essentials.</p>
+<p class="lede">The background-thread renderer that turns your SignalX component tree into native views — plus the cross-thread primitives (main-thread refs, shared values, animated styles, worklet dispatch) you reach for when a signal update isn't fast enough.</p>
+
+`@sigx/lynx-runtime` runs on the background thread. It never touches Lynx's native element APIs directly — instead it serializes every change into a compact op queue and ships it to the main thread, where `@sigx/lynx-runtime-main` applies it. Most apps never import this package directly: `@sigx/lynx` re-exports its entire surface alongside `@sigx/reactivity` and `@sigx/runtime-core`. Reach for `@sigx/lynx-runtime` directly only when you want the renderer without the rest of the meta package.
+
+Importing `@sigx/lynx-runtime` is a side-effecting import: it augments the JSX intrinsic elements (`<view>`, `<text>`, `<image>`, and friends), installs the `model` directive processor, subscribes to the native event bridges, and registers `lynxMount` as the default mount. Import it once, at your app entry, before you mount.
 
 ## Basic usage
 
+Importing the package for its side effects is enough to activate the Lynx renderer. After that, mount your app the normal SignalX way — `defineApp().mount()` picks up `lynxMount` automatically.
+
 ```tsx
-import * as Runtime from '@sigx/lynx-runtime';
+import '@sigx/lynx-runtime';
+import { defineApp } from '@sigx/sigx';
+
+function App() {
+  return (
+    <view style={{ flex: 1, padding: '16px' }}>
+      <text>Hello from a background thread.</text>
+    </view>
+  );
+}
+
+defineApp(<App />).mount();
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-runtime */}
+Calling `mount()` builds the page root, renders the tree, and flushes the first batch of ops synchronously so the first frame commits without a microtask delay. The returned function unmounts. A second mount on the same root triggers a full card reload (this is how hot reload is handled).
+
+The renderer needs Lynx's host bridge to ship ops. The `lynx` global is closure-injected by `@lynx-js/runtime-wrapper-webpack-plugin`, which wraps the background bundle. If the bundle isn't wrapped, the renderer logs a warning that the `lynx` global is missing and drops ops — so make sure your build pipeline (via `@sigx/lynx-plugin`) is in place.
+
+## Reading a native element synchronously with a main-thread ref
+
+Signal updates flow background-to-main asynchronously, which is perfect for declarative UI but too slow for touch-tracking. When you need to read or write a native element from inside an event handler with zero thread crossing, use `useMainThreadRef`. Bind it with `main-thread:ref`, and access the live native handle through `.current` inside a `'main thread'` function.
+
+```tsx
+import { useMainThreadRef, type MainThread } from '@sigx/lynx-runtime';
+
+function StickyHeader() {
+  const elRef = useMainThreadRef<MainThread.Element | null>(null);
+
+  function handleScroll(e: { detail: { scrollTop: number } }) {
+    'main thread';
+    const offset = e.detail.scrollTop;
+    elRef.current?.setStyleProperties({
+      transform: `translateY(${-offset}px)`,
+    });
+  }
+
+  return (
+    <scroll-view main-thread-bindscroll={handleScroll} style={{ flex: 1 }}>
+      <view main-thread:ref={elRef} style={{ height: '60px' }}>
+        <text>I move with the scroll, on the main thread.</text>
+      </view>
+    </scroll-view>
+  );
+}
+```
+
+On the background thread `.current` holds the initial snapshot you passed; only inside a `'main thread'` handler (or a `runOnMainThread` callback) does it resolve to the real native element with `setStyleProperties`, `animate`, `invoke`, and the rest of the [`MainThread.Element`](/lynx/modules/runtime/api#mainthread) surface.
+
+The `'main thread'` directive requires `@sigx/lynx-plugin`'s SWC worklet transform. Without it, the function body is never lifted into a worklet and the handler will not run on the main thread.
+
+## Driving animations off a shared value
+
+For continuous animation you want the value to live on the main thread (so it can be mutated at 60fps without crossing threads) while staying readable on the background thread for declarative reactivity. That's `useSharedValue`. Pair it with `useAnimatedStyle` to bind an element's style to the value through a named built-in mapper — the main thread applies the mapper output on every flush boundary where the value changed, with no per-frame thread crossing.
+
+```tsx
+import {
+  useSharedValue,
+  useAnimatedStyle,
+  useMainThreadRef,
+  type MainThread,
+} from '@sigx/lynx-runtime';
+
+function FadeBox() {
+  const opacity = useSharedValue(0);
+  const boxRef = useMainThreadRef<MainThread.Element | null>(null);
+
+  // Bind the element's opacity to the shared value once, at setup.
+  useAnimatedStyle(boxRef, opacity, 'opacity', { factor: 1 });
+
+  function reveal(e: unknown) {
+    'main thread';
+    opacity.current.value = 1;
+  }
+
+  return (
+    <view main-thread-bindtap={reveal}>
+      <view main-thread:ref={boxRef} style={{ width: '100px', height: '100px' }}>
+        <text>Tap to fade in</text>
+      </view>
+    </view>
+  );
+}
+```
+
+You can still read a shared value reactively on the background thread — `opacity.value` inside JSX participates in signal tracking and re-renders when the main thread publishes a new value. Background-thread writes are read-only and warn in development; mutate `current.value` only inside a `'main thread'` function.
+
+`useAnimatedStyle` also has a reactive form that takes an accessor returning a spec (or `null` to unbind), which re-binds whenever the spec's signature changes:
+
+```tsx
+useAnimatedStyle(boxRef, () =>
+  props.animation
+    ? {
+        sv: props.animation.progress,
+        mapperName: 'translateX',
+        params: { inputRange: [0, 1], outputRange: [0, 200] },
+      }
+    : null,
+);
+```
+
+Note that the `width` and `height` mappers trigger a native layout pass every frame — prefer `translateX`/`translateY`/`scale`/`opacity` for smooth motion.
+
+## Dispatching work across threads
+
+When you need to fire a one-shot from the background thread to the main thread — for example to imperatively kick off a native animation — wrap the worklet with `runOnMainThread`. It returns a callable that ships the worklet and its captured values across the bridge and resolves with the main-thread return value.
+
+```tsx
+import { runOnMainThread, useMainThreadRef, type MainThread } from '@sigx/lynx-runtime';
+
+function Mover() {
+  const ref = useMainThreadRef<MainThread.Element | null>(null);
+
+  const slideTo = runOnMainThread((offset: number) => {
+    'main thread';
+    ref.current?.setStyleProperties({ transform: `translateX(${offset}px)` });
+  });
+
+  async function onPress() {
+    await slideTo(100);
+  }
+
+  return (
+    <view bindtap={onPress}>
+      <view main-thread:ref={ref} style={{ width: '80px', height: '80px' }} />
+    </view>
+  );
+}
+```
+
+The reverse direction — main-thread-to-background dispatch from inside a worklet — is `runOnBackground`. Both `runOnMainThread` and `runOnBackground` depend on `@sigx/lynx-plugin`'s worklet transform to rewrite the `'main thread'` function bodies. Without the transform `runOnMainThread` simply runs the function locally on the background thread, and `runOnBackground` throws with a message pointing at the worklet loader — so a thrown error here almost always means the build plugin isn't wired up.
+
+## Reacting to measured layout
+
+To read an element's measured size and position reactively, use `useElementLayout`. It returns a layout signal plus a handler you wire onto `bindlayoutchange` (Lynx 3.7+).
+
+```tsx
+import { useElementLayout } from '@sigx/lynx-runtime';
+
+function Measured() {
+  const { layout, onLayoutChange } = useElementLayout();
+
+  return (
+    <view bindlayoutchange={onLayoutChange} style={{ flex: 1 }}>
+      <text>width: {layout.value?.width ?? 0}</text>
+    </view>
+  );
+}
+```
+
+For per-line `<text>` metrics, use `bindlayout` instead of `bindlayoutchange`.
 
 ## Notes
 
-sigx RuntimeRenderer adapter, op queue, useMainThreadRef, useSharedValue and runOnMainThread.
+- Use `@sigx/lynx` in most apps — it re-exports this entire surface plus reactivity and runtime-core under one import path.
+- This is the background-thread renderer; the producer side of shared values, `runOnMainThread`/`runOnBackground`, and gestures lives in `@sigx/lynx-runtime-main` and `@sigx/lynx-gestures`.
+- The `'main thread'` directive, cross-thread dispatch, and gesture callbacks all require `@sigx/lynx-plugin`'s SWC worklet transform.
+- The renderer skips a style write when it is shallow-equal to the previous style, so it doesn't clobber main-thread `setStyleProperties` writes.
+
+## See also
+
+- [API reference](/lynx/modules/runtime/api) — every export and its signature.
+- [Installation](/lynx/modules/runtime/installation) — project setup.
+- [Gestures](/lynx/modules/gestures/overview) — higher-level touch handling built on these primitives.

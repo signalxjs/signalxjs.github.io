@@ -1,0 +1,83 @@
+---
+title: Skeleton
+description: "Skeleton — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Feedback"]
+order: 145
+---
+
+# Skeleton
+
+<p class="lede">A placeholder block with a pulsing animation, used to suggest content while it loads.</p>
+
+## Import
+
+```tsx
+import { Skeleton } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `width` | `number \| string` | - | Width of the placeholder. Numbers are treated as native length units; strings (e.g. `"100%"`) are passed through as-is. |
+| `height` | `number \| string` | - | Height of the placeholder. Numbers are treated as native length units; strings are passed through as-is. |
+| `circle` | `boolean` | `false` | Render a circular placeholder. The diameter is taken from `width`, then `height`, falling back to `48`; the border radius is set to make it round. |
+| `class` | `string` | - | Additional CSS classes appended to the `skeleton` base class. |
+
+When `circle` is set, the placeholder is forced square: it uses `width` (or `height`, or `48` as a fallback) for both dimensions and rounds the corners into a circle.
+
+## Basic Usage
+
+Size a placeholder with `width` and `height`:
+
+```tsx
+import { Skeleton } from '@sigx/lynx-daisyui';
+
+export function LoadingLine() {
+  return <Skeleton width="100%" height={20} />;
+}
+```
+
+## Circular Placeholder (Avatar)
+
+Use `circle` to stand in for a round avatar while it loads:
+
+```tsx
+import { Skeleton, Row, Col } from '@sigx/lynx-daisyui';
+
+export function LoadingUser() {
+  return (
+    <Row gap="3" align="center">
+      <Skeleton circle width={48} />
+      <Col gap="2">
+        <Skeleton width={160} height={16} />
+        <Skeleton width={100} height={12} />
+      </Col>
+    </Row>
+  );
+}
+```
+
+## Card Placeholder
+
+Compose several skeletons to mirror the shape of the content that will replace them:
+
+```tsx
+import { Skeleton, Card, Col } from '@sigx/lynx-daisyui';
+
+export function LoadingCard() {
+  return (
+    <Card>
+      <Card.Body>
+        <Col gap="3">
+          <Skeleton width="100%" height={160} />
+          <Skeleton width="80%" height={20} />
+          <Skeleton width="100%" height={14} />
+          <Skeleton width="60%" height={14} />
+        </Col>
+      </Card.Body>
+    </Card>
+  );
+}
+```

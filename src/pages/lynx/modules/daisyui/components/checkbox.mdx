@@ -1,0 +1,119 @@
+---
+title: Checkbox
+description: "Checkbox — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 146
+---
+
+# Checkbox
+
+<p class="lede">A pressable native checkbox for boolean selections, with daisyUI color and size variants.</p>
+
+## Import
+
+```tsx
+import { Checkbox } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+`Checkbox` is a controlled component: pass the current value through `checked` and update your state in the `onChange` handler. There is no built-in label or `model` prop — render your own label alongside it (see the examples below).
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `checked` | `boolean` | `false` | Whether the checkbox is checked. Render the checkmark and `checkbox-checked` class. |
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Color variant applied when styled. Maps to the `checkbox-{color}` class. |
+| `size` | `'xs' \| 'sm' \| 'md' \| 'lg'` | `'md'` | Checkbox size. Also scales the checkmark glyph. |
+| `disabled` | `boolean` | `false` | Disables press handling and applies the `checkbox-disabled` class. |
+| `class` | `string` | - | Additional CSS classes appended to the root. |
+
+## Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onChange` | `(checked: boolean) => void` | Fired on press with the next checked value. Not fired while `disabled`. |
+
+## Basic usage
+
+Hold the value in a signal and toggle it from `onChange`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Checkbox, Row, Text } from '@sigx/lynx-daisyui';
+
+const NewsletterOptIn = component(({ signal }) => {
+  const state = signal({ subscribed: false });
+
+  return () => (
+    <Row align="center" gap="2">
+      <Checkbox
+        checked={state.subscribed}
+        onChange={(checked) => { state.subscribed = checked; }}
+      />
+      <Text>Subscribe to the newsletter</Text>
+    </Row>
+  );
+});
+```
+
+## Sizes
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Checkbox, Col } from '@sigx/lynx-daisyui';
+
+const Sizes = component(() => {
+  return () => (
+    <Col gap="3">
+      <Checkbox size="xs" checked />
+      <Checkbox size="sm" checked />
+      <Checkbox size="md" checked />
+      <Checkbox size="lg" checked />
+    </Col>
+  );
+});
+```
+
+## Colors and disabled state
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Checkbox, Col, Row, Text } from '@sigx/lynx-daisyui';
+
+const Variants = component(({ signal }) => {
+  const state = signal({ primary: true, success: true });
+
+  return () => (
+    <Col gap="3">
+      <Row align="center" gap="2">
+        <Checkbox
+          color="primary"
+          checked={state.primary}
+          onChange={(checked) => { state.primary = checked; }}
+        />
+        <Text>Primary</Text>
+      </Row>
+
+      <Row align="center" gap="2">
+        <Checkbox
+          color="success"
+          checked={state.success}
+          onChange={(checked) => { state.success = checked; }}
+        />
+        <Text>Success</Text>
+      </Row>
+
+      <Row align="center" gap="2">
+        <Checkbox disabled checked />
+        <Text>Disabled (checked)</Text>
+      </Row>
+
+      <Row align="center" gap="2">
+        <Checkbox disabled />
+        <Text>Disabled (unchecked)</Text>
+      </Row>
+    </Col>
+  );
+});
+```

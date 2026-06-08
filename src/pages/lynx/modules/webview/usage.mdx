@@ -1,0 +1,176 @@
+---
+title: "Usage"
+description: "WebView — Native web view"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using WebView
+
+<p class="lede">Embed web content in a native WebView — WKWebView on iOS, android.webkit.WebView on Android. Load a remote URL or inline HTML, listen for load and error events, and pass messages both ways between the page and your app.</p>
+
+## Basic usage
+
+The headline export is the `WebView` component. Importing `@sigx/lynx-webview` registers the underlying `sigx-webview` JSX element for you, so you only need to import the component. There is no manual native setup — `sigx prebuild` auto-links the module after you add the dependency. No platform permissions are declared by the package itself, though loading remote URLs relies on the host app's networking entitlements (the iOS `INTERNET`-equivalent ATS rules and the Android `INTERNET` permission).
+
+```tsx
+import { WebView } from '@sigx/lynx-webview';
+
+<WebView
+  src="https://example.com"
+  onLoad={(e) => console.log('loaded', e.detail.url)}
+  onError={(e) => console.warn('failed', e.detail.message)}
+/>;
+```
+
+`src` accepts `http(s):` and `about:blank` URLs only — `javascript:` and `file:` schemes are refused as XSS and file-read vectors. To render local or richer markup, use the `html` prop instead.
+
+```tsx
+import { WebView } from '@sigx/lynx-webview';
+
+<WebView html="<h1>Hello from sigx-lynx</h1>" />;
+```
+
+Inline HTML loads with a null base URL, so the page is fully sandboxed and relative URLs will not resolve. Set `src` or `html`, but not both — setting both is undefined behavior.
+
+## Reacting to load and error events
+
+The `onLoad` callback fires once the main-frame navigation finishes; `onError` fires when the main frame fails to load (DNS, TLS, or unreachable host). Subresource failures — a missing favicon, a 404 image — are suppressed, so `onError` only signals a genuinely failed page. Use the two together to drive a loading overlay and a retry surface.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { signal } from '@sigx/core';
+import { WebView } from '@sigx/lynx-webview';
+
+const Screen = component(() => {
+  const status = signal<'loading' | 'ready' | 'failed'>('loading');
+
+  return () => (
+    <view>
+      <WebView
+        src="https://en.wikivoyage.org/wiki/Lisbon"
+        style={{ width: '100%', height: '100%' }}
+        onLoad={(e) => {
+          console.log('finished', e.detail.url);
+          status.set('ready');
+        }}
+        onError={(e) => {
+          console.warn('load failed for', e.detail.url, '-', e.detail.message);
+          status.set('failed');
+        }}
+      />
+    </view>
+  );
+});
+```
+
+`e.detail.url` is the final URL of the loaded main frame; on error, `e.detail.message` is the platform's localized error description (Android falls back to `unknown error`).
+
+## Page to app messaging
+
+The native side injects a bridge user-script at document start on every frame. Any page rendered in the WebView can call `window.sigx.postMessage(payload)`; the payload surfaces on `onMessage` as `e.detail.data`. The value is always a string on the wire — objects passed to `postMessage` are JSON-stringified before delivery, so structured payloads should be parsed on the receiving side.
+
+```html
+<button onclick="window.sigx.postMessage(JSON.stringify({ click: 'hi' }))">
+  Send
+</button>
+```
+
+```tsx
+import { WebView } from '@sigx/lynx-webview';
+
+<WebView
+  html={pageHtml}
+  onMessage={(e) => {
+    const data = JSON.parse(e.detail.data);
+    // data.click === 'hi'
+  }}
+/>;
+```
+
+## Driving the WebView imperatively
+
+Methods like back, forward, reload, and stop run on the native element captured through `mtRef`. There is no single helper that works from every context — `MainThread.Element` only exists on the main thread, and `SelectorQuery` only works from the background thread — so pick the pattern that matches where your tap handler runs.
+
+**Pattern A — from a main-thread tap handler (recommended for toolbar buttons).** Capture a `MainThreadRef`, bind a `'main thread'` handler to a raw `<view main-thread:bindtap=...>`, and call `.invoke()` directly on `ref.current`. The `'main thread'` directive compiles into a separate main-thread bundle that cannot reach cross-package imports, so call `.invoke()` directly here rather than through the `WebViewMethods` wrapper. A daisyui `<Button>` only exposes a background-thread `onPress` and silently drops `main-thread:bindtap`, so a raw `<view>` is required.
+
+```tsx
+import { useMainThreadRef, type MainThread } from '@sigx/lynx';
+import { WebView } from '@sigx/lynx-webview';
+
+const ref = useMainThreadRef<MainThread.Element | null>(null);
+
+const onBack = () => {
+  'main thread';
+  ref.current?.invoke('goBack', {});
+};
+const onReload = () => {
+  'main thread';
+  ref.current?.invoke('reload', {});
+};
+
+<WebView mtRef={ref} id="my-webview" src="https://example.com" />;
+<view main-thread:bindtap={onBack}><text>Back</text></view>;
+<view main-thread:bindtap={onReload}><text>Reload</text></view>;
+```
+
+`goBack` and `goForward` are no-ops when there is no history; `reload` always succeeds.
+
+**Pattern B — from a background-thread handler.** Give the WebView an `id` and dispatch through Lynx's `SelectorQuery`. This is the path to use from a daisyui `<Button onPress>` or any other background-thread callback.
+
+```tsx
+import { Button } from '@sigx/lynx-daisyui';
+import { WebView } from '@sigx/lynx-webview';
+
+<WebView id="my-webview" src="https://example.com" />;
+<Button
+  onPress={() => {
+    lynx.createSelectorQuery().select('#my-webview').invoke({
+      method: 'reload',
+      params: {},
+      success: () => {},
+      fail: (e) => console.warn(e),
+    }).exec();
+  }}
+>
+  Reload
+</Button>;
+```
+
+`WebViewMethods` is a typed wrapper around the main-thread `invoke` path. It is callable wherever a `MainThread.Element` is reachable — for example inside a `runOnMainThread` block — and every method accepts `el | null`, no-opping when null so you can pass `ref.current` straight through:
+
+```ts
+import { WebViewMethods } from '@sigx/lynx-webview';
+
+// inside a context where `el` is a MainThread.Element | null
+const canBack = await WebViewMethods.canGoBack(el); // false if el is null
+WebViewMethods.reload(el);
+const title = await WebViewMethods.injectJavaScript(el, 'document.title');
+```
+
+## App to page messaging
+
+The reverse direction uses `postMessage`. From the host, call `WebViewMethods.postMessage(ref.current, data)` (or `invoke('postMessage', { data })`) and the page receives it through `window.sigx.onmessage`. If the page has not subscribed, the call is a silent no-op.
+
+```html
+<script>
+  window.sigx.onmessage = function (data) {
+    console.log('from host', data);
+  };
+</script>
+```
+
+## Notes
+
+- **`src` scheme allowlist.** Only `http(s):` and `about:blank` load; `javascript:` and `file:` are logged and ignored. Use `html` for local content.
+- **iOS App Transport Security.** Release builds are HTTPS-only. Loading plain HTTP requires relaxing ATS in `Info.plist` (with App Store review risk). Dev builds already allow LAN HTTP via `NSAllowsLocalNetworking`.
+- **Android mixed content.** HTTP subresources on HTTPS pages are blocked by default; `mixedContentMode` is not exposed as a prop. Android also hardens file and content access off by default.
+- **Cookies are isolated.** The WebView uses its own `WKWebsiteDataStore` (iOS) / `CookieManager` (Android) and does not share cookies with the system Safari or Chrome.
+- **No file uploads or downloads in v1.** `<input type="file">` and `Content-Disposition: attachment` are not wired through.
+- **`debug` on Android is process-wide.** Enabling it on any instance flips `chrome://inspect` for every WebView in the app, and toggling it off does not detach already-attached inspector sessions. On iOS 16.4+ it sets `WKWebView.isInspectable` per instance.
+
+## See also
+
+- [API reference](/lynx/modules/webview/api) — every export with its full signature.
+- [Overview](/lynx/modules/webview/overview) — what the module is and why it exists.

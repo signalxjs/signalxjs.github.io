@@ -1,0 +1,279 @@
+---
+title: "Usage"
+description: "HeroUI — HeroUI design system"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using HeroUI
+
+<p class="lede">Wire the stylesheet and ThemeProvider once, then build screens from the neutral layout primitives and the HeroUI pilot components — all from a single import source.</p>
+
+## The two imports
+
+Getting started takes two lines at your app entry. Both are required:
+
+```tsx
+// 1. Side-effect CSS — loads the hero-* component classes + token defaults.
+import '@sigx/lynx-heroui/styles';
+
+// 2. Any JS import from the package root — seeds hero-light / hero-dark
+//    into the shared theme registry at module load.
+import { ThemeProvider } from '@sigx/lynx-heroui';
+```
+
+The `@sigx/lynx-heroui/styles` subpath is **CSS-only**. It does not execute any JavaScript, so on its own it never registers the themes. You must also import something from the package root (`ThemeProvider` is the natural choice) so the built-in `hero-light` and `hero-dark` themes are seeded into the registry. Skip the JS import and the stylesheet's tokens have no theme to bind to.
+
+Everything you need — the theme engine, the neutral layout primitives (`Row`, `Col`, `Center`, `Spacer`, `ScrollView`), and the pilot components (`Button`, `Text`, `Card`, and friends) — is re-exported from the one `@sigx/lynx-heroui` entry point. This is the same shape as `@sigx/lynx-daisyui`, so swapping design systems is mostly an import swap.
+
+## Wrap the app in ThemeProvider
+
+Wrap your whole app once in `ThemeProvider`. It renders a `<view class={theme}>` so the theme's CSS custom properties inherit down to every descendant.
+
+```tsx
+import { defineApp } from '@sigx/lynx-runtime';
+import { ThemeProvider } from '@sigx/lynx-heroui';
+import '@sigx/lynx-heroui/styles';
+import { App } from './App';
+
+export default defineApp(() => () => (
+  <ThemeProvider>
+    <App />
+  </ThemeProvider>
+));
+```
+
+With no props, the root provider follows the OS color scheme and live-flips between the first registered light/dark pair — `hero-light` and `hero-dark` when HeroUI is the only design system imported.
+
+You can pin or override the theme via props:
+
+```tsx
+// Pin a single theme (ignores the OS setting).
+<ThemeProvider initial="hero-dark">
+  <App />
+</ThemeProvider>
+
+// Choose which pair the OS light/dark setting maps to.
+<ThemeProvider light="hero-light" dark="hero-dark">
+  <App />
+</ThemeProvider>
+```
+
+`ThemeProvider` also accepts `fontScale` to seed the text-ramp multiplier, plus the usual `class` and `style`. The root provider defaults to flex-fill; nested providers are content-sized color sub-scopes — handy for previewing one section in a different theme.
+
+To keep the OS status bar in sync with the global theme, mount `StatusBarSync` near the root alongside the provider:
+
+```tsx
+import { ThemeProvider, StatusBarSync } from '@sigx/lynx-heroui';
+
+export default defineApp(() => () => (
+  <ThemeProvider>
+    <StatusBarSync />
+    <App />
+  </ThemeProvider>
+));
+```
+
+`StatusBarSync` always tracks the global screen theme, never a nested content sub-scope.
+
+## Layout primitives
+
+The neutral primitives are re-exported from `@sigx/lynx-zero` and handle structure. They are unstyled by the design system — pure flexbox helpers.
+
+- `Col` — vertical stack (`flexDirection: column`). The default container for stacking content.
+- `Row` — horizontal layout. Same prop surface as `Col`.
+- `Center` — centers a single child on both axes.
+- `Spacer` — flexes to fill (push siblings apart) or a fixed gap with `size`.
+- `ScrollView` — wraps overflowing content; scrolls vertically by default.
+
+`gap` is a plain number, `align` maps to `alignItems`, and `justify` maps to `justifyContent`:
+
+```tsx
+import { Col, Row, Spacer } from '@sigx/lynx-heroui';
+
+<Col gap={12} padding={16}>
+  <Row gap={8} align="center">
+    <Text weight="semibold">Title</Text>
+    <Spacer />
+    <Text size="sm" color="primary">Action</Text>
+  </Row>
+  <Text>Body content stacked below the header row.</Text>
+</Col>
+```
+
+`Spacer` with no `size` flexes to fill the available space (`{ flex: 1 }`), pushing the two ends of the `Row` apart. Give it a `size` and it becomes a fixed `width = height = size` box instead.
+
+`Center` has a trimmed prop surface (no `gap` / `padding` / `margin`); use `flex={1}` to fill and center:
+
+```tsx
+import { Center, Text } from '@sigx/lynx-heroui';
+
+<Center flex={1}>
+  <Text size="xl" weight="bold">Centered</Text>
+</Center>
+```
+
+For long content, wrap a `ScrollView`. It defaults to `direction="vertical"`; pass `direction="horizontal"` for a horizontal scroller:
+
+```tsx
+import { ScrollView, Col, Card } from '@sigx/lynx-heroui';
+
+<ScrollView flex={1}>
+  <Col gap={12} padding={16}>
+    <Card><Card.Body><Text>Item one</Text></Card.Body></Card>
+    <Card><Card.Body><Text>Item two</Text></Card.Body></Card>
+  </Col>
+</ScrollView>
+```
+
+### Semantic background and color tokens
+
+`Row`, `Col`, and `Center` accept a `background` (and `borderRadius`) prop that resolves **semantic token names** to `var(--color-<token>)`, so they re-theme automatically when the theme flips:
+
+```tsx
+import { Col } from '@sigx/lynx-heroui';
+
+<Col background="base-100" borderRadius={12} padding={16}>
+  <Text>Themed surface — recolors with the active theme.</Text>
+</Col>
+```
+
+## Pilot components
+
+The HeroUI pilot components follow the shared sigx contract: a semantic `color` (the `ColorVariant` set, e.g. `'primary'`, `'neutral'`), a design-system `variant`, a shared `size`, and sigx conventions like `disabled` and event props.
+
+`Button` is the action component. It takes `color` (default `'neutral'`), `variant` (`'solid'` | `'bordered'` | `'flat'` | `'ghost'`, default `'solid'`), and `size` (`'sm'` | `'md'` | `'lg'`). It emits a `press` event — use `onPress`, not `onClick`. Setting `disabled` **or** `loading` makes it inert, and `block` stretches it full width:
+
+```tsx
+import { Button } from '@sigx/lynx-heroui';
+
+<Button color="primary" variant="solid" onPress={() => save()}>
+  Save
+</Button>
+
+<Button color="neutral" variant="bordered" loading block>
+  Submitting…
+</Button>
+```
+
+`Text` and `Heading` handle typography. `Text` takes `size` (`'xs'` | `'sm'` | `'base'` | `'lg'` | `'xl'` | `'2xl'` | `'3xl'`, default `'base'`), `weight` (`'light'` | `'normal'` | `'medium'` | `'semibold'` | `'bold'`), and `color` (`'base-content'` or a `ColorVariant` excluding `'neutral'`). Set `selectable` to enable native text selection. `Heading` takes a `level` of 1–6 (default 2) and is always colored `base-content`:
+
+```tsx
+import { Heading, Text } from '@sigx/lynx-heroui';
+
+<Heading level={1}>Welcome</Heading>
+<Text size="lg" weight="medium">Subtitle text.</Text>
+<Text selectable>Long-press to select this paragraph.</Text>
+```
+
+`Card` is a compound component. Use `Card.Body` for the padded inner region, and `bordered` for the bordered variant:
+
+```tsx
+import { Card, Heading, Text } from '@sigx/lynx-heroui';
+
+<Card bordered>
+  <Card.Body>
+    <Heading level={3}>Card title</Heading>
+    <Text>Card body content goes here.</Text>
+  </Card.Body>
+</Card>
+```
+
+Alongside these, the package also exports the form, overlay, and navigation pilot components: `Input`, `Textarea`, `Toggle`, `Checkbox`, `Radio`, `Select`, `FormField`, `Divider`, `Modal`, and `Tabs`. They share the same `color` / `variant` / `size` contract; see the [API reference](/lynx/modules/heroui/api) for their exact prop surfaces.
+
+## Putting it together
+
+A complete screen combines the provider, layout primitives, and pilot components:
+
+```tsx
+import { defineApp } from '@sigx/lynx-runtime';
+import {
+  ThemeProvider,
+  StatusBarSync,
+  ScrollView,
+  Col,
+  Row,
+  Spacer,
+  Card,
+  Heading,
+  Text,
+  Button,
+} from '@sigx/lynx-heroui';
+import '@sigx/lynx-heroui/styles';
+
+function Screen() {
+  return (
+    <ScrollView flex={1}>
+      <Col gap={16} padding={16}>
+        <Row align="center">
+          <Heading level={1}>Dashboard</Heading>
+          <Spacer />
+          <Button color="primary" size="sm" onPress={() => refresh()}>
+            Refresh
+          </Button>
+        </Row>
+
+        <Card bordered>
+          <Card.Body>
+            <Heading level={3}>Today</Heading>
+            <Text color="primary">All systems nominal.</Text>
+          </Card.Body>
+        </Card>
+      </Col>
+    </ScrollView>
+  );
+}
+
+export default defineApp(() => () => (
+  <ThemeProvider>
+    <StatusBarSync />
+    <Screen />
+  </ThemeProvider>
+));
+```
+
+## Controlling the theme at runtime
+
+Inside a component, `useTheme()` resolves to the nearest `ThemeProvider`'s controller (or the global controller at the app root / in headless code). It never throws. Read the reactive `name`, `followingSystem`, and `fontScale`, and call `set()`, `toggle()`, `followSystem()`, or `setFontScale()`:
+
+```tsx
+import { useTheme, Button, Row } from '@sigx/lynx-heroui';
+
+function ThemeSwitcher() {
+  const theme = useTheme();
+
+  return (
+    <Row gap={8}>
+      <Button variant="bordered" onPress={() => theme.toggle()}>
+        Toggle ({theme.name})
+      </Button>
+      <Button variant="ghost" onPress={() => theme.followSystem()}>
+        Follow system
+      </Button>
+    </Row>
+  );
+}
+```
+
+`toggle()` flips to the paired theme (light↔dark); `set()` pins a specific theme and stops following the OS; `followSystem()` resumes OS-driven switching. `setFontScale()` re-emits the text ramp at `default × scale` and persists across theme switches.
+
+Outside of components — in headless or shared code — import the global `themeController` and call the same methods directly; no provider ancestor is required:
+
+```ts
+import { themeController } from '@sigx/lynx-heroui';
+
+themeController.set('hero-dark');
+themeController.setFontScale(1.15);
+```
+
+The root `ThemeProvider` binds to this global handle, and `StatusBarSync` tracks it too.
+
+## Pilot scope
+
+HeroUI currently ships a representative pilot set of components rather than full DaisyUI parity — see [signalxjs/lynx#219](https://github.com/signalxjs/lynx/issues/219) for the pilot scope and [#287](https://github.com/signalxjs/lynx/issues/287) for the path toward parity. Because the engine, primitives, and components share one import source and contract with `@sigx/lynx-daisyui`, screens built against the pilot set port forward with minimal churn.
+
+## See also
+
+- [API reference](/lynx/modules/heroui/api) — every export and signature.
+- [Installation](/lynx/modules/heroui/installation) — project setup and prebuild.

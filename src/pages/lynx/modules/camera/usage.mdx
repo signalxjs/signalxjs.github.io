@@ -8,16 +8,122 @@ order: 30
 
 # Using Camera
 
-<p class="lede">Camera capture — the essentials.</p>
+<p class="lede">Request permission, open the system camera, and get a captured photo back — on both iOS and Android.</p>
 
 ## Basic usage
 
+The whole surface lives on a single `Camera` object. Gate capture on permission, then call `takePicture`:
+
 ```tsx
-import * as Camera from '@sigx/lynx-camera';
+import { Camera } from '@sigx/lynx-camera';
+
+async function snap() {
+  const { status } = await Camera.requestPermission();
+  if (status !== 'granted') return;
+
+  const photo = await Camera.takePicture({ facing: 'back', quality: 0.8 });
+  if (!photo.uri) return; // cancelled or failed
+  console.log(photo.uri, photo.width, photo.height);
+}
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-camera */}
+`takePicture` resolves with the raw native result. On success it is a `PhotoResult` whose `uri` is platform-specific: on iOS an absolute temp filesystem path with no scheme prefix; on Android a `content://` URI from the system camera, backed by a JPEG in the app cache directory. Do not assume a uniform scheme — pass the value through as-is. Move or upload it promptly, since the OS may reclaim cached files.
+
+Cancellation and failure do NOT reject the promise — they resolve with a different object that has no `uri` (see [Capturing and using a photo](#capturing-and-using-a-photo) below). Always check for `uri` before reading the other fields.
+
+## Installing and linking
+
+Install the package, then let the CLI wire up the native module:
+
+```bash
+pnpm add @sigx/lynx-camera
+sigx prebuild
+```
+
+`sigx prebuild` auto-discovers the package, links the native module, injects `android.permission.CAMERA`, and adds the iOS usage descriptions (`NSCameraUsageDescription`, `NSMicrophoneUsageDescription`, `NSPhotoLibraryAddUsageDescription`). The companion `@sigx/lynx-permissions` package is auto-linked too — there is nothing extra to install.
+
+To customize the iOS permission prompt copy, set it in `signalx.config.ts`:
+
+```ts
+import { defineLynxConfig } from '@sigx/lynx-cli/config';
+
+export default defineLynxConfig({
+  ios: {
+    usageDescriptions: {
+      NSCameraUsageDescription: 'Acme uses the camera to scan QR codes.',
+    },
+  },
+});
+```
+
+## Handling permissions properly
+
+`takePicture` reports a permission denial by resolving with an `error` object (not by rejecting), but the reliable pattern is to request first and branch on the result. Use `getPermissionStatus` for a silent check (it never prompts) and `requestPermission` to show the OS dialog:
+
+```tsx
+import { Camera } from '@sigx/lynx-camera';
+
+async function ensureCamera(): Promise<boolean> {
+  let { status, canAskAgain } = await Camera.getPermissionStatus();
+
+  if (status === 'undetermined') {
+    ({ status, canAskAgain } = await Camera.requestPermission());
+  }
+
+  if (status === 'granted') return true;
+
+  // status is 'denied' or 'blocked'. If canAskAgain is false the user must
+  // re-enable the permission from system Settings — prompting again is a no-op.
+  return false;
+}
+```
+
+`canAskAgain` is `false` once the user picks "Don't ask again" on Android, or after the first denial on iOS (where the only path back is the Settings app). Surface a "open Settings" message in that case rather than re-requesting.
+
+## Capturing and using a photo
+
+A complete capture flow. `takePicture` does NOT reject on cancel or denial — it resolves with an object that has no `uri` (carrying `cancelled: true` for a user cancel, or an `error` string for a failure). Inspect the resolved object instead of using `try`/`catch`. The promise only rejects when the native module is missing, so a `try`/`catch` here would only catch that case:
+
+```tsx
+import { Camera } from '@sigx/lynx-camera';
+import type { PhotoResult } from '@sigx/lynx-camera';
+
+async function capturePortrait(): Promise<PhotoResult | null> {
+  if (!Camera.isAvailable()) {
+    console.warn('Camera module not present in this build');
+    return null;
+  }
+
+  const { status } = await Camera.requestPermission();
+  if (status !== 'granted') return null;
+
+  const result = await Camera.takePicture({
+    facing: 'front',
+    quality: 0.9,
+    maxWidth: 1080,
+    maxHeight: 1920,
+  });
+
+  // Cancel resolves with { cancelled: true }; failure/denial with { error }.
+  // Neither has a uri, so a missing uri means "no photo".
+  if (!result.uri) {
+    console.warn('Capture cancelled or failed', result);
+    return null;
+  }
+
+  return result;
+}
+```
 
 ## Notes
 
-Photo and video capture with a reactive preview API.
+- **Options are a forward-looking contract.** `facing`, `quality`, `maxWidth`, and `maxHeight` are accepted by the TypeScript API, but the current native implementations ignore them: iOS hard-codes JPEG quality `0.8`, and Android lets the system camera pick its own settings. Pass them for forward compatibility, but do not depend on their effect yet.
+- **The resolved value is not always a `PhotoResult`.** Only a successful capture matches the type. A cancel resolves with `cancelled: true` and a failure or denial with an `error` string — neither has a `uri`. Always check for `uri` before reading other fields. On success, native may also add fields not in the interface (iOS includes `fileSize`), so treat anything beyond `uri` as best-effort. `base64` is declared optional but is not populated by either native implementation today.
+- **`isAvailable()` is JS-only** — it reports whether the native module is registered in the build; it does not check hardware. iOS additionally gates real capture on `UIImagePickerController` source availability.
+- **Test on a physical device.** The iOS simulator only exposes a synthetic camera feed.
+- If you customize `AndroidManifest.xml`, keep the auto-injected `FileProvider` `<provider>` (authority `${applicationId}.fileprovider`) intact — the capture intent needs it as a write target.
+
+## See also
+
+- [Overview](/lynx/modules/camera/overview) — what the package is and how it fits the family.
+- [API reference](/lynx/modules/camera/api) — every export with signatures.

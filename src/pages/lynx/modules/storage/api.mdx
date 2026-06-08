@@ -8,10 +8,96 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-storage` v0.4.1.</p>
+<p class="lede">Exports of `@sigx/lynx-storage` v0.4.9.</p>
 
-## Exports
+The package has a single export: the `Storage` const object. Every method is `readonly` (the object is frozen via `as const`). Available on iOS and Android.
 
-{/* TODO: document the public API of @sigx/lynx-storage */}
+```ts
+import { Storage } from '@sigx/lynx-storage';
 
-See the package source for the complete typed surface.
+export const Storage: {
+  setItem(key: string, value: string): void;
+  getItem(key: string): Promise<string | null>;
+  removeItem(key: string): void;
+  clear(): void;
+  getAllKeys(): Promise<string[]>;
+  isAvailable(): boolean;
+};
+```
+
+## Methods
+
+### Storage.setItem
+
+```ts
+setItem(key: string, value: string): void
+```
+
+Writes a string `value` under `key`. Synchronous and fire-and-forget — it returns immediately and the native store flushes via a write-behind buffer. Passing a null key is a no-op on both platforms.
+
+- **key** — the storage key.
+- **value** — the string to store. Serialize objects with `JSON.stringify` first.
+- **Returns** — nothing.
+- **Platform** — iOS and Android.
+
+### Storage.getItem
+
+```ts
+getItem(key: string): Promise<string | null>
+```
+
+Asynchronously reads the value for `key`. Resolves to `null` if the key is not set.
+
+- **key** — the storage key to read.
+- **Returns** — a Promise resolving to the stored string, or `null`.
+- **Platform** — iOS and Android. Implemented natively via a callback bridged to the Promise.
+
+### Storage.removeItem
+
+```ts
+removeItem(key: string): void
+```
+
+Synchronously deletes `key`. No error is raised if the key does not exist.
+
+- **key** — the storage key to delete.
+- **Returns** — nothing.
+- **Platform** — iOS and Android.
+
+### Storage.clear
+
+```ts
+clear(): void
+```
+
+Synchronously empties the app's storage namespace.
+
+- **Returns** — nothing.
+- **Platform** — iOS and Android. On Android this clears the private `sigx_lynxgo_storage` preferences file. On iOS it removes the keys in the app's own storage domain.
+
+### Storage.getAllKeys
+
+```ts
+getAllKeys(): Promise<string[]>
+```
+
+Asynchronously returns all currently-set keys.
+
+- **Returns** — a Promise resolving to an array of key strings.
+- **Platform** — iOS and Android. On Android the result is exactly the keys this app wrote. On iOS the result reads the full UserDefaults dictionary and may include system or global default keys beyond those you set.
+
+### Storage.isAvailable
+
+```ts
+isAvailable(): boolean
+```
+
+Returns whether the native Storage module is registered in the current build. This is the only method that does not round-trip to native — it runs purely in JS and returns synchronously.
+
+- **Returns** — `true` if the native module is linked, otherwise `false`.
+- **Platform** — iOS and Android.
+
+## See also
+
+- [Usage guide](/lynx/modules/storage/usage) — practical patterns and platform notes.
+- [Installation](/lynx/modules/storage/installation) — adding the package to a project.

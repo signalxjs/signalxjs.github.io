@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Video — Native video player"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-video` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-video
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Video from '@sigx/lynx-video';
+
+console.log(Object.keys(Video));
+```

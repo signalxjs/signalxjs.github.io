@@ -8,10 +8,999 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-runtime` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-runtime` — the background-thread renderer, cross-thread primitives, gesture builders, and the JSX attribute types for native Lynx elements.</p>
 
-## Exports
+The package has three entry points: the default `.` entry documented below, the `./hmr` subpath (`initHMR`, `registerHMRModule`), and `./mt-hmr-bridge` (a dev-only side-effect module with no exports). All exports work on both iOS and Android — this is a pure TypeScript background-thread renderer with no native module directories of its own.
 
-{/* TODO: document the public API of @sigx/lynx-runtime */}
+```ts
+import * as Runtime from '@sigx/lynx-runtime';
+```
 
-See the package source for the complete typed surface.
+Most apps import these names from `@sigx/lynx`, which re-exports the entire surface.
+
+## Renderer
+
+### render
+
+The renderer's `render()` function, produced by `createRenderer<ShadowElement, ShadowElement>(nodeOps)`. Renders a vnode tree into a `ShadowElement` root, emitting background-to-main ops as it goes.
+
+```ts
+const render: (
+  vnode: VNode | null,
+  container: ShadowElement,
+  appContext?: AppContext,
+) => void;
+```
+
+**Parameters**
+
+- `vnode` — the vnode tree to render, or `null` to clear the container.
+- `container` — the `ShadowElement` root to render into.
+- `appContext` — optional app context from `@sigx/runtime-core`.
+
+Most apps mount via `defineApp().mount()` rather than calling `render` directly.
+
+### lynxMount
+
+The `MountFn` for Lynx environments. Creates the page root (id `1`), renders and flushes synchronously, and returns an unmount function. A second call on the same root (hot reload) triggers a full card reload. Auto-registered as the default mount via `setDefaultMount` when the package is imported.
+
+```ts
+const lynxMount: MountFn;
+// (element, _container, appContext) => () => void
+```
+
+**Returns** — an unmount function that tears down the rendered tree.
+
+### nodeOps
+
+The sigx RuntimeRenderer adapter: `createElement` / `createText` / `createComment` / `setText` / `insert` / `remove` / `patchProp` and the rest. Each method builds the `ShadowElement` tree and pushes ops into the op queue. References no Lynx native globals — it runs entirely on the background thread.
+
+```ts
+const nodeOps: RendererOptions<ShadowElement, ShadowElement>;
+```
+
+## Shadow tree
+
+### ShadowElement
+
+A lightweight doubly-linked tree node living entirely on the background thread. It lets the renderer query `parentNode` / `nextSibling` synchronously while the real Lynx elements exist only on the main thread. Id `1` is reserved for the page root; regular elements start at id `2`.
+
+```ts
+class ShadowElement {
+  static nextId: number;
+  id: number;
+  type: string;
+  parent: ShadowElement | null;
+  firstChild: ShadowElement | null;
+  lastChild: ShadowElement | null;
+  prev: ShadowElement | null;
+  next: ShadowElement | null;
+  _style: Record<string, unknown>;
+  _vShowHidden: boolean;
+  _baseClass: string;
+  _transitionClasses: Set<string>;
+  _lastInputValue: string | undefined;
+  constructor(type: string, forceId?: number);
+  insertBefore(child: ShadowElement, anchor: ShadowElement | null): void;
+  removeChild(child: ShadowElement): void;
+}
+```
+
+### createPageRoot
+
+Creates the page-root `ShadowElement` with the reserved id `1` (type `'page'`). The main thread creates the real page element before the background thread runs.
+
+```ts
+function createPageRoot(): ShadowElement;
+```
+
+**Returns** — the page-root `ShadowElement`.
+
+### resetShadowState
+
+Resets `ShadowElement.nextId` to `2`. Testing only.
+
+```ts
+function resetShadowState(): void;
+```
+
+## Op queue
+
+The op queue is the background-to-main wire protocol: a flat array of opcodes and arguments, serialized to JSON and shipped via `callLepusMethod('sigxPatchUpdate', { data })`.
+
+### pushOp
+
+Pushes one op (opcode plus args) into the background op buffer as a flat sequence, for example `pushOp(OP.CREATE, id, type)`.
+
+```ts
+function pushOp(...args: unknown[]): void;
+```
+
+### takeOps
+
+Takes all buffered ops and resets the buffer.
+
+```ts
+function takeOps(): unknown[];
+```
+
+**Returns** — the flat array of buffered ops.
+
+### scheduleFlush
+
+Schedules a flush of the ops buffer at the end of the current microtask, coalescing multiple calls within one tick into a single cross-thread call.
+
+```ts
+function scheduleFlush(): void;
+```
+
+### flushNow
+
+Immediately flushes all buffered ops synchronously. Used on initial mount so the first frame commits without a microtask delay.
+
+```ts
+function flushNow(): void;
+```
+
+### resetOpQueue
+
+Resets op-queue module state (buffer, scheduled flag, pending acks). Testing only.
+
+```ts
+function resetOpQueue(): void;
+```
+
+### OP
+
+The flat-array operation codes — the background-to-main wire protocol. JSON-serializable numeric opcodes, re-exported from `@sigx/lynx-runtime-internal`.
+
+```ts
+const OP = {
+  CREATE: 0, CREATE_TEXT: 1, INSERT: 2, REMOVE: 3, SET_PROP: 4,
+  SET_TEXT: 5, SET_EVENT: 6, REMOVE_EVENT: 7, SET_STYLE: 8, SET_CLASS: 9,
+  SET_ID: 10, SET_WORKLET_EVENT: 11, SET_MT_REF: 12, INIT_MT_REF: 13,
+  RELEASE_MT_REF: 14, REGISTER_AV_BRIDGE: 15, UNREGISTER_AV_BRIDGE: 16,
+  REGISTER_AV_STYLE_BINDING: 17, UNREGISTER_AV_STYLE_BINDING: 18,
+  SET_GESTURE_DETECTOR: 19, REMOVE_GESTURE_DETECTOR: 20, INVOKE_UI_METHOD: 21,
+} as const;
+```
+
+## Event registry
+
+These functions manage the background-side registry of event handlers. State lives on `globalThis.__SIGX_LYNX_EVENT_REGISTRY__` (non-enumerable) so multiple module instances share handlers.
+
+### register
+
+Registers an event handler and returns a unique sign string (`'sigx:N'`). The sign is sent to the main thread via `__AddEvent` so the main-thread script can route events back.
+
+```ts
+function register(handler: (data: unknown) => void): string;
+```
+
+**Returns** — the unique sign string for the handler.
+
+### updateHandler
+
+Updates the handler for an existing sign without changing the sign. Used on re-renders to point a stable sign at the freshest closure.
+
+```ts
+function updateHandler(sign: string, handler: (data: unknown) => void): void;
+```
+
+### unregister
+
+Unregisters a handler by its sign.
+
+```ts
+function unregister(sign: string): void;
+```
+
+### getHandler
+
+Gets the current handler for a sign.
+
+```ts
+function getHandler(sign: string): ((data: unknown) => void) | undefined;
+```
+
+**Returns** — the handler, or `undefined` if no handler is registered for the sign.
+
+### publishEvent
+
+Called by Lynx Native when an event fires on the background thread; looks up the handler by sign and invokes it with the event data.
+
+```ts
+function publishEvent(sign: string, data: unknown): void;
+```
+
+### resetRegistry
+
+Resets the sign counter and clears all handlers. Testing only.
+
+```ts
+function resetRegistry(): void;
+```
+
+## Hooks
+
+### useMainThreadRef
+
+Creates a [`MainThreadRef`](#mainthreadref) giving synchronous access to a native element on the main thread. Bind it with `main-thread:ref={ref}`. Pushes `INIT_MT_REF` on create and `RELEASE_MT_REF` on the owning component's `onUnmounted`.
+
+```ts
+function useMainThreadRef<T = unknown>(initValue: T): MainThreadRef<T>;
+```
+
+**Parameters**
+
+- `initValue` — the value `.current` holds on the background thread (typically `null`).
+
+**Returns** — a `MainThreadRef<T>` whose `.current` resolves to the live native element inside main-thread handlers.
+
+### useElementLayout
+
+Reactive access to an element's measured layout via Lynx 3.7+ `bindlayoutchange`. Wire `onLayoutChange` to `bindlayoutchange={...}`. For `<text>` line metrics use `bindlayout` instead.
+
+```ts
+function useElementLayout(): UseElementLayoutResult;
+```
+
+**Returns** — a [`UseElementLayoutResult`](#useelementlayoutresult): a reactive `layout` signal and the `onLayoutChange` handler.
+
+### useSharedValue
+
+Allocates a [`SharedValue<T>`](#sharedvalue) whose main-thread mutations are observable on the background thread via sigx reactivity. Pushes `INIT_MT_REF` and `REGISTER_AV_BRIDGE` on create; `UNREGISTER_AV_BRIDGE`, `RELEASE_MT_REF`, and drops the background signal on unmount.
+
+```ts
+function useSharedValue<T = number>(initial: T): SharedValue<T>;
+```
+
+**Parameters**
+
+- `initial` — the initial value.
+
+**Returns** — a `SharedValue<T>`.
+
+### useAnimatedStyle
+
+Binds a `MainThreadRef` element's style to a `SharedValue` via a named built-in mapper. The main thread applies the mapper output via `setStyleProperties` on every flush boundary where the shared value changed — no per-frame thread crossing. The static form registers once at setup; the reactive (accessor) form re-binds when the returned spec's signature changes, with `null` meaning unbind.
+
+```ts
+function useAnimatedStyle<N extends BuiltinMapperName>(
+  elRef: MainThreadRef<MainThread.Element | null>,
+  sv: SharedValue<unknown>,
+  mapperName: N,
+  params?: MapperParams[N],
+): void;
+function useAnimatedStyle(
+  elRef: MainThreadRef<MainThread.Element | null>,
+  spec: () => AnimatedStyleSpec | null,
+): void;
+```
+
+**Parameters**
+
+- `elRef` — the main-thread ref of the element to style.
+- `sv` — the shared value driving the style (static form).
+- `mapperName` — a [`BuiltinMapperName`](#builtinmappername) (static form).
+- `params` — mapper params for the chosen mapper (static form).
+- `spec` — an accessor returning an [`AnimatedStyleSpec`](#animatedstylespec) or `null` (reactive form).
+
+Note: the `width` and `height` mappers trigger a native layout pass per frame.
+
+### useGestureDetector
+
+Attaches a gesture (or composed gesture) to the element pointed at by `elRef`. Walks composed gestures into unique base gestures; on `onMounted` pushes `SET_GESTURE_DETECTOR` per base (op emit is deferred so the `SET_MT_REF` op applies first); on `onUnmounted` pushes `REMOVE_GESTURE_DETECTOR`.
+
+```ts
+function useGestureDetector(
+  elRef: MainThreadRef<unknown>,
+  gesture: AnyGesture | { build(): BaseGesture },
+): void;
+```
+
+**Parameters**
+
+- `elRef` — the main-thread ref of the element to attach to.
+- `gesture` — a gesture from [`Gesture`](#gesture), or any builder/descriptor.
+
+Note: `block-native-event` / `block-native-event-areas` route through Lynx's bind-event path and bypass the gesture arena, so they do not compose with `useGestureDetector`.
+
+### useAnimatedValue
+
+Deprecated since Phase 2.8 — an alias of [`useSharedValue`](#usesharedvalue), kept for one minor cycle. Migrate to `useSharedValue`.
+
+```ts
+const useAnimatedValue: <T = number>(initial: T) => SharedValue<T>;
+```
+
+## Cross-thread dispatch
+
+### runOnMainThread
+
+A background-to-main one-shot. Pass a `'main thread'` function (replaced by the build transform with a `{ _wkltId, _c? }` placeholder); returns a callable that ships `{ wkltId, args, captured }` via `callLepusMethod('sigxRunOnMT')` and resolves with the main-thread return value. If given a real function (the transform did not run), it runs locally on the background thread.
+
+```ts
+function runOnMainThread<TArgs extends unknown[]>(
+  worklet: WorkletPlaceholder | ((...args: TArgs) => unknown),
+): (...args: TArgs) => Promise<unknown>;
+```
+
+**Returns** — a callable that dispatches to the main thread and resolves with its return value.
+
+### runOnBackground
+
+A main-to-background dispatch handle. The SWC transform replaces `runOnBackground(fn)` inside a `'main thread'` body at build time. On the main thread it delegates to `globalThis.runOnBackground` (installed by `@sigx/lynx-runtime-main`) when given a `JsFnHandle`. Calling it on a raw function outside a worklet throws — that means the build transform did not run.
+
+```ts
+function runOnBackground<R, Fn extends (...args: never[]) => R>(
+  fn: Fn,
+): (...args: Parameters<Fn>) => Promise<R>;
+```
+
+**Returns** — a callable that dispatches to the background thread and resolves with its return value.
+
+**Errors** — throws if invoked on a raw function outside a worklet; wire up `@sigx/lynx-plugin`'s worklet loader to fix.
+
+### transformToWorklet
+
+Wraps a background function as a serializable `JsFnHandle` (`{ _jsFnId, _fn }`) so the SWC transform can place it in the worklet context's `_jsFn` slot for main-to-background dispatch. Stamps `fn.toJSON` so `JSON.stringify` replaces the body with a placeholder. Returns `{ _jsFnId, _error }` if not given a function.
+
+```ts
+function transformToWorklet(
+  fn: (...args: unknown[]) => unknown,
+): JsFnHandle;
+```
+
+**Returns** — a `JsFnHandle` descriptor.
+
+### resetThreading
+
+A no-op kept for API compatibility with older tests. The `runOnBackground` module now exposes its own reset via `resetRunOnBackgroundState`.
+
+```ts
+function resetThreading(): void;
+```
+
+### resetRunOnBackgroundState
+
+Resets the `runOnBackground` exec-id map and `lastJsFnId`. Testing only.
+
+```ts
+function resetRunOnBackgroundState(): void;
+```
+
+## Animated bridge
+
+These functions back the background side of the shared-value bridge. Most apps use [`useSharedValue`](#usesharedvalue) and [`useAnimatedStyle`](#useanimatedstyle) rather than these directly.
+
+### registerBgSink
+
+Allocates (or returns the existing) background-side signal mirror for a `wvid`, so `effect(() => sv.value)` re-runs reactively on main-thread publishes. Idempotent per `wvid` — it doesn't reset the value, so it survives HMR re-registration.
+
+```ts
+function registerBgSink<T>(wvid: number, initial: T): PrimitiveSignal<T>;
+```
+
+**Returns** — the background-side `PrimitiveSignal<T>` for the `wvid`.
+
+### unregisterBgSink
+
+Drops the background-side signal for a `wvid` (on component unmount). Subsequent ingest entries for that `wvid` become no-ops.
+
+```ts
+function unregisterBgSink(wvid: number): void;
+```
+
+### ingestAvPublishes
+
+Ingests a batch of `[wvid, value]` tuples from the main-thread bridge, writing each into the corresponding background signal. Tuples for unregistered `wvid`s are silently dropped. Routed here from `bg-bridge.ts` on `Lynx.Sigx.AvPublish`.
+
+```ts
+function ingestAvPublishes(updates: Array<[number, unknown]>): void;
+```
+
+### resetBgAvBridge
+
+Drops every registered background sink. Testing only.
+
+```ts
+function resetBgAvBridge(): void;
+```
+
+### bgAvSinkCount
+
+Returns the number of currently registered background sinks. Test hook.
+
+```ts
+function bgAvSinkCount(): number;
+```
+
+**Returns** — the count of registered sinks.
+
+### resetWvidCounter
+
+Resets the worklet-variable-id counter (`nextWvid`) to `1`. Testing only.
+
+```ts
+function resetWvidCounter(): void;
+```
+
+### resetAnimatedStyleBindingIds
+
+Resets the animated-style binding-id counter to `1`. Testing only.
+
+```ts
+function resetAnimatedStyleBindingIds(): void;
+```
+
+## Gestures
+
+### Gesture
+
+Chainable gesture builders and composers, mirroring the `@lynx-js/react` gesture API.
+
+```ts
+const Gesture: {
+  Pan(): PanBuilder;
+  Fling(): FlingBuilder;
+  Tap(): TapBuilder;
+  LongPress(): LongPressBuilder;
+  Pinch(): PinchBuilder;
+  Rotation(): RotationBuilder;
+  Native(): NativeBuilder;
+  Race(...gs: (AnyGesture | { build(): BaseGesture })[]): ComposedGesture;
+  Simultaneous(...gs: (AnyGesture | { build(): BaseGesture })[]): ComposedGesture;
+  Exclusive(...gs: (AnyGesture | { build(): BaseGesture })[]): ComposedGesture;
+};
+```
+
+The builder factories return chainable builders (the builder classes themselves are not exported). Builders chain:
+
+- **Callbacks** — `onBegin` / `onStart` / `onUpdate` / `onEnd` / `onFinalize`.
+- **Relations** — `waitFor` / `simultaneousWith` / `continueWith`.
+- **Per-type config** — `PanBuilder.axis` / `minDistance`; `FlingBuilder.minVelocity` / `direction`; `TapBuilder.numberOfTaps` / `maxDistance` / `maxDuration`; `LongPressBuilder.minDuration` / `maxDistance` (and the deprecated `LongPressBuilder.duration`).
+
+Composers combine gestures: `Race` (first wins, via mutual `waitFor`), `Simultaneous` (mutual `simultaneousWith`), and `Exclusive` (sequential `waitFor`).
+
+Pass the result to [`useGestureDetector`](#usegesturedetector). Note: native iOS long-press reads the `minDuration` config key (default 500ms); `LongPressBuilder.duration` is deprecated and writes both `duration` and `minDuration`.
+
+### GestureType
+
+Gesture type enum; values match the upstream `GestureTypeInner` from `@lynx-js/react`.
+
+```ts
+const GestureType = {
+  COMPOSED: -1, PAN: 0, FLING: 1, DEFAULT: 2, TAP: 3, LONGPRESS: 4,
+  ROTATION: 5, PINCH: 6, NATIVE: 7,
+} as const;
+```
+
+### resetGestureIdCounter
+
+Resets the global gesture-id counter (`nextGestureId`) to `1`. Testing only.
+
+```ts
+function resetGestureIdCounter(): void;
+```
+
+## HMR
+
+These are exported from the `./hmr` subpath, not the package root. They are designed to be injected by `@sigx/lynx-plugin`'s HMR loader.
+
+### initHMR
+
+The HMR entry point. Installs the `onDefine` component plugin using the app-side `registerComponentPlugin` (from `@sigx/lynx`, ensuring a single shared plugin array). Idempotent. On an HMR update, re-runs setup for existing instances and patches them in place; the optional `setCurrentInstanceFn` mirrors the renderer's instance-stack push/pop so context-dependent hooks (like `useNav`) resolve.
+
+```ts
+// import { initHMR } from '@sigx/lynx-runtime/hmr';
+function initHMR(
+  registerComponentPlugin: RegisterFn,
+  setCurrentInstanceFn?: SetCurrentInstanceFn,
+): void;
+```
+
+### registerHMRModule
+
+The HMR entry point. Registers the current module for HMR tracking and resets its per-module component index. Called at the top of each transformed module by the HMR loader.
+
+```ts
+// import { registerHMRModule } from '@sigx/lynx-runtime/hmr';
+function registerHMRModule(moduleId: string): void;
+```
+
+## Classes
+
+### MainThreadRef
+
+A ref whose `.current` value is managed on the main thread. On the background thread `.current` is the init snapshot; in main-thread event handlers and `runOnMainThread` callbacks `.current` is the real Lynx element handle (`setStyleProperties` / `animate` / `invoke`). `_wvid` uniquely identifies it across threads.
+
+```ts
+class MainThreadRef<T = unknown> {
+  readonly _wvid: number;
+  readonly _initValue: T;
+  current: T;
+  constructor(initValue: T);
+}
+```
+
+### SharedValue
+
+A main-thread-writeable, background-readable cross-thread value with sigx reactive tracking. The main thread mutates `sv.current.value = newValue` inside `'main thread'` worklets; the background thread reads `sv.value` (reactive). Background writes are read-only (dev mode warns). Extends [`MainThreadRef`](#mainthreadref) so serialization recognizes it as a worklet ref.
+
+```ts
+class SharedValue<T = number> extends MainThreadRef<SharedValueState<T>> {
+  constructor(initial: T);
+  get value(): T;
+  set value(_v: T);
+}
+```
+
+### AnimatedValue
+
+Deprecated since Phase 2.8 — an alias of [`SharedValue`](#sharedvalue), kept for one minor cycle. Migrate to `SharedValue`.
+
+```ts
+// class AnimatedValue<T = number> extends MainThreadRef<SharedValueState<T>>
+export { SharedValue as AnimatedValue };
+```
+
+## Types
+
+### LynxNode
+
+Host-node type alias for the renderer.
+
+```ts
+type LynxNode = ShadowElement;
+```
+
+### LynxElement
+
+Host-element type alias for the renderer.
+
+```ts
+type LynxElement = ShadowElement;
+```
+
+### OpCode
+
+Union of the numeric op codes (`0`–`21`). Re-exported from `@sigx/lynx-runtime-internal`.
+
+```ts
+type OpCode = (typeof OP)[keyof typeof OP];
+```
+
+### MainThread
+
+The `MainThread` namespace exporting `Element` — the native element handle available via `MainThreadRef.current` inside main-thread event handlers and worklets.
+
+```ts
+namespace MainThread {
+  interface Element {
+    setStyleProperties(styles: Record<string, string | number>): void;
+    setStyleProperty(name: string, value: string | number): void;
+    getComputedStyleProperty(name: string): string;
+    animate(
+      keyframes: unknown,
+      options?: unknown,
+    ): { play(): void; pause(): void; cancel(): void } | null;
+    setAttribute(key: string, value: unknown): void;
+    invoke(methodName: string, params?: Record<string, unknown>): Promise<unknown>;
+  }
+}
+```
+
+### MapperParams
+
+The param shapes per built-in animated-style mapper name. Re-exported from `@sigx/lynx-runtime-internal`.
+
+```ts
+interface MapperParams {
+  translateX: { factor?: number } | RangeParams;
+  translateY: { factor?: number } | RangeParams;
+  translate: { factorX?: number; factorY?: number };
+  scale: { offset?: number } | RangeParams;
+  scaleX: { offset?: number } | RangeParams;
+  scaleY: { offset?: number } | RangeParams;
+  opacity: { factor?: number; offset?: number } | RangeParams; // clamp01
+  rotate: Record<string, never>;
+  width: { factor?: number } | RangeParams; // triggers layout per frame
+  height: { factor?: number } | RangeParams; // triggers layout per frame
+  paddingTop: { factor?: number } | RangeParams;
+  paddingRight: { factor?: number } | RangeParams;
+  paddingBottom: { factor?: number } | RangeParams;
+  paddingLeft: { factor?: number } | RangeParams;
+  marginTop: { factor?: number } | RangeParams;
+  marginRight: { factor?: number } | RangeParams;
+  marginBottom: { factor?: number } | RangeParams;
+  marginLeft: { factor?: number } | RangeParams;
+}
+```
+
+### RangeParams
+
+Range-mapping params (linear interpolation from an input domain to an output range), usable as an alternative param shape for `translateX`/`translateY`, `scale`, `opacity`, and so on. Re-exported from `@sigx/lynx-runtime-internal`.
+
+```ts
+interface RangeParams {
+  inputRange: number[];
+  outputRange: number[];
+  extrapolate?: 'clamp' | 'identity';
+}
+```
+
+### BuiltinMapperName
+
+Union of the built-in mapper names. Re-exported from `@sigx/lynx-runtime-internal`.
+
+```ts
+type BuiltinMapperName = keyof MapperParams;
+```
+
+### AnimatedStyleMapper
+
+The signature of an animated-style mapper function (value to style record). Re-exported from `@sigx/lynx-runtime-internal`.
+
+```ts
+type AnimatedStyleMapper<P = unknown> = (
+  value: unknown,
+  params?: P,
+) => Record<string, string | number>;
+```
+
+### AnimatedStyleSpec
+
+The reactive binding spec returned by the [`useAnimatedStyle`](#useanimatedstyle) accessor form; `null` means no binding.
+
+```ts
+interface AnimatedStyleSpec {
+  sv: SharedValue<unknown>;
+  mapperName: BuiltinMapperName;
+  params?: MapperParams[BuiltinMapperName];
+}
+```
+
+### SharedValueState
+
+The internal envelope stored under `MainThreadRef.current` for a `SharedValue`; wrapping in `{ value }` lets main-thread worklets mutate the value without breaking ref identity.
+
+```ts
+interface SharedValueState<T> {
+  value: T;
+}
+```
+
+### AnimatedValueState
+
+Deprecated since Phase 2.8 — an alias of [`SharedValueState`](#sharedvaluestate).
+
+```ts
+type AnimatedValueState = SharedValueState;
+```
+
+### ElementLayout
+
+A measured element layout in CSS pixels (edges relative to the page).
+
+```ts
+interface ElementLayout {
+  width: number;
+  height: number;
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+```
+
+### LayoutChangeEvent
+
+The `bindlayoutchange` event payload. The modern cross-platform path is `detail`; the deprecated Android-only path is `params`.
+
+```ts
+interface LayoutChangeEvent {
+  type?: string;
+  detail?: {
+    id?: string;
+    width: number;
+    height: number;
+    top: number;
+    right?: number;
+    bottom?: number;
+    left: number;
+  };
+  params?: {
+    width: number;
+    height: number;
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  };
+}
+```
+
+### UseElementLayoutResult
+
+The return shape of [`useElementLayout`](#useelementlayout): a reactive layout signal and the handler to wire on `bindlayoutchange`.
+
+```ts
+interface UseElementLayoutResult {
+  layout: Signal<{ value: ElementLayout | null }>;
+  onLayoutChange: (e: LayoutChangeEvent) => void;
+}
+```
+
+### GestureTypeValue
+
+Union of the [`GestureType`](#gesturetype) numeric values (`-1`–`7`).
+
+```ts
+type GestureTypeValue = (typeof GestureType)[keyof typeof GestureType];
+```
+
+### GestureWorklet
+
+The worklet placeholder shape emitted by `@lynx-js/react/transform` for gesture callbacks.
+
+```ts
+interface GestureWorklet {
+  _wkltId: string;
+  _c?: Record<string, unknown>;
+  _jsFn?: Record<string, unknown>;
+  _execId?: number;
+  _workletType?: string;
+}
+```
+
+### GestureCallback
+
+The source-level gesture callback type: a `'main thread'` arrow function the SWC transform replaces with a [`GestureWorklet`](#gestureworklet) placeholder.
+
+```ts
+type GestureCallback = GestureWorklet | ((event: never) => void);
+```
+
+### BaseGesture
+
+The serialized single-recognizer gesture descriptor produced by a builder's `build()`.
+
+```ts
+interface BaseGesture {
+  __isSerialized: true;
+  type: number;
+  id: number;
+  callbacks: Record<string, GestureWorklet>;
+  waitFor: BaseGesture[];
+  simultaneousWith: BaseGesture[];
+  continueWith: BaseGesture[];
+  config?: Record<string, unknown>;
+}
+```
+
+### ComposedGesture
+
+The serialized composed gesture (Race / Simultaneous / Exclusive) wrapping child gestures.
+
+```ts
+interface ComposedGesture {
+  __isSerialized: true;
+  type: -1;
+  gestures: AnyGesture[];
+}
+```
+
+### AnyGesture
+
+Union of base and composed gesture descriptors.
+
+```ts
+type AnyGesture = BaseGesture | ComposedGesture;
+```
+
+### LynxEventHandler
+
+A generic Lynx JSX event handler type.
+
+```ts
+type LynxEventHandler<E = any> = (event: E) => void;
+```
+
+## JSX attribute types
+
+Importing `@sigx/lynx-runtime` augments `JSX.IntrinsicElements` with the native Lynx elements. These interfaces describe the attributes each element accepts. There is no `[key: string]: any` catch-all, so component prop excess-property checking stays intact (`data-*` and `aria-*` are still allowed via template-literal types).
+
+### LynxCommonAttributes
+
+Attributes shared by all Lynx elements: `id` / `class` / `style` / `ref` / `key`, accessibility props, focus and gesture blocking, `bind*`/`catch*` plus `onX` event aliases, and Main-Thread-Script attributes (`main-thread:ref`, `main-thread-bind*` / `main-thread-catch*` events).
+
+```ts
+interface LynxCommonAttributes {
+  id?: string;
+  class?: string;
+  style?: unknown;
+  ref?: unknown;
+  key?: unknown;
+  flatten?: boolean;
+  'accessibility-label'?: string;
+  'accessibility-role'?: string;
+  'accessibility-element'?: boolean;
+  'ignore-focus'?: boolean;
+  'block-native-event'?: boolean;
+  'block-native-event-areas'?: unknown;
+  // bind*/catch* tap/longpress/touch*/layoutchange; onTap/onLongpress/onTouch*/onLayoutchange
+  'main-thread:ref'?: MainThreadRef<MainThread.Element | null>;
+  // main-thread-bind*/main-thread-catch* tap/touch*/longpress/scroll
+}
+```
+
+### ViewAttributes
+
+JSX attributes for `<view>`.
+
+```ts
+interface ViewAttributes extends LynxCommonAttributes {
+  children?: any;
+}
+```
+
+### TextAttributes
+
+JSX attributes for `<text>` — line clamping, native text selection (Lynx 3.7+), and text-layout events.
+
+```ts
+interface TextAttributes extends LynxCommonAttributes {
+  children?: any;
+  'number-of-lines'?: number;
+  'text-overflow'?: 'clip' | 'ellipsis';
+  'text-selection'?: boolean;
+  'custom-text-selection'?: boolean;
+  'custom-context-menu'?: boolean;
+  // bindselectionchange / bindlayout / onSelectionchange / onLayout
+}
+```
+
+### ImageAttributes
+
+JSX attributes for `<image>`.
+
+```ts
+interface ImageAttributes extends LynxCommonAttributes {
+  src?: string;
+  placeholder?: string;
+  mode?: 'cover' | 'contain' | 'stretch' | 'center' | 'repeat' | 'aspectFit' | 'aspectFill';
+  alt?: string;
+  'lazy-load'?: boolean;
+  'auto-size'?: boolean;
+  // bindload / binderror / onLoad / onError
+}
+```
+
+### ScrollViewAttributes
+
+JSX attributes for `<scroll-view>`.
+
+```ts
+interface ScrollViewAttributes extends LynxCommonAttributes {
+  children?: any;
+  'scroll-orientation'?: string;
+  'scroll-x'?: boolean;
+  'scroll-y'?: boolean;
+  'enable-scroll'?: boolean;
+  'scroll-left'?: number;
+  'scroll-top'?: number;
+  'upper-threshold'?: number;
+  'lower-threshold'?: number;
+  bounces?: boolean;
+  'show-scrollbar'?: boolean;
+  'paging-enabled'?: boolean;
+  // bindscroll / bindscrolltoupper / bindscrolltolower / onScroll / onScrolltoupper / onScrolltolower
+}
+```
+
+### ListAttributes
+
+JSX attributes for `<list>`. Native `<list>` only accepts `<list-item>` children — the renderer skips comment and text anchors inside a list.
+
+```ts
+interface ListAttributes extends LynxCommonAttributes {
+  children?: any;
+  'scroll-orientation'?: string;
+  'span-count'?: number;
+  'list-type'?: 'single' | 'flow' | 'waterfall';
+  'item-snap'?: 'start' | 'center' | 'end' | 'none';
+  'sticky-top'?: number;
+  'sticky-bottom'?: number;
+  // bindscroll / bindscrolltoupper / bindscrolltolower / onScroll / onScrolltoupper / onScrolltolower
+}
+```
+
+### ListItemAttributes
+
+JSX attributes for `<list-item>`. `item-key` must be unique among siblings for the native recycler.
+
+```ts
+interface ListItemAttributes extends LynxCommonAttributes {
+  children?: any;
+  'item-key'?: string;
+  'item-type'?: string | number;
+  'sticky-top'?: number;
+  'sticky-bottom'?: number;
+  'full-span'?: boolean;
+}
+```
+
+### InputAttributes
+
+JSX attributes for `<input>`, including the sigx two-way `model` directive (handled by the platform model processor).
+
+```ts
+interface InputAttributes extends LynxCommonAttributes {
+  value?: string;
+  placeholder?: string;
+  type?: 'text' | 'number' | 'password' | 'digit' | 'idcard';
+  maxlength?: number;
+  disabled?: boolean;
+  focus?: boolean;
+  'confirm-type'?: 'send' | 'search' | 'next' | 'go' | 'done';
+  model?: (() => string) | Model<string>;
+  'onUpdate:modelValue'?: (value: string) => void;
+  // bindinput / bindblur / bindfocus / bindconfirm / onInput / onBlur / onFocus / onConfirm
+}
+```
+
+### TextAreaAttributes
+
+JSX attributes for `<textarea>`, including the sigx `model` directive.
+
+```ts
+interface TextAreaAttributes extends LynxCommonAttributes {
+  value?: string;
+  placeholder?: string;
+  maxlength?: number;
+  disabled?: boolean;
+  focus?: boolean;
+  'auto-height'?: boolean;
+  model?: (() => string) | Model<string>;
+  'onUpdate:modelValue'?: (value: string) => void;
+  // bindinput / bindblur / bindfocus / onInput / onBlur / onFocus
+}
+```
+
+### PageAttributes
+
+JSX attributes for `<page>`.
+
+```ts
+interface PageAttributes extends LynxCommonAttributes {
+  children?: any;
+}
+```
+
+### SvgAttributes
+
+JSX attributes for `<svg>`. Pass raw SVG markup via `content` or a URL via `src` — the element does not accept JSX children.
+
+```ts
+interface SvgAttributes extends LynxCommonAttributes {
+  content?: string;
+  src?: string;
+  width?: number | string;
+  height?: number | string;
+  viewBox?: string;
+}
+```
+
+### FilterImageAttributes
+
+JSX attributes for `<filter-image>`.
+
+```ts
+interface FilterImageAttributes extends LynxCommonAttributes {
+  src?: string;
+  filter?: unknown;
+  mode?: 'cover' | 'contain' | 'stretch' | 'center';
+  // bindload / binderror / onLoad / onError
+}
+```

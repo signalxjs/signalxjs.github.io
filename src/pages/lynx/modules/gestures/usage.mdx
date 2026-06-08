@@ -8,16 +8,206 @@ order: 30
 
 # Using Gestures
 
-<p class="lede">Frame-locked touch handling — the essentials.</p>
+<p class="lede">Frame-locked touch handling — taps, drags, swipes, paging and pinch/rotate, with the work kept on the main thread.</p>
+
+## How it works
+
+`@sigx/lynx-gestures` is a pure JS/TS package — there is no native module to link and no runtime permissions. The components `Pressable`, `Draggable`, `Swipeable`, `ScrollView` and `Swiper` run their touch tracking and transforms on Lynx's main (MT/Lepus) thread, so dragging stays locked to the frame rate with zero per-frame thread crossings. Your callbacks (`press`, `dragEnd`, `swipeOpen`, `pageChange`, …) are dispatched to the background thread via `runOnBackground`, where your reactive logic lives.
+
+Because the gesture worklets are marked `'main thread'`, the build needs the `@sigx/lynx-plugin` worklet transform (rspack / rspeedy) to extract them — it processes the pre-built `dist` too. Without the plugin the worklets are never moved to MT and the gestures will not run.
+
+```bash
+pnpm add @sigx/lynx-gestures
+```
 
 ## Basic usage
 
+`Pressable` is a tap and long-press recognizer with built-in pressed-state feedback (opacity and scale). Emit reactive updates from its events.
+
 ```tsx
-import * as Gestures from '@sigx/lynx-gestures';
+import { Pressable } from '@sigx/lynx-gestures';
+import { signal } from '@sigx/reactivity';
+
+function TapCounter() {
+    const taps = signal(0);
+
+    return (
+        <Pressable
+            pressedOpacity={0.5}
+            pressedScale={0.95}
+            longPressDuration={500}
+            onPress={() => { taps.value++; }}
+            onLongPress={() => { taps.value = 0; }}
+            style={{ padding: '12px', borderRadius: '8px' }}
+        >
+            <text>Tapped {taps} times</text>
+        </Pressable>
+    );
+}
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-gestures */}
+Set `longPressDuration={0}` to disable long-press while keeping the pressed-state reset. `accessibility-*` props are forwarded onto the inner interactive view.
 
-## Notes
+## Dragging an element
 
-Pressable, Draggable, Swipeable + useTap / usePan / usePinch / useSwipe and a useGesture composer.
+`Draggable` drives an element's transform on the main thread from a `Gesture.Pan()`. Pass external `SharedValue`s for `translateX` / `translateY` if you want to observe or reuse the live position; the worklet writes them every frame, and you can read them reactively on the background thread.
+
+```tsx
+import { Draggable } from '@sigx/lynx-gestures';
+import { useSharedValue } from '@sigx/lynx';
+
+function DragBox() {
+    const x = useSharedValue(0);
+    const y = useSharedValue(0);
+
+    return (
+        <view>
+            <Draggable
+                axis="both"
+                threshold={4}
+                snapBack
+                minX={-120}
+                maxX={120}
+                translateX={x}
+                translateY={y}
+                onDragStart={(e) => console.log('start', e.x, e.y)}
+                onDragEnd={(e) => console.log('end', e.x, e.y, e.vx, e.vy)}
+            >
+                <view style={{ width: '80px', height: '80px', backgroundColor: 'tomato' }} />
+            </Draggable>
+            <text>Live x: {x.value.toFixed(0)}px</text>
+        </view>
+    );
+}
+```
+
+`axis` locks movement to `'x'`, `'y'` or `'both'`; `min/maxX/Y` clamp the translation; `snapBack` returns the element to the origin on release. The `dragEnd` payload carries terminal position (`x`, `y`) and velocity (`vx`, `vy`, page px per ms).
+
+For drag-to-reorder inside a list, wrap the list in `ScrollView` and set `edgeScroll` — the parent scroll auto-scrolls when the drag nears its viewport edge:
+
+```tsx
+<Draggable edgeScroll={{ threshold: 50, maxSpeed: 800 }} translateY={y}>
+    <view>{/* row content */}</view>
+</Draggable>
+```
+
+## Swipe-to-reveal rows
+
+`Swipeable` is a horizontal swipe container that snaps to closed / open-left / open-right on release. The action panels are render-prop functions.
+
+```tsx
+import { Swipeable } from '@sigx/lynx-gestures';
+
+function InboxRow() {
+    return (
+        <Swipeable
+            rightActionsWidth={100}
+            snapThreshold={60}
+            rightActions={() => (
+                <view style={{ backgroundColor: 'crimson', justifyContent: 'center' }}>
+                    <text style={{ color: 'white' }}>Delete</text>
+                </view>
+            )}
+            onSwipeOpen={(e) => console.log('opened', e.side)}
+            onSwipeClose={() => console.log('closed')}
+        >
+            <view style={{ padding: '16px' }}>
+                <text>Swipe me left</text>
+            </view>
+        </Swipeable>
+    );
+}
+```
+
+The `swipeOpen` payload's `side` is `'left'` or `'right'`.
+
+## A paged carousel
+
+`Swiper` is a paged horizontal carousel built on a native paging `scroll-view`. `items` and `renderItem` are required. Pass a `PrimitiveSignal` to `index` for controlled paging (native `scrollTo` glide), and a `SharedValue` to `offset` to read the live pixel offset — useful for driving indicators.
+
+```tsx
+import { Swiper, useSwiperDotProgress } from '@sigx/lynx-gestures';
+import { useSharedValue } from '@sigx/lynx';
+import { signal } from '@sigx/reactivity';
+
+function Gallery({ photos }: { photos: string[] }) {
+    const index = signal(0);
+    const offset = useSharedValue(0);
+    const pageWidth = 360;
+
+    return (
+        <view>
+            <Swiper
+                items={photos}
+                index={index}
+                offset={offset}
+                width={pageWidth}
+                height={480}
+                renderItem={(src) => (
+                    <image src={src} mode="aspectFit" style={{ width: '100%', height: '100%' }} />
+                )}
+                onPageChange={(e) => console.log('page', e.index)}
+            />
+            <view style={{ flexDirection: 'row' }}>
+                {photos.map((_, i) => (
+                    <Dot offset={offset} pageWidth={pageWidth} index={i} />
+                ))}
+            </view>
+        </view>
+    );
+}
+
+function Dot({ offset, pageWidth, index }: {
+    offset: ReturnType<typeof useSharedValue<number>>;
+    pageWidth: number;
+    index: number;
+}) {
+    const ref = useSwiperDotProgress({ offset, pageWidth, index });
+    return (
+        <view
+            main-thread:ref={ref}
+            style={{ width: '8px', height: '8px', borderRadius: '4px', backgroundColor: 'tomato', opacity: '0' }}
+        />
+    );
+}
+```
+
+The `useSwiperDot*` hooks are headless: they return a `MainThreadRef` you spread onto a dot element and drive a single transform channel (opacity, scale, scaleX, width, translateX) from the live `offset`. For themed, ready-made indicators use `SwiperIndicator` from [DaisyUI](/lynx/modules/daisyui/overview).
+
+## Pinch and rotate
+
+`usePinch` and `useRotation` are JS-only background-thread fallbacks that parse `bindtouch*` events directly. They exist because Lynx 3.5's native `Gesture.Pinch()` / `Gesture.Rotation()` are unfinished. They need multi-touch delivery to the same element and may **not** work on Lynx Explorer or emulators — test on a physical device.
+
+```tsx
+import { usePinch } from '@sigx/lynx-gestures';
+
+function Zoomable() {
+    const { state, handlers, reset } = usePinch({
+        onPinch: (s) => console.log(s.scale, s.focalX, s.focalY),
+    });
+
+    return (
+        <view {...handlers}>
+            <text>Scale: {state.value.scale.toFixed(2)} ({state.value.phase})</text>
+        </view>
+    );
+}
+```
+
+Spread `handlers` onto the element's `bindtouch*` attributes. `state` is a reactive signal of `PinchState` (`scale` is relative to gesture start, `1` = unchanged); call `reset()` to clear accumulated state. `useRotation` works the same way, reporting cumulative signed `rotation` (radians) and angular `velocity` (radians/ms).
+
+## Gotchas
+
+- **Don't recompute a gesture component's `style` every render.** A background `SET_STYLE` on the dragged element can clobber the main-thread transform writes. Keep inline styles structurally stable.
+- **Pass main-thread locals through `runOnBackground` arguments, not closure capture** — the background thread only sees marshaled params; closure capture throws a `ReferenceError`.
+- **Object-typed `SharedValue`s coalesce by `===` identity**, so mutating a property won't publish. Use scalar shared values, or the 2D `translate` mapper.
+- `ScrollView` provides a `ScrollContext` so descendant `Draggable` / `Swipeable` auto-yield the native scroll during a gesture — no wiring required. Custom gesture components can opt in with `useScrollContext()`.
+
+## Migration note
+
+Earlier versions exposed `useTap`, `useLongPress`, `usePan`, `useSwipe`, `useFling`, `usePanResponder`, `useGesture` and `mergeHandlers`. These were removed — build custom recognizers with `Gesture.*` and `useGestureDetector` from `@sigx/lynx`. Only `usePinch` and `useRotation` remain of the background-thread composables.
+
+## See also
+
+- [API reference](/lynx/modules/gestures/api) — every export, typed.
+- [Motion](/lynx/modules/motion/overview) — spring-driven follow-through for gesture release.

@@ -8,10 +8,192 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-file-system` v0.4.1.</p>
+<p class="lede">Exports of `@sigx/lynx-file-system` v0.4.9.</p>
 
-## Exports
+Everything ships under a single `FileSystem` namespace object, plus the `FileInfo` type. All exports are available on both iOS and Android.
 
-{/* TODO: document the public API of @sigx/lynx-file-system */}
+```ts
+import { FileSystem } from '@sigx/lynx-file-system';
+import type { FileInfo } from '@sigx/lynx-file-system';
+```
 
-See the package source for the complete typed surface.
+## Namespace
+
+### FileSystem
+
+The object bundling all file system operations, backed by the native `FileSystem` module. Scoped to the app sandbox — no broad storage permissions are required.
+
+```ts
+const FileSystem: {
+  readFile(path: string): Promise<string>;
+  readFileBase64(path: string): Promise<string>;
+  readFileAsArrayBuffer(path: string): Promise<ArrayBuffer>;
+  writeFile(path: string, content: string): Promise<void>;
+  deleteFile(path: string): Promise<void>;
+  getInfo(path: string): Promise<FileInfo>;
+  getDocumentDirectory(): string;
+  getCacheDirectory(): string;
+  isAvailable(): boolean;
+};
+```
+
+**Platform:** iOS and Android.
+
+Across both platforms, plain relative paths resolve against the document directory, absolute paths are used as-is, and `file://` URIs (such as those returned by pickers) are accepted.
+
+## Functions
+
+### FileSystem.readFile
+
+Reads a file as UTF-8 text.
+
+```ts
+readFile(path: string): Promise<string>
+```
+
+- **`path`** — file path. Relative paths resolve against the document directory.
+- **Returns** — a Promise resolving to the file's text content.
+
+Rejects if the file does not exist.
+
+**Platform:** iOS and Android.
+
+### FileSystem.readFileBase64
+
+Reads the raw bytes of a file, returned base64-encoded.
+
+```ts
+readFileBase64(path: string): Promise<string>
+```
+
+- **`path`** — file path. Accepts plain paths, `file://` URIs, and (Android only) `content://` URIs, which are read via the `ContentResolver`.
+- **Returns** — a Promise resolving to the base64-encoded file contents.
+
+Throws an `Error` prefixed `[@sigx/lynx-file-system]` on read failure. The whole file is materialized in memory and base64 is roughly 33% larger crossing the bridge — use for small and medium files only.
+
+**Platform:** iOS and Android.
+
+### FileSystem.readFileAsArrayBuffer
+
+Reads a file and decodes its bytes into an `ArrayBuffer`.
+
+```ts
+readFileAsArrayBuffer(path: string): Promise<ArrayBuffer>
+```
+
+- **`path`** — file path (same resolution rules as `readFileBase64`).
+- **Returns** — a Promise resolving to an `ArrayBuffer` of the file's bytes.
+
+A JS-side helper that calls `readFileBase64` and decodes the result. Same in-memory and size caveats apply.
+
+**Platform:** iOS and Android.
+
+### FileSystem.writeFile
+
+Writes UTF-8 text to a file, creating parent directories as needed (atomically on iOS).
+
+```ts
+writeFile(path: string, content: string): Promise<void>
+```
+
+- **`path`** — destination file path.
+- **`content`** — UTF-8 text to write.
+- **Returns** — a Promise that resolves when the write completes.
+
+Text-only — there is no binary write API.
+
+**Platform:** iOS and Android.
+
+### FileSystem.deleteFile
+
+Deletes a file.
+
+```ts
+deleteFile(path: string): Promise<void>
+```
+
+- **`path`** — file path to delete.
+- **Returns** — a Promise that resolves when the delete completes.
+
+Behavior for a missing file differs by platform: iOS rejects (the native `removeItem` throws), while Android resolves without throwing. Guard with `getInfo` if you need consistent behavior.
+
+**Platform:** iOS and Android.
+
+### FileSystem.getInfo
+
+Returns metadata for a path.
+
+```ts
+getInfo(path: string): Promise<FileInfo>
+```
+
+- **`path`** — file or directory path.
+- **Returns** — a Promise resolving to a `FileInfo`. Always resolves — check the `exists` field for presence.
+
+On iOS, `size` / `isDirectory` / `modifiedAt` are only populated when the file exists; on Android all fields are always populated.
+
+**Platform:** iOS and Android.
+
+### FileSystem.getDocumentDirectory
+
+Returns the app's persistent document directory path. Synchronous.
+
+```ts
+getDocumentDirectory(): string
+```
+
+- **Returns** — the absolute path to the document directory.
+
+Data here survives app updates and is included in iCloud / Android backup. iOS: `NSDocumentDirectory`; Android: `context.filesDir`.
+
+**Platform:** iOS and Android.
+
+### FileSystem.getCacheDirectory
+
+Returns the app's cache directory path. Synchronous.
+
+```ts
+getCacheDirectory(): string
+```
+
+- **Returns** — the absolute path to the cache directory.
+
+Disposable storage the OS may purge under disk pressure — use the document directory for data that must persist. iOS: `NSCachesDirectory`; Android: `context.cacheDir`.
+
+**Platform:** iOS and Android.
+
+### FileSystem.isAvailable
+
+Reports whether the native `FileSystem` module is registered in the current build.
+
+```ts
+isAvailable(): boolean
+```
+
+- **Returns** — `true` if the native module is available, otherwise `false`.
+
+**Platform:** iOS and Android.
+
+## Types
+
+### FileInfo
+
+Metadata returned by `getInfo`.
+
+```ts
+interface FileInfo {
+  uri: string;
+  size: number;
+  exists: boolean;
+  isDirectory: boolean;
+  modifiedAt: number; // epoch milliseconds
+}
+```
+
+- **`uri`** — the resolved file URI.
+- **`size`** — file size in bytes.
+- **`exists`** — whether the path exists.
+- **`isDirectory`** — whether the path is a directory.
+- **`modifiedAt`** — last-modified time, in epoch milliseconds.
+
+**Platform:** iOS and Android.

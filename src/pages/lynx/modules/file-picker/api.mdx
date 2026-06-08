@@ -1,0 +1,138 @@
+---
+title: "API reference"
+description: "File Picker — Document picker"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Every export of `@sigx/lynx-file-picker` v0.4.9.</p>
+
+The package has a single import surface: the `FilePicker` object and the option/result types.
+
+```ts
+import { FilePicker } from '@sigx/lynx-file-picker';
+import type {
+  FilePickerOptions,
+  FilePickerResult,
+  FilePickerAsset,
+} from '@sigx/lynx-file-picker';
+```
+
+## FilePicker
+
+The single runtime export — a generic file picker for arbitrary files, distinct from the photo-library grid of `@sigx/lynx-image-picker`. Declared `as const`, it is backed by the native `FilePicker` module.
+
+```ts
+const FilePicker: {
+  pick(options?: FilePickerOptions): Promise<FilePickerResult>;
+  isAvailable(): boolean;
+};
+```
+
+There are no permission methods by design — the picker UI itself is the consent.
+
+Platform: iOS and Android.
+
+## Functions
+
+### FilePicker.pick
+
+Opens the system document picker and resolves with the chosen files as a normalized result.
+
+```ts
+FilePicker.pick(options?: FilePickerOptions): Promise<FilePickerResult>
+```
+
+- `options` — optional [`FilePickerOptions`](#filepickeroptions). Defaults to `{}`: single selection, any file type, copied into app storage.
+- Returns a [`FilePickerResult`](#filepickerresult). The promise resolves with `cancelled: true` if the user dismisses the picker — it does not reject. Starting a new `pick` resolves any prior pending pick as cancelled.
+
+The result is normalized before it resolves: native `cancelled`/`canceled` spellings are both accepted, assets without a `uri` are dropped, bare absolute paths (`/...`) are prefixed with `file://` (a `content://` URI is left untouched), and each asset is guaranteed a `name` (falls back to the last percent-decoded URI segment), `mimeType` (falls back to `application/octet-stream`), and `size` (falls back to `0`).
+
+Platform: iOS uses `UIDocumentPickerViewController` (iOS 14+). Android uses the Storage Access Framework `OpenDocument` (single) / `OpenMultipleDocuments` (multiple).
+
+### FilePicker.isAvailable
+
+Reports whether the native `FilePicker` module is registered in the current build.
+
+```ts
+FilePicker.isAvailable(): boolean
+```
+
+- Returns `true` if the native module was linked (by `sigx prebuild`), otherwise `false`. Synchronous.
+
+Platform: iOS and Android.
+
+## Types
+
+### FilePickerOptions
+
+Options for `pick`. All fields are optional.
+
+```ts
+interface FilePickerOptions {
+  /** Allow selecting more than one file. Default false. */
+  multiple?: boolean;
+  /**
+   * Filter by MIME types, e.g. ['application/pdf', 'image/*'].
+   * iOS maps these to UTTypes; Android passes them to the SAF
+   * OpenDocument intent. Omit (or pass an empty array) for any file.
+   */
+  types?: string[];
+  /**
+   * Copy the picked file into app storage and return a stable file://
+   * URI that survives app restarts. Default true (matches the
+   * image-picker convention). When false on Android the raw content://
+   * URI is returned — its read grant is ephemeral and Activity-scoped.
+   */
+  copyToCache?: boolean;
+}
+```
+
+- `multiple` — allow selecting more than one file. Default `false`. Coerced to a boolean before reaching native.
+- `types` — MIME-type filter array; non-empty strings only (empty entries are filtered out). Omit or pass an empty array to allow any file. Exact on Android; best-effort on iOS, where unknown MIME strings are skipped and the picker falls back to any file if nothing maps.
+- `copyToCache` — copy the picked bytes into app storage and return a stable `file://` URI. Default `true` (sent to native as `copyToCache !== false`). When `false`, the URI is ephemeral on both platforms — a `content://` URI on Android (Activity-scoped grant) or a temporary `file://` copy on iOS.
+
+Platform: shared (iOS and Android).
+
+### FilePickerResult
+
+The result of a pick operation.
+
+```ts
+interface FilePickerResult {
+  cancelled: boolean;
+  assets: FilePickerAsset[];
+}
+```
+
+- `cancelled` — `true` if the user dismissed the picker without choosing. `assets` is then empty.
+- `assets` — the list of picked files; always an array.
+
+Platform: shared (iOS and Android).
+
+### FilePickerAsset
+
+A single picked file — a ready-made file handle. Accepted directly by `@sigx/lynx-http` `FormData`.
+
+```ts
+interface FilePickerAsset {
+  /** file:// URI (copied) or content:// (Android, copyToCache: false). */
+  uri: string;
+  /** Original file name, e.g. report.pdf. */
+  name: string;
+  /** Resolved MIME type; application/octet-stream when unknown. */
+  mimeType: string;
+  /** File size in bytes; 0 when unknowable. */
+  size: number;
+}
+```
+
+- `uri` — a `file://` URI when copied (default), or a `content://` URI on Android when `copyToCache: false`. Bare absolute paths are normalized to `file://`.
+- `name` — the original display file name. Falls back to the last percent-decoded URI segment when native does not supply one.
+- `mimeType` — the resolved MIME type. Falls back to `application/octet-stream` when unknown.
+- `size` — file size in bytes. `0` when unknowable.
+
+Platform: shared (iOS and Android).

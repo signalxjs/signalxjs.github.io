@@ -90,7 +90,7 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props, sig
                                 {mod && (
                                     <span class="eyebrow">
                                         {mod.npm} · {STATUS[mod.status].label}
-                                        {COMPONENT_CATALOGS[mod.id] ? ' · Component library' : ''}
+                                        {(COMPONENT_CATALOGS[mod.id] || COMPONENT_CATALOGS[`${mod.parent}-${mod.id}`]) ? ' · Component library' : ''}
                                     </span>
                                 )}
                                 {slots.default()}

@@ -8,16 +8,131 @@ order: 30
 
 # Using Runtime DOM
 
-<p class="lede">The DOM renderer — the essentials.</p>
+<p class="lede">The DOM renderer — the essentials. Mount component trees into the browser, portal content elsewhere, toggle visibility, and write your own DOM directives.</p>
 
-## Basic usage
+## The umbrella vs. the package
 
-```tsx
-import * as RuntimeDOM from '@sigx/runtime-dom';
+Most apps install the `sigx` umbrella, which bundles `@sigx/reactivity`, `@sigx/runtime-core` and `@sigx/runtime-dom` together. When you call `createApp(App).mount('#root')` from `sigx`, runtime-dom is what actually puts nodes on the page.
+
+You only import `@sigx/runtime-dom` directly for custom setups — for example, mounting without the app/plugin layer, or wiring up portals and directives by hand.
+
+```bash
+pnpm add @sigx/runtime-dom
 ```
 
-{/* TODO: author real guide content for @sigx/runtime-dom */}
+Importing the package is impure by design. The entry module wires up the DOM platform globally the moment it loads: it sets `HTMLElement` as the default element type for core, installs the singleton DOM renderer as the default mount target, registers the built-in `show` directive, and enables v-model on form elements. Import it once and the rest of SignalX targets the browser.
+
+## Mount a tree with `render`
+
+`render` mounts a JSX element tree into a container. The container can be a live `Element` or a CSS selector string.
+
+```tsx
+import { component, signal } from 'sigx';
+import { render } from '@sigx/runtime-dom';
+
+const App = component(() => {
+  const name = signal('world');
+  return () => (
+    <div>
+      <input
+        value={name.value}
+        onInput={e => (name.value = e.currentTarget.value)}
+      />
+      <p>Hello, {name.value}!</p>
+    </div>
+  );
+});
+
+// By selector string...
+render(<App />, '#app');
+
+// ...or by element reference
+render(<App />, document.getElementById('app')!);
+```
+
+If the selector or element resolves to nothing, `render` throws a render-target-not-found error. To unmount and clear a container, call `render` with `null`:
+
+```tsx
+import { render } from '@sigx/runtime-dom';
+
+render(<App />, '#app');
+// later: tear it down
+render(null, '#app');
+```
+
+## Render elsewhere with `Portal`
+
+`Portal` renders its children into a different DOM container — by default `document.body`. This is the standard tool for modals, toasts and tooltips that must escape an overflow or stacking context. The target is set with the `to` prop (an `Element` or a CSS selector string), and a `disabled` prop renders children in place instead.
+
+```tsx
+import { component, signal } from 'sigx';
+import { Portal } from '@sigx/runtime-dom';
+
+const Modal = component(() => {
+  const open = signal(true);
+  return () => (
+    <>
+      <button onClick={() => (open.value = !open.value)}>Toggle</button>
+      {open.value && (
+        <Portal to="#modal-root">
+          <div class="modal">Rendered into #modal-root, not in place.</div>
+        </Portal>
+      )}
+    </>
+  );
+});
+```
+
+If a selector passed to `to` is not found, `Portal` warns and falls back to `document.body`. See [Portals](/core/docs/portal) for the full guide.
+
+## Keep elements mounted with `use:show`
+
+The built-in `show` directive toggles an element's CSS `display` property while keeping the element in the DOM — unlike conditional rendering, which removes it. Reach for it when you want to preserve element state (form input, scroll position) across visibility changes.
+
+```tsx
+import { component, signal } from 'sigx';
+import 'sigx'; // or import '@sigx/runtime-dom' — registers `show`
+
+const Panel = component(() => {
+  const visible = signal(true);
+  return () => (
+    <>
+      <button onClick={() => (visible.value = !visible.value)}>Toggle</button>
+      {/* shorthand: resolves the built-in `show` by name */}
+      <div use:show={visible.value}>Stays in the DOM, just hidden.</div>
+    </>
+  );
+});
+```
+
+The directive resolves through the same lookup as any `use:*` prop, so `use:show` also accepts an explicit tuple of `[show, visible.value]`.
+
+## Write a custom DOM directive
+
+`DOMDirective` is a directive definition narrowed to `HTMLElement`, which gives you correctly-typed element access in lifecycle hooks. Define a directive with `defineDirective` and apply it via `use:`.
+
+```tsx
+import { component, defineDirective } from 'sigx';
+import type { DOMDirective } from '@sigx/runtime-dom';
+
+const tooltip: DOMDirective<string> = defineDirective<string, HTMLElement>({
+  mounted(el, { value }) {
+    el.title = value;
+  },
+  updated(el, { value }) {
+    el.title = value;
+  },
+});
+
+const Hint = component(() => {
+  return () => <span use:tooltip="Helpful hint">Hover me</span>;
+});
+```
+
+A `use:` prop accepts three shapes: a directive definition directly, a `[definition, value]` tuple, or a plain value that resolves by name (built-in directives first, then app-registered directives). Lifecycle hooks fire as `created` (first set), `updated` (when the value changes), `mounted` (after DOM insertion) and `unmounted` (before removal). See [Directives](/core/docs/directives) for the complete model.
 
 ## Notes
 
-The DOM renderer — this is SignalX on the web.
+- DOM property semantics — styles, `on*` handlers, `className`, `.prop`/`prop:` bindings, SVG/xlink attributes and form `value`/`checked` — are covered in [DOM properties](/core/docs/dom-properties).
+- Two-way `value` binding is documented in [Two-way binding](/core/docs/two-way-binding).
+- For low-level renderer primitives (SSR/hydration), see the [API reference](/core/packages/runtime-dom/api) and the `@sigx/runtime-dom/internals` subpath — those are not stable public API.

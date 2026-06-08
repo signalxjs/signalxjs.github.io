@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "WebView — Native web view"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-webview` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-webview
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as WebView from '@sigx/lynx-webview';
+
+console.log(Object.keys(WebView));
+```

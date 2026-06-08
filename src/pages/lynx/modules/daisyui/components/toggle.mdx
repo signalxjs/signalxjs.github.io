@@ -1,0 +1,104 @@
+---
+title: Toggle
+description: "Toggle — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 148
+---
+
+# Toggle
+
+<p class="lede">A switch-style control for boolean on/off state, bound to a signal with <code>checked</code> and <code>onChange</code>.</p>
+
+## Import
+
+```tsx
+import { Toggle } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+`Toggle` is a controlled component. Drive its state with the `checked` prop and update your own signal in the `onChange` handler — there is no internal state and no built-in label.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `checked` | `boolean` | `false` | Whether the toggle is on. This is the controlled value — keep it in sync with your signal. |
+| `color` | `ToggleColor` | - | Accent color of the track when on. One of `primary`, `secondary`, `accent`, `info`, `success`, `warning`, `error`. |
+| `size` | `ToggleSize` | `'md'` | Toggle size. One of `xs`, `sm`, `md`, `lg`. |
+| `disabled` | `boolean` | `false` | Disables interaction; `onChange` will not fire. |
+| `class` | `string` | - | Additional CSS classes appended to the toggle. |
+| `onChange` | `(checked: boolean) => void` | - | Fired when the user presses the toggle. Receives the next boolean value. |
+
+### Model binding (two-way)
+
+There is no `model` prop on the Lynx Toggle. To bind it two-way, read the value from a signal into `checked` and write the new value back inside `onChange`:
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Toggle } from '@sigx/lynx-daisyui';
+
+export const Settings = component(() => {
+  const enabled = signal(false);
+
+  return () => (
+    <Toggle
+      color="primary"
+      checked={enabled.value}
+      onChange={(checked) => { enabled.value = checked; }}
+    />
+  );
+});
+```
+
+## Sizes
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Row, Toggle } from '@sigx/lynx-daisyui';
+
+export const Sizes = component(() => () => (
+  <Row gap={12} align="center" class="flex-wrap">
+    <Toggle checked color="primary" size="xs" />
+    <Toggle checked color="primary" size="sm" />
+    <Toggle checked color="primary" size="md" />
+    <Toggle checked color="primary" size="lg" />
+  </Row>
+));
+```
+
+## Colors
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Row, Toggle } from '@sigx/lynx-daisyui';
+
+export const Colors = component(() => () => (
+  <Row gap={12} align="center" class="flex-wrap">
+    <Toggle checked color="primary" />
+    <Toggle checked color="secondary" />
+    <Toggle checked color="accent" />
+    <Toggle checked color="info" />
+    <Toggle checked color="success" />
+    <Toggle checked color="warning" />
+    <Toggle checked color="error" />
+  </Row>
+));
+```
+
+## States
+
+Use `checked` to control on/off and `disabled` to block interaction:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Row, Toggle } from '@sigx/lynx-daisyui';
+
+export const States = component(() => () => (
+  <Row gap={12} align="center" class="flex-wrap">
+    <Toggle checked color="primary" />
+    <Toggle checked={false} color="primary" />
+    <Toggle checked disabled color="primary" />
+    <Toggle checked={false} disabled color="primary" />
+  </Row>
+));
+```

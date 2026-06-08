@@ -1,0 +1,261 @@
+---
+title: "API reference"
+description: "WebView — Native web view"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-webview` v0.4.9. Available on iOS (WKWebView) and Android (android.webkit.WebView).</p>
+
+Importing the package entry registers the `sigx-webview` JSX intrinsic and re-exports everything below.
+
+```ts
+import {
+  WebView,
+  WebViewMethods,
+  type WebViewProps,
+  type WebViewRef,
+  type SigxWebViewAttributes,
+  type WebViewLoadEvent,
+  type WebViewLoadEventDetail,
+  type WebViewErrorEvent,
+  type WebViewErrorEventDetail,
+  type WebViewMessageEvent,
+  type WebViewMessageEventDetail,
+} from '@sigx/lynx-webview';
+```
+
+## Component
+
+### WebView
+
+```ts
+const WebView: (props: WebViewProps) => JSX.Element
+```
+
+The native WebView component. On iOS it wraps a `WKWebView`; on Android, `android.webkit.WebView`. It renders a `sigx-webview` intrinsic element, mapping camelCase props to the native hyphenated attributes (`src`, `html`, `user-agent`, `enable-debug`) and `onLoad` / `onError` / `onMessage` to `bindload` / `binderror` / `bindmessage`.
+
+Page-to-host messaging arrives on `onMessage` as `e.detail.data` (always a string) when the page calls `window.sigx.postMessage(payload)`. Host-to-page messaging goes through `mtRef` plus `WebViewMethods.postMessage(ref.current, data)`; the page subscribes with `window.sigx.onmessage = (data) => { ... }`.
+
+- **props** — see [WebViewProps](#webviewprops). All props are optional.
+- **Returns** — a renderable element.
+- **Platform** — iOS and Android.
+
+## Imperative methods
+
+### WebViewMethods
+
+```ts
+const WebViewMethods: {
+  goBack(el: MainThread.Element | null): void;
+  goForward(el: MainThread.Element | null): void;
+  reload(el: MainThread.Element | null): void;
+  stopLoading(el: MainThread.Element | null): void;
+  canGoBack(el: MainThread.Element | null): Promise<boolean>;
+  canGoForward(el: MainThread.Element | null): Promise<boolean>;
+  injectJavaScript(el: MainThread.Element | null, code: string): Promise<string>;
+  postMessage(el: MainThread.Element | null, data: string): void;
+}
+```
+
+A frozen (`as const`) object of typed wrappers around `MainThread.Element.invoke(method, params)` for each imperative method. It lives outside the component so it is callable from any main-thread handler. Every method accepts `el | null` and no-ops when null — synchronous methods return `void`, async getters resolve to their documented default (`false` or `''`). Reachable wherever a `MainThread.Element` is in scope (for example inside `runOnMainThread`); it is not callable from a bare background-thread `onPress` — use a `SelectorQuery` there instead.
+
+- **Platform** — iOS and Android (driven through the Lynx UIMethod `invoke` bridge).
+
+#### goBack / goForward
+
+```ts
+goBack(el: MainThread.Element | null): void
+goForward(el: MainThread.Element | null): void
+```
+
+Navigate the WebView's history. Fire-and-forget — `invoke` rejections are swallowed. Both are no-ops when there is no history in that direction, and when `el` is null.
+
+#### reload / stopLoading
+
+```ts
+reload(el: MainThread.Element | null): void
+stopLoading(el: MainThread.Element | null): void
+```
+
+`reload` reloads the current document and always succeeds. `stopLoading` stops the current load. Both are fire-and-forget and no-op when `el` is null.
+
+#### canGoBack / canGoForward
+
+```ts
+canGoBack(el: MainThread.Element | null): Promise<boolean>
+canGoForward(el: MainThread.Element | null): Promise<boolean>
+```
+
+Resolve whether history exists in that direction, reading `value` from the invoke result. Resolve `false` when `el` is null or the underlying call errors.
+
+- **Returns** — a Promise resolving to `boolean` (default `false`).
+
+#### injectJavaScript
+
+```ts
+injectJavaScript(el: MainThread.Element | null, code: string): Promise<string>
+```
+
+Evaluates `code` in the page and resolves with the last-expression value, stringified. Non-string results are coerced via `String()` / `toString()`; `null` and `undefined` resolve to `''`. Resolves `''` when `el` is null or the call errors.
+
+- **code** — JavaScript source to evaluate in the page context.
+- **Returns** — a Promise resolving to the stringified result (default `''`).
+
+#### postMessage
+
+```ts
+postMessage(el: MainThread.Element | null, data: string): void
+```
+
+Delivers `data` to `window.sigx.onmessage(data)` inside the page. Fire-and-forget; a silent no-op if the page has not subscribed or `el` is null.
+
+- **data** — the string payload to send to the page.
+
+## Types
+
+### WebViewProps
+
+```ts
+type WebViewProps =
+  & Define.Prop<'src', string, false>
+  & Define.Prop<'html', string, false>
+  & Define.Prop<'userAgent', string, false>
+  & Define.Prop<'debug', boolean, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', string | Record<string, string | number>, false>
+  & Define.Prop<'mtRef', WebViewRef, false>
+  & Define.Prop<'onLoad', (e: WebViewLoadEvent) => void, false>
+  & Define.Prop<'onError', (e: WebViewErrorEvent) => void, false>
+  & Define.Prop<'onMessage', (e: WebViewMessageEvent) => void, false>;
+```
+
+Props for the `WebView` component. All are optional (the third `Define.Prop` argument `false` marks the prop as not required).
+
+- **src** — URL to load; restricted to `http(s):` / `about:blank`. Mutually exclusive with `html`.
+- **html** — inline HTML, rendered with a null base URL (fully sandboxed; relative URLs do not resolve).
+- **userAgent** — overrides the WebView's User-Agent string. Maps to `user-agent`.
+- **debug** — enables the platform web inspector. Maps to `enable-debug`. On Android this is process-wide.
+- **class** / **style** — standard Lynx layout props.
+- **mtRef** — captures the native element for the imperative methods. See [WebViewRef](#webviewref).
+- **onLoad** / **onError** / **onMessage** — lifecycle and messaging callbacks. Map to `bindload` / `binderror` / `bindmessage`.
+- **Platform** — shared.
+
+### WebViewRef
+
+```ts
+type WebViewRef = MainThreadRef<MainThread.Element | null>;
+```
+
+The ref shape consumers pass via `mtRef` to capture the underlying native element. Inside main-thread event handlers, the current handle is `ref.current`; pass it through `WebViewMethods.*` for typed access to `goBack` / `reload` / `injectJavaScript` and the rest.
+
+- **Platform** — shared.
+
+### SigxWebViewAttributes
+
+```ts
+interface SigxWebViewAttributes extends LynxCommonAttributes {
+  src?: string;
+  html?: string;
+  'user-agent'?: string;
+  'enable-debug'?: boolean;
+  bindload?: LynxEventHandler<WebViewLoadEvent>;
+  binderror?: LynxEventHandler<WebViewErrorEvent>;
+  bindmessage?: LynxEventHandler<WebViewMessageEvent>;
+}
+```
+
+The low-level JSX intrinsic attribute interface for the raw `sigx-webview` element (extends `LynxCommonAttributes`). It uses native hyphenated attribute names and `bind*` event handlers, and is the surface the `WebView` wrapper compiles down to — most apps use `WebView` instead. `src` is restricted to `http(s):` / `about:blank`; setting both `src` and `html` is undefined behavior.
+
+- **Platform** — shared.
+
+### WebViewLoadEvent
+
+```ts
+interface WebViewLoadEvent {
+  type: 'load';
+  detail: WebViewLoadEventDetail;
+}
+```
+
+Fired once the main-frame navigation finishes (iOS `WKNavigationDelegate didFinish`; Android `onPageFinished`). Delivered to `onLoad`.
+
+- **Platform** — shared.
+
+### WebViewLoadEventDetail
+
+```ts
+interface WebViewLoadEventDetail {
+  url: string;
+  [k: string]: unknown;
+}
+```
+
+Detail payload for the load event.
+
+- **url** — the final URL of the loaded main frame.
+- **Platform** — shared.
+
+### WebViewErrorEvent
+
+```ts
+interface WebViewErrorEvent {
+  type: 'error';
+  detail: WebViewErrorEventDetail;
+}
+```
+
+Fired on main-frame load failure (iOS `didFail` and `didFailProvisionalNavigation` for DNS/TLS/unreachable; Android `onReceivedError`, filtered to the main frame). Subresource errors such as a missing favicon or a 404 image are suppressed. Delivered to `onError`.
+
+- **Platform** — shared.
+
+### WebViewErrorEventDetail
+
+```ts
+interface WebViewErrorEventDetail {
+  url: string;
+  message: string;
+  [k: string]: unknown;
+}
+```
+
+Detail payload for the error event.
+
+- **url** — the failing URL.
+- **message** — the platform's localized error description (Android falls back to `unknown error`).
+- **Platform** — shared.
+
+### WebViewMessageEvent
+
+```ts
+interface WebViewMessageEvent {
+  type: 'message';
+  detail: WebViewMessageEventDetail;
+}
+```
+
+Fired when the page calls `window.sigx.postMessage(payload)`. Delivered to `onMessage`.
+
+- **Platform** — shared.
+
+### WebViewMessageEventDetail
+
+```ts
+interface WebViewMessageEventDetail {
+  data: string;
+  [k: string]: unknown;
+}
+```
+
+Detail payload for the message event.
+
+- **data** — the payload the page sent. Always a string on the wire — non-string page payloads are `JSON.stringify`'d by the injected bridge, so apps that send JSON should `JSON.parse` it.
+- **Platform** — shared.
+
+## See also
+
+- [Usage guide](/lynx/modules/webview/usage) — practical patterns and platform notes.
+- [Installation](/lynx/modules/webview/installation) — adding the package to a project.

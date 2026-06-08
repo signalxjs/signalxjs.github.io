@@ -8,10 +8,714 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-navigation` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-navigation` — functions, hooks, components and types.</p>
 
-## Exports
+The package is ESM-only with a single entry point (`.`). All inference flows from augmenting the `Register` interface with your route map; see [Usage](/lynx/modules/navigation/usage) for the setup pattern.
 
-{/* TODO: document the public API of @sigx/lynx-navigation */}
+## Functions
 
-See the package source for the complete typed surface.
+### defineRoutes
+
+```ts
+function defineRoutes<const T extends RouteMap>(routes: T): T
+```
+
+Defines a typed route registry. Returns its input verbatim — it exists purely for TypeScript inference, narrowing to a literal route map so `useNav`, `useParams` and `<Link>` can infer route names and per-route param/search schemas.
+
+### hrefFor
+
+```ts
+function hrefFor<K extends RoutesWithoutParams>(name: K, search?: RouteSearch<K>): Href<K>;
+function hrefFor<K extends RoutesWithParams>(name: K, params: RouteParams<K>, search?: RouteSearch<K>): Href<K>;
+```
+
+Builds a typed `Href` for a route, validating params and search against the route's schema at runtime (throws on validation failure). Overloaded by whether the route declares a `params` schema. Requires an active route registry (a mounted `NavigationRoot`, or `_setRouteRegistry` in tests). The returned `url` is `null` when the route has no `path` template.
+
+### parseHref
+
+```ts
+function parseHref(url: string): Href | null
+```
+
+Parses a URL string (absolute `scheme://…` or pathname-only) into a typed `Href` against the registered routes' `path` templates. Returns `null` when no path matches or params/search fail validation. First registration-order match wins. Takes only `(url)` at runtime.
+
+### compilePath
+
+```ts
+function compilePath(template: string): CompiledPath
+```
+
+Compiles a path template (e.g. `'/users/:id'`) into a `CompiledPath` with a regex and a `format()` method. Supports literal segments, `:name` params (matching `[^/]+`) and tolerated trailing slashes. Throws on an empty / non-string template or duplicate param names. Pure and memoizable. No wildcards, optional or typed params in v1.
+
+### _setRouteRegistry
+
+```ts
+function _setRouteRegistry(routes: RouteMap): void
+```
+
+Test / integration use, not part of the supported public API. Imperatively seeds the module-level URL bridge registry (for tests or deep-link bootstrap before a `NavigationRoot` mounts). Last write wins; `NavigationRoot` calls this on setup.
+
+### _clearRouteRegistry
+
+```ts
+function _clearRouteRegistry(): void
+```
+
+Test use, not part of the supported public API. Clears the module-level URL bridge route registry.
+
+## Hooks
+
+### useNav
+
+```ts
+const useNav: () => Nav
+```
+
+Accesses the innermost navigator handle, provided by `NavigationRoot`. Returns a `Nav` with reactive read getters (`current`, `stack`, `canGoBack`) and mutators (`push`, `replace`, `pop`, `popTo`, `popToRoot`, `reset`, `dismiss`). Throws when no `NavigationRoot` is mounted.
+
+### useParams
+
+```ts
+function useParams<K extends RouteId>(_name: K): RouteParams<K>
+```
+
+Reads typed params for the current screen, asserted against the named route. The name argument is a compile-time discriminator — a wrong route name is a TS error. Snapshot at setup (screens remount on navigation).
+
+### useSearch
+
+```ts
+function useSearch<K extends RouteId>(_name: K): RouteSearch<K>
+```
+
+Reads typed search / query params for the current screen, asserted against the named route. The name argument is a compile-time discriminator. Snapshot at setup.
+
+### useHardwareBack
+
+```ts
+function useHardwareBack(): void
+```
+
+Wires the Android hardware / system back button to the active navigator. Idempotent per nav tree (first registration wins). No-op on iOS and in non-native runtimes. `NavigationRoot` auto-wires this by default — call it only when you set `hardwareBack={false}`. **Platform: Android.**
+
+### useLinkingNav
+
+```ts
+function useLinkingNav(opts: UseLinkingNavOptions = {}): void
+```
+
+Bridges `@sigx/lynx-linking` URL events (cold-start `getInitialURL` plus warm-start `'url'` events) into the navigator via `parseHref`. Call once inside a `NavigationRoot` subtree. Requires the optional `@sigx/lynx-linking` peer.
+
+### useIsFocused
+
+```ts
+function useIsFocused(): Computed<boolean>
+```
+
+Returns a reactive `Computed<boolean>` (read `.value`) — true while this screen is the visible top of its navigator and every ancestor (parent entry plus enclosing tab) is focused. Must be called inside a route component rendered by `Stack`; throws otherwise.
+
+### useFocusEffect
+
+```ts
+function useFocusEffect(cb: () => void | (() => void)): void
+```
+
+Runs `cb` when the screen gains focus and runs its returned cleanup on blur or unmount. Re-runs on each focus return. Use for analytics, subscriptions or video playback while visible.
+
+### useScreenOptions
+
+```ts
+function useScreenOptions(optionsOrFn: ScreenOptions | (() => ScreenOptions)): void
+```
+
+Imperatively merges `ScreenOptions` (title, header / gesture flags, sheet options) into the current entry. A plain object merges once; a function is a tracked effect that re-merges on signal change. Strictly additive (per-key writes).
+
+### useScreenChrome
+
+```ts
+function useScreenChrome(): ScreenChrome
+```
+
+Reactive read of the focused screen's options and slot fills, plus header helpers (`title`, `headerShown`, `canGoBack`, `pop`, `header`, `headerLeft`, `headerRight`). The public foundation for custom header components; every property is a getter. Resolves to the scoped entry inside an `EntryScope`, otherwise to the navigator's destination entry.
+
+### useNavSerializer
+
+```ts
+function useNavSerializer(options: UseNavSerializerOptions): void
+```
+
+Persists the navigator's root stack across launches via a `NavStorageAdapter`. On mount it loads and validates (version / shape / unknown-route) then applies with `nav.reset()`; it subscribes to `nav.stack` and saves debounced (default 250 ms). Only the root navigator is persisted in v1 (nested / per-tab stacks are not yet).
+
+### useTabs
+
+```ts
+const useTabs: () => TabsNav
+```
+
+Accesses the enclosing `Tabs` navigator: `{ active, setActive(name), tabs }`. Reactive. Throws when called outside `Tabs`. `setActive` ignores unknown tab names (no-op).
+
+### useDrawer
+
+```ts
+const useDrawer: () => DrawerNav
+```
+
+Accesses the enclosing `Drawer` navigator: `{ isOpen, open(), close(), toggle() }`. Reactive. Throws when called outside `Drawer`.
+
+## Components
+
+### NavigationRoot
+
+```ts
+const NavigationRoot: component<{
+    routes: RouteMap;            // required
+    initialRoute?: RouteId;      // default: first route key
+    initialParams?: Record<string, unknown>;   // default: {}
+    initialSearch?: Record<string, unknown>;    // default: {}
+    animated?: boolean;          // default: true (set false in tests)
+    edgeSwipeEnabled?: boolean;  // default: true (iOS)
+    hardwareBack?: boolean;      // default: true (Android auto-wire)
+}>
+```
+
+Root of a navigator subtree. Creates a fresh navigator state from `routes` and provides it (isolated per root). Throws if `initialRoute` is not in `routes`. Renders its `default` slot. Set `animated={false}` so navigations commit synchronously in tests.
+
+### Stack
+
+```ts
+const Stack: component<{
+    initialRoute?: string;
+    initialParams?: Record<string, unknown>;
+    initialSearch?: Record<string, unknown>;
+    maxRetainedScreens?: number;  // default: all, capped at MAX_LAYERS = 24
+}>
+```
+
+The stack navigator. In **bound mode** (no `initialRoute`) it renders the enclosing navigator's stack. In **nested-owner mode** (`initialRoute='…'`) it mints a fresh nested navigator (per-tab stacks); `useNav()` inside returns the nested nav and `nav.parent` is the enclosing one. `card` pushes stay local; `modal` / `fullScreen` / `transparent-modal` / `sheet` escalate to root; `replace` is strictly local. `maxRetainedScreens` bounds covered-card retention. The `default` slot is chrome rendered inside this stack's nav scope (e.g. a per-stack `<Header />`).
+
+### Screen
+
+```ts
+const Screen: ((props: {
+    title?: string | (() => string);
+    headerShown?: boolean;
+    gestureEnabled?: boolean;
+    snapPoints?: readonly number[];
+    initialSnapIndex?: number;
+    backdropDismiss?: boolean;
+    slots?: Partial<{ default: () => JSXElement | JSXElement[] | null }>;
+}) => JSXElement) & {
+    Header: ComponentFactory;
+    HeaderLeft: ComponentFactory;
+    HeaderRight: ComponentFactory;
+    TabBarItem: ComponentFactory;
+};
+```
+
+Declarative per-screen options plus slot fills, via `ScreenOptions` (title, `headerShown`, `gestureEnabled`, and the sheet props `snapPoints` / `initialSnapIndex` / `backdropDismiss`). Renders its `default` slot inline. Must mount inside a route component rendered by `Stack` (inside an `EntryScope`) or it throws; only patches the keys actually passed.
+
+### Screen.Header
+
+```ts
+Screen.Header: ComponentFactory<Define.Slot<'default'>>
+```
+
+Full header replacement. Renders `null` and writes its `default` slot into the entry's screen registry (`slots.header`).
+
+### Screen.HeaderLeft
+
+```ts
+Screen.HeaderLeft: ComponentFactory<Define.Slot<'default'>>
+```
+
+Left-side header content (e.g. a back-arrow override). Writes `slots.headerLeft` into the entry registry.
+
+### Screen.HeaderRight
+
+```ts
+Screen.HeaderRight: ComponentFactory<Define.Slot<'default'>>
+```
+
+Right-side header content (e.g. action buttons). Writes `slots.headerRight` into the entry registry.
+
+### Screen.TabBarItem
+
+```ts
+Screen.TabBarItem: ComponentFactory<Define.Slot<'default'>>
+```
+
+Scoped tab-bar item; its `default` slot is a function receiving `{ active }`. The built-in `TabBar` does not read this yet — it is exposed for custom `renderTab` consumers.
+
+### Header
+
+```ts
+const Header: component  // no props
+```
+
+The headless default navigator header chrome. If the focused entry set a `<Screen.Header>` slot it renders that; otherwise it renders `headerLeft` (a back button when `nav.canGoBack`), the title (`options.title` or the route name) and `headerRight`. Mounted once and reactively switches content. For a themed bar use `NavHeader` from [`@sigx/lynx-daisyui`](/lynx/modules/daisyui/overview) (same `useScreenChrome()` data source).
+
+### Tabs
+
+```ts
+const Tabs: component<{ initialTab?: string }> & {
+    Screen: component<{
+        name: string;            // required
+        icon?: IconSpec | JSXElement;
+        label?: string;
+        accessibilityLabel?: string;
+    }>;
+};
+```
+
+A persistent tab navigator. `<Tabs initialTab>` hosts `<Tabs.Screen name label icon accessibilityLabel>`. Tab bodies stay mounted (inactive ones `display:none`), preserving per-tab state. Drop a `<Stack initialRoute>` inside a `<Tabs.Screen>` for per-tab back-stacks. Provides `useTabs()`. The `Tabs.Screen` `name` is captured once at setup (remount to rename).
+
+### TabBar
+
+```ts
+const TabBar: component<{
+    renderTab?: (info: TabInfo, ctx: TabRenderContext) => JSXElement;
+}>
+```
+
+The headless default chrome for `Tabs` — unstyled buttons with accessibility wiring (label, element, trait, status, an opacity active marker, tap to switch). Pass `renderTab` to fully override per-item rendering. For a themed bar use `NavTabBar` from `@sigx/lynx-daisyui`.
+
+### Drawer
+
+```ts
+const Drawer: component<{
+    initialOpen?: boolean;
+    // slots: 'sidebar' and 'default'
+}>
+```
+
+A minimal off-canvas drawer navigator. The `sidebar` slot is the sidebar JSX (laid out absolutely on the left, toggled via display); the `default` slot is the main content (usually a `Stack`). Provides `useDrawer()`. Gesture-open and slide-in animation are deferred to apps.
+
+### Link
+
+```ts
+const Link: (props: LinkProps) => unknown
+```
+
+Declarative navigation — the JSX flavor of `nav.push`. Props (`LinkProps`): `to` (route name), `params` (required if and only if the route has a params schema), `search?`, `replace?` (uses `nav.replace`) and `children`. Same per-route conditional typing as `nav.push`. Wraps a native `<view>` firing push / replace on `bindtap`.
+
+## Constants
+
+### NAV_SNAPSHOT_VERSION
+
+```ts
+const NAV_SNAPSHOT_VERSION = 1
+```
+
+The current nav snapshot schema version (value `1`). Stored in `NavSnapshot.version`; bump it to reject old snapshots (`onRestoreError` fires `'version'`).
+
+## Types
+
+### Nav
+
+```ts
+interface Nav {
+    push<K extends RoutesWithoutParams>(name: K, search?: RouteSearch<K>, options?: PushOptions): void;
+    push<K extends RoutesWithParams>(name: K, params: RouteParams<K>, search?: RouteSearch<K>, options?: PushOptions): void;
+    replace<K extends RoutesWithoutParams>(name: K, search?: RouteSearch<K>, options?: PushOptions): void;
+    replace<K extends RoutesWithParams>(name: K, params: RouteParams<K>, search?: RouteSearch<K>, options?: PushOptions): void;
+    pop(count?: number, options?: PopOptions): void;
+    popTo<K extends RouteId>(name: K): void;
+    popToRoot(): void;
+    reset(state: { stack: ReadonlyArray<StackEntry> }): void;
+    dismiss(): void;
+    readonly current: StackEntry;
+    readonly stack: ReadonlyArray<StackEntry>;
+    readonly canGoBack: boolean;
+    readonly parent: Nav | null;
+    readonly isLocallyFocused: boolean;
+    readonly transition: TransitionState | null;
+}
+```
+
+The navigator handle returned by `useNav`. Read getters are reactive; mutators commit immediately. `push` / `replace` are overloaded per route by whether params are required.
+
+### Register
+
+```ts
+interface Register {} // empty — users augment it
+```
+
+Augment this via `declare module '@sigx/lynx-navigation'` with `routes: typeof routes` to register your route map. This drives all global type inference.
+
+### RegisteredRoutes
+
+```ts
+type RegisteredRoutes = Register extends { routes: infer R } ? R : RouteMap;
+```
+
+Your registered route map, or the permissive `RouteMap` fallback when `Register` is not augmented.
+
+### RouteId
+
+```ts
+type RouteId = keyof RegisteredRoutes & string;
+```
+
+The union of registered route names.
+
+### RouteParams
+
+```ts
+type RouteParams<K extends RouteId> = ParamsOf<RegisteredRoutes[K]>;
+```
+
+The inferred params type for route `K`.
+
+### RouteSearch
+
+```ts
+type RouteSearch<K extends RouteId> = SearchOf<RegisteredRoutes[K]>;
+```
+
+The inferred search type for route `K`.
+
+### RoutesWithParams
+
+```ts
+type RoutesWithParams = { [K in RouteId]: RouteRequiresParams<RegisteredRoutes[K]> extends true ? K : never }[RouteId];
+```
+
+The union of route names that declare a `params` schema.
+
+### RoutesWithoutParams
+
+```ts
+type RoutesWithoutParams = Exclude<RouteId, RoutesWithParams>;
+```
+
+The union of route names with no `params` schema.
+
+### RouteDefinition
+
+```ts
+interface RouteDefinition<
+    Params extends StandardSchemaV1 | undefined = StandardSchemaV1 | undefined,
+    Search extends StandardSchemaV1 | undefined = StandardSchemaV1 | undefined,
+> {
+    component: ComponentLike;
+    fallback?: ComponentLike | (() => unknown);
+    params?: Params;
+    search?: Search;
+    path?: string;
+    presentation?: Presentation;
+    children?: Record<string, RouteDefinition>;
+}
+```
+
+A single route entry. `params` / `search` are Standard Schema validators; `path` enables deep links; `presentation` defaults to `'card'`.
+
+### RouteMap
+
+```ts
+type RouteMap = Record<string, RouteDefinition>;
+```
+
+A map of route names to definitions.
+
+### ComponentLike
+
+```ts
+type ComponentLike = ((...args: any[]) => unknown) | (() => Promise<{ default: (...args: any[]) => unknown }>);
+```
+
+A route component — a function component or a dynamic import (for lazy routes).
+
+### Presentation
+
+```ts
+type Presentation = 'card' | 'modal' | 'fullScreen' | 'transparent-modal' | 'sheet';
+```
+
+How a screen is presented. `card` stays in its stack; the others escalate to root from nested stacks. `sheet` is a partial-height bottom sheet with a dimmed backdrop.
+
+### StackEntry
+
+```ts
+interface StackEntry<R extends string = string, P = unknown, S = unknown> {
+    readonly key: string;
+    readonly route: R;
+    readonly params: P;
+    readonly search: S;
+    state: unknown;          // user state, survives suspend/restore
+    readonly presentation: Presentation;
+}
+```
+
+One entry in a navigator stack.
+
+### PushOptions
+
+```ts
+interface PushOptions { presentation?: Presentation; state?: unknown; animated?: boolean; }
+```
+
+Per-push overrides (override the route's presentation, seed entry `state`, or disable animation for one push).
+
+### PopOptions
+
+```ts
+interface PopOptions { animated?: boolean; }
+```
+
+Per-pop options.
+
+### ScreenOptions
+
+```ts
+interface ScreenOptions {
+    title?: string | (() => string);
+    headerShown?: boolean;          // default true
+    gestureEnabled?: boolean;       // default true
+    snapPoints?: readonly number[]; // sheet: fractions of screen height (0–1), ascending; default [0.5]
+    initialSnapIndex?: number;      // default: last (most open)
+    backdropDismiss?: boolean;      // default true
+}
+```
+
+Per-screen options, settable via `<Screen>` or `useScreenOptions`. The `snapPoints` / `initialSnapIndex` / `backdropDismiss` fields apply to `sheet` presentations.
+
+### ScreenSlotFills
+
+```ts
+interface ScreenSlotFills {
+    header?: () => unknown;
+    headerLeft?: () => unknown;
+    headerRight?: () => unknown;
+    tabBarItem?: (ctx: { active: boolean }) => unknown;
+}
+```
+
+The slot fills a screen can register (written by the `Screen.*` sub-components).
+
+### ScreenChrome
+
+```ts
+interface ScreenChrome {
+    readonly title: string;
+    readonly headerShown: boolean;
+    readonly canGoBack: boolean;
+    pop(): void;
+    readonly header: ScreenSlotFills['header'] | undefined;
+    readonly headerLeft: ScreenSlotFills['headerLeft'] | undefined;
+    readonly headerRight: ScreenSlotFills['headerRight'] | undefined;
+}
+```
+
+The reactive header data returned by `useScreenChrome`. Every property is a getter.
+
+### Href
+
+```ts
+interface Href<K extends RouteId = RouteId> {
+    readonly route: K;
+    readonly params: RouteParams<K>;
+    readonly search: RouteSearch<K>;
+    readonly url: string | null;   // null when the route has no path
+}
+```
+
+A typed, validated navigation target produced by `hrefFor` / `parseHref`.
+
+### CompiledPath
+
+```ts
+interface CompiledPath {
+    readonly source: string;
+    readonly paramNames: readonly string[];
+    readonly regex: RegExp;
+    format(params: Record<string, string | number>): string;
+}
+```
+
+The result of `compilePath` — a regex matcher plus a `format()` that fills the template.
+
+### NavSnapshot
+
+```ts
+interface NavSnapshot { version: number; stack: StackEntry[]; }
+```
+
+A persisted navigator snapshot (version plus stack).
+
+### NavStorageAdapter
+
+```ts
+interface NavStorageAdapter {
+    load(): Promise<NavSnapshot | null> | NavSnapshot | null;
+    save(snapshot: NavSnapshot): Promise<void> | void;
+}
+```
+
+The storage backend for `useNavSerializer`. Implement `load` / `save` over any store (e.g. [`@sigx/lynx-storage`](/lynx/modules/storage/overview)).
+
+### UseNavSerializerOptions
+
+```ts
+interface UseNavSerializerOptions {
+    storage: NavStorageAdapter;
+    debounceMs?: number;            // default 250
+    onRestored?: (snapshot: NavSnapshot) => void;
+    onRestoreError?: (reason: 'version' | 'shape' | 'unknown-route' | 'load-threw', err?: unknown) => void;
+}
+```
+
+Options for `useNavSerializer`.
+
+### UseLinkingNavOptions
+
+```ts
+interface UseLinkingNavOptions {
+    prefixes?: string[];
+    onURL?: (url: string, nav: Nav) => void;
+    onUnmatched?: (url: string) => void;
+    replaceInitial?: boolean;       // default true
+}
+```
+
+Options for `useLinkingNav`.
+
+### TabInfo
+
+```ts
+interface TabInfo {
+    readonly name: string;
+    readonly icon?: IconSpec | JSXElement;
+    readonly label?: string;
+    readonly accessibilityLabel?: string;
+}
+```
+
+Metadata for a single tab (from each `Tabs.Screen`).
+
+### TabsNav
+
+```ts
+interface TabsNav {
+    readonly active: string;
+    setActive(name: string): void;
+    readonly tabs: ReadonlyArray<TabInfo>;
+}
+```
+
+The handle returned by `useTabs`.
+
+### TabRenderContext
+
+```ts
+interface TabRenderContext { readonly active: boolean; onPress(): void; }
+```
+
+The render context passed to `TabBar`'s `renderTab` for each item.
+
+### DrawerNav
+
+```ts
+interface DrawerNav { readonly isOpen: boolean; open(): void; close(): void; toggle(): void; }
+```
+
+The handle returned by `useDrawer`.
+
+### LinkProps
+
+```ts
+type LinkProps = LinkPropsByRoute & { replace?: boolean; children?: unknown };
+// LinkPropsByRoute = {
+//   [K in RouteId]: K extends RoutesWithParams
+//     ? { to: K; params: RouteParams<K>; search?: RouteSearch<K> }
+//     : { to: K; params?: undefined; search?: RouteSearch<K> }
+// }[RouteId]
+```
+
+The props of `<Link>` — `params` is required exactly when the route declares a params schema.
+
+### TransitionState
+
+```ts
+interface TransitionState {
+    readonly kind: TransitionKind;
+    readonly topEntry: StackEntry;
+    readonly underneathEntry: StackEntry;
+    readonly progress: unknown;   // SharedValue<number>, typed loosely
+}
+```
+
+The in-flight transition exposed by `nav.transition` (`null` when idle).
+
+### TransitionKind
+
+```ts
+type TransitionKind = 'push' | 'pop';
+```
+
+The direction of a transition.
+
+### TransitionRole
+
+```ts
+type TransitionRole = 'top' | 'underneath';
+```
+
+A screen's role during a transition.
+
+### StandardSchemaV1
+
+```ts
+interface StandardSchemaV1<Input = unknown, Output = Input> {
+    readonly '~standard': {
+        readonly version: 1;
+        readonly vendor: string;
+        readonly types?: { readonly input: Input; readonly output: Output };
+    };
+}
+```
+
+The [Standard Schema](https://standardschema.dev) interface used for `params` / `search` validators (zod, valibot, arktype all implement it).
+
+### InferOutput
+
+```ts
+type InferOutput<S> = S extends StandardSchemaV1<unknown, infer O> ? O : unknown;
+```
+
+Extracts the output type of a Standard Schema.
+
+### EmptyParams
+
+```ts
+type EmptyParams = Record<string, never>;
+```
+
+The params / search type for routes that declare no schema.
+
+### ParamsOf
+
+```ts
+type ParamsOf<R> = R extends { params: infer S } ? InferOutput<S> : EmptyParams;
+```
+
+Infers a route definition's params type.
+
+### SearchOf
+
+```ts
+type SearchOf<R> = R extends { search: infer S } ? InferOutput<S> : EmptyParams;
+```
+
+Infers a route definition's search type.
+
+### RouteRequiresParams
+
+```ts
+type RouteRequiresParams<R> = R extends { params: object } ? true : false;
+```
+
+Whether a route definition declares a `params` schema.
+
+## See also
+
+- [Usage](/lynx/modules/navigation/usage) — practical guides and complete examples.
+- [Overview](/lynx/modules/navigation/overview) — what Navigation is.

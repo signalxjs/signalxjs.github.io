@@ -1,0 +1,124 @@
+---
+title: Button
+description: "Button — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Actions"]
+order: 101
+---
+
+# Button
+
+<p class="lede">Pressable action button with HeroUI fill variants, semantic colors, sizes, and built-in loading/disabled handling.</p>
+
+## Import
+
+```tsx
+import { Button } from '@sigx/lynx-heroui';
+```
+
+## Basic Usage
+
+`Button` wraps a `Pressable` from `@sigx/lynx-gestures`, so it ships native press feedback (scale + opacity) out of the box. The button label goes in the default slot, and you listen for taps with `onPress`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button, Text } from '@sigx/lynx-heroui';
+
+export const Demo = component(({ signal }) => {
+  const state = signal({ count: 0 });
+
+  return () => (
+    <Button color="primary" onPress={() => state.count++}>
+      <Text>Pressed {state.count} times</Text>
+    </Button>
+  );
+});
+```
+
+## Variants
+
+`variant` controls the fill style. It mirrors upstream HeroUI: `solid` (the default), `bordered`, `flat`, and `ghost`. Combine it with any semantic `color`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button, Text, Col } from '@sigx/lynx-heroui';
+
+export const Variants = component(() => {
+  return () => (
+    <Col gap="3">
+      <Button color="primary" variant="solid">
+        <Text>Solid</Text>
+      </Button>
+      <Button color="primary" variant="bordered">
+        <Text>Bordered</Text>
+      </Button>
+      <Button color="primary" variant="flat">
+        <Text>Flat</Text>
+      </Button>
+      <Button color="primary" variant="ghost">
+        <Text>Ghost</Text>
+      </Button>
+    </Col>
+  );
+});
+```
+
+## Sizes, States, and Layout
+
+`size` accepts the `sm` / `md` / `lg` subset of the shared size scale (`md` is the default). Setting `disabled` or `loading` makes the button non-interactive and applies disabled styling, while `block` stretches it to fill its container:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button, Text, Col } from '@sigx/lynx-heroui';
+
+export const States = component(() => {
+  return () => (
+    <Col gap="3">
+      <Button color="success" size="sm">
+        <Text>Small</Text>
+      </Button>
+      <Button color="success" size="lg">
+        <Text>Large</Text>
+      </Button>
+      <Button color="error" disabled>
+        <Text>Disabled</Text>
+      </Button>
+      <Button color="primary" loading>
+        <Text>Loading</Text>
+      </Button>
+      <Button color="primary" block>
+        <Text>Full width</Text>
+      </Button>
+    </Col>
+  );
+});
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'neutral' \| 'info' \| 'success' \| 'warning' \| 'error'` | `'neutral'` | Semantic color of the button. |
+| `variant` | `'solid' \| 'bordered' \| 'flat' \| 'ghost'` | `'solid'` | HeroUI fill style. |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | Button size on the shared scale. |
+| `disabled` | `boolean` | `false` | Disables the button (non-interactive + disabled styling). |
+| `loading` | `boolean` | `false` | Marks the button as busy; behaves the same as `disabled` (non-interactive + disabled styling). |
+| `block` | `boolean` | `false` | Stretches the button to fill its container width. |
+| `class` | `string` | - | Extra CSS classes appended after the computed ones. |
+| `accessibility-element` | `boolean` | - | Forwarded to the host `Pressable` view; marks the node as an accessibility element. |
+| `accessibility-label` | `string` | - | Forwarded accessibility label for screen readers. |
+| `accessibility-role` | `string` | - | Forwarded accessibility role. |
+| `accessibility-trait` | `string` | - | Forwarded accessibility trait. |
+| `accessibility-status` | `string` | - | Forwarded accessibility status. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Button content (label, icons, etc.). |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onPress` | `() => void` | Fired when the button is pressed. Suppressed while `disabled` or `loading`. |

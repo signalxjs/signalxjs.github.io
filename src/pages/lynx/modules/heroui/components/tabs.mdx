@@ -1,0 +1,122 @@
+---
+title: Tabs
+description: "Tabs — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Navigation"]
+order: 129
+---
+
+# Tabs
+
+<p class="lede">Container-driven tab navigation: a `Tabs` wrapper tracks the active value and each `Tabs.Tab` derives its selected state and reports presses back through the container.</p>
+
+## Import
+
+```tsx
+import { Tabs } from '@sigx/lynx-heroui';
+```
+
+`Tabs` is a compound component. The container is `Tabs` and each tab is `Tabs.Tab`.
+
+## Basic Usage
+
+The container holds the selection. Pass the current value with `activeTab` and update it from `onChange`. Each `Tabs.Tab` needs a unique `value` and reflects active state automatically.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Tabs } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+  const state = signal({ tab: 'home' });
+
+  return () => (
+    <Tabs
+      activeTab={state.tab}
+      onChange={(value) => (state.tab = value)}
+    >
+      <Tabs.Tab value="home" label="Home" />
+      <Tabs.Tab value="search" label="Search" />
+      <Tabs.Tab value="profile" label="Profile" />
+    </Tabs>
+  );
+});
+```
+
+## Custom Tab Content
+
+When the default slot is provided, the tab renders that content. The optional `label` text is appended after the slot, so you can use either or both.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Tabs, Text } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+  const state = signal({ tab: 'feed' });
+
+  return () => (
+    <Tabs
+      activeTab={state.tab}
+      onChange={(value) => (state.tab = value)}
+      class="my-nav"
+    >
+      <Tabs.Tab value="feed">
+        <Text>Feed</Text>
+      </Tabs.Tab>
+      <Tabs.Tab value="alerts">
+        <Text>Alerts</Text>
+      </Tabs.Tab>
+    </Tabs>
+  );
+});
+```
+
+## Per-Tab Overrides
+
+A `Tabs.Tab` can opt out of container-driven selection. Setting `active` explicitly wins over the container's `activeTab`, and `onPress` fires in addition to the container's `onChange` — useful for side effects like logging or navigation.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Tabs } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+  const state = signal({ tab: 'one' });
+
+  return () => (
+    <Tabs
+      activeTab={state.tab}
+      onChange={(value) => (state.tab = value)}
+    >
+      <Tabs.Tab value="one" label="One" />
+      <Tabs.Tab value="two" label="Two" />
+      <Tabs.Tab
+        value="three"
+        label="Three (forced active)"
+        active={true}
+        onPress={() => console.log('tab three pressed')}
+      />
+    </Tabs>
+  );
+});
+```
+
+## Props
+
+### `Tabs`
+
+| Prop | Type | Required | Description |
+|------|------|----------|-------------|
+| `activeTab` | `string` | No | The currently selected tab value. Tabs derive their active state from this. |
+| `onChange` | `(value: string) => void` | No | Fired when a tab is pressed, with that tab's `value`. Use it to update your `activeTab` source (two-way selection binding). |
+| `class` | `string` | No | Additional CSS classes appended to `hero-tabs`. |
+| `children` (default slot) | `slot` | No | The `Tabs.Tab` items. |
+
+### `Tabs.Tab`
+
+| Prop | Type | Required | Description |
+|------|------|----------|-------------|
+| `value` | `string` | Yes | Unique identifier for this tab. Reported through the container's `onChange` and compared against `activeTab`. |
+| `active` | `boolean` | No | Explicit override. When set, it wins over the container's `activeTab` for this tab. |
+| `label` | `string` | No | Text rendered inside the tab (after the default slot, if any). |
+| `onPress` | `() => void` | No | Fired when this tab is pressed, in addition to the container's `onChange`. |
+| `class` | `string` | No | Additional CSS classes appended to `hero-tab`. |
+| `children` (default slot) | `slot` | No | Custom tab content rendered before the `label`. |

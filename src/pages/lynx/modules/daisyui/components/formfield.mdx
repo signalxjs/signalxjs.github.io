@@ -1,0 +1,122 @@
+---
+title: FormField
+description: "FormField — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 149
+---
+
+# FormField
+
+<p class="lede">Layout wrapper that adds a label, a required marker, and an inline error message around any form control.</p>
+
+`FormField` is a presentational container, not an input. It renders a daisyUI `form-control` group with an optional label above its content and an optional error message below. Place any input component (`Input`, `Select`, `Textarea`, `Toggle`, etc.) in its default slot, then keep the two-way `model` binding on that child control. `FormField` itself holds no value.
+
+## Import
+
+```tsx
+import { FormField, Input } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `label` | `string` | - | Label text rendered above the field. When omitted, no label row is shown. |
+| `required` | `boolean` | `false` | When `true`, appends a ` *` marker to the label text. |
+| `error` | `string` | - | Error message rendered below the field. When set, it shows in the error label style; when omitted, no error row is shown. |
+| `class` | `string` | - | Additional CSS classes merged onto the `form-control` container. |
+| `children` (default slot) | slot content | - | The form control(s) wrapped by the field. Put the model-bound input here. |
+
+There is no `model` prop on `FormField`. Two-way binding stays on the child control via its own `model` prop (for example `&lt;Input model={() =&gt; form.email} /&gt;`).
+
+## Basic Usage
+
+Wrap an `Input` and keep the `model` binding on the input:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { FormField, Input, Card } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const form = signal({ email: '' });
+
+    return () => (
+        <Card>
+            <Card.Body>
+                <FormField label="Email">
+                    <Input
+                        type="text"
+                        placeholder="you@example.com"
+                        model={() => form.email}
+                    />
+                </FormField>
+            </Card.Body>
+        </Card>
+    );
+});
+
+render(<Demo />, "root");
+```
+
+## Required Marker
+
+Set `required` to append a ` *` to the label:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { FormField, Input, Col } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const form = signal({ name: '', company: '' });
+
+    return () => (
+        <Col gap="4">
+            <FormField label="Full name" required>
+                <Input placeholder="Ada Lovelace" model={() => form.name} />
+            </FormField>
+            <FormField label="Company">
+                <Input placeholder="Optional" model={() => form.company} />
+            </FormField>
+        </Col>
+    );
+});
+
+render(<Demo />, "root");
+```
+
+## Inline Error
+
+Pass a non-empty `error` string to show validation feedback below the control:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { FormField, Input, Col } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const form = signal({ password: '' });
+
+    return () => (
+        <Col gap="4">
+            <FormField
+                label="Password"
+                required
+                error={
+                    form.password.length > 0 && form.password.length < 8
+                        ? 'Must be at least 8 characters'
+                        : undefined
+                }
+            >
+                <Input
+                    type="password"
+                    placeholder="••••••••"
+                    color={form.password.length > 0 && form.password.length < 8 ? 'error' : undefined}
+                    model={() => form.password}
+                />
+            </FormField>
+        </Col>
+    );
+});
+
+render(<Demo />, "root");
+```

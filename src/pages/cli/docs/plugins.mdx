@@ -1,0 +1,156 @@
+---
+title: Authoring Plugins
+description: "Extend the sigx CLI with your own commands using the plugin API"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Authoring Plugins
+
+The `sigx` CLI is extensible: any package installed in a project can contribute commands. Commands like `dev`, `build`, and `preview` are themselves provided by plugins (`@sigx/vite`, `@sigx/ssg`, `@sigx/lynx-cli`). This guide shows how to write your own.
+
+## How discovery works
+
+When the CLI runs, it scans the current project's `package.json` `dependencies` and `devDependencies`. For each dependency it reads `node_modules/<dep>/package.json` and looks for a top-level `sigx-cli` field that points at a plugin module:
+
+```json
+{
+    "name": "my-sigx-plugin",
+    "sigx-cli": { "plugin": "./dist/plugin.js" }
+}
+```
+
+The `plugin` value is a path, relative to the dependency's package root, to a module that **default-exports** a `SigxPlugin`. The CLI dynamically imports that module, takes its default export, calls `detect(cwd)`, and registers the plugin's commands only if `detect` returns `true`.
+
+Discovery inspects the current working directory's `package.json` and `node_modules`. All discovery failures are swallowed silently, so a broken plugin never crashes the CLI.
+
+## Defining a plugin
+
+Use `definePlugin` for type-safe authoring. It is an identity function — it returns the plugin unchanged but gives you full type checking against the `SigxPlugin` contract. Import it from `@sigx/cli/plugin` (it is also re-exported from `@sigx/cli`):
+
+```ts
+import { definePlugin } from '@sigx/cli/plugin';
+
+export default definePlugin({
+    name: 'my-plugin',
+    detect: (cwd) => true,
+    commands: {
+        hello: {
+            description: 'Say hello',
+            async run({ cwd, args, logger }) {
+                logger.log(`hello from ${cwd}`);
+            },
+        },
+    },
+});
+```
+
+If you prefer, you can use the `satisfies` operator instead of `definePlugin` for the same type safety:
+
+```ts
+import type { SigxPlugin } from '@sigx/cli/plugin';
+
+export default {
+    name: 'my-plugin',
+    detect: (cwd) => true,
+    commands: {
+        hello: {
+            description: 'Say hello',
+            async run({ cwd, args, logger }) {
+                logger.log(`hello from ${cwd}`);
+            },
+        },
+    },
+} satisfies SigxPlugin;
+```
+
+The `Logger` passed to `run` has only `log`, `warn`, and `error` methods — there is no `info`. Messages are prefixed with `[sigx]` and `warn` / `error` are uppercased.
+
+## Gating activation with detect
+
+`detect(cwd)` decides whether your plugin is relevant to the current project. Return `true` to register your commands, `false` to stay out of the way. A common pattern is to look for a config file or a marker dependency:
+
+```ts
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { definePlugin } from '@sigx/cli/plugin';
+
+export default definePlugin({
+    name: 'my-plugin',
+    detect: (cwd) => existsSync(join(cwd, 'my-plugin.config.ts')),
+    commands: {
+        // ...
+    },
+});
+```
+
+## Declaring command arguments
+
+Commands can declare named arguments through the `args` map. Each entry is an `ArgDef` with a `type` of `'string'` or `'boolean'`, an optional `description`, and an optional `default`. These map onto the underlying argument parser, and the parsed values arrive in `ctx.args`:
+
+```ts
+import { definePlugin } from '@sigx/cli/plugin';
+
+export default definePlugin({
+    name: 'deployer',
+    detect: () => true,
+    commands: {
+        deploy: {
+            description: 'Deploy the built site',
+            args: {
+                target: {
+                    type: 'string',
+                    description: 'Deploy target',
+                    default: 'staging',
+                },
+                force: {
+                    type: 'boolean',
+                    description: 'Skip confirmation',
+                },
+            },
+            async run({ args, logger }) {
+                logger.log(`Deploying to ${String(args.target)}`);
+                if (args.force) {
+                    logger.warn('Forcing deploy without confirmation');
+                }
+            },
+        },
+    },
+});
+```
+
+## The command context
+
+Every command's `run` handler receives a single `CommandContext` object:
+
+```ts
+async run(ctx) {
+    ctx.cwd;     // process.cwd()
+    ctx.args;    // parsed args object (Record<string, unknown>)
+    ctx.logger;  // prefixed Logger with log/warn/error
+}
+```
+
+## Packaging checklist
+
+To ship a plugin:
+
+1. Build a module that **default-exports** a `SigxPlugin` (via `definePlugin` or `satisfies SigxPlugin`).
+2. Point your package's `package.json` `sigx-cli.plugin` field at that built module.
+3. Publish the package and add it to a project's dependencies.
+
+Once installed, run `npx sigx <your-command>` in a project where your `detect` returns `true`.
+
+## Command name conflicts
+
+If two plugins register a command with the same name, the last one discovered wins, and the CLI logs a warning via `logger.warn`:
+
+```text
+[sigx] WARN Plugin "X" overrides command "Y"
+```
+
+## See also
+
+- [API Reference](/cli/docs/api) — the full `SigxPlugin`, `PluginCommand`, `CommandContext`, `ArgDef`, and `Logger` types.
+- [Commands](/cli/docs/commands) — the built-in and plugin-provided commands.

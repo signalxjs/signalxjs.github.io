@@ -8,16 +8,113 @@ order: 30
 
 # Using Device Info
 
-<p class="lede">Device metrics — the essentials.</p>
+<p class="lede">Read the device's hardware, OS, screen and app metadata in one async call — manufacturer, model, system version, screen size and your own app version.</p>
+
+`@sigx/lynx-device-info` is a thin, typed wrapper over the native device APIs (UIDevice / utsname on iOS, android.os.Build on Android). It returns a single snapshot — it does not watch for changes.
+
+No special permissions are required on either platform. Run `sigx prebuild` once to auto-link the native module — there is no manual linking step.
 
 ## Basic usage
 
-```tsx
-import * as DeviceInfo from '@sigx/lynx-device-info';
+`DeviceInfo.getInfo()` returns a single snapshot of the device's metadata. It is a one-shot Promise, not a subscription.
+
+```ts
+import { DeviceInfo } from '@sigx/lynx-device-info';
+
+const info = await DeviceInfo.getInfo();
+console.log(info.model, info.systemVersion, info.screenWidth);
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-device-info */}
+The resolved object is described by `DeviceInfoResult`:
+
+```ts
+interface DeviceInfoResult {
+  manufacturer: string;   // 'Apple', 'Google', 'samsung'
+  model: string;          // device model identifier
+  brand: string;          // device brand
+  systemName: string;     // 'iOS' | 'Android'
+  systemVersion: string;  // '18.0' | '15'
+  sdkVersion: number;     // iOS major version int / Android API level
+  screenWidth: number;
+  screenHeight: number;
+  screenDensity: number;  // pixel ratio (e.g. 3 for @3x)
+  appVersion: string;     // CFBundleShortVersionString / versionName
+  appPackage: string;     // bundle id / application id
+}
+```
+
+## Branching on platform
+
+`systemName` is the reliable way to tell iOS and Android apart at runtime, and `sdkVersion` lets you gate on OS capability.
+
+```ts
+import { DeviceInfo } from '@sigx/lynx-device-info';
+
+const info = await DeviceInfo.getInfo();
+
+if (info.systemName === 'Android' && info.sdkVersion >= 33) {
+  // Android 13+ behaviour
+} else if (info.systemName === 'iOS') {
+  // iOS behaviour
+}
+```
+
+## Reading screen metrics
+
+`screenWidth`, `screenHeight` and `screenDensity` describe the display. Use them to pick assets or lay out for the current device.
+
+```ts
+import { DeviceInfo } from '@sigx/lynx-device-info';
+
+const info = await DeviceInfo.getInfo();
+const aspect = info.screenWidth / info.screenHeight;
+const isTall = aspect < 0.5;
+```
+
+The units differ by platform: on Android `screenWidth` / `screenHeight` are raw device pixels, while on iOS they are points. `screenDensity` is the pixel ratio. Treat the exact unit as platform-specific rather than assuming a single convention, and prefer ratios over absolute thresholds.
+
+## Tagging diagnostics and crash reports
+
+A common use is stamping logs, analytics or crash reports with the device and app build, so you can correlate issues with hardware or release.
+
+```ts
+import { DeviceInfo } from '@sigx/lynx-device-info';
+
+async function buildDiagnosticContext() {
+  const info = await DeviceInfo.getInfo();
+  return {
+    device: `${info.manufacturer} ${info.model}`,
+    os: `${info.systemName} ${info.systemVersion}`,
+    app: `${info.appPackage}@${info.appVersion}`,
+  };
+}
+```
+
+`getInfo()` is a one-shot snapshot — values do not update reactively. If something can change while the app runs (for example after a rotation), call `getInfo()` again to refresh.
+
+## Guarding optional builds
+
+If your app can ship without the native module, check `DeviceInfo.isAvailable()` before calling `getInfo()`. It returns whether the native `DeviceInfo` module is registered in the current build.
+
+```ts
+import { DeviceInfo } from '@sigx/lynx-device-info';
+
+if (DeviceInfo.isAvailable()) {
+  const info = await DeviceInfo.getInfo();
+  // use info
+} else {
+  // module not linked — fall back gracefully
+}
+```
 
 ## Notes
 
-Device model, OS version, locale and screen metrics.
+- One-shot only: `getInfo()` is a snapshot. There is no subscription stream — re-call it to refresh.
+- Permissions: none required on iOS or Android.
+- Platform differences: some `DeviceInfoResult` fields resolve differently per platform — `sdkVersion`, `screenDensity` and `appPackage` are most reliable on Android. The iOS native payload diverges from the typed shape, so guard reads of these fields on iOS rather than assuming a value.
+- `model` differs by platform: on iOS it is the generic device class (`iPhone` / `iPad`), while on Android it is the device model name (for example `Pixel 9 Pro XL`). The raw iOS hardware identifier (for example `iPhone15,3`) is not exposed in `DeviceInfoResult`.
+
+## See also
+
+- [API reference](/lynx/modules/device-info/api) — every export and its signature.
+- [Installation](/lynx/modules/device-info/installation) — project setup.

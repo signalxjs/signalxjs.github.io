@@ -10,8 +10,132 @@ order: 40
 
 <p class="lede">Exports of `@sigx/lynx-icons-fa-free` v0.4.1.</p>
 
-## Exports
+The package has two entry points. The root export (`@sigx/lynx-icons-fa-free`) is the build-time adapter. The `/components` subpath ships the three pinned icon components. Both work on iOS and Android.
 
-{/* TODO: document the public API of @sigx/lynx-icons-fa-free */}
+## Components
 
-See the package source for the complete typed surface.
+Import from `@sigx/lynx-icons-fa-free/components`. Each component is a thin wrapper that spreads your props onto the generic `Icon` and pins the Font Awesome `set` after the spread, so the pinned style always wins.
+
+All three share the same prop surface:
+
+- `name` — string, required. The kebab-case glyph name (for example `user`, `chevron-right`).
+- `size` — number, optional. Icon size.
+- `color` — string, optional. Fill color.
+- `class` — string, optional. Style class.
+- Theme-augmented props — themes such as `@sigx/daisyui` add typed props (for example `variant`) by declaration-merging `IconPropsExtensions`.
+
+There is intentionally no `set` prop: it is pinned and cannot be overridden by the caller.
+
+### FaSolidIcon
+
+Pinned component for Font Awesome solid glyphs (set `fas`).
+
+```ts
+export declare const FaSolidIcon: import("@sigx/runtime-core").ComponentFactory<FaIconProps, void, {}>;
+// renders: <Icon {...props} set="fas" />
+```
+
+### FaRegularIcon
+
+Pinned component for Font Awesome regular (outlined) glyphs (set `far`).
+
+```ts
+export declare const FaRegularIcon: import("@sigx/runtime-core").ComponentFactory<FaIconProps, void, {}>;
+// renders: <Icon {...props} set="far" />
+```
+
+### FaBrandIcon
+
+Pinned component for Font Awesome brands glyphs (set `fab`).
+
+```ts
+export declare const FaBrandIcon: import("@sigx/runtime-core").ComponentFactory<FaIconProps, void, {}>;
+// renders: <Icon {...props} set="fab" />
+```
+
+## Adapter
+
+### default export (adapter)
+
+The default export of `@sigx/lynx-icons-fa-free` is a build-time `IconAdapter` that reads Font Awesome Free glyph data (solid, regular, brands) live from the official `@fortawesome/*` packages — glyph data is not re-bundled. Used by the build pipeline; you typically don't import it directly except in tests or tooling.
+
+```ts
+declare const adapter: IconAdapter;
+export default adapter;
+```
+
+Behavior:
+
+- `styles` — `['solid', 'regular', 'brands']`.
+- `getGlyph(style, name)` — `name` is kebab-case and is converted to FA's PascalCase export (`chevron-right` → `faChevronRight`). Returns `{ codepoint, svg }` where `svg` carries the literal token `__COLOR__` in its `fill` (substituted downstream by `Icon`'s color resolver). Returns `null` for an unknown style/glyph or an unparseable codepoint.
+- `getFontPath(style)` — absolute path to the FA webfonts TTF (`solid` → `fa-solid-900.ttf`, `regular` → `fa-regular-400.ttf`, `brands` → `fa-brands-400.ttf`), resolved from `@fortawesome/fontawesome-free/webfonts`; `null` for an unknown style or if the package can't be resolved.
+- `listGlyphs(style)` — every kebab-case glyph name for the style. The solid catalog is ~1,900 names; brands is 400+. Returns `[]` for unknown styles.
+- Module loading is cached per style; a missing optional package is caught and cached as `null`.
+
+```ts
+import faAdapter from '@sigx/lynx-icons-fa-free';
+
+faAdapter.styles;                          // ['solid', 'regular', 'brands']
+faAdapter.getGlyph('solid', 'user');       // { codepoint: 0xf007, svg: '<svg…>' }
+faAdapter.getGlyph('solid', 'nope-nope');  // null
+faAdapter.getFontPath('solid');            // absolute path to fa-solid-900.ttf
+faAdapter.listGlyphs('brands');            // ['github', …]
+```
+
+## Types
+
+These types come from the base [`@sigx/lynx-icons`](/lynx/modules/icons/overview) package and are documented here because they describe this adapter's surface.
+
+### IconAdapter
+
+The contract implemented by the default export.
+
+```ts
+export interface IconAdapter {
+  /** Style variants the adapter supports. e.g. ['solid','regular','brands'] for FA. */
+  styles: string[];
+  /** Resolve a glyph by style + name. Return `null` when the glyph is unknown. */
+  getGlyph(style: string, name: string): GlyphData | null;
+  /** Absolute filesystem path to the source TTF for `style`, or null when SVG-only. */
+  getFontPath(style: string): string | null;
+  /** Enumerate every glyph name the adapter can resolve for `style` (kebab-case). */
+  listGlyphs(style: string): string[];
+}
+```
+
+### GlyphData
+
+Return type of `getGlyph`.
+
+```ts
+export interface GlyphData {
+  codepoint?: number;
+  svg: string;
+}
+```
+
+### IconPropsExtensions
+
+Empty by default. Themes augment it via declaration merging to add typed props to every icon component (for example `@sigx/daisyui` adds `variant`).
+
+```ts
+export interface IconPropsExtensions {}
+```
+
+### FaIconProps (internal)
+
+The prop shape used by all three pinned components. Not exported — documented here for the prop surface. Note that `set` is intentionally absent so callers cannot override the pinned style.
+
+```ts
+type FaIconProps =
+  & Define.Prop<'name', string, true>     // required
+  & Define.Prop<'size', number, false>    // optional
+  & Define.Prop<'color', string, false>   // optional
+  & Define.Prop<'class', string, false>   // optional
+  & IconPropsExtensions;                   // theme-augmented props
+```
+
+## See also
+
+- [Usage guide](/lynx/modules/icons-fa/usage)
+- Base [icons module](/lynx/modules/icons/overview) for the generic `Icon` component

@@ -8,16 +8,178 @@ order: 30
 
 # Using Testing
 
-<p class="lede">Component testing — the essentials.</p>
+<p class="lede">Render a sigx Lynx component into an in-memory tree, fire synthetic events and assert — no Lynx runtime, no device, no DOM.</p>
+
+`@sigx/lynx-testing` is Vitest-native. There is no Jest and no preset. You render a JSX element into a lightweight `TestNode` tree on the background side, query it, fire events and flush reactive updates between assertions.
+
+## Setup
+
+Install the package and Vitest as dev dependencies:
+
+```bash
+pnpm add -D @sigx/lynx-testing vitest
+```
+
+Configure Vitest so sigx JSX compiles and a DOM-like global is available:
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  oxc: {
+    jsx: { runtime: 'automatic', importSource: 'sigx' },
+  },
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+  },
+});
+```
 
 ## Basic usage
 
+`render` mounts an element and returns a container node plus scoped query helpers. The `get*` helpers throw when nothing matches; the `query*` helpers return `null`. `getByText` is a substring match on text content.
+
 ```tsx
-import * as Testing from '@sigx/lynx-testing';
+import { render } from '@sigx/lynx-testing';
+import { expect, test } from 'vitest';
+
+test('renders a label', () => {
+  const { getByType, getByText, queryByText, debug } = render(<Greeting />);
+
+  expect(getByType('view')).toBeTruthy();
+  expect(getByText('Hello')).toBeTruthy();
+  expect(queryByText('Goodbye')).toBeNull();
+
+  // Pretty-print the tree when an assertion fails
+  console.log(debug());
+});
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-testing */}
+## Firing events and flushing updates
 
-## Notes
+Component logic runs on the background thread and reactive effects commit asynchronously. Wrap any state change in `act` so the rendered tree settles before you assert. `fireEvent.tap` dispatches both the `bindtap` element form and the `onTap` component form, so either handler shape fires.
 
-render, fireEvent and queries — no native runtime needed.
+```tsx
+import { render, fireEvent, act } from '@sigx/lynx-testing';
+import { signal } from 'sigx';
+import { expect, test } from 'vitest';
+
+test('increments on tap', async () => {
+  const { getByType, getByText } = render(<Counter />);
+
+  expect(getByText('0')).toBeTruthy();
+
+  await act(() => fireEvent.tap(getByType('view')));
+
+  expect(getByText('1')).toBeTruthy();
+});
+```
+
+`act` batches multiple mutations into a single flush:
+
+```tsx
+await act(() => {
+  state.count = 5;
+  state.name = 'Alice';
+});
+expect(getByText('5')).toBeTruthy();
+```
+
+If you mutate signals outside of `act`, call `waitForUpdate` before asserting to let pending effects and scheduled renderer commits complete.
+
+## Touch and gesture events
+
+`fireEvent` exposes touch, scroll, input and long-press helpers. Build normalized touch points with `touch` and pass them through `touches` / `changedTouches`.
+
+```tsx
+import { render, fireEvent, touch, act } from '@sigx/lynx-testing';
+import { expect, test } from 'vitest';
+
+test('responds to a drag', async () => {
+  const { getByType } = render(<Draggable />);
+  const view = getByType('view');
+
+  await act(() => {
+    fireEvent.touchStart(view, { touches: [touch(100, 100)] });
+    fireEvent.touchMove(view, { touches: [touch(150, 200)] });
+    fireEvent.touchEnd(view, { changedTouches: [touch(150, 200)] });
+  });
+});
+```
+
+Note that `touchStart` / `touchMove` / `touchEnd` / `touchCancel` dispatch only the `bind*` handler form. The `tap`, `scroll`, `input` and `longPress` helpers dispatch both the `bind*` and the camelCase `on*` form.
+
+## Testing main-thread worklets
+
+`render` mounts only the background side. Worklet props (`main-thread-bindtap`, `main-thread:ref`, `'main thread'`-marked bodies) render as inert handlers — the SWC worklet transform does not run and the main-thread runtime is not booted. To exercise worklet behavior, use the `@sigx/lynx-testing/mt` subpath, which compiles and runs your worklets against a mocked gesture arena.
+
+The main-thread harness has peer dependencies you must install: `@lynx-js/react`, `@sigx/lynx-runtime-main` and `vitest`. Boot it from a **separate** Vitest config so the heavier setup is not paid on every background test, and keep main-thread tests in their own glob (for example `*.mt.test.ts`):
+
+```ts
+// vitest.mt.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+    setupFiles: ['@sigx/lynx-testing/mt/setup'],
+    include: ['**/*.mt.test.ts'],
+  },
+});
+```
+
+`compileMTWorklets` compiles a `.tsx` source through the LEPUS transform and returns the registered worklets in source order. Call each worklet with `.call(ctx, event)`, supplying its `_c` capture and a fabricated event. `makeRef` builds a synthetic main-thread ref; `fabricateTapEvent` and `fabricatePanEvent` build iOS gesture payloads with touch data nested under `params` (matching the real native shape).
+
+```ts
+import {
+  compileMTWorklets,
+  makeRef,
+  fabricateTapEvent,
+} from '@sigx/lynx-testing/mt';
+import { readFileSync } from 'node:fs';
+import { expect, test, vi } from 'vitest';
+
+const SRC = new URL('./Pressable.tsx', import.meta.url).pathname;
+
+test('worklet sets opacity on tap begin', () => {
+  const worklets = compileMTWorklets({
+    filename: SRC,
+    source: readFileSync(SRC, 'utf8'),
+  });
+  // Gesture.Pan().onBegin().onStart()... maps to [0]=onBegin, [1]=onStart...
+  const onBegin = worklets[0]!;
+
+  const setStyleProperties = vi.fn();
+  const ctx = { _c: { elRef: makeRef({ setStyleProperties }, 1), opacity: 0.6 } };
+
+  onBegin.call(ctx, fabricateTapEvent());
+
+  expect(setStyleProperties).toHaveBeenCalledWith({ opacity: 0.6 });
+});
+```
+
+To assert `runOnBackground` / `Lynx.Sigx.AvPublish` dispatches from inside a worklet, use `getJsContext`. Call `resetJsContextSpy` between tests so call counts do not bleed across cases.
+
+```ts
+import { getJsContext, resetJsContextSpy } from '@sigx/lynx-testing/mt';
+
+resetJsContextSpy();
+// ...run the worklet...
+expect(getJsContext().dispatchEvent).toHaveBeenCalledWith(
+  expect.objectContaining({ type: 'Lynx.Sigx.AvPublish' }),
+);
+```
+
+A few native quirks the fabricators encode (real iOS Lynx 3.5 / Android Lynx 3.6 arena behavior, not harness bugs):
+
+- `Gesture.Pan` needs an empty `.onBegin()` on iOS or `onStart` never fires.
+- Pan/Tap `pageX` / `pageY` live under `e.params` (duplicated in `e.detail`), never top-level — a worklet reading `e.pageX` against a fabricated event gets `undefined`.
+- `scroll-view` does not participate in the gesture arena.
+
+## See also
+
+- [API reference](/lynx/modules/testing/api) — every export, signature and platform note.
+- [Installation](/lynx/modules/testing/installation) — project setup.

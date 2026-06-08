@@ -1,0 +1,162 @@
+---
+title: Checkbox
+description: "Checkbox — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 144
+---
+
+# Checkbox
+
+<p class="lede">A controlled boolean checkbox for forms and multi-select lists, with a HeroUI-styled tappable box and semantic color accents.</p>
+
+## Import
+
+```tsx
+import { Checkbox } from '@sigx/lynx-heroui';
+```
+
+## Model binding
+
+`Checkbox` is a **controlled** component: it renders the `checked` prop and emits a `change` event with the next value when tapped. It does not own its own state. Drive it from a signal and write the value back in `onChange`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Checkbox } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+  const state = signal({ agreed: false });
+
+  return () => (
+    <Checkbox
+      checked={state.agreed}
+      color="primary"
+      onChange={(next) => { state.agreed = next; }}
+    />
+  );
+});
+```
+
+The `change` payload is the already-toggled boolean, so you can assign it directly. Taps are ignored while `disabled` is set, so no event fires.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `checked` | `boolean` | `false` | Whether the box is checked. Controlled value — render this from your own state. |
+| `color` | `CheckboxColor` | theme default | Semantic accent color used for the checked fill. |
+| `size` | `CheckboxSize` | `'md'` | Box size on the shared size scale. |
+| `disabled` | `boolean` | `false` | Non-interactive + dimmed styling; suppresses the `change` event. |
+| `class` | `string` | - | Extra CSS classes appended after the component's own classes. |
+
+### Accessibility props
+
+`Checkbox` forwards the shared `accessibility-*` passthrough to its underlying pressable host node, so screen-reader activation works on the same node that owns the tap handler.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `accessibility-element` | `boolean` | Marks the node as a single accessibility element. |
+| `accessibility-label` | `string` | Spoken label for assistive technology. |
+| `accessibility-role` | `string` | Accessibility role of the node. |
+| `accessibility-trait` | `string` | Accessibility trait of the node. |
+| `accessibility-status` | `string` | Accessibility status of the node. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onChange` | `(checked: boolean) => void` | Fires on tap with the next checked value. Not emitted while `disabled`. |
+
+### Type values
+
+```ts
+// color — every semantic variant except 'neutral'
+type CheckboxColor =
+  | 'primary' | 'secondary' | 'accent'
+  | 'info' | 'success' | 'warning' | 'error';
+
+// size — a subset of the shared size scale
+type CheckboxSize = 'sm' | 'md' | 'lg';
+```
+
+## Sizes
+
+`Checkbox` supports three sizes; `md` is the default.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Checkbox, Row } from '@sigx/lynx-heroui';
+
+const Demo = component(() => {
+  return () => (
+    <Row gap={12} align="center">
+      <Checkbox checked size="sm" />
+      <Checkbox checked size="md" />
+      <Checkbox checked size="lg" />
+    </Row>
+  );
+});
+```
+
+## Colors
+
+The `color` prop sets the accent used when the box is checked.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Checkbox, Row } from '@sigx/lynx-heroui';
+
+const Demo = component(() => {
+  return () => (
+    <Row gap={12} align="center">
+      <Checkbox checked color="primary" />
+      <Checkbox checked color="secondary" />
+      <Checkbox checked color="accent" />
+      <Checkbox checked color="info" />
+      <Checkbox checked color="success" />
+      <Checkbox checked color="warning" />
+      <Checkbox checked color="error" />
+    </Row>
+  );
+});
+```
+
+## With a label and disabled state
+
+`Checkbox` renders only the box, so pair it with a `Text` node when you need a label. Wrap both in a `Pressable` row if you want the label to toggle the box too. Use `disabled` for non-interactive items.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Checkbox, Text, Col, Row } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+  const form = signal({ newsletter: true, terms: false });
+
+  return () => (
+    <Col gap={12}>
+      <Row gap={8} align="center">
+        <Checkbox
+          checked={form.newsletter}
+          color="primary"
+          onChange={(next) => { form.newsletter = next; }}
+        />
+        <Text>Subscribe to the newsletter</Text>
+      </Row>
+
+      <Row gap={8} align="center">
+        <Checkbox
+          checked={form.terms}
+          color="success"
+          onChange={(next) => { form.terms = next; }}
+        />
+        <Text>Accept the terms</Text>
+      </Row>
+
+      <Row gap={8} align="center">
+        <Checkbox checked disabled />
+        <Text>Locked option (disabled)</Text>
+      </Row>
+    </Col>
+  );
+});
+```

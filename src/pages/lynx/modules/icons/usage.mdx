@@ -8,16 +8,116 @@ order: 30
 
 # Using Icons
 
-<p class="lede">Icon component + registry — the essentials.</p>
+<p class="lede">Drop an <code>&lt;Icon&gt;</code> in your tree, name a glyph, and the build pipeline ships only the vectors you actually reference.</p>
 
 ## Basic usage
 
+Import `Icon` and render a glyph by its `set` and `name`. Names are the set's canonical kebab-case (`chevron-right`, not `chevronRight`).
+
 ```tsx
-import * as Icons from '@sigx/lynx-icons';
+import { Icon } from '@sigx/lynx-icons';
+
+export function Toolbar() {
+  return (
+    <view>
+      <Icon set="fa" name="user" />
+      <Icon set="fa" name="house" size={20} color="#0D9488" />
+      <Icon set="lucide" name="search" size={16} />
+    </view>
+  );
+}
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-icons */}
+`size` defaults to `16` and `color` defaults to `'currentColor'`. Both are optional; `set` and `name` are required.
+
+A glyph renders as inline SVG. Color is substituted directly into the SVG's `fill` — Lynx parses each SVG string in isolation and does not inherit a host `color`, so to plumb a theme token in, pass it explicitly:
+
+```tsx
+<Icon set="lucide" name="bell" color="var(--color-primary)" />
+```
+
+Color values pass through an allow-list before substitution. Anything outside `currentColor`, named colors, `#hex` (3 to 8 digits), `rgb`/`rgba`/`hsl`/`hsla(...)`, or `var(--name)` falls back to `'currentColor'`.
+
+## Declaring icon sets at build time
+
+Icon sets are normally declared once in `signalx.config.ts`. The plugin's icons slice scans your `.tsx` for literal `<Icon set= name=>` usages, asks the set's adapter for each glyph, and writes a subset map at build time. Unreferenced glyphs are tree-shaken out.
+
+```ts
+// signalx.config.ts
+export default {
+  iconSets: [
+    {
+      id: 'fa',
+      source: '@sigx/lynx-icons-fa-free',
+      styles: ['solid'],
+      include: ['user', 'house', 'gear'],
+    },
+  ],
+};
+```
+
+`id` is the value you pass to `<Icon set=>`. `source` is an adapter package (for example `@sigx/lynx-icons-fa-free` or `@sigx/lynx-icons-lucide`). `styles` selects which style variants to pull.
+
+### Dynamic names
+
+The scanner only sees literal `name="…"` strings. A computed name falls through to a blank placeholder unless you force-include it:
+
+```tsx
+// Not detected by the scanner on its own:
+<Icon set="fa" name={state.icon} />
+```
+
+```ts
+// Force-include the names you set dynamically:
+iconSets: [
+  { id: 'fa', source: '@sigx/lynx-icons-fa-free', styles: ['solid'], include: ['user', 'house', 'gear'] },
+]
+```
+
+`include: ['*']` ships the full catalog. That is large — the showcase grows from roughly 336 kB to 2.65 MB for the ~1900 FA-solid glyphs — so prefer an explicit name list.
+
+A missing glyph renders an empty `<view>` of the requested `size` rather than failing, so layout never jumps.
+
+## Registering an ad-hoc set at runtime
+
+For app-local or brand glyphs that you do not want to declare in `signalx.config.ts`, register a set at module load with `defineIconSet`. Each glyph's SVG should contain a `__COLOR__` placeholder where the `color` prop is substituted at render.
+
+```tsx
+import { defineIconSet, Icon } from '@sigx/lynx-icons';
+
+defineIconSet({
+  id: 'brand',
+  glyphs: {
+    logo: {
+      svg: {
+        svg: '<svg viewBox="0 0 24 24" fill="__COLOR__"><path d="M3 12L12 3l9 9-9 9z"/></svg>',
+      },
+    },
+  },
+});
+
+export function Logo() {
+  return <Icon set="brand" name="logo" size={32} color="var(--color-primary)" />;
+}
+```
+
+Runtime-registered sets are checked after the build-time maps, so a `defineIconSet` glyph will not shadow one already produced by the pipeline.
+
+## Theme-driven color
+
+Themes can map their own props (for example DaisyUI's `variant`) to a color. A theme provides a resolver via `useIconColorResolver`, and adds typed props by augmenting `IconPropsExtensions`. With such a theme installed, `<Icon>` accepts the augmented prop and the resolver turns it into a `fill` color:
+
+```tsx
+<Icon set="lucide" name="bell" variant="primary" />
+```
+
+Color resolution order is: explicit `color` prop, then the theme resolver's return, then `'currentColor'`. Without a theme the default resolver returns `null` and there are no extra props — `<Icon variant=…>` will not typecheck.
 
 ## Notes
 
-\<Icon set name /\> with build-time auto-detection and subsetting.
+- This is a native module — every example renders real Lynx views, not DOM.
+- See [Installation](/lynx/modules/icons/installation) for the native setup (the package registers Lynx's `<svg>` element via XElement/SVG so SVG-mode rendering works on iOS and Android).
+- On x86_64 Android emulators, upstream ServalSVG ships no x86_64 native lib, so every `<svg>` paints nothing (blank gaps; text is fine). Real arm64 devices/AVDs and iOS are unaffected.
+- HMR for a newly-added icon name needs a `pnpm dev` restart in v1 — the scanner is a one-shot pass.
+- Font-mode rendering (TTF subsetting via codepoints) is reserved for v1.1; v1 always renders inline SVG.
+- Full export details are in the [API reference](/lynx/modules/icons/api).

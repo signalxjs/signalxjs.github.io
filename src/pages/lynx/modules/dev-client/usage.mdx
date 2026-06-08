@@ -8,16 +8,104 @@ order: 30
 
 # Using Dev Client
 
-<p class="lede">On-device dev menu — the essentials.</p>
+<p class="lede">Stream on-device console logs to your terminal, debug-only — auto-wired by the plugin, with a small JS API for the rare case you need to drive it yourself.</p>
 
 ## Basic usage
 
-```tsx
-import * as DevClient from '@sigx/lynx-dev-client';
+You rarely call this package directly. Add it as a dev dependency and the rest happens for you:
+
+```bash
+pnpm add -D @sigx/lynx-dev-client
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-dev-client */}
+`@sigx/lynx-cli`'s autolinker picks the package up from `node_modules`, and `@sigx/lynx-plugin` auto-installs the console log streamer in dev builds by prepending the package's side-effect `./install` entry to your background entry. Release builds drop the module entirely — it is marked `debugOnly` on both platforms — so nothing ships to production.
 
-## Notes
+Once `sigx dev` is running, every `console.log` / `info` / `warn` / `error` / `debug` / `trace` on the device is mirrored in your terminal. The original console methods still run, so the on-device logbox and Chrome inspector keep working too. Pass `--no-device-logs` to `sigx dev` to opt out.
 
-Debug-only auto-linked module — dev menu, QR scanner and devtool wiring.
+The only value you typically import is the version string:
+
+```ts
+import { DEV_CLIENT_VERSION } from '@sigx/lynx-dev-client';
+```
+
+## Streaming console logs yourself
+
+If you are running outside the standard plugin flow — a custom harness, a test rig, or a non-Lynx host — you can install the streamer by hand. `installConsoleStreamer` patches the console, buffers entries, and ships batches over a single persistent WebSocket. It returns an uninstall function that restores the originals and closes the socket.
+
+```ts
+import { installConsoleStreamer } from '@sigx/lynx-dev-client';
+import '@sigx/lynx-websocket'; // attaches a WHATWG WebSocket to globalThis
+
+const uninstall = installConsoleStreamer('ws://localhost:3001/__sigx/logs');
+
+// ...later, to restore the original console and tear down the socket:
+uninstall();
+```
+
+The Lynx background runtime has no `fetch` or `XMLHttpRequest`, so the streamer needs a WebSocket. Importing `@sigx/lynx-websocket` (side-effect) attaches a native WebSocket — `URLSessionWebSocketTask` on iOS, OkHttp on Android — to `globalThis`, which the streamer consumes by default. The default endpoint used by the CLI is `ws://<host>:<devPort+1>/__sigx/logs`.
+
+`installConsoleStreamer` is idempotent: a second call returns the previous uninstall function rather than patching twice. It also bails gracefully (returning a no-op uninstall) if the URL is falsy, `globalThis.console` is missing, or no WebSocket is available — so it never throws at install time.
+
+## Tuning buffering and reconnect
+
+All behavior is configurable through the options object. Common knobs: the bounded in-memory queue (so a log loop can't run away while the server is unreachable), the flush batch size and coalesce interval, and the reconnect backoff.
+
+```ts
+import { installConsoleStreamer } from '@sigx/lynx-dev-client';
+
+const uninstall = installConsoleStreamer('ws://localhost:3001/__sigx/logs', {
+  platform: 'ios',
+  maxQueueSize: 500,
+  flushBatchSize: 50,
+  flushIntervalMs: 100,
+  backoffInitialMs: 1000,
+  backoffMaxMs: 30000,
+});
+```
+
+Notes on the streamer's behavior:
+
+- Errors flush immediately; other levels coalesce on `flushIntervalMs`.
+- The queue is bounded by `maxQueueSize` (default 500) while disconnected.
+- Reconnect uses exponential backoff, doubling from `backoffInitialMs` up to `backoffMaxMs`.
+- WebSocket and network failures never route through the patched `console.*` — they use the captured originals to avoid infinite self-error loops.
+- Platform detection is lazy and best-effort, then upgraded by an async native probe shortly after install. Pass `platform` to skip the guess.
+
+## Patching extra console targets
+
+On the Lynx background runtime, `globalThis.console` and the `tt.define` factory-scope `console` parameter are different objects. To capture both you patch the extra target as well — this is exactly what the auto-install path does:
+
+```ts
+import { installConsoleStreamer } from '@sigx/lynx-dev-client';
+
+// `factoryConsole` is the console passed into the BG factory function.
+const uninstall = installConsoleStreamer('ws://localhost:3001/__sigx/logs', {
+  extraTargets: [factoryConsole],
+});
+```
+
+## Serializing a single argument
+
+`serializeArg` is the same defensive serializer the streamer uses per console argument. It never throws — handy if you build your own log transport. It handles primitives, `BigInt` (with an `n` suffix), `Symbol`, functions, `Error` (via `.stack`), arrays, plain objects, and circular references, falling back to `[Unserialisable]` for anything it can't stringify.
+
+```ts
+import { serializeArg } from '@sigx/lynx-dev-client';
+
+serializeArg(42);                 // "42"
+serializeArg({ a: 1 });           // '{"a":1}'
+serializeArg(new Error('boom'));  // the error's stack string
+
+const obj: Record<string, unknown> = {};
+obj.self = obj;
+serializeArg(obj);                // contains "[Circular]"
+```
+
+## Platform and permission notes
+
+This is a debug-only, auto-linked module — keep it under `devDependencies` so it is stripped from release builds along with its permissions. The on-device QR scanner needs camera access; the autolinker adds `NSCameraUsageDescription` to `Info.plist` ("Used to scan QR codes from the dev server.") and `android.permission.CAMERA` to the Android manifest. Native dev features — the dev menu, QR scanner, error overlay, perf HUD, shake-to-open, devtool wiring and in-place remote reload — are set up by `sigx prebuild` and are not part of the JS surface.
+
+## See also
+
+- [Installation](/lynx/modules/dev-client/installation) for project setup.
+- [API reference](/lynx/modules/dev-client/api) for the full typed surface.
+- [WebSocket](/lynx/modules/websocket/overview) — the transport the streamer relies on.

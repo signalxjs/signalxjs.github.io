@@ -10,8 +10,250 @@ order: 40
 
 <p class="lede">Exports of `@sigx/lynx-safe-area` v0.4.1.</p>
 
-## Exports
+All exports work on both iOS and Android. Inset values are in dp/pt (logical pixels).
 
-{/* TODO: document the public API of @sigx/lynx-safe-area */}
+## Components
 
-See the package source for the complete typed surface.
+### SafeAreaProvider
+
+App-root provider. It seeds insets synchronously from `lynx.__globalProps`, supplies the DI context (a background-side insets signal plus four per-edge SharedValues), subscribes to the native `safeAreaChanged` event, and publishes the CSS inset variables on its host view.
+
+```ts
+export const SafeAreaProvider = component<SafeAreaProviderProps>(...)
+
+export type SafeAreaProviderProps =
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```
+
+- `class` — optional class string for the host view.
+- `style` — optional inline style. The host view defaults to `{ height: '100vh', display: 'flex', flexDirection: 'column' }`; your `style` is merged after and wins on conflicts.
+- `default` slot — your app content.
+
+Publishes the inheritable CSS variables `--sat`, `--sar`, `--sab`, `--sal`, and `--safe-area-keyboard` (all in px) on its host view.
+
+### SafeAreaView
+
+Drop-in container that applies the current insets as padding (default) or margin on the configured edges, via an inline background-signal style.
+
+```ts
+export const SafeAreaView = component<SafeAreaViewProps>(...)
+
+export type SafeAreaViewProps =
+  & Define.Prop<'edges', Edge[], false>
+  & Define.Prop<'mode', SafeAreaMode, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```
+
+- `edges` — which sides to inset. Defaults to all four (`['top', 'right', 'bottom', 'left']`).
+- `mode` — `'padding'` (default) or `'margin'`.
+- `class` / `style` — passed to the host view. The base style is a flex-fill long form (`flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0, display: 'flex', flexDirection: 'column'`); your `style` merges on top.
+- `default` slot — content to pad away from the edges.
+
+Used outside a `SafeAreaProvider`, it falls back to zero insets and warns once in development rather than throwing.
+
+## Hooks
+
+### useSafeAreaInsets
+
+Returns the live, background-side reactive insets signal. Reading `.value` subscribes the consumer, which re-renders on every inset change.
+
+```ts
+export function useSafeAreaInsets(): InsetsRead
+// InsetsRead = PrimitiveSignal<EdgeInsets> | Computed<EdgeInsets>
+```
+
+- **Returns** — a signal of `EdgeInsets`.
+- Outside a `SafeAreaProvider` it returns a `Computed` seeded with `ZERO_INSETS` and warns once in development (silent in production).
+
+### useSafeAreaSharedValues
+
+Returns the per-edge `SharedValue`s for main-thread-driven `useAnimatedStyle` bindings.
+
+```ts
+export function useSafeAreaSharedValues(): SafeAreaContextValue['sv'] | null
+// resolved: { top: SharedValue<number>; right: SharedValue<number>;
+//             bottom: SharedValue<number>; left: SharedValue<number> } | null
+```
+
+- **Returns** — the four edge SharedValues, or `null` when called outside a `SafeAreaProvider`. Guard for `null` before reading.
+
+### useSafeAreaFrame
+
+Computes the inner safe frame from caller-supplied viewport dimensions. Passing the viewport in (rather than depending on a device-info package) keeps the dependency graph minimal.
+
+```ts
+export function useSafeAreaFrame(
+  viewportWidth: number,
+  viewportHeight: number,
+): Computed<{ x: number; y: number; width: number; height: number }>
+```
+
+- `viewportWidth` / `viewportHeight` — the viewport size in dp.
+- **Returns** — a `Computed` frame where `x = left`, `y = top`, `width = viewportWidth - left - right`, and `height = viewportHeight - top - bottom - keyboard`. Both `width` and `height` are clamped to `>= 0`.
+
+### useSafeAreaInsetsMT
+
+Synchronous main-thread read of the current insets from `lynx.__globalProps`, with no signal subscription. Intended for use inside `'main thread'`-marked worklet bodies.
+
+```ts
+export function useSafeAreaInsetsMT(): EdgeInsets
+```
+
+- **Returns** — the current `EdgeInsets`. Re-evaluates on each worklet invocation rather than reactively.
+
+## Functions
+
+### readGlobalSafeArea
+
+Synchronous one-shot read of the current insets from `lynx.__globalProps[GLOBAL_PROPS_KEY]`. Safe to call from both the background and main threads.
+
+```ts
+export function readGlobalSafeArea(): EdgeInsets
+```
+
+- **Returns** — the current `EdgeInsets`, or `ZERO_INSETS` if unavailable (cold start, non-Lynx host, SSR/web preview). Non-numeric or non-finite values coerce to `0`.
+
+## Constants
+
+### useSafeAreaContext
+
+Low-level DI handle for the safe-area context. The higher-level hooks wrap this with null-checks and signal subscription.
+
+```ts
+export const useSafeAreaContext = defineInjectable<SafeAreaContextValue | null>(() => null);
+```
+
+- **Returns** — the provider's `SafeAreaContextValue`, or `null` if no `SafeAreaProvider` is in scope.
+
+### GLOBAL_PROPS_KEY
+
+```ts
+export const GLOBAL_PROPS_KEY = 'safeArea';
+```
+
+The key under `lynx.__globalProps` where the native publishers write the inset map. Exported for tests and debugging.
+
+### SAFE_AREA_EVENT
+
+```ts
+export const SAFE_AREA_EVENT = 'safeAreaChanged';
+```
+
+The custom `GlobalEventEmitter` event name the native publishers emit after each republish. Used instead of upstream's `onGlobalPropsChanged` to keep the contract stable across Lynx releases.
+
+### ZERO_INSETS
+
+```ts
+export const ZERO_INSETS: EdgeInsets = {
+  top: 0,
+  right: 0,
+  bottom: 0,
+  left: 0,
+  keyboard: 0,
+  statusBar: 0,
+  navigationBar: 0,
+};
+```
+
+The all-zero `EdgeInsets` constant used as the cold-start and no-provider fallback.
+
+## Types
+
+### EdgeInsets
+
+Per-edge inset values in dp/pt (logical pixels). `top`/`right`/`bottom`/`left` follow CSS shorthand order; `keyboard`/`statusBar`/`navigationBar` are informational extras and may be `0` if unknown.
+
+```ts
+export interface EdgeInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+  /** IME (soft keyboard) height when visible, 0 when hidden. */
+  keyboard: number;
+  /** Status-bar height (top system bar). Often equal to `top`, but on
+   *  notched devices the safe-area top includes the notch and the status
+   *  bar is the smaller status-only inset. */
+  statusBar: number;
+  /** Navigation-bar height (Android gesture/3-button nav at bottom). */
+  navigationBar: number;
+}
+```
+
+### Edge
+
+The four standard CSS edges; used to subset which sides `SafeAreaView` insets.
+
+```ts
+export type Edge = 'top' | 'right' | 'bottom' | 'left';
+```
+
+### SafeAreaMode
+
+Whether `SafeAreaView` applies its insets as padding or margin.
+
+```ts
+export type SafeAreaMode = 'padding' | 'margin';
+```
+
+### SafeAreaContextValue
+
+The injectable shape exposed by `SafeAreaProvider`: a background-side reactive insets signal plus four per-edge SharedValues for main-thread-driven layout.
+
+```ts
+export interface SafeAreaContextValue {
+  /** BG-side reactive insets. Re-renders the consumer on change. */
+  readonly insets: import('@sigx/reactivity').PrimitiveSignal<EdgeInsets>;
+  /** Per-edge SharedValues for MT-driven `useAnimatedStyle` bindings. */
+  readonly sv: {
+    top: import('@sigx/lynx').SharedValue<number>;
+    right: import('@sigx/lynx').SharedValue<number>;
+    bottom: import('@sigx/lynx').SharedValue<number>;
+    left: import('@sigx/lynx').SharedValue<number>;
+  };
+}
+```
+
+### RawSafeAreaProps
+
+Shape of the safe-area sub-object the native publishers write to `lynx.__globalProps[GLOBAL_PROPS_KEY]`. All fields are optional; missing keys are zero-filled by `readGlobalSafeArea`.
+
+```ts
+export interface RawSafeAreaProps {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+  keyboard?: number;
+  statusBar?: number;
+  navigationBar?: number;
+}
+```
+
+### SafeAreaProviderProps
+
+```ts
+export type SafeAreaProviderProps =
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```
+
+Props for [SafeAreaProvider](#safeareaprovider).
+
+### SafeAreaViewProps
+
+```ts
+export type SafeAreaViewProps =
+  & Define.Prop<'edges', Edge[], false>
+  & Define.Prop<'mode', SafeAreaMode, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```
+
+Props for [SafeAreaView](#safeareaview).

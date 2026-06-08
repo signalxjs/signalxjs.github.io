@@ -1,0 +1,88 @@
+---
+title: Divider
+description: "Divider — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Layout"]
+order: 168
+---
+
+# Divider
+
+<p class="lede">A thin separator line that splits content horizontally or vertically, optionally with a centered label.</p>
+
+## Import
+
+```tsx
+import { Divider } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `vertical` | `boolean` | `false` | Render a vertical divider (`divider-vertical`) instead of the default horizontal one. Also flips the axis that `margin` is applied to. |
+| `color` | `string` | - | Color applied to the divider line(s) via `backgroundColor`. Accepts any color string (e.g. a hex value or CSS color). |
+| `margin` | `number` | - | Outer margin around the divider. Applied top/bottom when horizontal, left/right when vertical. |
+| `class` | `string` | - | Additional CSS classes appended to the divider element (or the wrapper when a label is present). |
+| (default slot) | children | - | Optional label content. When provided, the divider renders the daisyUI `line · label · line` composition with the children centered between two lines. |
+
+Divider is a layout primitive with no form value, so there is no model binding.
+
+## Basic Usage
+
+A plain horizontal divider separates two stacked blocks:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Divider, Card, Text } from '@sigx/lynx-daisyui';
+
+export const Demo = component(() => {
+  return () => (
+    <Card>
+      <Card.Body>
+        <Text>Section one</Text>
+        <Divider />
+        <Text>Section two</Text>
+      </Card.Body>
+    </Card>
+  );
+});
+```
+
+## With a Label
+
+Pass children to render a centered label flanked by two lines:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Divider, Col, Text } from '@sigx/lynx-daisyui';
+
+export const Demo = component(() => {
+  return () => (
+    <Col gap="4">
+      <Text>Sign in with email</Text>
+      <Divider>OR</Divider>
+      <Text>Continue with a provider</Text>
+    </Col>
+  );
+});
+```
+
+## Vertical, Colored, and Spaced
+
+Use `vertical` for a divider between side-by-side content, `color` to tint the line, and `margin` to control the surrounding space:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Divider, Row, Text } from '@sigx/lynx-daisyui';
+
+export const Demo = component(() => {
+  return () => (
+    <Row align="center">
+      <Text>Left</Text>
+      <Divider vertical color="#3b82f6" margin={8} />
+      <Text>Right</Text>
+    </Row>
+  );
+});
+```

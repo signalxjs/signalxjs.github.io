@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Zero — Headless design-system foundation"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-zero` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-zero
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Zero from '@sigx/lynx-zero';
+
+console.log(Object.keys(Zero));
+```

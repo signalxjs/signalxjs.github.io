@@ -99,6 +99,39 @@ export default defineSSGConfig({
             path: '/lynx/docs',
             showDrafts: 'dev',
         },
+        // Tooling & platform packages (docs sections)
+        'monaco-docs': {
+            path: '/monaco/docs',
+            showDrafts: 'dev',
+        },
+        'store-docs': {
+            path: '/store/docs',
+            showDrafts: 'dev',
+        },
+        'ssg-docs': {
+            path: '/ssg/docs',
+            showDrafts: 'dev',
+        },
+        'server-docs': {
+            path: '/server/docs',
+            showDrafts: 'dev',
+        },
+        'vite-docs': {
+            path: '/vite/docs',
+            showDrafts: 'dev',
+        },
+        'cli-docs': {
+            path: '/cli/docs',
+            showDrafts: 'dev',
+        },
+        'terminal-docs': {
+            path: '/terminal/docs',
+            showDrafts: 'dev',
+        },
+        'devtools-docs': {
+            path: '/devtools/docs',
+            showDrafts: 'dev',
+        },
         // Sub-package collections (32 lynx modules + core repo packages)
         ...moduleCollections,
     },

@@ -1,0 +1,75 @@
+---
+title: Heading
+description: "Heading — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Typography"]
+order: 181
+---
+
+# Heading
+
+<p class="lede">Semantic section heading with six built-in size and weight steps for native Lynx screens.</p>
+
+## Import
+
+```tsx
+import { Heading } from '@sigx/lynx-heroui';
+```
+
+## Usage
+
+Set `level` to pick the heading step. Each level maps to a paired font size and weight, from a large bold title at level 1 down to a small semibold label at level 6. When omitted, `level` defaults to `2`.
+
+```tsx
+import { Heading } from '@sigx/lynx-heroui';
+
+export function PageTitle() {
+  return <Heading level={1}>Account settings</Heading>;
+}
+```
+
+## Levels
+
+Levels 1 and 2 render bold; levels 3 through 6 render semibold. Sizes shrink as the level increases, so the same component covers everything from a screen title to a compact field label.
+
+```tsx
+import { Heading } from '@sigx/lynx-heroui';
+import { Col } from '@sigx/lynx-heroui';
+
+export function HeadingScale() {
+  return (
+    <Col>
+      <Heading level={1}>Level 1 — text-3xl, bold</Heading>
+      <Heading level={2}>Level 2 — text-2xl, bold</Heading>
+      <Heading level={3}>Level 3 — text-xl, semibold</Heading>
+      <Heading level={4}>Level 4 — text-lg, semibold</Heading>
+      <Heading level={5}>Level 5 — text-base, semibold</Heading>
+      <Heading level={6}>Level 6 — text-sm, semibold</Heading>
+    </Col>
+  );
+}
+```
+
+## Custom Styling
+
+Pass `class` to append extra utility classes on top of the level's defaults. The level classes are applied first, so your classes can override color, spacing, or alignment.
+
+```tsx
+import { Heading } from '@sigx/lynx-heroui';
+
+export function SectionHeader() {
+  return (
+    <Heading level={3} class="hero-text-primary hero-mb-2">
+      Notifications
+    </Heading>
+  );
+}
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `level` | `1 \| 2 \| 3 \| 4 \| 5 \| 6` | `2` | Heading step. Controls the paired font size and weight (`HeadingLevel`). |
+| `class` | `string` | - | Additional CSS classes appended after the level's default classes. |
+| children | slot | - | Default slot; the heading text content rendered inside the native `<text>` element. |

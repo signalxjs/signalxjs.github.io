@@ -8,10 +8,164 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-camera` v0.4.1.</p>
+<p class="lede">Exports of `@sigx/lynx-camera` — one runtime object and three types.</p>
 
-## Exports
+The complete public surface is a single `Camera` const plus three type-only exports:
 
-{/* TODO: document the public API of @sigx/lynx-camera */}
+```ts
+import { Camera } from '@sigx/lynx-camera';
+import type { CameraOptions, PhotoResult, PermissionResponse } from '@sigx/lynx-camera';
+```
 
-See the package source for the complete typed surface.
+`PermissionResponse` is re-exported from `@sigx/lynx-core`. Every method below works on both iOS and Android.
+
+## Object
+
+### `Camera`
+
+The single namespace object exposing all camera APIs. It is backed by the native `Camera` module through `@sigx/lynx-core`.
+
+```ts
+const Camera: {
+  takePicture(options?: CameraOptions): Promise<PhotoResult>;
+  requestPermission(): Promise<PermissionResponse>;
+  getPermissionStatus(): Promise<PermissionResponse>;
+  isAvailable(): boolean;
+};
+```
+
+See the methods below for each member.
+
+## Methods
+
+### `Camera.takePicture`
+
+Opens the system camera and resolves with the raw native payload. On success the payload carries the captured photo's location (a platform-specific URI or path) and dimensions.
+
+```ts
+takePicture(options?: CameraOptions): Promise<PhotoResult>
+```
+
+- **`options`** — optional [`CameraOptions`](#cameraoptions). Defaults to `{}`.
+- **Returns** — a `Promise` that resolves with the native result object. The declared type is [`PhotoResult`](#photoresult), but cancellation and failure resolve with a different shape (see below).
+- **Resolves on cancel/failure** — the promise does NOT reject when the user cancels or capture is denied. A user cancellation resolves with an object carrying `cancelled: true` (both iOS and Android). A capture failure or permission denial resolves with an object carrying an `error` string field. Neither shape contains `uri`.
+- **Rejects** — only when the native `Camera` module is not registered in the build (the synchronous bridge lookup throws). Permission and capture outcomes never reject.
+
+Because cancellations and failures resolve rather than reject, callers must inspect the resolved object instead of relying on `try`/`catch`. The reliable signal is the presence of `uri` — if `uri` is missing, treat the result as a cancel or error and read its `cancelled` / `error` fields.
+
+Platform notes: the options object is accepted but its fields are currently ignored by the native layer — iOS hard-codes JPEG quality `0.8`; Android uses the system camera's own settings. The returned `uri` is platform-specific: iOS returns an absolute temp filesystem path (no scheme prefix); Android returns a `content://` URI backed by a JPEG in the app cache directory. On iOS, capture is presented from the key window's root view controller; on Android it is launched via an `ACTION_IMAGE_CAPTURE` intent through a `FileProvider`.
+
+### `Camera.requestPermission`
+
+Requests camera permission, showing the OS dialog if needed.
+
+```ts
+requestPermission(): Promise<PermissionResponse>
+```
+
+- **Returns** — a `Promise<`[`PermissionResponse`](#permissionresponse)`>` describing the resulting status.
+
+Platform notes: on first denial this re-surfaces the OS dialog. Check `canAskAgain` on the response — when `false`, the user must change the permission from system Settings.
+
+### `Camera.getPermissionStatus`
+
+Checks the current camera permission status without prompting.
+
+```ts
+getPermissionStatus(): Promise<PermissionResponse>
+```
+
+- **Returns** — a `Promise<`[`PermissionResponse`](#permissionresponse)`>` for the current status.
+
+Platform notes: never shows a dialog. Use this for a silent check before deciding whether to call `requestPermission`.
+
+### `Camera.isAvailable`
+
+Returns whether the native Camera module is registered in the current build.
+
+```ts
+isAvailable(): boolean
+```
+
+- **Returns** — `true` if the module is present, otherwise `false`.
+
+Platform notes: this is a JS-only check (it does not cross the native bridge and does not test for hardware). A `true` result means the module was linked; it does not guarantee a usable camera device.
+
+## Types
+
+### `CameraOptions`
+
+Options for [`Camera.takePicture`](#cameratakepicture). All fields are optional.
+
+```ts
+interface CameraOptions {
+  /** 'front' or 'back' camera */
+  facing?: 'front' | 'back';
+  /** Image quality 0-1 */
+  quality?: number;
+  /** Max width in pixels */
+  maxWidth?: number;
+  /** Max height in pixels */
+  maxHeight?: number;
+}
+```
+
+- **`facing`** — which camera to use; documented default is `'back'`.
+- **`quality`** — JPEG quality from `0` to `1`.
+- **`maxWidth`** / **`maxHeight`** — maximum output dimensions in pixels.
+
+Platform notes: these fields are part of the TypeScript contract but are not yet honored by the native implementations (iOS hard-codes quality `0.8`; Android ignores `quality`). Pass them for forward compatibility.
+
+### `PhotoResult`
+
+The result returned by [`Camera.takePicture`](#cameratakepicture).
+
+```ts
+interface PhotoResult {
+  /** File URI of the captured photo */
+  uri: string;
+  /** Width in pixels */
+  width: number;
+  /** Height in pixels */
+  height: number;
+  /** Base64-encoded image data (if requested) */
+  base64?: string;
+}
+```
+
+- **`uri`** — a platform-specific locator for the captured JPEG: an absolute temp filesystem path (no scheme) on iOS, and a `content://` URI on Android. Do not assume a `file://` scheme.
+- **`width`** / **`height`** — the photo's pixel dimensions.
+- **`base64`** — optional base64-encoded image data.
+
+Platform notes: this is the normalized TypeScript shape, and the resolved value only matches it on a successful capture. The native payloads also carry extra fields not in the interface (iOS adds `fileSize`), so treat fields beyond `uri` as best-effort. `base64` is not populated by either current native implementation.
+
+Crucially, the resolved value is NOT always a `PhotoResult`. On cancel the object is `cancelled: true` with no `uri`; on failure or denial it is an `error` string with no `uri`. The TypeScript type does not reflect these shapes, so always check for `uri` before reading `width` / `height`.
+
+### `PermissionResponse`
+
+The response shape for [`Camera.requestPermission`](#camerarequestpermission) and [`Camera.getPermissionStatus`](#cameragetpermissionstatus). Re-exported type-only from `@sigx/lynx-core`.
+
+```ts
+interface PermissionResponse {
+  /** Current permission status. */
+  status: PermissionStatus;
+  /**
+   * Whether the app can show the OS permission dialog again.
+   * `false` when the user selected "Don't ask again" (Android) or
+   * after the first denial (iOS — user must go to Settings).
+   */
+  canAskAgain: boolean;
+}
+```
+
+- **`status`** — the current permission status (see `PermissionStatus` below).
+- **`canAskAgain`** — whether the OS dialog can be shown again.
+
+`PermissionStatus` is defined in `@sigx/lynx-core` and is **not** re-exported from this package. If you need the literal union, import it directly:
+
+```ts
+import type { PermissionStatus } from '@sigx/lynx-core';
+// type PermissionStatus = 'granted' | 'denied' | 'undetermined' | 'blocked';
+```
+
+Platform note: the iOS native layer can additionally emit `'restricted'` and `'unknown'`, which fall outside the declared union — handle unexpected values defensively.

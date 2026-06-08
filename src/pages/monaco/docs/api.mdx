@@ -1,0 +1,383 @@
+---
+title: API Reference
+description: "@sigx/monaco-editor — pluggable Monaco editor wrapper with prebundled assets and a Vite plugin — API reference"
+layout: docs
+category: API Reference
+order: 10
+---
+
+# API Reference
+
+Unless noted, everything below is exported from the main entry `@sigx/monaco-editor`. The Vite plugin lives at `@sigx/monaco-editor/vite`, the Shiki integration at `@sigx/monaco-editor/shiki`, and individual language packs at `@sigx/monaco-editor/languages/*`.
+
+## Loader
+
+### loadMonaco
+
+```ts
+export async function loadMonaco(): Promise<typeof Monaco>
+```
+
+Lazy-loads Monaco using the configured strategy (`prebundled` or `cdn`). Idempotent: returns the cached instance after the first call and dedupes concurrent calls via an in-flight promise. On first load it applies all pending setup (languages, themes, extraLibs) registered via `configureMonaco()`. Returns the Monaco namespace.
+
+### isMonacoLoaded
+
+```ts
+export function isMonacoLoaded(): boolean
+```
+
+Returns `true` once Monaco is loaded into memory (that is, once `loadMonaco()` has resolved at least once).
+
+### getMonaco
+
+```ts
+export function getMonaco(): typeof Monaco
+```
+
+Synchronous accessor for the loaded Monaco namespace. Throws `[@sigx/monaco-editor] Monaco not loaded. Call loadMonaco() first.` if Monaco has not been loaded yet.
+
+### configureMonacoLoader
+
+```ts
+export function configureMonacoLoader(config: Partial<MonacoLoaderConfig>): void
+```
+
+Overrides the load strategy, `basePath`, `cdnUrl`, or `version`. Merges onto the current config. Must be called before `loadMonaco()`; warns to the console if called after Monaco is already loaded (the change won't take effect until reload).
+
+- `config` — partial loader configuration to merge.
+
+### configureMonaco
+
+```ts
+export function configureMonaco(setup: MonacoSetup): void
+```
+
+Registers language packs, themes, and extra `.d.ts` libs to apply when Monaco loads. Accumulates across calls. If Monaco is already loaded, the new setup is applied immediately to the live instance (the call itself returns `void`).
+
+- `setup` — the languages, themes, and extraLibs to register.
+
+### getLoaderConfig
+
+```ts
+export function getLoaderConfig(): MonacoLoaderConfig
+```
+
+Returns a shallow copy of the current loader config (`strategy`, `basePath`, `cdnUrl`, `version`).
+
+## Editor
+
+### createEditor
+
+```ts
+export async function createEditor(options: CreateEditorOptions): Promise<MonacoEditorInstance>
+```
+
+Imperative low-level editor creation. Awaits `loadMonaco()`, creates a uniquely-named `file:///playground-<n><ext>` model, runs the TSX/JSX extension dance (creates the model as `typescript`/`javascript` so the TS worker treats it correctly, then swaps the model language to `tsx`/`jsx` for highlighting), merges shorthand options into Monaco defaults, wires `onChange` via `onDidChangeModelContent`, and returns the standalone code editor.
+
+Defaults: `theme` `'vs-dark'`, `readOnly` `false`, minimap off, `lineNumbers` `'on'`, `fontSize` `14`, `automaticLayout` `true`, `tabSize` `2`, `wordWrap` `'on'`, `fixedOverflowWidgets` `true`. `language` defaults to `'typescript'`.
+
+- `options` — see [CreateEditorOptions](#createeditoroptions).
+- Returns a live `IStandaloneCodeEditor`.
+
+### MonacoEditor
+
+```ts
+export const MonacoEditor: (props: MonacoEditorProps) => /* sigx component */
+```
+
+SignalX component wrapper (created via `component<MonacoEditorProps>()`). On mount it lazy-loads Monaco and calls `createEditor()` with the props; disposes the editor on unmount. Reactively mirrors prop changes onto the live editor:
+
+- `value` — applied to the model (guards against echo loops from `onChange`).
+- `language` — applied via `monaco.editor.setModelLanguage`.
+- `theme` — applied via `monaco.editor.setTheme` (global; affects all editors).
+- `readOnly` — applied via `editor.updateOptions`.
+
+Renders a single `<div>` with `class` (default `'sigx-monaco-editor'`) and `style` (default `'width: 100%; height: 100%;'`). Calls `onReady` once with the live editor instance.
+
+## Language packs
+
+### typescriptLanguagePack
+
+```ts
+export function typescriptLanguagePack(options?: TypescriptPackOptions): LanguagePack
+```
+
+Builds a `LanguagePack` registering four language ids: `typescript`, `javascript`, `tsx`, `jsx`. Its `setup()` configures Monaco's TS/JS compiler and diagnostics defaults (ESNext target/module, ReactJSX, `jsxImportSource` default `'react'`, `allowNonTsExtensions`, `allowJs`, `strict` `false`, `noEmit`, `esModuleInterop`, NodeJs resolution) and registers completion and hover providers for the tsx/jsx ids so IntelliSense keeps working when Shiki provides highlighting. `workerLabel`: `'typescript'`. Supports Monaco 0.55 (`monaco.typescript`) and older (`monaco.languages.typescript`).
+
+Entry: `@sigx/monaco-editor/languages/typescript` or the main barrel.
+
+- `options` — see [TypescriptPackOptions](#typescriptpackoptions).
+
+### htmlLanguagePack
+
+```ts
+export function htmlLanguagePack(): LanguagePack
+```
+
+Builds a `LanguagePack` for HTML. id `'html'`, extensions `['.html', '.htm']`, `workerLabel` `'html'`. No `setup` (Monaco ships the HTML language; handlebars/razor reuse the same worker). Entry: `@sigx/monaco-editor/languages/html` or the main barrel.
+
+### cssLanguagePack
+
+```ts
+export function cssLanguagePack(): LanguagePack
+```
+
+Builds a `LanguagePack` for CSS/SCSS/LESS (one CSS worker handles all three). id `'css'`, extensions `['.css']`, `workerLabel` `'css'`. No `setup`. Entry: `@sigx/monaco-editor/languages/css` or the main barrel.
+
+### jsonLanguagePack
+
+```ts
+export function jsonLanguagePack(options?: JsonPackOptions): LanguagePack
+```
+
+Builds a `LanguagePack` for JSON. id `'json'`, extensions `['.json']`, `workerLabel` `'json'`. `setup()` calls `jsonDefaults.setDiagnosticsOptions` with `validate` (default `true`), `enableSchemaRequest` (default `true`), and `schemas` (default `[]`). Supports `monaco.json` and `monaco.languages.json`. Entry: `@sigx/monaco-editor/languages/json` or the main barrel.
+
+- `options` — see [JsonPackOptions](#jsonpackoptions).
+
+## Shiki
+
+### applyShikiThemes
+
+```ts
+export async function applyShikiThemes(monaco: MonacoNamespace, options: ApplyShikiOptions): Promise<ApplyShikiResult>
+```
+
+Optional Shiki integration (subpath `@sigx/monaco-editor/shiki`). Dynamically imports `shiki/core`, `shiki/engine/javascript`, and `@shikijs/monaco` (optional peer deps), creates a `HighlighterCore` with the JS regex engine using the passed-in themes and langs, optionally registers `monacoLanguages` first, then calls `shikiToMonaco` to wire TextMate grammars and themes into the Monaco instance. Returns `{ highlighter }` so the consumer can reuse it for non-Monaco code.
+
+- `monaco` — the loaded Monaco namespace (from `loadMonaco()` / `getMonaco()`).
+- `options` — see [ApplyShikiOptions](#applyshikioptions).
+
+## Vite plugin
+
+### monacoPrebundledPlugin
+
+```ts
+export function monacoPrebundledPlugin(options?: MonacoPrebundledPluginOptions): Plugin
+```
+
+Vite plugin (subpath `@sigx/monaco-editor/vite`; also the default export of that module). `enforce: 'pre'`. Intercepts every `monaco-editor` import (resolve alias + `resolveId` + regex transform of static, dynamic, and type-only imports), replacing it with a virtual stub that throws at runtime, and excludes `monaco-editor` from `optimizeDeps` so the bundler never touches Monaco.
+
+- For `prebundled` (default): serves `public/monaco-bundle/*` via a dev middleware (with a path-traversal guard and immutable cache headers) and emits the bundle files (read from `manifest.json`) into the production build.
+- For `cdn`: marks `monaco-editor` as a Rollup external.
+
+In both modes it injects a `<script>` setting `window.__MONACO_LOADER_CONFIG__` into the `index.html` head so the runtime loader picks up the strategy/basePath (or cdn version/url).
+
+- `options` — see [MonacoPrebundledPluginOptions](#monacoprebundledpluginoptions).
+
+### default export
+
+```ts
+export default monacoPrebundledPlugin
+```
+
+The vite-plugin module's default export is the same `monacoPrebundledPlugin` function.
+
+## Types
+
+### MonacoLoaderConfig
+
+```ts
+export interface MonacoLoaderConfig {
+    strategy: 'prebundled' | 'cdn';
+    basePath?: string;
+    cdnUrl?: string;
+    version?: string;
+}
+```
+
+Loader configuration. `basePath`: base URL where the prebundled `monaco.min.js`/workers/CSS live. `cdnUrl`: optional CDN override (default unpkg). `version`: Monaco version to fetch from the CDN.
+
+### MonacoSetup
+
+```ts
+export interface MonacoSetup {
+    languages?: LanguagePack[];
+    themes?: ThemePack[];
+    extraLibs?: ExtraLib[];
+}
+```
+
+Argument to `configureMonaco()`: language packs to register, themes to define, and extra `.d.ts` content to inject into the TS service.
+
+### CreateEditorOptions
+
+```ts
+export interface CreateEditorOptions {
+    container: HTMLElement;
+    value: string;
+    language?: string;
+    theme?: string;
+    readOnly?: boolean;
+    minimap?: boolean;
+    lineNumbers?: 'on' | 'off' | 'relative';
+    fontSize?: number;
+    monacoOptions?: MonacoEditorConstructionOptions;
+    onChange?: (value: string) => void;
+}
+```
+
+Options for `createEditor()`. `language` may be a generic id (`'typescript'`) or a JSX/TSX flavor. `monacoOptions` are merged on top of the derived defaults. `onChange` fires on every content change.
+
+### MonacoEditorProps
+
+```ts
+export interface MonacoEditorProps {
+    value: string;
+    language?: string;
+    theme?: string;
+    readOnly?: boolean;
+    minimap?: boolean;
+    lineNumbers?: 'on' | 'off' | 'relative';
+    fontSize?: number;
+    class?: string;
+    style?: string | Record<string, string | number>;
+    monacoOptions?: MonacoEditorConstructionOptions;
+    onChange?: (value: string) => void;
+    onReady?: (editor: MonacoEditorInstance) => void;
+}
+```
+
+Props for the `<MonacoEditor />` component. `value`/`language`/`theme`/`readOnly` are reactive. `class`/`style` control the container. `onReady` fires once with the live editor instance after creation.
+
+### TypescriptPackOptions
+
+```ts
+export interface TypescriptPackOptions {
+    jsxImportSource?: string;
+    compilerOptions?: Record<string, unknown>;
+    diagnosticsOptions?: { noSemanticValidation?: boolean; noSyntaxValidation?: boolean };
+    skipJsxProviders?: boolean;
+}
+```
+
+Options for `typescriptLanguagePack()`. `jsxImportSource` defaults to `'react'` (pass `'sigx'` for SignalX apps). `compilerOptions`/`diagnosticsOptions` merge over the pack defaults. `skipJsxProviders` (default `false`) skips the tsx/jsx completion and hover providers.
+
+### JsonPackOptions
+
+```ts
+export interface JsonPackOptions {
+    schemas?: Array<{ uri: string; fileMatch?: string[]; schema?: unknown }>;
+    validate?: boolean;
+    enableSchemaRequest?: boolean;
+}
+```
+
+Options for `jsonLanguagePack()`. `schemas` are registered with Monaco's JSON service; `validate` (default `true`), `enableSchemaRequest` (default `true`).
+
+### ApplyShikiOptions
+
+```ts
+export interface ApplyShikiOptions {
+    themes: Array<Promise<unknown> | unknown>;
+    langs: Array<Promise<unknown> | unknown>;
+    monacoLanguages?: Array<{ id: string; extensions?: string[]; aliases?: string[] }>;
+}
+```
+
+Options for `applyShikiThemes()`. `themes`/`langs` entries can be Promises from `import('@shikijs/themes/<name>')` / `import('@shikijs/langs/<name>')` or resolved objects. `monacoLanguages` are registered with Monaco before Shiki wires grammars (omit if already registered).
+
+### ApplyShikiResult
+
+```ts
+export interface ApplyShikiResult {
+    highlighter: unknown;
+}
+```
+
+Return of `applyShikiThemes()`: the created `HighlighterCore`, reusable for highlighting static code outside Monaco.
+
+### MonacoPrebundledPluginOptions
+
+```ts
+export interface MonacoPrebundledPluginOptions {
+    strategy?: 'prebundled' | 'cdn';
+    publicPath?: string;
+    cdnUrl?: string;
+    version?: string;
+    languages?: string[];
+}
+```
+
+Options for `monacoPrebundledPlugin()`. `strategy` default `'prebundled'`. `publicPath` default `'/monaco-bundle'`. `cdnUrl`/`version` are used only for `'cdn'` (version default `'0.55.1'`). `languages` is currently informational (the prebundled bundle ships a fixed worker set).
+
+### LanguagePack
+
+```ts
+export interface LanguagePack {
+    id: string;
+    extensions?: string[];
+    aliases?: string[];
+    workerLabel?: string;
+    workerUrl?: string;
+    setup?: (monaco: MonacoNamespace) => void | Promise<void>;
+}
+```
+
+A pluggable language registration. `id` is the language id; `workerLabel` + `workerUrl` together map a Monaco worker label to a URL in the prebundled loader; `setup` runs once after Monaco loads (register completions, compiler options, etc.). Re-exported from the main entry.
+
+### ThemePack
+
+```ts
+export interface ThemePack {
+    name: string;
+    data: Monaco.editor.IStandaloneThemeData;
+}
+```
+
+A theme to define against the Monaco instance via `monaco.editor.defineTheme`.
+
+### ExtraLib
+
+```ts
+export interface ExtraLib {
+    content: string;
+    filePath: string;
+}
+```
+
+Extra `.d.ts` content injected into Monaco's TS service via `typescriptDefaults.addExtraLib(content, filePath)`.
+
+### MonacoNamespace
+
+```ts
+export type MonacoNamespace = typeof Monaco;
+```
+
+The full `monaco-editor` module namespace type (`typeof import('monaco-editor')`).
+
+### MonacoEditorInstance
+
+```ts
+export type MonacoEditorInstance = Monaco.editor.IStandaloneCodeEditor;
+```
+
+A live standalone code editor instance. Declared in `types.ts` as `MonacoEditor`; re-exported from the main entry under the alias `MonacoEditorInstance` to avoid clashing with the `MonacoEditor` component.
+
+### MonacoEditorConstructionOptions
+
+```ts
+export type MonacoEditorConstructionOptions = Monaco.editor.IStandaloneEditorConstructionOptions;
+```
+
+Raw Monaco editor construction options, accepted via the `monacoOptions` field on `CreateEditorOptions` / `MonacoEditorProps`.
+
+## Entry points
+
+```ts
+// Main barrel: loader + createEditor + MonacoEditor component + types + all 4 language packs
+import { /* ... */ } from '@sigx/monaco-editor';
+
+// Vite plugin (also the default export of this module)
+import { monacoPrebundledPlugin } from '@sigx/monaco-editor/vite';
+
+// Optional Shiki integration
+import { applyShikiThemes } from '@sigx/monaco-editor/shiki';
+
+// Individual language packs
+import { typescriptLanguagePack } from '@sigx/monaco-editor/languages/typescript';
+import { htmlLanguagePack } from '@sigx/monaco-editor/languages/html';
+import { cssLanguagePack } from '@sigx/monaco-editor/languages/css';
+import { jsonLanguagePack } from '@sigx/monaco-editor/languages/json';
+```
+
+Raw prebundled assets are also exposed under `./monaco-bundle/*` (mapped to `./public/monaco-bundle/*`), but runtime serving is normally handled by the Vite plugin rather than this export.

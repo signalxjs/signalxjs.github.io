@@ -1,0 +1,84 @@
+---
+title: Commands
+description: "Every sigx ssg command with its usage, flags, and behavior"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Commands
+
+`@sigx/ssg` contributes three subcommands to the `sigx` CLI: `dev`, `build`, and `preview`. They are available when `@sigx/cli` is installed and an `ssg.config.{ts,js,mjs}` file exists in your project root (the plugin's `detect` step activates on that file).
+
+Run any of them through your package runner:
+
+```bash
+npx sigx ssg <command>
+```
+
+Each subcommand maps directly to a programmatic function (`dev()`, `build()`, `preview()`), so you can also call those from a Node script — see the [API Reference](/ssg/docs/api).
+
+## sigx ssg dev
+
+Starts the SSG development server (Vite). If a `vite.config` exists it is used; otherwise the command runs zero-config, auto-loading `@sigx/vite`, optionally `@tailwindcss/vite`, and the SSG plugins with the `oxc` automatic JSX transform (import source `sigx`). The default port is 5173.
+
+```bash
+npx sigx ssg dev [--config <path>] [--port <n>] [--host] [--open] [--verbose]
+```
+
+**Flags**
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `--config <path>` | string | Path to `ssg.config.ts`. |
+| `--port <n>` | number | Port for the dev server (default 5173). |
+| `--host` | boolean | Expose the server to the network. |
+| `--open` | boolean | Open the browser on start. |
+| `--verbose` | boolean | Verbose logging. |
+
+## sigx ssg build
+
+Builds the static site for production. It loads the config, scans routes, builds the client and SSR bundles with Vite, renders every path (including paths expanded from `getStaticPaths`) to static HTML in `outDir`, and writes `sitemap.xml` and `robots.txt`.
+
+```bash
+npx sigx ssg build [--config <path>] [--verbose]
+```
+
+**Flags**
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `--config <path>` | string | Path to `ssg.config.ts`. |
+| `--verbose` | boolean | Verbose logging. |
+
+Each rendered page is written to `<outDir>/<path>/index.html`. Per-page head tags (title, description, canonical, Open Graph, Twitter) are injected at the page's head marker.
+
+## sigx ssg preview
+
+Previews the production build locally through the Vite preview server. The default port is 4173.
+
+```bash
+npx sigx ssg preview [--config <path>] [--port <n>] [--host] [--open]
+```
+
+**Flags**
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `--config <path>` | string | Path to `ssg.config.ts`. |
+| `--port <n>` | number | Port for the preview server (default 4173). |
+| `--host` | boolean | Expose the server to the network. |
+| `--open` | boolean | Open the browser on start. |
+
+## A typical workflow
+
+```bash
+npx sigx ssg dev
+npx sigx ssg build
+npx sigx ssg preview
+```
+
+## Next steps
+
+- [Configuration & Content](/ssg/docs/configuration) — routing, layouts, collections, MDX, and the full config.
+- [API Reference](/ssg/docs/api) — the programmatic `dev`, `build`, and `preview` functions and the rest of the public API.

@@ -1,0 +1,152 @@
+---
+title: Commands
+description: "Every sigx CLI command with its usage, flags, and behavior"
+layout: docs
+category: Guides
+order: 30
+---
+
+# Commands
+
+The CLI has two core commands shipped in `@sigx/cli` (`create` and `info`) plus a set of commands contributed by plugins at runtime. Run any command through your package runner:
+
+```bash
+npx sigx <command>
+```
+
+## Core commands
+
+### sigx create
+
+Scaffolds a new SignalX project by copying a bundled template into `./<name>` and substituting the `{{projectName}}` placeholder.
+
+```bash
+sigx create [name] [--type <basic|ssr|ssg|lynx>] [--styling <none|tailwind|daisyui>] [--yes|-y]
+```
+
+By default it runs an interactive 3-step terminal UI wizard: **name → type → styling**. It falls back to **headless, flag-driven mode** when any of the following is true:
+
+- standard output / input is not a TTY (for example, in CI or when piped),
+- `--yes` / `-y` is passed,
+- both `--type` and a positional `name` are provided.
+
+**Flags & arguments**
+
+| Argument | Values | Default | Description |
+| --- | --- | --- | --- |
+| `name` (positional) | any directory name | `my-sigx-app` | Target directory created under the current folder. |
+| `--type` | `basic`, `ssr`, `ssg`, `lynx` | `basic` | Project template to copy. |
+| `--styling` | `none`, `tailwind`, `daisyui` | `none` | Styling preset. `daisyui` is also offered for `lynx` (maps to `@sigx/lynx-daisyui`). |
+| `--yes` / `-y` | — | — | Skip the wizard and run headlessly with defaults/flags. |
+
+**Examples**
+
+```bash
+sigx create my-app --type basic
+sigx create my-app --type ssr --styling tailwind
+sigx create my-app --type ssg --styling daisyui
+sigx create my-app --type lynx --styling tailwind
+```
+
+Interactive wizard:
+
+```bash
+npx sigx create
+```
+
+**Exit codes**
+
+- `1` — target directory already exists, or the requested template was not found.
+- `2` — invalid `--type` or `--styling` value.
+
+**Notes**
+
+- If the target directory is inside a pnpm workspace (a `pnpm-workspace.yaml` is found by walking up the tree), `@sigx/*` dependencies in the generated `package.json` are rewritten to `workspace:*`.
+- Templates ship a `gitignore` file that is renamed to `.gitignore` on copy (npm strips `.gitignore` from published tarballs).
+- The terminal UI (`@sigx/terminal`) is lazy-loaded, so it is only pulled in when you actually run the wizard.
+
+### sigx info
+
+Prints environment and project diagnostics. No flags.
+
+```bash
+sigx info
+```
+
+It reports:
+
+- platform / architecture and Node.js version,
+- the pnpm or npm version,
+- the project `name` and `version` from `package.json`,
+- detected `@sigx/*` dependencies (and `sigx`),
+- detected config files: `sigx.lynx.config.ts/js`, `lynx.config.ts/js`, `ssg.config.ts`, `vite.config.ts`.
+
+When a Lynx config is detected it additionally probes the Lynx toolchain: rspeedy version, `ANDROID_HOME` / `ANDROID_SDK_ROOT`, JDK version, ADB version and connected devices, and on macOS Xcode and CocoaPods.
+
+## Plugin-provided commands
+
+The following commands are **not** part of `@sigx/cli` — they are discovered at runtime from installed plugin packages whose `detect(cwd)` returns true for your project. See [Installation](/cli/docs/installation) for which package provides each one, and [Authoring Plugins](/cli/docs/plugins) to write your own.
+
+### sigx dev
+
+Starts the dev server. Provided by `@sigx/vite` for web projects and `@sigx/lynx-cli` for Lynx.
+
+```bash
+sigx dev
+```
+
+### sigx build
+
+Runs a production build. Provided by `@sigx/vite` (web) and `@sigx/lynx-cli` (Lynx).
+
+```bash
+sigx build
+```
+
+### sigx preview
+
+Serves a built SSG site. Provided by `@sigx/ssg`.
+
+```bash
+sigx preview
+```
+
+### sigx prebuild
+
+Generates native iOS/Android project files. Provided by `@sigx/lynx-cli`.
+
+```bash
+sigx prebuild
+```
+
+### sigx run:android
+
+Builds and launches the app on an Android device or emulator. Provided by `@sigx/lynx-cli`.
+
+```bash
+sigx run:android
+```
+
+### sigx run:ios
+
+Builds and launches the app on iOS. Provided by `@sigx/lynx-cli`.
+
+```bash
+sigx run:ios
+```
+
+### sigx doctor
+
+Verifies the Lynx toolchain (rspeedy, ADB, Xcode, JDK). Provided by `@sigx/lynx-cli`.
+
+```bash
+sigx doctor
+```
+
+## Command resolution & conflicts
+
+The CLI builds its command list by starting with the core `info` and `create` commands, then registering each discovered plugin command. On a name collision the **last plugin wins**, and a warning is logged:
+
+```text
+[sigx] WARN Plugin "X" overrides command "Y"
+```

@@ -8,10 +8,82 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-device-info` v0.4.1.</p>
+<p class="lede">Exports of `@sigx/lynx-device-info` v0.4.9.</p>
 
-## Exports
+The package has a single import — the `DeviceInfo` object — plus the `DeviceInfoResult` type. Both iOS and Android are supported.
 
-{/* TODO: document the public API of @sigx/lynx-device-info */}
+```ts
+import { DeviceInfo } from '@sigx/lynx-device-info';
+import type { DeviceInfoResult } from '@sigx/lynx-device-info';
+```
 
-See the package source for the complete typed surface.
+## Objects
+
+### DeviceInfo
+
+A frozen object exposing the device-info API: an async one-shot snapshot and a synchronous availability check.
+
+```ts
+const DeviceInfo: {
+  getInfo(): Promise<DeviceInfoResult>;
+  isAvailable(): boolean;
+};
+```
+
+**Platform:** iOS and Android.
+
+## Functions
+
+### DeviceInfo.getInfo
+
+Resolves a single snapshot of device hardware, OS, screen and app metadata. It calls the native `DeviceInfo` module's `getDeviceInfo` method. Values are a point-in-time snapshot and are not reactive — call it again to refresh.
+
+```ts
+getInfo(): Promise<DeviceInfoResult>
+```
+
+**Parameters:** none.
+
+**Returns:** a Promise resolving to a [`DeviceInfoResult`](#deviceinforesult).
+
+**Platform:** iOS and Android. The resolved shape is most fully populated on Android; on iOS the native payload diverges from `DeviceInfoResult` (see the type note below).
+
+### DeviceInfo.isAvailable
+
+Returns whether the native `DeviceInfo` module is registered in the current build. Delegates to `isModuleAvailable` from `@sigx/lynx-core`. Use it to guard `getInfo()` in builds where the module may not be linked.
+
+```ts
+isAvailable(): boolean
+```
+
+**Parameters:** none.
+
+**Returns:** `true` if the native module is present, otherwise `false`.
+
+**Platform:** iOS and Android.
+
+## Types
+
+### DeviceInfoResult
+
+The shape of the snapshot resolved by [`DeviceInfo.getInfo`](#deviceinfogetinfo).
+
+```ts
+interface DeviceInfoResult {
+  manufacturer: string;   // 'Apple', 'Google', 'samsung', etc.
+  model: string;          // iOS: generic device class ('iPhone'/'iPad'); Android: 'Pixel 9 Pro XL'
+  brand: string;          // iOS: same as manufacturer; Android: build brand
+  systemName: string;     // 'iOS' | 'Android'
+  systemVersion: string;  // '18.0' | '15'
+  sdkVersion: number;     // iOS: major version int; Android: API level
+  screenWidth: number;    // Android: raw pixels; iOS: points
+  screenHeight: number;
+  screenDensity: number;  // pixel ratio (e.g. 3 for @3x)
+  appVersion: string;     // CFBundleShortVersionString / versionName
+  appPackage: string;     // bundleIdentifier / applicationId
+}
+```
+
+**Platform:** iOS and Android.
+
+**Note:** this typed shape is fully populated on Android. On iOS the native payload diverges — `sdkVersion`, `screenDensity` and `appPackage` may be `undefined` at runtime, and `model` reflects the generic device class rather than the raw identifier. Guard reads of these fields on iOS rather than assuming a value.

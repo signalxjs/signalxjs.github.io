@@ -8,10 +8,277 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-runtime-main` v0.4.1.</p>
+<p class="lede">Public exports of `@sigx/lynx-runtime-main` v0.4.9. This is a pure-TypeScript Lepus runtime — every API runs on the Lynx main thread; there is no native iOS or Android module.</p>
 
-## Exports
+## Entry points
 
-{/* TODO: document the public API of @sigx/lynx-runtime-main */}
+The package exposes three entry points in its exports map:
 
-See the package source for the complete typed surface.
+- `.` (default) — re-exports the named API below and triggers the `entry-main` side effect (installs the renderer hooks on `globalThis`). ESM only, with type declarations.
+- `./entry-main` — side-effect-only module that installs `SystemInfo`, `renderPage`, the patch and worklet bridges and the AV-bridge flush hook.
+- `./install-hybrid-worklet` — side-effect-only module that calls `installHybridWorklet()`.
+
+The package is marked `"sideEffects": true`, so importing any entry runs its installation steps.
+
+## Functions
+
+### loadWorkletRuntime
+
+```ts
+export function loadWorkletRuntime(_globDynamicComponentEntry?: unknown): boolean
+```
+
+Compatibility shim that always returns `true`. It stands in for upstream worklet-runtime's `loadWorkletRuntime` for the rare case where `@lynx-js/react/transform`'s unstripped LEPUS output imports it from the runtime package (tests, future work). In normal builds the upstream implementation is canonical and you do not call this.
+
+- **Returns** — `true`.
+
+### setPageUniqueId
+
+```ts
+export function setPageUniqueId(id: number): void
+```
+
+Sets the module-level [`pageUniqueId`](#pageuniqueid). Called from `renderPage` after `__CreatePage` and from [`resetMainThreadState`](#resetmainthreadstate).
+
+- **id** — the PAPI unique id of the root page element.
+
+### applyOps
+
+```ts
+export function applyOps(ops: unknown[]): void
+```
+
+The core executor. Consumes the flat-array op buffer produced by the background thread — `CREATE`, `INSERT`, `SET_STYLE`, `SET_WORKLET_EVENT`, `INIT_MT_REF`, `REGISTER_AV_BRIDGE`, gesture ops, list ops and more — and applies each via Lynx PAPI. It then flushes pending slots, the AV bridge, animated styles and lists, and calls `__FlushElementTree` exactly once. Duplicate batches are skipped, and the boot placeholder is removed on the first call.
+
+- **ops** — the flat op buffer from the BG thread.
+
+### resetMainThreadState
+
+```ts
+export function resetMainThreadState(): void
+```
+
+Clears all module state for testing and hot reload: the element registry, page id, slot state, AV-bridge sets, gesture tracking, animated-style bindings, list state and the upstream `_workletRefMap`.
+
+### invokeWorklet
+
+```ts
+export function invokeWorklet(
+  wkltId: string,
+  captured: Record<string, unknown> | undefined,
+  args: unknown[],
+): unknown
+```
+
+Looks up a worklet by id in upstream's `lynxWorkletImpl._workletMap` and calls it with `this = { _c: captured ?? {} }` and the given arguments. Used by the `runOnMainThread` (sigxRunOnMT) bridge as the no-captures fallback; event-driven worklets go through Lynx native `runWorklet` instead.
+
+- **wkltId** — the worklet id to look up.
+- **captured** — captured closure values, or `undefined`.
+- **args** — arguments to pass to the worklet.
+- **Returns** — the worklet's return value, or `undefined` if the impl or worklet is missing or the body throws (it logs in that case).
+
+### setSlotWorklet
+
+```ts
+export function setSlotWorklet(
+  elId: number,
+  type: string,
+  name: string,
+  ctx: WorkletPlaceholder | undefined,
+): void
+```
+
+Records the worklet handler for an `(element, eventType, eventName)` slot and marks it dirty. The actual `__AddEvent` is deferred to [`flushDirtySlots`](#flushdirtyslots) so a worklet and a BG handler on the same slot can be combined into one hybrid registration.
+
+- **elId** — the BG-thread element id.
+- **type** — the event type.
+- **name** — the event name.
+- **ctx** — the worklet placeholder, or `undefined` to clear it.
+
+### setSlotBgSign
+
+```ts
+export function setSlotBgSign(
+  elId: number,
+  type: string,
+  name: string,
+  sign: string | undefined,
+): void
+```
+
+Records the background-side handler sign for a slot (`undefined` clears it) and marks it dirty for re-issue at [`flushDirtySlots`](#flushdirtyslots).
+
+- **elId** — the BG-thread element id.
+- **type** — the event type.
+- **name** — the event name.
+- **sign** — the BG handler sign, or `undefined` to clear it.
+
+### flushDirtySlots
+
+```ts
+export function flushDirtySlots(): void
+```
+
+Commits one `__AddEvent` per slot changed since the last flush, choosing the registration shape: a `bgSign` string, a `{ type: 'worklet', value: worklet }`, or a hybrid ctx when both a worklet and a BG sign are present; passes `undefined` to unregister. Called at the tail of [`applyOps`](#applyops) before `__FlushElementTree`. Writes whose value is reference-equal to the last installed value are skipped.
+
+### resetSlotStates
+
+```ts
+export function resetSlotStates(): void
+```
+
+Hot-reload and test reset hook that clears all per-slot event-registration state and the dirty set.
+
+### hybridCtx
+
+```ts
+export function hybridCtx(realCtx: WorkletPlaceholder, bgSign: string): {
+  _wkltId: string;
+  _workletType: 'main-thread';
+  _c: { realCtx: WorkletPlaceholder; bgSign: string };
+}
+```
+
+Builds the ctx for a hybrid registration that combines a user main-thread worklet and a BG handler sign so a single `__AddEvent` slot dispatches to both. The hybrid body runs the user worklet, then bridges the event to the BG thread via the `Lynx.Sigx.PublishEvent` jsContext channel.
+
+- **realCtx** — the user's main-thread worklet placeholder.
+- **bgSign** — the BG handler sign.
+- **Returns** — a ctx object carrying [`HYBRID_WORKLET_ID`](#hybrid_worklet_id) and both handlers in `_c`.
+
+### installHybridWorklet
+
+```ts
+export function installHybridWorklet(): void
+```
+
+Installs the hybrid dispatch worklet into `globalThis.lynxWorkletImpl._workletMap` under [`HYBRID_WORKLET_ID`](#hybrid_worklet_id). Must run after `@lynx-js/react/worklet-runtime` has populated `lynxWorkletImpl`. Idempotent across hot reloads. Also runs as a side effect when importing the `./install-hybrid-worklet` entry.
+
+## Constants
+
+### elements
+
+```ts
+export const elements: Map<number, MainThreadElement>
+```
+
+Live registry mapping BG-thread `ShadowElement` ids to Lynx main-thread (PAPI) element handles. Populated by `applyOps` `CREATE` / `CREATE_TEXT` and read by every op handler.
+
+### pageUniqueId
+
+```ts
+export let pageUniqueId: number  // default 1
+```
+
+The PAPI unique id of the root `PageElement`, passed as `parentComponentUniqueId` to element-creation PAPI calls. Mutable — reassign it only through [`setPageUniqueId`](#setpageuniqueid).
+
+### HYBRID_WORKLET_ID
+
+```ts
+export const HYBRID_WORKLET_ID = '__sigx_hybrid_dispatch__'
+```
+
+The stable worklet id under which the hybrid dispatcher is registered in `lynxWorkletImpl._workletMap`. Used as the `_wkltId` of every hybrid ctx.
+
+## Classes
+
+### MTElementWrapper
+
+```ts
+export class MTElementWrapper {
+  readonly _el: MainThreadElement;
+  constructor(el: MainThreadElement);
+  flushElementTree(): void;
+  setStyleProperties(styles: Record<string, string | number>): void;
+  getComputedStyleProperty(name: string): string;
+  getAttribute(name: string): unknown;
+  getAttributeNames(): string[];
+  querySelector(selector: string): MTElementWrapper | null;
+  querySelectorAll(selector: string): MTElementWrapper[];
+  invoke(methodName: string, params?: Record<string, unknown>): Promise<unknown>;
+  animate(keyframes: AnimationKeyframe[], options?: AnimationOptions): Animation | null;
+  setAttribute(key: string, value: unknown): void;
+  setStyleProperty(name: string, value: string | number): void;
+}
+```
+
+A high-level wrapper over a raw PAPI element handle, set as a `MainThreadRef`'s `.current`. It lets main-thread worklets synchronously read and write styles and attributes, run query selectors, invoke UI methods and start keyframe animations with zero cross-thread latency.
+
+The native `__FlushElementTree` is microtask-debounced through a module-level `willFlush` latch shared across all wrapper instances, so all writes in a tick collapse into a single flush.
+
+- **constructor(el)** — wraps a raw `MainThreadElement` handle.
+- **flushElementTree()** — forces a flush of pending writes.
+- **setStyleProperties(styles)** — sets multiple style properties at once (batched).
+- **getComputedStyleProperty(name)** — reads a computed style value as a string.
+- **getAttribute(name)** — reads an attribute value.
+- **getAttributeNames()** — lists the element's attribute names.
+- **querySelector(selector)** — returns the first matching descendant as a wrapper, or `null`.
+- **querySelectorAll(selector)** — returns all matching descendants as wrappers.
+- **invoke(methodName, params?)** — calls a native UI method; returns a `Promise` of the result.
+- **animate(keyframes, options?)** — starts a keyframe animation; returns an [`Animation`](#animation) controller, or `null` if the handle is unavailable.
+- **setAttribute(key, value)** — sets an attribute (batched).
+- **setStyleProperty(name, value)** — sets a single style property (batched).
+
+## Types
+
+### WorkletPlaceholder
+
+```ts
+export interface WorkletPlaceholder {
+  _wkltId: string;
+  _c?: Record<string, unknown>;
+}
+```
+
+A serialized worklet reference: an id (`_wkltId`) plus an optional captured closure (`_c`). Carried by `SET_WORKLET_EVENT` ops and used as the ctx for `__AddEvent` worklet registrations. Type-only export, available on both threads.
+
+## Animation shapes (not exported)
+
+The `animate` method on [`MTElementWrapper`](#mtelementwrapper) accepts and returns the structures below. They are declared in the runtime's `mt-element` module but are **not** re-exported from `@sigx/lynx-runtime-main` — they are not part of the public export surface, so you cannot `import` them by name. They are documented here only to describe the inline argument and return shapes of `MTElementWrapper.animate`.
+
+### AnimationKeyframe
+
+```ts
+interface AnimationKeyframe {
+  [property: string]: string | number;
+}
+```
+
+The shape of a single keyframe passed to [`MTElementWrapper.animate`](#mtelementwrapper). Each key is a style property name; each value is its value at that keyframe.
+
+### AnimationOptions
+
+```ts
+interface AnimationOptions {
+  duration?: number;
+  delay?: number;
+  iterations?: number;
+  direction?: 'normal' | 'reverse' | 'alternate' | 'alternate-reverse';
+  easing?: string;
+  fill?: 'none' | 'forwards' | 'backwards' | 'both';
+  name?: string;
+  'play-state'?: 'running' | 'paused';
+}
+```
+
+The second argument to [`MTElementWrapper.animate`](#mtelementwrapper), controlling timing, iteration, direction and fill of a keyframe animation.
+
+### Animation
+
+```ts
+interface Animation {
+  play(): void;
+  pause(): void;
+  cancel(): void;
+}
+```
+
+The controller returned by [`MTElementWrapper.animate`](#mtelementwrapper).
+
+- **play()** — starts or resumes the animation.
+- **pause()** — pauses the animation.
+- **cancel()** — cancels the animation.
+
+## See also
+
+- [Usage guide](/lynx/modules/runtime-main/usage)
+- [Installation](/lynx/modules/runtime-main/installation)

@@ -1,0 +1,140 @@
+---
+title: Modal
+description: "Modal — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Feedback"]
+order: 143
+---
+
+# Modal
+
+<p class="lede">An overlay dialog whose content is mounted only while it is open, with tap-outside-to-dismiss and optional Header / Body / Actions sections.</p>
+
+## Import
+
+```tsx
+import { Modal } from '@sigx/lynx-daisyui';
+```
+
+`Modal` is a compound component. Alongside the root it exposes three layout
+sections: `Modal.Header`, `Modal.Body`, and `Modal.Actions`.
+
+## Props
+
+Visibility is controlled, not internal: you decide when the modal is shown by
+passing `open`, and you react to dismiss requests through `onClose`. When `open`
+is `false` the children are fully unmounted (the component renders only a
+zero-size placeholder), so nothing inside it runs while it is closed.
+
+### `Modal`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `open` | `boolean` | `false` | Whether the modal is visible. While `false`, the content is unmounted. |
+| `onClose` | `() => void` | - | Called when the user taps the backdrop outside the modal box. Use it to set your `open` state to `false`. |
+| `class` | `string` | - | Additional CSS classes applied to the modal box. |
+| `children` | slot | - | Default slot — the modal box content. |
+
+### `Modal.Header`, `Modal.Body`, `Modal.Actions`
+
+Each section component accepts the same shape:
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `class` | `string` | - | Additional CSS classes applied to the section wrapper. |
+| `children` | slot | - | Default slot — the section content. |
+
+Tapping the backdrop bubbles to `onClose`; taps inside the modal box are caught
+and do not trigger it, so interactive content (buttons, rows) behaves normally.
+
+## Basic Usage
+
+Drive `open` from a signal and reset it in `onClose`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Modal, Button, Text } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ open: false });
+
+    return () => (
+        <view>
+            <Button onPress={() => { state.open = true; }}>
+                Open modal
+            </Button>
+
+            <Modal open={state.open} onClose={() => { state.open = false; }}>
+                <Text>Tap outside this box to dismiss.</Text>
+            </Modal>
+        </view>
+    );
+});
+```
+
+## With Header, Body and Actions
+
+Compose the dialog from the section subcomponents:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Modal, Button, Heading, Text } from '@sigx/lynx-daisyui';
+
+const ConfirmDialog = component(({ signal }) => {
+    const state = signal({ open: false });
+
+    const close = () => { state.open = false; };
+
+    return () => (
+        <view>
+            <Button color="error" onPress={() => { state.open = true; }}>
+                Delete account
+            </Button>
+
+            <Modal open={state.open} onClose={close}>
+                <Modal.Header>
+                    <Heading level={3}>Delete account?</Heading>
+                </Modal.Header>
+
+                <Modal.Body>
+                    <Text>This action cannot be undone.</Text>
+                </Modal.Body>
+
+                <Modal.Actions>
+                    <Button variant="ghost" onPress={close}>Cancel</Button>
+                    <Button color="error" onPress={close}>Delete</Button>
+                </Modal.Actions>
+            </Modal>
+        </view>
+    );
+});
+```
+
+## Custom Box Class
+
+Use `class` on the root to size or style the modal box:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Modal, Button, Text } from '@sigx/lynx-daisyui';
+
+const WideModal = component(({ signal }) => {
+    const state = signal({ open: false });
+
+    return () => (
+        <view>
+            <Button onPress={() => { state.open = true; }}>Open wide modal</Button>
+
+            <Modal
+                open={state.open}
+                onClose={() => { state.open = false; }}
+                class="w-11/12 max-w-3xl"
+            >
+                <Modal.Body>
+                    <Text>A wider box via the `class` prop.</Text>
+                </Modal.Body>
+            </Modal>
+        </view>
+    );
+});
+```

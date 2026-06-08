@@ -1,0 +1,69 @@
+---
+title: Installation
+description: "Install @sigx/store and wire it into a SignalX project"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+`@sigx/store` builds on the SignalX reactive core, so it is designed to be used inside a project that already renders SignalX components with the `sigx` package.
+
+## Install
+
+```bash
+npm install @sigx/store
+```
+
+The package is ESM-only. Its single entry point is `@sigx/store`, exporting `defineStore` and its supporting types.
+
+## Dependencies
+
+`@sigx/store` bundles its reactive runtime as ordinary dependencies, so you do not need to install them separately:
+
+- `@sigx/runtime-core` (`^0.4.3`) — factory/DI runtime and topic/subscription primitives.
+- `@sigx/reactivity` (`^0.4.3`) — the signal core the state is built on.
+
+You use the store alongside the `sigx` component package, which provides `component`, `render`, `signal`, and `computed`. Install that as part of your SignalX app if you have not already:
+
+```bash
+npm install sigx
+```
+
+## Project setup
+
+No special Vite or build configuration is required beyond a standard SignalX + TSX/JSX setup. If your project already renders SignalX components, you can import and use `defineStore` immediately:
+
+```ts
+import { defineStore } from '@sigx/store';
+```
+
+If you are setting up a SignalX project from scratch, follow [Core → Installation](/core/docs/installation) for the JSX/TSX and Vite configuration, then add `@sigx/store` on top.
+
+## Verify
+
+Define a tiny store and read it in a component to confirm everything is wired up:
+
+```tsx
+import { component, render } from 'sigx';
+import { defineStore } from '@sigx/store';
+
+const usePing = defineStore('ping', ({ defineState }) => {
+    const { state } = defineState({ message: 'store is working' });
+    return { state };
+});
+
+const App = component(() => {
+    const store = usePing();
+    return () => <p>{store.state.message}</p>;
+});
+
+render(<App />, '#app');
+```
+
+## Next steps
+
+- [Getting Started](/store/docs/getting-started) — the core mental model and a counter example.
+- [Defining a Store](/store/docs/defining-a-store) — state, actions, getters, and events.
+- [Using Stores in Components](/store/docs/using-in-components) — sharing, lifetimes, and cleanup.

@@ -1,0 +1,131 @@
+---
+title: Text
+description: "Text — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Typography"]
+order: 194
+---
+
+# Text
+
+<p class="lede">Themed inline text primitive that renders a native Lynx `&lt;text&gt;` with token-driven size, weight, and color, plus optional native selection and auto font-sizing.</p>
+
+## Import
+
+```tsx
+import { Text } from '@sigx/lynx-daisyui';
+```
+
+`Text` wraps Lynx's native `&lt;text&gt;` element. It applies a default font size (`base`, the `--text-base` token) unless you set `size` or already pass a `text-*` size utility through `class`, so body copy gets a consistent token-driven size instead of Lynx's raw native default.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `size` | `'xs' \| 'sm' \| 'base' \| 'lg' \| 'xl' \| '2xl' \| '3xl'` | `'base'` | Font size. Maps to a `text-*` utility. Skipped if `class` already carries a `text-*` size. |
+| `weight` | `'light' \| 'normal' \| 'medium' \| 'semibold' \| 'bold'` | - | Font weight. Maps to a `font-*` utility. |
+| `color` | `'base-content' \| 'primary' \| 'secondary' \| 'accent' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Text color token. Maps to a `text-<token>` class. |
+| `selectable` | `boolean` | `false` | Allow native text selection (long-press to select, system copy menu). Maps to Lynx 3.7+'s `text-selection` and sets `flatten={false}`. |
+| `customSelection` | `boolean` | `false` | When `selectable` is on, disables Lynx's built-in selection handling so the app can drive selection itself. Maps to Lynx 3.7+'s `custom-text-selection`. |
+| `autoSize` | `boolean \| TextAutoSize` | - | Auto-shrink/grow the font to fit. `true` uses native defaults; an object tunes the range, preset sizes, or per-line ranges. Maps to the `-x-auto-font-size` CSS family. |
+| `class` | `string` | - | Additional CSS classes. |
+| _default slot_ | `children` | - | The text content to render. |
+
+### `TextAutoSize` object
+
+Pass an object to `autoSize` to tune Lynx's auto font-sizing. Native precedence when several are given: `lineRanges` overrides `presets`, which overrides `min`/`max`/`step`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `min` | `string` | Minimum font size (CSS length, e.g. `'14px'`). |
+| `max` | `string` | Maximum font size. Positional in CSS — requires `min`. |
+| `step` | `string` | Adjustment granularity (Lynx default `1px`). Requires `max`. |
+| `presets` | `readonly string[]` | Discrete candidate sizes; the largest that fits the width wins. Maps to `-x-auto-font-size-preset-sizes`. |
+| `lineRanges` | `readonly TextAutoSizeLineRange[]` | Per-line-count size ranges — shrink the font as text wraps onto more lines. Maps to `-x-auto-font-size-line-ranges` (Lynx 3.8+). |
+
+Each `TextAutoSizeLineRange` has `lines` (a number for an exact line count, or `[n, 'infinity']` for "n lines and up"), `min` (minimum font size), and an optional `max` (omit for a fixed size).
+
+## Basic usage
+
+Set `size` and `weight` for body and emphasis copy. With no `size`, `Text` falls back to the `base` token.
+
+```tsx
+import { Text, Col } from '@sigx/lynx-daisyui';
+
+function Article() {
+    return (
+        <Col gap="2">
+            <Text size="lg" weight="bold">Release notes</Text>
+            <Text>
+                The default size is base, so paragraph text gets a
+                consistent token-driven font size.
+            </Text>
+            <Text size="sm" color="base-content" class="opacity-60">
+                Updated 2 hours ago
+            </Text>
+        </Col>
+    );
+}
+```
+
+## Colors
+
+`color` maps to a theme color token, so text follows the active daisyUI theme.
+
+```tsx
+import { Text, Col } from '@sigx/lynx-daisyui';
+
+function StatusList() {
+    return (
+        <Col gap="1">
+            <Text color="primary" weight="semibold">Primary</Text>
+            <Text color="success">Saved successfully</Text>
+            <Text color="warning">Approaching your quota</Text>
+            <Text color="error" weight="medium">Upload failed</Text>
+        </Col>
+    );
+}
+```
+
+## Selectable text
+
+Enable `selectable` to let users long-press to select and copy with the system menu. This sets `flatten={false}` under the hood, as required by Lynx.
+
+```tsx
+import { Text } from '@sigx/lynx-daisyui';
+
+function Receipt() {
+    return (
+        <Text selectable size="sm">
+            Order #SX-48213 — long-press to select and copy.
+        </Text>
+    );
+}
+```
+
+## Auto font sizing
+
+Pass `autoSize` to fit text to its container. Use `true` for native defaults, or an object to bound the range and shrink as the text wraps onto more lines.
+
+```tsx
+import { Text } from '@sigx/lynx-daisyui';
+
+function Headline() {
+    return (
+        <Text
+            size="3xl"
+            weight="bold"
+            autoSize={{
+                min: '16px',
+                max: '32px',
+                lineRanges: [
+                    { lines: 1, min: '28px', max: '32px' },
+                    { lines: [2, 'infinity'], min: '16px', max: '22px' },
+                ],
+            }}
+        >
+            This headline shrinks to fit when it wraps to more lines.
+        </Text>
+    );
+}
+```

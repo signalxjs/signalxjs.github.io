@@ -1,0 +1,686 @@
+---
+title: API Reference
+description: "@sigx/ssg — static site generation with MDX and island hydration — API reference"
+layout: docs
+category: API Reference
+order: 10
+---
+
+# API Reference
+
+This page documents the public surface of `@sigx/ssg`, defined by the package `exports` map: the main entry (`@sigx/ssg`), the Vite plugin (`@sigx/ssg/vite`), the build and dev entries (`@sigx/ssg/build`, `@sigx/ssg/dev`), the client helpers (`@sigx/ssg/client`), and the ambient virtual-module types (`@sigx/ssg/virtual`).
+
+For CLI usage see [Commands](/ssg/docs/commands).
+
+## Config
+
+### defineSSGConfig
+
+```ts
+function defineSSGConfig(config: SSGConfig): SSGConfig
+```
+
+Type-safe SSG config helper. Applies defaults (`pages` `src/pages`, `layouts` `src/layouts`, `content` `src/content`, `defaultLayout` `default`, `outDir` `dist`, `base` `/`, `autoEntries` true, `prefetch` true, `site.lang` `en`, `markdown.shiki` true, `toc.minLevel` 2 / `maxLevel` 3) then merges the user config.
+
+- **config** — the user's SSG configuration.
+- **Returns** — the merged config. Export it as the default from `ssg.config.ts`.
+
+### defineConfig
+
+```ts
+const defineConfig = defineSSGConfig
+```
+
+Alias for `defineSSGConfig`, re-exported under the conventional Vite-style name.
+
+## Build
+
+### build
+
+```ts
+function build(options?: BuildOptions): Promise<BuildResult>
+```
+
+Programmatic static-site build. Loads config, scans routes, builds the client and SSR Vite bundles, renders every path (including paths expanded from `getStaticPaths`) to static HTML in `outDir`, and writes `sitemap.xml` and `robots.txt`. Also exported via `@sigx/ssg/build`.
+
+- **options** — optional `BuildOptions` (`configPath`, `verbose`, `concurrency`). The effective default concurrency is 20.
+- **Returns** — a `BuildResult` with the built pages, total time, and warnings.
+
+## Dev server
+
+### dev
+
+```ts
+function dev(options?: DevOptions): Promise<void>
+```
+
+Starts the SSG dev server. Uses an existing `vite.config` if present, otherwise runs zero-config: it auto-loads `@sigx/vite`, optionally `@tailwindcss/vite`, and the SSG plugins with `oxc` automatic JSX (import source `sigx`). Default port 5173. Also exported via `@sigx/ssg/dev`.
+
+- **options** — optional `DevOptions` (`configPath`, `port`, `host`, `open`, `verbose`).
+- **Returns** — a promise that resolves once the server has started.
+
+### preview
+
+```ts
+function preview(options?: DevOptions): Promise<void>
+```
+
+Previews the production build through the Vite preview server (default port 4173). Also exported via `@sigx/ssg/dev`.
+
+- **options** — optional `DevOptions`.
+- **Returns** — a promise that resolves once the preview server has started.
+
+## Sitemap
+
+### generateSitemap
+
+```ts
+function generateSitemap(entries: SitemapEntry[], config: SSGConfig): string
+```
+
+Builds `sitemap.xml` content (sitemaps.org 0.9 schema) from entries. Each path is prefixed with `site.url` + `base`.
+
+- **entries** — the sitemap entries to include.
+- **config** — the SSG config (supplies `site.url` and `base`).
+- **Returns** — the sitemap XML as a string.
+
+### generateRobotsTxt
+
+```ts
+function generateRobotsTxt(config: SSGConfig, sitemapPath?: string): string
+```
+
+Builds `robots.txt` content (an `Allow: /` line and a `Sitemap:` line).
+
+- **config** — the SSG config.
+- **sitemapPath** — path to the sitemap (defaults to `/sitemap.xml`).
+- **Returns** — the robots.txt content as a string.
+
+### writeSitemap
+
+```ts
+function writeSitemap(
+    pages: PageBuildResult[],
+    config: SSGConfig,
+    outDir: string,
+    options?: SitemapOptions,
+): Promise<{ sitemapPath: string; robotsPath: string }>
+```
+
+Converts built pages to entries and writes `sitemap.xml` and `robots.txt` to `outDir`. Called automatically at the end of `build()`.
+
+- **pages** — the build results to map.
+- **config** — the SSG config.
+- **outDir** — the output directory.
+- **options** — optional `SitemapOptions`.
+- **Returns** — the written `sitemapPath` and `robotsPath`.
+
+### pagesToSitemapEntries
+
+```ts
+function pagesToSitemapEntries(
+    pages: PageBuildResult[],
+    options?: SitemapOptions,
+): SitemapEntry[]
+```
+
+Maps build results to sitemap entries, applying `exclude` globs and depth-based priority (`/` = 1.0, depth 1 = 0.8, depth 2 = 0.6, otherwise `defaultPriority` 0.5) and `defaultChangefreq` `weekly`.
+
+- **pages** — the build results to map.
+- **options** — optional `SitemapOptions`.
+- **Returns** — the derived `SitemapEntry[]`.
+
+## Vite plugin
+
+### ssgPlugin
+
+```ts
+function ssgPlugin(options?: SSGPluginOptions): Plugin[]
+```
+
+The main Vite plugin, exported from `@sigx/ssg/vite`. Returns an **array** of Vite plugins: file-based routing, layouts, navigation, and zero-config entry generation, plus the MDX plugin (unless `enableMdx: false`). It serves the `virtual:ssg-routes`, `virtual:ssg-navigation`, `virtual:ssg-config`, `virtual:generated-layouts`, and virtual client/server entry modules, and handles HMR for pages, layouts, and MDX frontmatter.
+
+- **options** — optional `SSGPluginOptions` (`Partial<SSGConfig>` plus `configPath` and `enableMdx`, default `true`).
+- **Returns** — an array of Vite plugins; spread it or pass it directly to Vite's `plugins`.
+
+### default export of `@sigx/ssg/vite`
+
+```ts
+export default ssgPlugin
+```
+
+The default export of `@sigx/ssg/vite` is `ssgPlugin`.
+
+## Errors
+
+### SSGError
+
+```ts
+class SSGError extends Error {
+    readonly code: string;
+    readonly file?: string;
+    readonly line?: number;
+    readonly suggestion?: string;
+    constructor(message: string, options: {
+        code: string;
+        file?: string;
+        line?: number;
+        suggestion?: string;
+        cause?: Error;
+    });
+    format(root?: string): string;
+}
+```
+
+Structured SSG error carrying a code, an optional file and line, and a suggestion. `format()` renders a console-friendly message with the relative path and a hint.
+
+### ErrorCodes
+
+```ts
+const ErrorCodes: {
+    readonly CONFIG_NOT_FOUND: 'SSG001';
+    readonly CONFIG_INVALID: 'SSG002';
+    readonly CONFIG_THEME_NOT_FOUND: 'SSG003';
+    readonly PAGE_NOT_FOUND: 'SSG100';
+    readonly PAGE_INVALID_EXPORT: 'SSG101';
+    readonly DYNAMIC_ROUTE_NO_PATHS: 'SSG102';
+    readonly LAYOUT_NOT_FOUND: 'SSG103';
+    readonly BUILD_RENDER_FAILED: 'SSG300';
+    readonly BUILD_VITE_FAILED: 'SSG301';
+    readonly MDX_PARSE_ERROR: 'SSG400';
+    readonly MDX_FRONTMATTER_ERROR: 'SSG401';
+}
+```
+
+Catalog of SSG diagnostic codes used in error and warning messages (for example, `SSG102` means a dynamic route is missing `getStaticPaths`).
+
+### handleError
+
+```ts
+function handleError(error: unknown, root?: string): never
+```
+
+Formats and logs an error (an `SSGError` gets pretty output, including its cause), then calls `process.exit(1)`. Terminal helper for CLI entry points.
+
+- **error** — the error to report.
+- **root** — optional project root, used to render relative paths.
+
+## Client helpers
+
+These are exported from `@sigx/ssg/client`.
+
+### prefetch
+
+```ts
+function prefetch(path: string): void
+```
+
+Appends a `<link rel="prefetch">` for the given path to `<head>`.
+
+- **path** — the internal path to prefetch.
+
+### setupPrefetch
+
+```ts
+function setupPrefetch(options?: { delay?: number }): void
+```
+
+Prefetches internal links on hover (default delay 100 ms), skipping external and hash links and already-prefetched paths. Wired automatically in the generated client entry when `config.prefetch` is enabled.
+
+- **options.delay** — hover delay in milliseconds before prefetching.
+
+### isStaticPage
+
+```ts
+function isStaticPage(): boolean
+```
+
+Returns `true` when the document has no `data-ssr` attribute (statically generated rather than server-rendered).
+
+### getInitialState
+
+```ts
+function getInitialState<T = Record<string, unknown>>(): T | null
+```
+
+Parses the JSON embedded in the `#__SSG_STATE__` script element, or returns `null`.
+
+- **Returns** — the parsed state, or `null` if absent.
+
+### ssrClientPlugin
+
+```ts
+export { ssrClientPlugin } from '@sigx/server-renderer/client'
+```
+
+Re-exported from `@sigx/ssg/client`. The SignalX app plugin that enables client-side hydration of server-rendered HTML; the generated client entry uses it via `.use(ssrClientPlugin)`.
+
+## Types
+
+The following interfaces and types are part of the public surface.
+
+### SSGConfig
+
+```ts
+interface SSGConfig {
+    pages?: string;
+    layouts?: string;
+    content?: string;
+    theme?: string;
+    defaultLayout?: string;
+    outDir?: string;
+    base?: string;
+    site?: SiteConfig;
+    markdown?: MarkdownConfig;
+    vite?: Record<string, unknown>;
+    autoEntries?: boolean;
+    clientEntry?: string;
+    clientImports?: string[];
+    serverEntry?: string;
+    htmlTemplate?: string | false;
+    prefetch?: boolean | { delay?: number };
+    collections?: Record<string, CollectionConfig>;
+    navigation?: NavigationConfig;
+    toc?: TOCConfig;
+}
+```
+
+The full SSG configuration object accepted by `defineSSGConfig`.
+
+### SiteConfig
+
+```ts
+interface SiteConfig {
+    title?: string;
+    description?: string;
+    author?: string;
+    url?: string;
+    lang?: string;
+    favicon?: string;
+    ogImage?: string;
+    twitter?: string;
+    fonts?: string[];
+    themeColor?: string;
+}
+```
+
+Site-wide metadata used for head tags, canonical URLs, and the sitemap.
+
+### CollectionConfig
+
+```ts
+interface CollectionConfig {
+    path: string;
+    layout?: string;
+    showDrafts?: 'dev' | 'never';
+}
+```
+
+Configuration for a single content collection, keyed by name under `collections`.
+
+### NavigationConfig
+
+```ts
+interface NavigationConfig {
+    sidebar?: NavSection[];
+    autoGenerate?: boolean;
+    showDrafts?: 'dev' | 'never';
+}
+```
+
+Navigation configuration: explicit sections, auto-generation (default `true`), and draft handling.
+
+### NavSection
+
+```ts
+interface NavSection {
+    title: string;
+    items: NavItem[];
+    order?: number;
+}
+```
+
+A titled group of navigation items.
+
+### NavItem
+
+```ts
+interface NavItem {
+    title: string;
+    href?: string;
+    items?: NavItem[];
+    order?: number;
+}
+```
+
+A single navigation entry, optionally nesting child items.
+
+### PageMeta
+
+```ts
+interface PageMeta {
+    title?: string;
+    description?: string;
+    layout?: string;
+    draft?: boolean;
+    date?: string | Date;
+    tags?: string[];
+    ssr?: boolean;
+    category?: string | string[];
+    order?: number;
+    sidebar?: boolean;
+    toc?: boolean | { minLevel?: number; maxLevel?: number };
+    headings?: TocHeading[];
+    [key: string]: unknown;
+}
+```
+
+Per-page metadata, sourced from frontmatter or an exported `meta`.
+
+### PageModule
+
+```ts
+interface PageModule {
+    default: ComponentFactory<any, any, any>;
+    getStaticPaths?: GetStaticPaths;
+    layout?: string;
+    frontmatter?: PageMeta;
+}
+```
+
+The shape of a page module: a default component, optional `getStaticPaths`, an optional layout, and frontmatter.
+
+### GetStaticPaths
+
+```ts
+type GetStaticPaths = () => StaticPath[] | Promise<StaticPath[]>
+```
+
+A function a dynamic route exports to enumerate the paths to pre-render.
+
+### StaticPath
+
+```ts
+interface StaticPath {
+    params: Record<string, string>;
+    props?: Record<string, unknown>;
+}
+```
+
+One pre-rendered path: the route `params` and optional `props` passed to the page.
+
+### SSGRoute
+
+```ts
+interface SSGRoute {
+    path: string;
+    file: string;
+    name: string;
+    layout?: string;
+    component?: ComponentFactory<any, any, any>;
+    meta?: PageMeta;
+    children?: SSGRoute[];
+}
+```
+
+A resolved route produced by scanning `src/pages`.
+
+### LayoutModule
+
+```ts
+interface LayoutModule {
+    default: ComponentFactory<LayoutProps, unknown, LayoutSlots>;
+}
+```
+
+The shape of a layout module.
+
+### LayoutProps
+
+```ts
+interface LayoutProps {
+    meta?: PageMeta;
+    path?: string;
+}
+```
+
+Props passed to a layout component.
+
+### LayoutSlots
+
+```ts
+interface LayoutSlots {
+    default: () => unknown;
+}
+```
+
+Slots provided to a layout; `default()` renders the page content.
+
+### ThemeModule
+
+```ts
+interface ThemeModule {
+    layouts?: Record<string, ComponentFactory<LayoutProps, unknown, LayoutSlots>>;
+    components?: Record<string, ComponentFactory<any, any, any>>;
+    config?: ThemeConfig;
+}
+```
+
+The shape of a theme package referenced through the config `theme` field.
+
+### ThemeConfig
+
+```ts
+interface ThemeConfig {
+    defaultLayout?: string;
+    css?: string[];
+}
+```
+
+Theme-provided defaults: a default layout and CSS files to include.
+
+### MarkdownConfig
+
+```ts
+interface MarkdownConfig {
+    shiki?: boolean | ShikiConfig;
+    remarkPlugins?: unknown[];
+    rehypePlugins?: unknown[];
+}
+```
+
+Markdown / MDX processing options.
+
+### ShikiConfig
+
+```ts
+interface ShikiConfig {
+    light?: string;
+    dark?: string;
+    langs?: string[];
+}
+```
+
+Shiki highlighting options (themes and languages).
+
+### TOCConfig
+
+```ts
+interface TOCConfig {
+    minLevel?: number;
+    maxLevel?: number;
+}
+```
+
+Heading levels included when extracting a table of contents (defaults: 2 to 3).
+
+### TocHeading
+
+```ts
+interface TocHeading {
+    id: string;
+    text: string;
+    level: number;
+}
+```
+
+A single extracted heading.
+
+### BuildOptions
+
+```ts
+interface BuildOptions {
+    configPath?: string;
+    verbose?: boolean;
+    concurrency?: number;
+}
+```
+
+Options for `build()`. The effective default `concurrency` is 20.
+
+### BuildResult
+
+```ts
+interface BuildResult {
+    pages: PageBuildResult[];
+    totalTime: number;
+    warnings: string[];
+}
+```
+
+The result of `build()`.
+
+### PageBuildResult
+
+```ts
+interface PageBuildResult {
+    path: string;
+    file: string;
+    time: number;
+    size: number;
+}
+```
+
+Per-page build statistics.
+
+### DevOptions
+
+```ts
+interface DevOptions {
+    configPath?: string;
+    port?: number;
+    host?: string | boolean;
+    open?: boolean;
+    verbose?: boolean;
+}
+```
+
+Options for `dev()` and `preview()`.
+
+### SSGContext
+
+```ts
+interface SSGContext {
+    site: SiteConfig;
+    page: PageMeta;
+    params: Record<string, string>;
+    isDev: boolean;
+    base: string;
+}
+```
+
+The rendering context exposed to pages.
+
+### SSGPluginOptions
+
+```ts
+interface SSGPluginOptions extends Partial<SSGConfig> {
+    configPath?: string;
+    enableMdx?: boolean; // default true
+}
+```
+
+Options for `ssgPlugin()`.
+
+### SitemapEntry
+
+```ts
+interface SitemapEntry {
+    path: string;
+    lastmod?: Date | string;
+    changefreq?: 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never';
+    priority?: number;
+}
+```
+
+A single sitemap URL entry.
+
+### SitemapOptions
+
+```ts
+interface SitemapOptions {
+    includePages?: boolean;
+    additionalUrls?: SitemapEntry[];
+    exclude?: string[];
+    defaultChangefreq?: SitemapEntry['changefreq'];
+    defaultPriority?: number;
+}
+```
+
+Options for sitemap generation.
+
+## Virtual modules
+
+Ambient declarations are available by adding `@sigx/ssg/virtual` to `compilerOptions.types`. These modules are served by the Vite plugin at runtime.
+
+### virtual:ssg-routes
+
+```ts
+declare module 'virtual:ssg-routes' {
+    interface SSGRouteRecord {
+        path: string;
+        name: string;
+        file: string;
+        component: unknown;
+        meta: Record<string, unknown> & { headings?: unknown };
+        layout?: string;
+    }
+    const routes: SSGRouteRecord[];
+    export default routes;
+}
+```
+
+The generated list of routes; default-exported as an array of `SSGRouteRecord`.
+
+### virtual:ssg-navigation
+
+```ts
+declare module 'virtual:ssg-navigation' {
+    interface CollectionNavigation { sidebar: NavSection[] }
+    export const navigation: Record<string, CollectionNavigation>;
+    export function getCollectionNav(name: string): CollectionNavigation | undefined;
+    export function detectCollection(path: string): string | undefined;
+    export function getSidebar(name: string): NavSection[];
+    const _default: {
+        navigation: typeof navigation;
+        collections: Record<string, CollectionConfig>;
+        getCollectionNav: typeof getCollectionNav;
+        detectCollection: typeof detectCollection;
+        getSidebar: typeof getSidebar;
+    };
+    export default _default;
+}
+```
+
+Runtime navigation helpers: look up a collection's sidebar, detect the collection for a path, and access the full navigation map.
+
+### virtual:generated-layouts
+
+```ts
+declare module 'virtual:generated-layouts' {
+    export function setupLayouts<T>(routes: T): T;
+    export const LayoutRouter: unknown;
+}
+```
+
+Layout wiring used by the generated client and server entries: `setupLayouts` wraps routes with their layouts, and `LayoutRouter` is the root component.

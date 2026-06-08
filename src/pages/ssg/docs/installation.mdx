@@ -1,0 +1,90 @@
+---
+title: Installation
+description: "Install @sigx/ssg, its peer dependencies, and the required config / Vite wiring"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+## Install
+
+```bash
+npm install @sigx/ssg sigx @sigx/router
+npm install -D vite @sigx/vite
+```
+
+## Peer dependencies
+
+`@sigx/ssg` declares these peer dependencies:
+
+- **`sigx@^0.4.3`** — the SignalX runtime.
+- **`vite@>=8.0.0`** — Vite 8 or newer is required. The generator uses Vite 8's `oxc` JSX transform rather than esbuild.
+- **`@sigx/cli@*`** — optional, only needed for the `sigx ssg` CLI subcommands.
+
+Optional, auto-detected when installed:
+
+- **`@tailwindcss/vite`** — the zero-config dev server adds it automatically if present.
+- Theme packages such as **`@sigx/ssg-theme-daisyui`**, referenced through the config `theme` field.
+
+Heavy build-time dependencies (MDX, Shiki, gray-matter, fast-glob, the unified / remark / rehype stack, and the SignalX server renderer) are bundled into the package, so you do not install them separately.
+
+## Two ways to wire it up
+
+### 1. CLI plugin (zero-config)
+
+Drop an `ssg.config.ts` in your project root and run the CLI subcommands:
+
+```bash
+npx sigx ssg dev
+npx sigx ssg build
+npx sigx ssg preview
+```
+
+The package auto-registers as a `@sigx/cli` plugin. Its `detect` step activates when an `ssg.config.{ts,js,mjs}` file exists, so no Vite config is required.
+
+### 2. Vite plugin
+
+Import the plugin and add it to your Vite `plugins` array alongside `sigx()` from `@sigx/vite`. `ssgPlugin()` returns an **array** of plugins (the main plugin plus the MDX plugin), so spread it or pass it directly:
+
+```ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+import ssg from '@sigx/ssg/vite';
+
+export default defineConfig({
+    plugins: [sigx(), ssg()],
+});
+```
+
+## TypeScript: virtual module types
+
+To get ambient declarations for the virtual modules (`virtual:ssg-routes`, `virtual:ssg-navigation`, and `virtual:generated-layouts`), add the `@sigx/ssg/virtual` entry to `compilerOptions.types` in `tsconfig.json`:
+
+```json
+{
+    "compilerOptions": {
+        "types": ["@sigx/ssg/virtual"]
+    }
+}
+```
+
+This subpath provides type declarations only; it has no runtime.
+
+## Zero-config entry detection
+
+The generator auto-creates the client entry, server entry, and `index.html` unless you supply your own. It detects:
+
+- **Client entry** — `src/main.{tsx,ts}`, `src/entry-client.{tsx,ts}`, or `src/entry.{tsx,ts}`.
+- **Server entry** — `src/entry-server.{tsx,ts}`.
+- **HTML template** — `index.html`.
+- **Global CSS** — auto-imported if found at `src/styles/global.css` (or `main.css` / `index.css`), `src/style.css`, `src/global.css`, or `src/index.css`.
+
+You can override any of these through config (`clientEntry`, `serverEntry`, `htmlTemplate`, `autoEntries`).
+
+## Next steps
+
+- [Configuration & Content](/ssg/docs/configuration) — routing, layouts, collections, MDX, and the full config.
+- [Commands](/ssg/docs/commands) — every `sigx ssg` command with its flags.
+- [API Reference](/ssg/docs/api) — the public API surface.

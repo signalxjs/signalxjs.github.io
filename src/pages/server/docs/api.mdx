@@ -1,0 +1,701 @@
+---
+title: API Reference
+description: "@sigx/server-renderer — streaming SSR and island hydration — API reference"
+layout: docs
+category: API Reference
+order: 10
+---
+
+# API Reference
+
+Every public export of `@sigx/server-renderer`, grouped by kind. The import path
+for each symbol is noted, since the package splits into three subpaths:
+`@sigx/server-renderer` (main), `@sigx/server-renderer/server`, and
+`@sigx/server-renderer/client`.
+
+## Render functions
+
+### renderToString
+
+Render a JSX element or `App` to a complete HTML string. Awaits all async
+(`ssr.load`) components and plugin streaming chunks before resolving. Accepts an
+`App` from `defineApp()` (extracts the root component + `AppContext` for DI) or a
+raw JSX element.
+
+```ts
+function renderToString(input: JSXElement | App, context?: SSRContext): Promise<string>
+```
+
+- **input** — a raw JSX element, or an `App` from `defineApp()`.
+- **context** — optional pre-built `SSRContext` (auto-created if omitted).
+- **Returns** — a promise resolving to the full HTML string.
+- Exported from the main entry and `/server`.
+
+### renderToStream
+
+Render to a web `ReadableStream<string>`. Pull-based with 4KB chunk batching and
+natural backpressure; streams the shell first, then async-component replacement
+scripts interleaved as they resolve, then a final completion script. Recommended
+default.
+
+```ts
+function renderToStream(input: JSXElement | App, context?: SSRContext): ReadableStream<string>
+```
+
+- **input** — JSX element or `App`.
+- **context** — optional `SSRContext`.
+- **Returns** — a web `ReadableStream<string>`.
+- Exported from the main entry and `/server`.
+
+### renderToNodeStream
+
+Render to a Node.js `Readable` stream (objectMode), bypassing WebStream overhead.
+Faster than `renderToStream()` on Node — recommended for Express/Fastify/H3. Pipe
+directly to the HTTP response.
+
+```ts
+function renderToNodeStream(input: JSXElement | App, context?: SSRContext): Readable
+```
+
+- **input** — JSX element or `App`.
+- **context** — optional `SSRContext`.
+- **Returns** — a Node `Readable` (pipe to the response: `stream.pipe(res)`).
+- Exported from `/server` only (not the main entry).
+
+### renderToStreamWithCallbacks
+
+Callback-based streaming for fine-grained control. Calls `onShellReady(html)` once
+with the full synchronous shell (including plugin-injected HTML and the completion
+script), then `onAsyncChunk(chunk)` per resolved async component, then
+`onComplete()`; `onError(err)` on failure.
+
+```ts
+function renderToStreamWithCallbacks(input: JSXElement | App, callbacks: StreamCallbacks, context?: SSRContext): Promise<void>
+```
+
+- **input** — JSX element or `App`.
+- **callbacks** — a `StreamCallbacks` set.
+- **context** — optional `SSRContext`.
+- **Returns** — a promise that resolves when streaming completes.
+- Exported from `/server` only (not the main entry).
+
+### renderVNodeToString
+
+Low-level helper that renders a single VNode subtree to an HTML string using an
+existing `SSRContext` (used internally for deferred async content).
+
+```ts
+function renderVNodeToString(element: JSXElement, ctx: SSRContext, appContext?: AppContext | null): Promise<string>
+```
+
+- **element** — the VNode subtree to render.
+- **ctx** — an existing `SSRContext`.
+- **appContext** — optional `AppContext` for DI.
+- **Returns** — a promise resolving to the subtree's HTML.
+- Exported from the main entry and `/server`.
+
+## SSR instance & context
+
+### createSSR
+
+Creates a plugin-driven SSR instance. Register plugins via `.use()`, then render
+with `.render()`/`.renderStream()`/`.renderNodeStream()`/`.renderStreamWithCallbacks()`.
+With no plugins, the hooks are no-ops and it behaves like the standalone
+`renderToString`/`renderToStream` functions. The strategy-agnostic core —
+islands/selective/resumable hydration are layered on as `SSRPlugin`s.
+
+```ts
+function createSSR(): SSRInstance
+```
+
+- **Returns** — an `SSRInstance`.
+- Exported from the main entry.
+
+### createSSRContext
+
+Create a fresh `SSRContext` that tracks component IDs/markers, collected `<head>`
+HTML, plugin data, streaming mode, and pending async components.
+
+```ts
+function createSSRContext(options?: SSRContextOptions): SSRContext
+```
+
+- **options** — `streaming` and `onComponentError`.
+- **Returns** — a new `SSRContext`.
+- Exported from the main entry and `/server`.
+
+## Head management
+
+### useHead
+
+Composable to manage `<head>` elements (title, titleTemplate, meta, link, script,
+htmlAttrs, bodyAttrs) from inside a component. During SSR it collects configs into
+the active `SSRContext`; on the client it mutates the DOM directly and registers
+cleanup on component unmount.
+
+```ts
+function useHead(config: HeadConfig): void
+```
+
+- **config** — a `HeadConfig`.
+- Exported from the main entry.
+
+### renderHeadToString
+
+Render an array of collected `HeadConfig` objects to an HTML string. Dedupes meta
+by name/property/http-equiv/charset, applies the last title (through
+`titleTemplate`'s `%s` if set), and HTML/attr-escapes output.
+
+```ts
+function renderHeadToString(configs: HeadConfig[]): string
+```
+
+- **configs** — collected `HeadConfig` objects.
+- **Returns** — the head HTML string.
+- Exported from the main entry.
+
+### enableSSRHead
+
+Switch head management into SSR-collection mode and reset the buffer. Called by the
+renderer before rendering so `useHead()` collects instead of touching the DOM.
+
+```ts
+function enableSSRHead(): void
+```
+
+- Exported from the main entry.
+
+### collectSSRHead
+
+Disable SSR head mode and return (and clear) the `HeadConfig`s collected since
+`enableSSRHead()`. Pass the result to `renderHeadToString()`.
+
+```ts
+function collectSSRHead(): HeadConfig[]
+```
+
+- **Returns** — the collected `HeadConfig[]`.
+- Exported from the main entry.
+
+## Streaming script helpers
+
+### generateStreamingScript
+
+Returns the one-time client bootstrap `<script>` defining
+`window.$SIGX_REPLACE(id, html)`, which swaps an async placeholder
+(`[data-async-placeholder="id"]`) with rendered HTML and dispatches a
+`sigx:async-ready` CustomEvent. Emitted once before any replacement scripts.
+
+```ts
+function generateStreamingScript(): string
+```
+
+- **Returns** — the bootstrap script HTML.
+- Exported from `/server`.
+
+### generateReplacementScript
+
+Generate the `<script>$SIGX_REPLACE(id, "...escaped html...")</script>` for a
+resolved async component, used during streaming to replace its placeholder.
+
+```ts
+function generateReplacementScript(id: number, html: string, extraScript?: string): string
+```
+
+- **id** — the async component id.
+- **html** — rendered HTML to inject.
+- **extraScript** — optional extra script appended after the replacement call.
+- **Returns** — the replacement script HTML.
+- Exported from `/server`.
+
+### escapeJsonForScript
+
+Escape a JSON string for safe embedding inside a `<script>` tag (replaces `<`, `>`,
+U+2028, U+2029) to prevent XSS / script-context breakout.
+
+```ts
+function escapeJsonForScript(json: string): string
+```
+
+- **json** — the JSON string to escape.
+- **Returns** — the escaped string.
+- Exported from `/server`.
+
+### generateSignalKey
+
+Generate the stable serialization key for a signal during SSR state
+capture/restore. Named signals use the name; unnamed use a positional key
+(`$0`, `$1`, …). Server (tracking) and client (restoring) MUST both use this for
+key parity.
+
+```ts
+function generateSignalKey(name: string | undefined, index: number): string
+```
+
+- **name** — the signal's name, or `undefined` for positional keying.
+- **index** — the declaration index for unnamed signals.
+- **Returns** — the serialization key.
+- Exported from the main entry and `/server`.
+
+## Client hydration
+
+### ssrClientPlugin
+
+A sigx app `Plugin` (name `'@sigx/server-renderer/client'`) that adds
+`app.hydrate(container)` to the `App` instance. `hydrate()` resolves a string
+selector or `Element`, finds the root component + `AppContext`, and hydrates
+existing SSR DOM (or falls back to client-side `render()` when the container has no
+SSR content).
+
+```ts
+const ssrClientPlugin: Plugin
+```
+
+- Use via `defineApp(<App/>).use(ssrClientPlugin).hydrate('#root')`.
+- Exported from the main entry and `/client`.
+
+### hydrate
+
+Core hydration entry: normalizes `element` to a VNode, sets the current
+`AppContext` for DI, runs registered client plugins' `beforeHydrate` (return
+`false` to skip the DOM walk, e.g. resumable SSR), walks existing SSR DOM via
+`hydrateNode`, then runs `afterHydrate` hooks. Stores `_vnode` on the container.
+
+```ts
+function hydrate(element: any, container: Element, appContext?: AppContext): void
+```
+
+- **element** — the root element/VNode.
+- **container** — the SSR container element.
+- **appContext** — optional `AppContext` for DI.
+- Exported from `/client`.
+
+### hydrateNode
+
+Hydrate a single VNode against existing DOM (no DOM creation in the happy path);
+attaches events/props/directives/refs, skips SSR comment markers
+(`<!--t-->`, `<!--$c:N-->`), recovers from minor SSR drift by scanning forward
+(dev warns), and returns the next sibling DOM node. Recurses for
+fragments/components/elements.
+
+```ts
+function hydrateNode(vnode: VNode, dom: Node | null, parent: Node): Node | null
+```
+
+- **vnode** — the VNode to hydrate.
+- **dom** — the candidate DOM node (or `null`).
+- **parent** — the parent DOM node.
+- **Returns** — the next sibling DOM node, or `null`.
+- Exported from `/client`.
+
+### hydrateComponent
+
+Hydrate a single component: locates its trailing `<!--$c:N-->` marker, builds
+reactive props/slots, creates the `ComponentSetupContext` (with a client `ssr`
+helper whose `load()` is a no-op when `serverState` is present), runs setup, and
+creates the reactive effect that hydrates-on-first-run then patches. Used by SSR
+strategy plugins for selective/island hydration.
+
+```ts
+function hydrateComponent(vnode: VNode, dom: Node | null, parent: Node, serverState?: Record<string, any>, trailingMarker?: Comment | null): Node | null
+```
+
+- **vnode** — the component VNode.
+- **dom** — the candidate DOM node.
+- **parent** — the parent DOM node.
+- **serverState** — optional server-captured signal state.
+- **trailingMarker** — optional precomputed trailing marker comment.
+- **Returns** — the next sibling DOM node, or `null`.
+- Exported from `/client`.
+
+### registerClientPlugin
+
+Register a client-side `SSRPlugin` so its
+`client.beforeHydrate`/`hydrateComponent`/`afterHydrate` hooks run during
+hydration. The mechanism behind selective/island/resumable hydration strategies.
+
+```ts
+function registerClientPlugin(plugin: SSRPlugin): void
+```
+
+- **plugin** — the `SSRPlugin` to register.
+- Exported from `/client`.
+
+### getClientPlugins
+
+Return all currently registered client-side `SSRPlugin`s.
+
+```ts
+function getClientPlugins(): SSRPlugin[]
+```
+
+- **Returns** — the registered client plugins.
+- Exported from `/client`.
+
+### clearClientPlugins
+
+Clear all registered client plugins (useful for testing).
+
+```ts
+function clearClientPlugins(): void
+```
+
+- Exported from `/client`.
+
+### createRestoringSignal
+
+Create a `signal()` replacement that restores values from server-captured state by
+key (via `generateSignalKey`), avoiding client re-fetch during hydration.
+Dev-warns once if an unnamed (positional-key) signal is restored, since
+declaration-order drift between server/client builds silently mismatches state.
+
+```ts
+function createRestoringSignal(serverState: Record<string, any>): SSRSignalFn
+```
+
+- **serverState** — the server-captured signal state.
+- **Returns** — an `SSRSignalFn` that restores from state.
+- Exported from `/client`.
+
+### setPendingServerState
+
+Set server-captured signal state to apply to the next component mounted during
+hydration (used internally when mounting async components after streaming). The
+context extension consumes and clears it.
+
+```ts
+function setPendingServerState(state: Record<string, any> | null): void
+```
+
+- **state** — the state to apply next, or `null` to clear.
+- Exported from `/client`.
+
+### getCurrentAppContext
+
+Get the `AppContext` tracked during hydration (for DI in deferred/island hydration
+callbacks).
+
+```ts
+function getCurrentAppContext(): AppContext | null
+```
+
+- **Returns** — the current `AppContext`, or `null`.
+- Exported from `/client`.
+
+### setCurrentAppContext
+
+Set the current `AppContext` during hydration.
+
+```ts
+function setCurrentAppContext(ctx: AppContext | null): void
+```
+
+- **ctx** — the `AppContext` to set, or `null`.
+- Exported from `/client`.
+
+## Interfaces & types
+
+### SSRInstance
+
+The object returned by `createSSR()`. `use()` is chainable. Render methods accept
+`SSRContextOptions` or a pre-built `SSRContext`. `createContext()` builds a raw
+`SSRContext` with this instance's plugins pre-configured.
+
+```ts
+interface SSRInstance {
+  use(plugin: SSRPlugin): SSRInstance;
+  render(input: JSXElement | App, options?: SSRContextOptions | SSRContext): Promise<string>;
+  renderStream(input: JSXElement | App, options?: SSRContextOptions | SSRContext): ReadableStream<string>;
+  renderNodeStream(input: JSXElement | App, options?: SSRContextOptions | SSRContext): import('node:stream').Readable;
+  renderStreamWithCallbacks(input: JSXElement | App, callbacks: StreamCallbacks, options?: SSRContextOptions | SSRContext): Promise<void>;
+  createContext(options?: SSRContextOptions): SSRContext;
+}
+```
+
+- Exported as a type from the main entry.
+
+### SSRPlugin
+
+The strategy-agnostic extension interface that implements
+selective/island/resumable/Suspense hydration without core changes. Server hooks
+fire during render; client hooks fire during hydration.
+
+```ts
+interface SSRPlugin {
+  name: string;
+  server?: {
+    setup?(ctx: SSRContext): void;
+    transformComponentContext?(ctx: SSRContext, vnode: VNode, componentCtx: ComponentSetupContext): ComponentSetupContext | void;
+    afterRenderComponent?(id: number, vnode: VNode, html: string, ctx: SSRContext): string | void;
+    handleAsyncSetup?(id: number, ssrLoads: Promise<void>[], renderFn: () => any, ctx: SSRContext): { mode: 'block' | 'stream' | 'skip'; placeholder?: string } | void;
+    onAsyncComponentResolved?(id: number, html: string, ctx: SSRContext): { html?: string; script?: string } | void;
+    getInjectedHTML?(ctx: SSRContext): string | Promise<string>;
+    getStreamingChunks?(ctx: SSRContext): AsyncGenerator<string> | void;
+  };
+  client?: {
+    beforeHydrate?(container: Element): boolean | void;
+    hydrateComponent?(vnode: VNode, dom: Node | null, parent: Node): Node | null | undefined;
+    afterHydrate?(container: Element): void;
+  };
+}
+```
+
+- `client.beforeHydrate` returning `false` skips the default DOM walk (resumable).
+- `client.hydrateComponent` returning a `Node` claims a component (islands
+  intercept `client:*` props).
+- Exported as a type from the main entry.
+
+### SSRContext
+
+Per-render context tracking component IDs/markers, collected head HTML, streaming
+flag, pending async components, and per-plugin data (get/setPluginData keyed by
+plugin name).
+
+```ts
+interface SSRContext {
+  _componentId: number;
+  _componentStack: number[];
+  _head: string[];
+  _onComponentError?: (error: Error, componentName: string, componentId: number) => string | null;
+  _plugins?: SSRPlugin[];
+  _pluginData: Map<string, any>;
+  _streaming: boolean;
+  _pendingAsync: CorePendingAsync[];
+  nextId(): number;
+  pushComponent(id: number): void;
+  popComponent(): number | undefined;
+  addHead(html: string): void;
+  getHead(): string;
+  getPluginData<T>(pluginName: string): T | undefined;
+  setPluginData<T>(pluginName: string, data: T): void;
+}
+```
+
+- Exported as a type from the main entry and `/server`.
+
+### SSRContextOptions
+
+Options for `createSSRContext()` and the render methods. `streaming` defaults to
+`true`. `onComponentError` returns fallback HTML for a component whose `setup()`
+throws, or `null` for the default error placeholder.
+
+```ts
+interface SSRContextOptions {
+  streaming?: boolean;
+  onComponentError?: (error: Error, componentName: string, componentId: number) => string | null;
+}
+```
+
+- Exported as a type from the main entry and `/server`.
+
+### RenderOptions
+
+Optional wrapper carrying a custom `SSRContext` (auto-created if absent).
+
+```ts
+interface RenderOptions {
+  context?: SSRContext;
+}
+```
+
+- Exported as a type from the main entry and `/server`.
+
+### CorePendingAsync
+
+A core-managed pending async component: its component id plus a promise resolving
+to its rendered HTML once `ssr.load()` completes. Populated by render-core in
+streaming mode when no plugin overrides.
+
+```ts
+interface CorePendingAsync {
+  id: number;
+  promise: Promise<string>;
+}
+```
+
+- Exported as a type from the main entry and `/server`.
+
+### StreamCallbacks
+
+Callback set for `renderToStreamWithCallbacks()`: `onShellReady(shell html)`,
+`onAsyncChunk(per resolved async component)`, `onComplete()`, `onError(err)`.
+
+```ts
+interface StreamCallbacks {
+  onShellReady: (html: string) => void;
+  onAsyncChunk: (chunk: string) => void;
+  onComplete: () => void;
+  onError: (error: Error) => void;
+}
+```
+
+- Exported as a type from `/server`.
+
+### SSRHelper
+
+The `ssr` object injected into every `ComponentSetupContext` (via module
+augmentation of `@sigx/runtime-core`). `ssr.load(fn)` runs async data fetching on
+the server and is skipped on the client during hydration (state restored from
+server). `isServer`/`isHydrating` flags.
+
+```ts
+interface SSRHelper {
+  load(fn: () => Promise<void>): void;
+  readonly isServer: boolean;
+  readonly isHydrating: boolean;
+}
+```
+
+- Exported as a type from the main entry.
+
+### ComponentFactory
+
+Minimal component-factory shape consumed by `hydrateComponent` (compatible with
+runtime-core's `ComponentFactory`).
+
+```ts
+interface ComponentFactory {
+  __setup: Function;
+  __name?: string;
+  __async?: boolean;
+}
+```
+
+- Exported as a type from `/client`.
+
+### InternalVNode
+
+VNode extended with internal hydration bookkeeping (subtree refs, reactive effect,
+props/slots). Exposed for plugin authors.
+
+```ts
+interface InternalVNode extends VNode {
+  _subTree?: VNode;
+  _subTreeRef?: { current: VNode | null };
+  _effect?: any;
+  _componentProps?: any;
+  _slots?: any;
+}
+```
+
+- Exported as a type from `/client`.
+
+### HeadConfig
+
+Config object passed to `useHead()`/`renderHeadToString()`. `titleTemplate` uses
+`%s` as the title placeholder.
+
+```ts
+interface HeadConfig {
+  title?: string;
+  titleTemplate?: string;
+  meta?: HeadMeta[];
+  link?: HeadLink[];
+  script?: HeadScript[];
+  htmlAttrs?: { lang?: string; dir?: string; [key: string]: string | undefined };
+  bodyAttrs?: { class?: string; [key: string]: string | undefined };
+}
+```
+
+- Exported as a type from the main entry.
+
+### HeadMeta
+
+A `<meta>` tag descriptor. Deduped by name/property/http-equiv/charset during
+`renderHeadToString()`.
+
+```ts
+interface HeadMeta {
+  name?: string;
+  property?: string;
+  'http-equiv'?: string;
+  charset?: string;
+  content?: string;
+  [key: string]: string | undefined;
+}
+```
+
+- Exported as a type from the main entry.
+
+### HeadLink
+
+A `<link>` tag descriptor.
+
+```ts
+interface HeadLink {
+  rel: string;
+  href?: string;
+  type?: string;
+  crossorigin?: string;
+  [key: string]: string | undefined;
+}
+```
+
+- Exported as a type from the main entry.
+
+### HeadScript
+
+A `<script>` tag descriptor; boolean attrs (`async`/`defer`) render as bare
+attributes, `innerHTML` becomes the script body.
+
+```ts
+interface HeadScript {
+  src?: string;
+  type?: string;
+  async?: boolean;
+  defer?: boolean;
+  innerHTML?: string;
+  [key: string]: string | boolean | undefined;
+}
+```
+
+- Exported as a type from the main entry.
+
+### SSRSignalFn
+
+`signal()` function type augmented with an optional name used as the hydration
+serialization key. Shared by server tracking signals and client restoring signals.
+
+```ts
+type SSRSignalFn = {
+  <T extends Primitive>(initial: T, name?: string): PrimitiveSignal<T>;
+  <T extends object>(initial: T, name?: string): Signal<T>;
+}
+```
+
+- Exported as a type from the main entry and `/server` (re-exported from `/client`).
+
+### HydrateFn
+
+The hydrate function signature (mirrors the `MountFn` pattern).
+
+```ts
+type HydrateFn<TContainer = any> = (element: any, container: TContainer, appContext: AppContext) => (() => void) | void
+```
+
+- Exported from `/client` alongside `ssrClientPlugin`.
+
+## Module augmentations
+
+The package augments `@sigx/runtime-core` via `declare module` to integrate SSR
+into the core framework types. These are applied automatically on import:
+
+```ts
+// Adds getSSRProps to directive definitions (for SSR serialization)
+interface DirectiveDefinitionExtensions<T> {
+  getSSRProps?(binding: DirectiveBinding<T>): Record<string, any> | void;
+}
+
+// ssrClientPlugin adds hydrate() to App
+interface App<TContainer = any> {
+  hydrate?(container: TContainer): App<TContainer>;
+}
+
+// Adds the ssr helper (and internal state) to ComponentSetupContext
+interface ComponentSetupContext {
+  ssr: SSRHelper;
+  _signals?: Map<string, any>;
+  _serverState?: Record<string, any>;
+  _ssrLoads?: Promise<void>[];
+}
+```

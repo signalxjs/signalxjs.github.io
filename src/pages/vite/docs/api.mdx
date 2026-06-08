@@ -1,0 +1,212 @@
+---
+title: API Reference
+description: "@sigx/vite — Vite plugin with HMR for SignalX components — API reference"
+layout: docs
+category: API Reference
+order: 10
+---
+
+# API Reference
+
+Every public export of `@sigx/vite`, grouped by entry point and kind.
+
+## Plugin (from `@sigx/vite`)
+
+### sigxPlugin
+
+```ts
+export function sigxPlugin(options: SigxPluginOptions = {}): Plugin;
+```
+
+The main Vite plugin. Returns a Vite `Plugin` object with `name: 'sigx'` and
+`enforce: 'pre'`.
+
+- In dev (`command === 'serve'`) it aliases the SignalX runtime packages —
+  `sigx`, `sigx/internals`, `sigx/jsx-runtime`, `sigx/jsx-dev-runtime`,
+  `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`,
+  `@sigx/server-renderer`, plus their `/internals` subpaths — to their `src`
+  entry files so a single reactivity instance is shared, and excludes them from
+  `optimizeDeps` pre-bundling.
+- In build (`command === 'build'`) it dedupes those packages and forces them all
+  into a single `sigx` manual chunk to preserve singleton reactivity.
+- Its `transform` hook injects the HMR runtime registration into any
+  `.ts`/`.tsx`/`.jsx` source file (outside `node_modules` and `/dist/`) that
+  contains a `component<` or `component(` usage, when `hmr` is `true` and in
+  serve mode.
+
+**Parameters**
+
+- `options` — `SigxPluginOptions`. Optional; defaults to `{}`.
+
+**Returns** — a Vite `Plugin`.
+
+### default
+
+```ts
+export default sigxPlugin;
+```
+
+The default export, an alias for `sigxPlugin`. Idiomatic usage:
+
+```ts
+import sigx from '@sigx/vite';
+
+export default {
+    plugins: [sigx()],
+};
+```
+
+### installHMRPlugin
+
+```ts
+export function installHMRPlugin(): Promise<void>;
+```
+
+Re-exported from `@sigx/vite/hmr` through the main entry. Installs the
+browser-side SignalX HMR component plugin exactly once (guarded by an internal
+`installed` flag). It lazily imports `registerComponentPlugin` from
+`sigx/internals` to avoid a circular-init dependency, then registers an
+`onDefine` hook that assigns each component a stable `__hmrId`, re-binds live
+instances to the new setup/render function on reload, and tracks and cleans up
+instances. Auto-invoked when the HMR module loads, so manual calls are rarely
+needed.
+
+**Returns** — `Promise<void>`.
+
+### registerHMRModule
+
+```ts
+export function registerHMRModule(moduleId: string): void;
+```
+
+Re-exported from `@sigx/vite/hmr` through the main entry. Injected at the top of
+each HMR-transformed module; it sets the current module id and resets that
+module's component index to `0` so component ids (`moduleId:index`) stay stable
+across re-executions. Normally injected automatically by the plugin's
+`transform` hook, not called by hand.
+
+**Parameters**
+
+- `moduleId` — `string`. The id of the module being registered.
+
+**Returns** — `void`.
+
+## Library Builds (from `@sigx/vite/lib`)
+
+### defineLibConfig
+
+```ts
+export function defineLibConfig(options: LibBuildOptions): UserConfig;
+```
+
+Produces a Vite 8 / Rolldown library-build `UserConfig` for `@sigx/*` packages.
+It normalizes the entry (`string` | record | `LibEntry[]`) into a Rolldown lib
+config (ES format only, file name `${entryName}.js`), resolves alias paths
+against `root` (accepts a `file://` URL or directory), and **always** prepends
+the SignalX runtime externals — `sigx`, `@sigx/reactivity`,
+`@sigx/runtime-core`, `@sigx/runtime-dom`, `@sigx/server-renderer`, and their
+subpaths — to the caller's `external` list (deduped) to preserve singleton
+reactivity.
+
+It sets `build.emptyOutDir: true`, `sourcemap` (default `true`), minify via Oxc
+(`'oxc'` or `false`), an optional `output.banner`, a node target (`node18`) when
+`platform === 'node'`, and Oxc automatic JSX with import source `sigx` when
+`jsx` is `true`. The result is wrapped in Vite's `defineConfig`.
+
+**Parameters**
+
+- `options` — `LibBuildOptions`. Required.
+
+**Returns** — a Vite `UserConfig`.
+
+### defineConfig
+
+```ts
+export { defineConfig };
+```
+
+A direct re-export of Vite's own `defineConfig` from the `@sigx/vite/lib`
+subpath, for convenience when composing custom configs alongside
+`defineLibConfig`.
+
+## Types
+
+### SigxPluginOptions
+
+```ts
+interface SigxPluginOptions {
+    /**
+     * Enable HMR support
+     * @default true
+     */
+    hmr?: boolean;
+}
+```
+
+Options for `sigxPlugin`. The only field is `hmr`, which toggles HMR injection.
+
+> **Note.** This interface is declared but not exported from the package — the
+> `hmr` option is the only public-facing surface. Consumers cannot import the
+> type by name; pass the option inline: `sigx({ hmr: false })`.
+
+### LibBuildOptions
+
+```ts
+export interface LibBuildOptions {
+    /** Single entry point or multiple entry points */
+    entry: string | Record<string, string> | LibEntry[];
+    /** Output directory @default 'dist' */
+    outDir?: string;
+    /** Enable sourcemaps @default true */
+    sourcemap?: boolean;
+    /** External dependencies (will not be bundled) @default [/@sigx\/.*/] */
+    external?: (string | RegExp)[];
+    /** Path aliases for bundling sibling packages. Keys are import paths, values are file paths relative to project root */
+    alias?: Record<string, string>;
+    /** Enable minification (produces additional .min.js files) @default true */
+    minify?: boolean;
+    /** Banner to prepend to output (e.g., shebang for CLI tools) */
+    banner?: string;
+    /** Enable JSX transform for sigx @default false */
+    jsx?: boolean;
+    /** Platform target @default 'browser' */
+    platform?: 'browser' | 'node' | 'neutral';
+    /** The directory containing package.json (used to resolve aliases). Pass import.meta.url from your vite.config.ts */
+    root?: string;
+}
+```
+
+Options for `defineLibConfig`. Only `entry` is required; the rest use the
+documented defaults.
+
+### LibEntry
+
+```ts
+export interface LibEntry {
+    /** Entry name (becomes output filename without extension) */
+    name: string;
+    /** Entry file path relative to project root */
+    entry: string;
+}
+```
+
+A single named entry in the array form of `LibBuildOptions.entry`.
+
+## CLI
+
+### sigx-types
+
+```bash
+npx sigx-types [options]
+```
+
+Generates `components.d.ts` and `components.ts` for tag-named components. See the
+[Commands](/vite/docs/commands) guide for usage, flags, and the v0.4.9
+packaging caveat.
+
+## See Also
+
+- [Getting Started](/vite/docs/getting-started)
+- [HMR for Components](/vite/docs/hmr)
+- [Library Builds](/vite/docs/library-builds)
+- [Commands](/vite/docs/commands)

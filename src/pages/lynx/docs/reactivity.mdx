@@ -10,20 +10,219 @@ order: 70
 
 <p class="lede">Your components run on a background thread; the views live on the main thread. Signals bridge the two.</p>
 
+## Two threads, one component tree
+
+Lynx runs your app across two JavaScript contexts:
+
+- The **background thread** (the "JS thread") runs everything you write: component setup, `signal` / `computed` / `effect`, and the SignalX renderer. This is where reactivity lives.
+- The **main thread** (also called *Lepus*) is frame-locked to the UI. It applies native view updates, runs `'main thread'` worklets, and drives per-frame animation.
+
+The split matters because it is what keeps the UI at 60fps even while JS is busy. Gestures and animations can run on the main thread without waiting for the background thread to wake up.
+
+You almost never think about this when writing normal reactive UI — a `signal` change on the background thread streams to the main thread as a compact op and patches the affected native view. You only reach for the cross-thread primitives below when you need values the main thread reads *every frame*.
+
+## Signals run on the background thread
+
+`signal`, `computed` and `effect` are the same primitives you use on the web, re-exported from `@sigx/lynx`. On Lynx they all execute on the background thread:
+
+```tsx
+import { signal, computed, effect } from '@sigx/lynx';
+
+const count = signal(0);
+const doubled = computed(() => count.value * 2);
+
+const runner = effect(() => {
+    console.log('count is', count.value);
+});
+
+count.value = 1; // re-runs the effect, recomputes `doubled`
+
+runner.stop(); // dispose the effect when you're done
+```
+
+Read `.value` to track a dependency; assign `.value` to trigger dependents. `effect` returns a runner with `.stop()` to dispose it. Inside a `component`, the framework manages effect lifetimes for you — you rarely call `effect` directly.
+
 ## The op queue
 
-Signal updates batch into a compact op stream that `@sigx/lynx-runtime-main` applies via the Lynx PAPI — no serialization of your component tree, just the deltas.
+When a signal changes, the renderer does not re-serialize your component tree. It buffers a small set of ops and flushes them as one batched call to the main thread per microtask. The main-thread runtime (`@sigx/lynx-runtime-main`) applies that op stream through the Lynx PAPI, so only the native views that read a changed signal update.
 
-## SharedValue
+This is the default path for all ordinary reactive UI. You opt into the primitives below only when a value must be readable on the main thread directly.
 
-For values the main thread must read every frame (gestures, animations), use a `SharedValue`:
+## SharedValue: a value the main thread can write
+
+A `SharedValue<T>` is a value the **main thread writes** and the **background thread reads**. It is the bridge in the other direction — main thread → background thread — and it is what powers gestures, scroll and animations.
+
+Allocate one with `useSharedValue` inside a component:
 
 ```tsx
 import { useSharedValue } from '@sigx/lynx';
 
-const offset = useSharedValue(0);
+const tx = useSharedValue(0);
 ```
 
-[Motion](/lynx/modules/motion/overview) and [Gestures](/lynx/modules/gestures/overview) build on this — animation progress is observable from the background thread for free.
+You read `tx.value` on the background thread and it is reactive: an `effect` or `computed` that reads `tx.value` re-runs whenever the main thread publishes a new value.
 
-{/* TODO: worklets, runOnMainThread, useMainThreadRef */}
+```tsx
+import { component, useSharedValue } from '@sigx/lynx';
+
+export const DragReadout = component(() => {
+    const tx = useSharedValue(0);
+    return () => (
+        <view style={{ padding: 24 }}>
+            {/* a gesture/animation drives tx on the main thread */}
+            <text>x = {tx.value}</text>
+        </view>
+    );
+});
+```
+
+Each time the main thread updates `tx`, the `text` element that reads `tx.value` re-renders — frame data flows back into ordinary SignalX reactivity for free.
+
+### Reading vs writing
+
+The direction is asymmetric, and that is the whole point:
+
+- **Main thread (writeable):** inside a `'main thread'` worklet you mutate `sv.current.value = newValue`. The bridge picks up the change at the next frame boundary.
+- **Background thread (read-only):** you read `sv.value`. Writing `sv.value` on the background thread does nothing useful and warns in development — the source of truth lives on the main thread.
+
+Under the hood a `SharedValue` is backed by a SignalX `PrimitiveSignal` on the background side. When the main thread publishes, that mirror signal is updated, which re-runs any effect or computed that read it on the scheduler's next tick. Many writes inside one frame collapse to a single published update, and identical writes are filtered out.
+
+`SharedValue` holds primitives in practice — numbers (the default) and strings.
+
+## MainThreadRef: a handle to a native element
+
+A `MainThreadRef<T>` is a ref whose `.current` lives on the **main thread**. On the background thread `.current` is just the initial value (usually `null`); the real native element handle only exists inside main-thread code.
+
+Create one with `useMainThreadRef` and bind it with `main-thread:ref`:
+
+```tsx
+import { component, useMainThreadRef } from '@sigx/lynx';
+import type { MainThread } from '@sigx/lynx';
+
+export const StickyHeader = component(() => {
+    const elRef = useMainThreadRef<MainThread.Element>(null);
+
+    function handleScroll(e: { detail: { scrollTop: number } }) {
+        'main thread';
+        const offset = e.detail.scrollTop;
+        elRef.current?.setStyleProperties({
+            transform: `translateY(${-offset}px)`,
+        });
+    }
+
+    return () => (
+        <scroll-view main-thread-bindscroll={handleScroll}>
+            <view main-thread:ref={elRef}>
+                <text>Sticky header</text>
+            </view>
+        </scroll-view>
+    );
+});
+```
+
+Inside the `'main thread'` handler, `elRef.current` is the real Lynx element, so you can call `setStyleProperties`, `getComputedStyleProperty` or `animate` synchronously — no thread hop, no frame delay.
+
+## The 'main thread' directive
+
+The `'main thread'` string at the top of a function is a build-time marker. A bundler plugin (`@sigx/lynx-plugin`) transforms any function carrying that directive: in the background bundle the body is replaced with a placeholder, and the real function is registered in the main-thread bundle. That is why these handlers can touch native elements directly — they actually run on the main thread.
+
+This is also why you cannot just pass any closure across threads: a live JS function can't be serialized over the bridge, so the build step has to split it ahead of time. Make sure the plugin's worklet loader is wired in your bundler — without it, the cross-thread calls silently fall back to running on the background thread.
+
+## runOnMainThread: call into the main thread
+
+When you need to imperatively run code on the main thread from the background thread, wrap it with `runOnMainThread`. The wrapped function must carry the `'main thread'` directive:
+
+```tsx
+import { runOnMainThread, useMainThreadRef } from '@sigx/lynx';
+import type { MainThread } from '@sigx/lynx';
+
+const ref = useMainThreadRef<MainThread.Element>(null);
+
+const updateOffset = runOnMainThread((offset: number) => {
+    'main thread';
+    ref.current?.setStyleProperties({
+        transform: `translateX(${offset}px)`,
+    });
+});
+
+updateOffset(100); // returns a Promise
+```
+
+`runOnMainThread` returns a callable that ships the worklet id and its arguments to the main thread on each invocation and resolves with a `Promise`. Any `MainThreadRef` captured by the worklet is sanitized so it survives serialization.
+
+## runOnBackground: call back into the background thread
+
+The mirror primitive runs in the other direction: from inside a `'main thread'` worklet, call `runOnBackground` to invoke a background-thread function (for example, to update a signal in response to a gesture):
+
+```tsx
+import { component, signal, runOnBackground, useMainThreadRef } from '@sigx/lynx';
+import type { MainThread } from '@sigx/lynx';
+
+export const ScrollTracker = component(() => {
+    const top = signal(0);
+    const ref = useMainThreadRef<MainThread.Element>(null);
+
+    function handleScroll(e: { detail: { scrollTop: number } }) {
+        'main thread';
+        const offset = e.detail.scrollTop;
+        runOnBackground((y: number) => {
+            top.value = y;
+        })(offset);
+    }
+
+    return () => (
+        <scroll-view main-thread-bindscroll={handleScroll} main-thread:ref={ref}>
+            <text>scrollTop = {top.value}</text>
+        </scroll-view>
+    );
+});
+```
+
+`runOnBackground` returns a `Promise`. Note that promises returned by the background function itself are not transferable across the bridge — keep the return value a plain serializable value. Calling `runOnBackground` outside a `'main thread'` body throws, because the build transform only rewrites it inside worklets.
+
+## Animating a SharedValue without crossing threads
+
+For animation, the cheapest path keeps the per-frame work entirely on the main thread. `useAnimatedStyle` binds a `MainThreadRef` element's style to a `SharedValue` through a named mapper — the mapper runs on the main thread on every frame the value changed, with no thread crossing per frame:
+
+```tsx
+import { component, useSharedValue, useMainThreadRef, useAnimatedStyle } from '@sigx/lynx';
+import type { MainThread } from '@sigx/lynx';
+
+export const Ghost = component(() => {
+    const tx = useSharedValue(0);
+    const ghostRef = useMainThreadRef<MainThread.Element | null>(null);
+
+    useAnimatedStyle(ghostRef, tx, 'translateX', { factor: 0.5 });
+
+    return () => (
+        <view main-thread:ref={ghostRef} style={{ width: 40, height: 40 }} />
+    );
+});
+```
+
+There is also a reactive form that takes an accessor returning a `{ sv, mapperName, params }` spec (or `null` for no binding); it re-binds when the spec changes. Multiple bindings on one element merge into a single style update per frame.
+
+> `AnimatedValue` / `useAnimatedValue` were renamed to `SharedValue` / `useSharedValue`. Use the `SharedValue` names; the old ones are deprecated.
+
+## A single import surface
+
+Everything above comes from one barrel — `@sigx/lynx` re-exports the reactivity core, the runtime core, and the Lynx runtime:
+
+```tsx
+import {
+    signal,
+    computed,
+    effect,
+    useSharedValue,
+    useMainThreadRef,
+    runOnMainThread,
+    runOnBackground,
+    useAnimatedStyle,
+} from '@sigx/lynx';
+```
+
+## Where to go next
+
+- [Motion](/lynx/modules/motion/overview) builds animations on `SharedValue` — progress is observable from the background thread for free.
+- [Gestures](/lynx/modules/gestures/overview) drive `SharedValue` from main-thread gesture handlers.
+- [Runtime](/lynx/modules/runtime/overview) and [Runtime (main)](/lynx/modules/runtime-main/overview) document the two halves of the bridge.

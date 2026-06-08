@@ -10,14 +10,139 @@ order: 30
 
 <p class="lede">Signals, computed & effects — the essentials.</p>
 
+`@sigx/reactivity` is the Core reactivity engine that powers the whole `sigx` umbrella. The runtime packages build their rendering on top of these same primitives, so everything you learn here applies framework-wide. You can also use the package standalone for state management with no DOM involved.
+
 ## Basic usage
 
-```tsx
-import * as Reactivity from '@sigx/reactivity';
+Wrap state in a `signal`, derive from it with `computed`, and react to changes with `effect`. Effects run once immediately and then re-run whenever any signal they read changes.
+
+```ts
+import { signal, computed, effect } from '@sigx/reactivity';
+
+const count = signal(0);
+const doubled = computed(() => count.value * 2);
+
+effect(() => {
+  console.log(count.value, doubled.value);
+});
+// logs: 0 0
+
+count.value++;
+// logs: 1 2
 ```
 
-{/* TODO: author real guide content for @sigx/reactivity */}
+Primitive signals are accessed through `.value`. Reading `.value` inside an `effect` or `computed` subscribes that consumer to future changes; writing `.value` notifies subscribers.
 
-## Notes
+## Reactive objects and arrays
 
-Signals, computed and effects — the reactive primitives everything is built on.
+When you pass an object or array to `signal`, you get a deeply reactive proxy instead of a `.value` box. Mutate properties directly — there is no `.value` to unwrap. Use the proxy's `$set` method when you need to replace the whole value at once.
+
+```ts
+import { signal, computed, effect } from '@sigx/reactivity';
+
+const user = signal({ name: 'Alice', tags: ['admin'] });
+const summary = computed(() => `${user.name} (${user.tags.length})`);
+
+effect(() => console.log(summary.value));
+// logs: Alice (1)
+
+user.name = 'Bob';        // logs: Bob (1)
+user.tags.push('editor'); // logs: Bob (2)
+user.$set({ name: 'Carol', tags: [] }); // logs: Carol (0)
+```
+
+Nested objects become reactive lazily on first access, and array mutator methods like `push`, `splice`, and `sort` are batched automatically. Note that exotic built-ins such as `Date` and `RegExp` are returned unwrapped and are not reactive.
+
+## Batching updates
+
+Multiple synchronous writes each notify subscribers. Wrap them in `batch` so dependent effects flush only once, after the function returns. `batch` is nestable — only the outermost batch triggers the flush.
+
+```ts
+import { signal, effect, batch } from '@sigx/reactivity';
+
+const count = signal(0);
+effect(() => console.log(count.value));
+// logs: 0
+
+batch(() => {
+  count.value++;
+  count.value++;
+  count.value++;
+});
+// logs: 3 (once, not three times)
+```
+
+## Watching for changes
+
+Use `watch` when you need the previous value, lazy callbacks (no immediate run), or cleanup hooks. The source is either a getter or a value; the callback receives the new value, the old value, and an `onCleanup` registrar that runs before the next callback and on stop.
+
+```ts
+import { signal, watch } from '@sigx/reactivity';
+
+const query = signal('');
+
+const handle = watch(
+  () => query.value,
+  (next, prev, onCleanup) => {
+    const controller = new AbortController();
+    onCleanup(() => controller.abort());
+    console.log(`searching "${next}" (was "${prev}")`);
+  },
+  { immediate: false, deep: false }
+);
+
+query.value = 'sigx'; // fires the callback
+
+handle.stop(); // or call handle() directly to stop
+```
+
+`watch` supports `immediate` (fire once at setup with `oldValue` undefined), `deep` (a boolean for full traversal or a number for limited depth), and `once` (stop after the first delivered callback). The returned `WatchHandle` is callable to stop and also exposes `stop`, `pause`, and `resume`.
+
+## Disposing effects
+
+`effect` returns an `EffectRunner` — a callable that re-runs the effect, with a `.stop()` method to dispose it. This package does not tie cleanup to any component lifecycle, so you are responsible for stopping effects and watches you create outside the runtime.
+
+```ts
+import { signal, effect } from '@sigx/reactivity';
+
+const count = signal(0);
+const runner = effect(() => console.log(count.value));
+
+count.value++; // logs the new value
+runner.stop(); // future changes are ignored
+```
+
+To read a signal without subscribing to it, wrap the read in `untrack`:
+
+```ts
+import { signal, effect, untrack } from '@sigx/reactivity';
+
+const a = signal(1);
+const b = signal(10);
+
+effect(() => {
+  // re-runs when `a` changes, but not when `b` changes
+  console.log(a.value + untrack(() => b.value));
+});
+```
+
+## Writable computeds
+
+Pass a `{ get, set }` options object to `computed` to create a two-way derived value. Assigning to `.value` routes through your setter.
+
+```ts
+import { signal, computed } from '@sigx/reactivity';
+
+const celsius = signal(0);
+const fahrenheit = computed({
+  get: () => celsius.value * 9 / 5 + 32,
+  set: (f) => { celsius.value = (f - 32) * 5 / 9; },
+});
+
+fahrenheit.value = 212;
+console.log(celsius.value); // 100
+```
+
+## Next steps
+
+See the [API reference](/core/packages/reactivity/api) for the complete typed surface, or the [Installation](/core/packages/reactivity/installation) guide for project setup.

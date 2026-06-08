@@ -8,10 +8,134 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-location` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-location`.</p>
 
-## Exports
+Import the `Location` namespace from the package root. All methods bridge to the native `Location` module; the async ones return Promises.
 
-{/* TODO: document the public API of @sigx/lynx-location */}
+```ts
+import { Location } from '@sigx/lynx-location';
+import type { LocationResult, LocationOptions, PermissionResponse } from '@sigx/lynx-location';
+```
 
-See the package source for the complete typed surface.
+All exports are available on both iOS and Android.
+
+## Namespace
+
+### Location
+
+```ts
+export const Location = {
+  getCurrentPosition(options?: LocationOptions): Promise<LocationResult>;
+  requestPermission(): Promise<PermissionResponse>;
+  getPermissionStatus(): Promise<PermissionResponse>;
+  isAvailable(): boolean;
+} as const;
+```
+
+The single entry point for location services: a one-shot position fix, permission request/check, and an availability test. Each call bridges to the native `Location` module.
+
+## Functions
+
+### Location.getCurrentPosition
+
+```ts
+getCurrentPosition(options?: LocationOptions): Promise<LocationResult>
+```
+
+Performs a one-shot location fix and resolves with a [`LocationResult`](#locationresult).
+
+- **`options`** — optional [`LocationOptions`](#locationoptions) accuracy and timeout hints. Defaults to `{}`.
+- **Returns** — a Promise resolving to a `LocationResult`.
+- **Rejects** — on timeout, or when location permission is denied.
+
+Platform notes: iOS uses CoreLocation's `CLLocationManager`, and Android uses `android.location.LocationManager` (a last-known fix via `getLastKnownLocation` on `NETWORK_PROVIDER`, falling back to `GPS_PROVIDER`). The `accuracy` and `timeout` options are hints — on Android they are currently not honored.
+
+### Location.requestPermission
+
+```ts
+requestPermission(): Promise<PermissionResponse>
+```
+
+Requests foreground (WhenInUse) location permission, showing the OS dialog if needed. Resolves with a [`PermissionResponse`](#permissionresponse).
+
+Platform note: on iOS, when permission was previously undetermined, the dialog is shown asynchronously and the call may resolve before the user responds — re-check with `getPermissionStatus` if you need the settled result.
+
+### Location.getPermissionStatus
+
+```ts
+getPermissionStatus(): Promise<PermissionResponse>
+```
+
+Reads the current location permission status **without** prompting. Resolves with a [`PermissionResponse`](#permissionresponse). Use it to decide whether to show your own rationale before calling `requestPermission`.
+
+### Location.isAvailable
+
+```ts
+isAvailable(): boolean
+```
+
+Returns `true` when the native `Location` module is registered in the current build. Use it to guard calls in builds where the module may not be linked. This is synchronous — it does not check permission or hardware state.
+
+## Types
+
+All types below are type-only re-exports; import them with `import type`.
+
+### LocationResult
+
+```ts
+export interface LocationResult {
+  latitude: number;
+  longitude: number;
+  altitude: number | null;
+  accuracy: number;
+  speed: number | null;
+  heading: number | null;
+  timestamp: number;
+}
+```
+
+The shape resolved by `getCurrentPosition`.
+
+- **`latitude`** / **`longitude`** — degrees.
+- **`altitude`** — meters above sea level, or `null` when unavailable.
+- **`accuracy`** — horizontal accuracy radius in meters (the value the device actually achieved).
+- **`speed`** — ground speed in m/s, or `null`.
+- **`heading`** — direction of travel in degrees, or `null`.
+- **`timestamp`** — epoch time in milliseconds.
+
+### LocationOptions
+
+```ts
+export interface LocationOptions {
+  /** Desired accuracy: 'high', 'balanced', 'low' */
+  accuracy?: 'high' | 'balanced' | 'low';
+  /** Timeout in milliseconds */
+  timeout?: number;
+}
+```
+
+Hints passed to `getCurrentPosition`.
+
+- **`accuracy`** — desired accuracy hint; defaults to `'balanced'`. `'high'` maps to the platform's best-accuracy mode.
+- **`timeout`** — maximum wait in milliseconds before the call rejects; the default is platform-specific.
+
+Both options are hints only. On Android they are currently ignored (a last-known fix is returned).
+
+### PermissionResponse
+
+```ts
+export interface PermissionResponse {
+  status: PermissionStatus;
+  canAskAgain: boolean;
+}
+```
+
+The return type of `requestPermission` and `getPermissionStatus`, re-exported from `@sigx/lynx-core`.
+
+- **`status`** — current permission status: `'granted'`, `'denied'`, `'undetermined'`, or `'blocked'`. `'blocked'` is the permanently-denied state — it is what `canAskAgain: false` corresponds to (the OS will no longer prompt; the user must enable location in Settings).
+- **`canAskAgain`** — whether the OS dialog can be shown again. `false` once the user selected "Don't ask again" (Android) or after the first denial (iOS), in which case they must enable location in Settings.
+
+## See also
+
+- [Usage guide](/lynx/modules/location/usage) — practical examples.
+- [Permissions](/lynx/modules/permissions/overview) — the runtime permission helper this module builds on.

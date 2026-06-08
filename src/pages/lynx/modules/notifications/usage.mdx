@@ -8,16 +8,140 @@ order: 30
 
 # Using Notifications
 
-<p class="lede">Local notifications — the essentials.</p>
+<p class="lede">Schedule local notifications, register for remote push, and react to taps — all from one promise-based API.</p>
 
 ## Basic usage
 
+Everything lives on the `Notifications` singleton. The four event helpers are also re-exported as standalone functions if you prefer to import them directly.
+
 ```tsx
-import * as Notifications from '@sigx/lynx-notifications';
+import { Notifications } from '@sigx/lynx-notifications';
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-notifications */}
+Before anything will show up, the user must grant notification permission. Request it once, check the result, then schedule.
+
+```tsx
+import { Notifications } from '@sigx/lynx-notifications';
+
+async function notify() {
+  const { status } = await Notifications.requestPermission();
+  if (status !== 'granted') return;
+
+  const id = await Notifications.schedule(
+    { title: 'Reminder', body: 'Check your tasks', data: { taskId: '42' } },
+    { delay: 60 },
+  );
+  // keep `id` if you may want to cancel it later
+  return id;
+}
+```
+
+`requestPermission()` shows the OS dialog when needed. On Android it delegates to `@sigx/lynx-permissions` (the Android 13+ runtime `POST_NOTIFICATIONS` prompt); on iOS it asks `UNUserNotificationCenter` for alert, sound, and badge. To read the current status without prompting, use `getPermissionStatus()`.
+
+## Scheduling local notifications
+
+`schedule()` resolves with a generated id you can later pass to `cancel()`. Cancel everything pending with `cancelAll()`.
+
+```tsx
+import { Notifications } from '@sigx/lynx-notifications';
+
+const id = await Notifications.schedule(
+  { title: 'Standup', body: 'Daily standup in 5 minutes', data: { room: 'eng' } },
+  { delay: 300 },
+);
+
+// later — cancel that one
+await Notifications.cancel(id);
+
+// or clear all pending notifications
+await Notifications.cancelAll();
+```
+
+Platform notes:
+
+- `ScheduleOptions.delay` is honored on iOS. On Android the current native module fires the notification immediately and does not read `delay`.
+- `ScheduleOptions.repeat` is declared in the type but is not honored by the current iOS or Android native code.
+- iOS foreground notifications show a banner and play a sound by default.
+
+## Remote push
+
+The push flow is: request permission, subscribe to events, then register. Subscribe before you register — on iOS the device token arrives asynchronously after registration, so a listener must already be in place.
+
+```tsx
+import { Notifications } from '@sigx/lynx-notifications';
+
+async function setupPush() {
+  const { status } = await Notifications.requestPermission();
+  if (status !== 'granted') return;
+
+  // 1. token — send it to your backend (Azure Notification Hubs, Firebase Admin, etc.)
+  const unsubToken = Notifications.addTokenListener(async ({ token, platform }) => {
+    await fetch('/api/register-device', {
+      method: 'POST',
+      body: JSON.stringify({ token, platform }),
+    });
+  });
+
+  // 2. registration failures
+  Notifications.addTokenErrorListener(({ error }) => {
+    console.warn('push registration failed', error);
+  });
+
+  // 3. messages received while the app is running
+  Notifications.addPushListener((msg) => {
+    console.log('push received', msg.title, msg.body, msg.foreground);
+  });
+
+  // 4. now register
+  const result = await Notifications.registerForPushNotifications();
+  // iOS -> { dispatched: true } (token arrives via addTokenListener)
+  // Android -> { token, platform: 'fcm' }
+  if (result.error) console.warn('register error', result.error);
+
+  return unsubToken; // call to stop receiving token events
+}
+```
+
+Every `add*Listener` returns an unsubscribe function. The shims are web/SSR/test-safe: with no native bridge they return a no-op unsubscribe, and a throwing handler is caught and warned so one bad listener does not break the others.
+
+Setup that `sigx prebuild` does not do for you:
+
+- iOS: add the Push Notifications capability in Xcode (creates the `aps-environment` entitlement). Requires a paid Apple Developer account. The iOS simulator cannot receive APNs pushes — use a real device. Local notifications and tap callbacks do work in the simulator.
+- Android: create a Firebase project, drop `google-services.json` into `android/app/`, and add the `com.google.gms.google-services` Gradle plugin.
+
+To detach later, call `unregisterForPushNotifications()`; it resolves with `{ ok, error }`.
+
+## Reacting to taps and cold starts
+
+`addNotificationResponseListener` fires when the user taps a notification — remote or local — while the app is running. For a tap that cold-launched the app, call `getInitialNotification()` exactly once on startup.
+
+```tsx
+import { Notifications } from '@sigx/lynx-notifications';
+
+// running app
+const unsub = Notifications.addNotificationResponseListener(({ notificationId, data }) => {
+  routeTo(data.screen);
+});
+
+// cold start (one-shot — subsequent calls return null)
+const initial = await Notifications.getInitialNotification();
+if (initial) routeTo(initial.data.screen);
+```
+
+On Android, taps currently route to `addNotificationResponseListener` only for remote notifications delivered through the Firebase messaging service; local notifications scheduled via `schedule()` do not yet route taps on Android.
+
+## Badge counts
+
+```tsx
+import { Notifications } from '@sigx/lynx-notifications';
+
+await Notifications.setBadgeCount(0); // clear the app-icon badge
+const count = await Notifications.getBadgeCount();
+```
+
+Badging is iOS-only. On Android `setBadgeCount` is a no-op and `getBadgeCount` always resolves `0`. On Android, to clear delivered notifications use `cancelAll()`.
 
 ## Notes
 
-Schedule and present local push notifications.
+- Check `Notifications.isAvailable()` to confirm the native module is present in the current build before calling into it.
+- See the [API reference](/lynx/modules/notifications/api) for every export, and [Installation](/lynx/modules/notifications/installation) for project setup.

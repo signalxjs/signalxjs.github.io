@@ -1,0 +1,278 @@
+---
+title: "API reference"
+description: "Appearance — System color scheme & bars"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-appearance` v0.4.9.</p>
+
+Import everything from the package entry:
+
+```ts
+import {
+  AppearanceProvider,
+  useSystemColorScheme,
+  useSystemColorSchemeMT,
+  setStatusBarStyle,
+  setStatusBarBackgroundColor,
+  setNavigationBarStyle,
+  setSystemBarsStyle,
+  isAvailable,
+  readGlobalColorScheme,
+} from '@sigx/lynx-appearance';
+```
+
+The native module is named `Appearance` and ships for both iOS and Android. No runtime permissions are required. Every native setter resolves (and never rejects) a [`SetterResult`](#setterresult); on hosts where the module is not registered (web preview, SSR, tests, unlinked apps) they resolve `{ ok: false, reason: 'unsupported' }`.
+
+## Components
+
+### AppearanceProvider
+
+Mount once near the app root, above any consumer of [`useSystemColorScheme`](#usesystemcolorscheme). It renders a `<view class={props.class} style={props.style}>` wrapping the default slot, seeds a background-side `ColorScheme` signal from [`readGlobalColorScheme`](#readglobalcolorscheme) (falling back to `'light'`), exposes it via the [`useAppearanceContext`](#useappearancecontext) DI handle, and subscribes to the native [`APPEARANCE_EVENT`](#appearance_event) to update the signal live on system dark-mode flips. It unsubscribes on unmount.
+
+```ts
+export const AppearanceProvider = component<AppearanceProviderProps>(
+  ({ props, slots }) => () => JSX,
+)
+```
+
+- It is cheap: one signal plus one event subscription.
+- The initial value is correct on cold start with no flash, because the native publisher writes `lynx.__globalProps.appearance` before the main thread's first paint.
+- On unwired hosts (web preview, tests) the subscription simply never fires and the signal stays at the seeded default.
+- See [AppearanceProviderProps](#appearanceproviderprops) for props.
+
+## Hooks
+
+### useSystemColorScheme
+
+Background-thread reactive read of the current system color scheme. Returns the live signal; components and effects that read `.value` re-render or re-run when the user flips dark mode in system settings.
+
+```ts
+export function useSystemColorScheme(): PrimitiveSignal<ColorScheme> | Computed<ColorScheme>
+```
+
+- **Returns** — a signal of [`ColorScheme`](#colorscheme). Read with `.value`.
+- If no [`AppearanceProvider`](#appearanceprovider) is in scope, it returns a process-level fallback signal seeded once from `lynx.__globalProps` — the value is correct on cold start but does **not** update live. This lets a consumer such as a `ThemeProvider` use the hook even without a provider mounted.
+- Platform: shared (background thread).
+
+### useSystemColorSchemeMT
+
+Main-thread synchronous read of the current system color scheme, for use inside `'main thread'`-marked worklet bodies. Reads `lynx.__globalProps` directly via [`readGlobalColorScheme`](#readglobalcolorscheme) with no subscription — callers re-evaluate on each worklet invocation.
+
+```ts
+export function useSystemColorSchemeMT(): ColorScheme
+```
+
+- **Returns** — the current [`ColorScheme`](#colorscheme). Returns `'light'` when the publisher has not populated yet (cold start before first publish) or on non-Lynx hosts.
+- Platform: shared (main thread).
+
+## Functions
+
+### setSystemBarsStyle
+
+Convenience setter that applies the status-bar tint plus (optionally) the status-bar background and nav-bar tint in one call. Fields are optional; omitting any leaves that surface untouched. The order is deterministic: status bar, then status-bar background, then navigation bar.
+
+```ts
+export async function setSystemBarsStyle(
+  opts: SystemBarsStyleInput,
+): Promise<SetterResult>
+```
+
+- `opts` — a [`SystemBarsStyleInput`](#systembarsstyleinput); fully partial.
+- **Returns** — the aggregate [`SetterResult`](#setterresult): `{ ok: false }` with the first non-`'unsupported'` failure's `reason` if any leg failed, otherwise `{ ok: true }`. `'unsupported'` legs (for example, status-bar background on iOS) are intentionally ignored so a partially-supported platform still reports success for the legs that apply. Resolves `{ ok: false, reason: 'unsupported' }` when no native module is registered. Never rejects.
+- Platform: shared.
+
+### setStatusBarStyle
+
+Set the status-bar *content* tint (clock and icons).
+
+```ts
+export function setStatusBarStyle(
+  style: SystemBarStyle,
+): Promise<SetterResult>
+```
+
+- `style` — a [`SystemBarStyle`](#systembarstyle). `'light'` = light content (white-ish icons; use behind a dark theme); `'dark'` = dark content (use behind a light theme).
+- **Returns** — a [`SetterResult`](#setterresult). On iOS the host view controller must forward `preferredStatusBarStyle` to `AppearanceModule.preferredStatusBarStyle` for this to visibly take effect (the lynx-cli iOS template wires this automatically). Resolves `{ ok: false, reason: 'unsupported' }` (never rejects) when the native module is not registered.
+- Platform: shared (effective on iOS + Android).
+
+### setStatusBarBackgroundColor
+
+Android only — set the status-bar background color.
+
+```ts
+export function setStatusBarBackgroundColor(
+  color: string | null,
+): Promise<SetterResult>
+```
+
+- `color` — a color string. Pass `null` (or omit / pass `'transparent'`) to clear.
+- **Returns** — a [`SetterResult`](#setterresult). iOS resolves `{ ok: false, reason: 'unsupported' }`, since iOS has no separate status-bar background. On Android 15+ (API 35) edge-to-edge is enforced and this is a no-op at the system level — overlay your own background view inside the safe-area top padding instead. Resolves `{ ok: false, reason: 'unsupported' }` when the native module is not registered. Never rejects.
+- Platform: Android only.
+
+### setNavigationBarStyle
+
+Android only — set the navigation-bar content tint (style) plus an optional background color.
+
+```ts
+export function setNavigationBarStyle(
+  opts: { style: SystemBarStyle; color?: string },
+): Promise<SetterResult>
+```
+
+- `opts.style` — a [`SystemBarStyle`](#systembarstyle) for the nav-bar content tint.
+- `opts.color` — optional background color.
+- **Returns** — a [`SetterResult`](#setterresult). iOS resolves `{ ok: false, reason: 'unsupported' }`, since there is no separate navigation bar. Resolves `{ ok: false, reason: 'unsupported' }` when the native module is not registered. Never rejects.
+- Platform: Android only.
+
+### readGlobalColorScheme
+
+Synchronously read the current system color scheme from `lynx.__globalProps.appearance.colorScheme`.
+
+```ts
+export function readGlobalColorScheme(): ColorScheme | null
+```
+
+- **Returns** — the current [`ColorScheme`](#colorscheme), or `null` when the publisher has not populated yet (early cold start) or when running outside a Lynx host (web preview, SSR, tests). Treat `null` as "unknown, fall back to your default theme". Validates the value is exactly `'dark'` or `'light'`, else returns `null`.
+- Safe on both the background and main threads, since `__globalProps` is mirrored across both.
+- Platform: shared (background + main thread).
+
+### isAvailable
+
+Quick check for whether the native Appearance module is registered in the current build (delegates to `isModuleAvailable('Appearance')` from `@sigx/lynx-core`).
+
+```ts
+export function isAvailable(): boolean
+```
+
+- **Returns** — `true` if the module is registered. All setters call this internally to short-circuit to the unsupported result, so you rarely need it directly.
+- Platform: shared.
+
+## Injectables
+
+### useAppearanceContext
+
+The DI handle for the appearance context, created via `defineInjectable`. Its default factory returns `null` so consumers outside an `AppearanceProvider` get a clear `null` signal rather than a phantom `'light'` signal that silently never updates.
+
+```ts
+export const useAppearanceContext = defineInjectable<AppearanceContextValue | null>(
+  () => null,
+)
+```
+
+- **Returns** — the provided [`AppearanceContextValue`](#appearancecontextvalue) when inside a provider, otherwise `null`.
+- Prefer the [`useSystemColorScheme`](#usesystemcolorscheme) hook, which wraps this with a null-check and fallback signal.
+- Platform: shared.
+
+## Constants
+
+### APPEARANCE_EVENT
+
+```ts
+export const APPEARANCE_EVENT = 'appearanceChanged';
+```
+
+The `GlobalEventEmitter` event name fired by the native publishers (iOS `AppearancePublisher.swift`, Android `AppearancePublisher.kt`) every time the host's system color scheme flips. The payload mirrors the map stored under `lynx.__globalProps.appearance` (a `{ colorScheme }` object). Exported as a single shared constant so the iOS/Android publishers and the JS listener agree on one string. Typed as the literal `'appearanceChanged'`.
+
+### GLOBAL_PROPS_KEY
+
+```ts
+export const GLOBAL_PROPS_KEY = 'appearance';
+```
+
+The key under `lynx.__globalProps` where the native publisher writes the appearance map. A single string shared by the iOS/Android publishers, the JS reader, and tests. Typed as the literal `'appearance'`.
+
+## Types
+
+### ColorScheme
+
+The two color schemes the platform reports. The iOS `unspecified` and Android `UI_MODE_NIGHT_UNDEFINED` states both collapse to `'light'` at the native publisher boundary, so JS only ever sees these two values.
+
+```ts
+export type ColorScheme = 'light' | 'dark';
+```
+
+### SystemBarStyle
+
+Tint of system-bar *content* (clock, icons), not its background. `'light'` = light-colored icons (legible on a dark background); `'dark'` = dark-colored icons.
+
+```ts
+export type SystemBarStyle = 'light' | 'dark';
+```
+
+### SystemBarsStyleInput
+
+Argument to [`setSystemBarsStyle`](#setsystembarsstyle). Fully partial — omitted fields are left alone.
+
+```ts
+export interface SystemBarsStyleInput {
+  /** Status-bar content tint. `'light'` = light icons (legible on dark bg). */
+  statusBar?: SystemBarStyle;
+  /** Android only — status-bar background color. `null` clears (transparent). */
+  statusBarBackground?: string | null;
+  /** Android only — navigation-bar tint + optional background. */
+  navigationBar?: { style: SystemBarStyle; color?: string };
+}
+```
+
+- `statusBar` — status-bar content tint.
+- `statusBarBackground` — Android only; status-bar background color, `null` clears to transparent.
+- `navigationBar` — Android only; nav-bar tint plus an optional background color.
+
+### SetterResult
+
+The result envelope returned (resolved, never rejected) by every native setter.
+
+```ts
+export interface SetterResult {
+  ok: boolean;
+  /** Present when `ok === false` — `'unsupported'` on iOS for nav-bar and
+   *  status-bar-background calls, or an Android failure message. */
+  reason?: string;
+}
+```
+
+- `ok` — indicates success.
+- `reason` — present only when `ok === false`. It is `'unsupported'` on iOS for nav-bar / status-bar-background calls and on any platform when the module is not registered, or an Android failure message (for example, `'No hosting Activity found'`).
+
+### AppearanceContextValue
+
+The DI shape exposed by [`AppearanceProvider`](#appearanceprovider). Holds a readonly background-side reactive `colorScheme` signal that re-renders consumers when the system color scheme flips.
+
+```ts
+export interface AppearanceContextValue {
+  /** BG-side reactive color scheme. Re-renders consumers on system flip. */
+  readonly colorScheme: PrimitiveSignal<ColorScheme>;
+}
+```
+
+### AppearanceProviderProps
+
+Props for [AppearanceProvider](#appearanceprovider): an optional `class`, an optional `style`, and a default slot for children.
+
+```ts
+export type AppearanceProviderProps =
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```
+
+- `class` — optional class string for the host view.
+- `style` — optional inline style for the host view.
+- `default` slot — your app content.
+
+### RawAppearanceProps
+
+Shape of the raw appearance map the native publisher writes under `lynx.__globalProps.appearance`.
+
+```ts
+export interface RawAppearanceProps {
+  colorScheme?: ColorScheme;
+}
+```
+
+- `colorScheme` — optional [`ColorScheme`](#colorscheme).

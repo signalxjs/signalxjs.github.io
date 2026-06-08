@@ -8,10 +8,771 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-cli` v0.4.1.</p>
+<p class="lede">The complete typed surface of `@sigx/lynx-cli` — config helpers, the prebuild and autolink machinery, the dev server, and device detection.</p>
 
-## Exports
+The package is ESM-only and exposes two import entry points: `@sigx/lynx-cli` (the root barrel) and `@sigx/lynx-cli/config` (the config subset, identical to the config exports of the root). A third file, `dist/plugin.js`, is the `@sigx/cli` plugin — it is declared under the package's `sigx-cli.plugin` field and loaded by the CLI host. It is **not** in the exports map, so you cannot import it directly.
 
-{/* TODO: document the public API of @sigx/lynx-cli */}
+## CLI commands
 
-See the package source for the complete typed surface.
+These are the real user-facing API for most apps. They are registered by the plugin and run via `sigx <command>`.
+
+| Command | Key flags |
+| --- | --- |
+| `dev` | `--port <n>` (8788), `--host`, `--ios`, `--android`, `--all`, `--last`, `--verbose`, `--no-device-logs` |
+| `build` | `--analyze` |
+| `prebuild` | `--android`, `--ios` (default both), `--clean` |
+| `run:android` | `--release`, `--verbose` |
+| `run:ios` | `--release`, `--simulator <name>`, `--device <name｜udid>`, `--verbose` (macOS only) |
+| `doctor` | — |
+| `add` | positional `@sigx/lynx-*` names, `--caret`, `--force` |
+| `remove` | positional `@sigx/lynx-*` names |
+| `outdated` | `--tag <dist-tag>` |
+| `upgrade` | `--to <version｜dist-tag>`, `--dry-run`, `--caret`, `--force` |
+
+See the [Usage guide](/lynx/modules/cli/usage) for command behavior and examples.
+
+## Config functions
+
+### defineLynxConfig
+
+```ts
+export function defineLynxConfig(config: LynxConfig): LynxConfig
+```
+
+Identity helper for typing the sigx-lynx project config in `signalx.config.ts`. Returns its argument unchanged; its only job is to give you full type-checking and editor completion. Re-exported from both the root entry and the `./config` subpath.
+
+### resolveConfig
+
+```ts
+export function resolveConfig(raw: LynxConfig): ResolvedConfig
+```
+
+Parse a raw `LynxConfig` into a fully-resolved config with defaults applied and `modules`/`iconSets` normalised. Validates `iconSets`, throwing on a duplicate `id`, a missing `source`, or an invalid `mode`/`style`.
+
+### modulesForPlatform
+
+```ts
+export function modulesForPlatform(config: ResolvedConfig, platform: Platform): ResolvedModule[]
+```
+
+Filter a resolved config's modules down to those supporting the given platform.
+
+### resolveAssets
+
+```ts
+export function resolveAssets(
+    raw: LynxConfig,
+    cwd: string
+): { ios: ResolvedIosAssets; android: ResolvedAndroidAssets }
+```
+
+Resolve all icon / splash / scheme / orientation asset paths (absolute) and per-platform overrides, falling back to bundled placeholders in `templates/defaults/` when unset.
+
+## Manifest functions
+
+### validateManifest
+
+```ts
+export function validateManifest(manifest: unknown): string[]
+```
+
+Validate a `signalx-module.json` object. Returns an array of human-readable error strings; an empty array means valid. Rejects the legacy `kind` field and requires a `config` block per declared platform. (Module manifests are shipped by native `@sigx/lynx-*` modules, not by an app.)
+
+## Autolink functions
+
+### linkAndroid
+
+```ts
+export function linkAndroid(
+    config: ResolvedConfig,
+    manifests: ModuleManifest[]
+): AndroidLinkResult
+```
+
+**Android.** Generate Android auto-link output — Kotlin registry / lifecycle / activity-hook / behavior code, Gradle deps, permissions, features, services and meta-data — for a set of module manifests.
+
+### linkIos
+
+```ts
+export function linkIos(
+    config: ResolvedConfig,
+    manifests: ModuleManifest[]
+): IosLinkResult
+```
+
+**iOS.** Generate iOS auto-link output — Podfile entries, usage descriptions, background modes, BGTask identifiers, and Swift registry / lifecycle / AppDelegate-hook / component-registry code — for a set of module manifests.
+
+## Prebuild functions
+
+### runPrebuild
+
+```ts
+export async function runPrebuild(opts: PrebuildOptions = {}): Promise<void>
+```
+
+Orchestrate prebuild: load config + manifests, render the native `ios/` and `android/` projects, auto-link installed `@sigx/lynx-*` modules, then run the `prebuild.post` hook. Has a fingerprint-based fast path that skips when inputs are unchanged (bypassed by `clean: true`).
+
+The `PrebuildOptions` type is referenced below but is not re-exported from the package entry.
+
+### loadConfig
+
+```ts
+export async function loadConfig(cwd: string): Promise<LynxConfig>
+```
+
+Load and evaluate `signalx.config.{ts,js,mjs}` from the project root (esbuild-compiled), returning the raw `LynxConfig`.
+
+### loadManifests
+
+```ts
+export async function loadManifests(modulePackages: string[], cwd: string): Promise<ModuleManifest[]>
+```
+
+Resolve and read the `signalx-module.json` manifests for the given package names. Handles pnpm transitive resolution and sorts lynx-core's activity hook first.
+
+## Dev server function
+
+### startDevServer
+
+```ts
+export async function startDevServer(opts: DevServerOptions): Promise<void>
+```
+
+Start the rspeedy dev server: probes for a free port (default `8788`), prints a QR / LAN-IP banner, streams device `console.*` logs, and auto-launches the selected targets with the dev URL. The `DevServerOptions` type is referenced below but is not re-exported from the package entry.
+
+## Doctor function
+
+### runDoctor
+
+```ts
+export async function runDoctor(cwd: string, logger: Logger): Promise<void>
+```
+
+Print an environment health report: Node, package manager, Android SDK / JDK / ADB, iOS Xcode / CocoaPods, and connected devices. The `Logger` type comes from `@sigx/cli` and is not exported by this package.
+
+## QR function
+
+### generateQR
+
+```ts
+export function generateQR(text: string, opts?: { quiet?: number; invert?: boolean }): string
+```
+
+Encode a short URL into a terminal QR code rendered with Unicode half-block characters. Zero dependencies; byte mode, EC level L, versions 1-20. The default quiet zone is 4. Falls back to `"  [QR: <text>]"` if encoding fails.
+
+## Network functions
+
+### getLanIP
+
+```ts
+export function getLanIP(): string | null
+```
+
+Return the primary non-internal LAN IPv4 address (real interfaces preferred over virtual), or `null` if none.
+
+### getAllLanIPs
+
+```ts
+export function getAllLanIPs(): { name: string; address: string }[]
+```
+
+Return all non-internal IPv4 interfaces, sorted so real interfaces (Wi-Fi / Ethernet) precede virtual ones (Hyper-V / WSL / Docker / etc.).
+
+## Device-detect functions
+
+The interface types these functions return (`AndroidDevice`, `IosSimulator`, `IosDevice`, `DeviceStatus`) are defined in `device-detect.ts` but only the **values** are re-exported from the root entry — those type interfaces are not importable from `@sigx/lynx-cli`.
+
+### getDeviceStatus
+
+```ts
+export function getDeviceStatus(appId?: string, iosBundleId?: string): DeviceStatus
+```
+
+Probe connected Android devices, iOS simulators and iOS devices, and report toolchain availability plus whether sigx-lynx-go / the given app is installed.
+
+### listAndroidDevices
+
+```ts
+export function listAndroidDevices(): AndroidDevice[]
+```
+
+**Android.** List connected devices / emulators via `adb devices -l`. Returns an empty array if `adb` is unavailable.
+
+### isAdbAvailable
+
+```ts
+export function isAdbAvailable(): boolean
+```
+
+**Android.** Whether an `adb` binary can be resolved (probes `ANDROID_HOME/platform-tools` and `PATH`).
+
+### isLynxGoInstalled
+
+```ts
+export function isLynxGoInstalled(deviceId: string): boolean
+```
+
+**Android.** Whether the sigx-lynx-go dev client (`com.sigx.lynxgo`) is installed on the given Android device serial.
+
+### launchLynxGo
+
+```ts
+export function launchLynxGo(deviceId: string, url: string): boolean
+```
+
+**Android.** Launch sigx-lynx-go on a device via an `am start` deep link (`sigx-lynx-go://open?url=...`). Returns whether it succeeded.
+
+## Plugin
+
+### plugin (default export of `dist/plugin.js`)
+
+```ts
+export default definePlugin({
+    name: 'lynx',
+    detect: isLynxProject,
+    commands: {
+        dev, build, doctor, outdated, upgrade, add, remove,
+        prebuild, 'run:android', 'run:ios',
+    },
+})
+```
+
+The `@sigx/cli` plugin, auto-discovered via the package's `sigx-cli.plugin` field. It registers all the `sigx` subcommands. It is **not** exported from the package's `.` entry — it is a separate file referenced only by the `sigx-cli` field and loaded by the CLI host. `isLynxProject(cwd)` is true when any of `signalx.config.{ts,js,mjs}` or `lynx.config.{ts,js}` exists at `cwd`.
+
+## Config types
+
+### LynxConfig
+
+```ts
+export interface LynxConfig {
+    name: string;
+    version?: string;
+    buildNumber?: string;            // default '1'
+    icon?: string;                   // 1024x1024 PNG, falls back to bundled default
+    splash?: SplashConfig;
+    scheme?: string;                 // deep-link URL scheme
+    orientation?: Orientation;       // default 'portrait'
+    modules?: (string | ModuleConfig)[]; // per-module overrides; installed modules auto-link
+    excludeModules?: string[];
+    iconSets?: IconSetConfig[];
+    android?: AndroidConfig;
+    ios?: IosConfig;
+    platforms?: Platform[];          // defaults to both
+    prebuild?: PrebuildHooksConfig;
+}
+```
+
+### Platform
+
+```ts
+export type Platform = 'android' | 'ios';
+```
+
+### Orientation
+
+```ts
+export type Orientation = 'portrait' | 'landscape' | 'all' | 'default';
+```
+
+### IconMode
+
+```ts
+export type IconMode = 'svg' | 'font';
+```
+
+### IconStyle
+
+```ts
+export type IconStyle = 'solid' | 'regular' | 'brands' | 'light' | 'thin' | 'duotone';
+```
+
+### IconSetConfig
+
+```ts
+export interface IconSetConfig {
+    id: string;            // call-site alias, unique
+    source: string;        // adapter npm package, e.g. '@sigx/lynx-icons-fa-free'
+    styles?: IconStyle[];  // FA only
+    mode?: IconMode;       // default 'font' if adapter ships TTF else 'svg'
+    include?: string[];    // force-include glyphs; ['*'] ships full catalog
+}
+```
+
+### ModuleConfig
+
+```ts
+export interface ModuleConfig {
+    package: string;                 // e.g. '@sigx/lynx-camera'
+    platforms?: Platform[];          // omit = all
+    config?: Record<string, unknown>;// passed to native auto-linker
+    disabled?: boolean;              // skip linking even though installed
+}
+```
+
+### SplashResizeMode
+
+```ts
+export type SplashResizeMode = 'contain' | 'cover' | 'center';
+```
+
+### SplashConfig
+
+```ts
+export interface SplashConfig {
+    image?: string;
+    backgroundColor?: string;        // default '#FFFFFF'
+    resizeMode?: SplashResizeMode;   // default 'center'; iOS treats 'cover' as 'contain'
+    dark?: SplashDarkConfig;
+}
+```
+
+### SplashDarkConfig
+
+```ts
+export interface SplashDarkConfig {
+    image?: string;            // falls back to light image
+    backgroundColor?: string;  // falls back to light background
+}
+```
+
+### AdaptiveIconConfig
+
+```ts
+export interface AdaptiveIconConfig {
+    foreground: string;        // 1024x1024, logo in inner 66% safe zone
+    backgroundColor?: string;  // default '#FFFFFF'
+    monochrome?: string;       // Android 13+ themed icon <monochrome> layer
+}
+```
+
+### IosIconConfig
+
+```ts
+export interface IosIconConfig {
+    light: string;   // 1024x1024 PNG
+    dark?: string;   // opaque recommended
+    tinted?: string; // grayscale source the system tints
+}
+```
+
+### AndroidFeatureConfig
+
+```ts
+export interface AndroidFeatureConfig {
+    name: string;       // e.g. 'android.hardware.camera'
+    required?: boolean; // default false
+}
+```
+
+### AndroidConfig
+
+```ts
+export interface AndroidConfig {
+    applicationId?: string;
+    minSdk?: number;       // default 24
+    targetSdk?: number;    // default 35
+    compileSdk?: number;   // default 35
+    versionCode?: number;  // default 1
+    dependencies?: string[];
+    permissions?: string[];
+    features?: AndroidFeatureConfig[];
+    googleMapsApiKey?: string;
+    manifestMetaData?: Record<string, string>;
+    icon?: string;
+    adaptiveIcon?: AdaptiveIconConfig;
+    notificationIcon?: string;
+    notificationColor?: string;
+    splash?: SplashConfig;
+    scheme?: string;
+    orientation?: Orientation;
+}
+```
+
+### IosConfig
+
+```ts
+export interface IosConfig {
+    bundleIdentifier?: string;
+    deploymentTarget?: string;            // default '15.0'
+    buildNumber?: string;                 // CFBundleVersion, default '1'
+    developmentTeam?: string;             // Apple Team ID -> DEVELOPMENT_TEAM
+    codeSignStyle?: 'Automatic' | 'Manual';
+    supportsTablet?: boolean;             // default true (TARGETED_DEVICE_FAMILY '1,2')
+    requiresFullScreen?: boolean;         // default false
+    pods?: Record<string, string>;
+    usageDescriptions?: Record<string, string>;
+    bgTaskIdentifiers?: string[];
+    icon?: string | IosIconConfig;
+    splash?: SplashConfig;
+    scheme?: string;
+    orientation?: Orientation;
+}
+```
+
+### PrebuildHooksConfig
+
+```ts
+export interface PrebuildHooksConfig {
+    // Path to a .mjs/.js/.cjs module run after managed native files are rendered
+    // and auto-linking is done. Default export, if a function, is awaited with
+    // { cwd, config, platforms }.
+    post?: string;
+}
+```
+
+### ResolvedConfig
+
+```ts
+export interface ResolvedConfig {
+    name: string;
+    version: string;
+    buildNumber: string;
+    modules: ResolvedModule[];
+    excludeModules: string[];
+    iconSets: ResolvedIconSet[];
+    platforms: Platform[];
+    android: Required<Pick<NonNullable<LynxConfig['android']>,
+        'minSdk' | 'targetSdk' | 'compileSdk' | 'versionCode'>>
+        & Omit<NonNullable<LynxConfig['android']>,
+        'minSdk' | 'targetSdk' | 'compileSdk' | 'versionCode'>;
+    ios: Required<Pick<NonNullable<LynxConfig['ios']>,
+        'deploymentTarget' | 'buildNumber'>>
+        & Omit<NonNullable<LynxConfig['ios']>,
+        'deploymentTarget' | 'buildNumber'>;
+    prebuild?: LynxConfig['prebuild'];
+}
+```
+
+### ResolvedModule
+
+```ts
+export interface ResolvedModule {
+    package: string;
+    platforms: Platform[];
+    config: Record<string, unknown>;
+    disabled: boolean;
+}
+```
+
+### ResolvedIconSet
+
+```ts
+export interface ResolvedIconSet {
+    id: string;
+    source: string;
+    styles: IconStyle[] | null;
+    mode: IconMode | null;
+    include: string[];
+}
+```
+
+### ResolvedPlatformAssets
+
+```ts
+export interface ResolvedPlatformAssets {
+    iconSource: string;
+    splashImage: string;
+    splashBackground: string;
+    splashResizeMode: SplashResizeMode;
+    splashDark: { image: string; backgroundColor: string } | null;
+    scheme: string | null;
+    orientation: Orientation;
+}
+```
+
+### ResolvedIosAssets
+
+```ts
+export interface ResolvedIosAssets extends ResolvedPlatformAssets {
+    iconDark: string | null;
+    iconTinted: string | null;
+}
+```
+
+### ResolvedAndroidAssets
+
+```ts
+export interface ResolvedAndroidAssets extends ResolvedPlatformAssets {
+    adaptiveIcon: { foreground: string; backgroundColor: string; monochrome: string | null } | null;
+    notificationIcon: string | null;
+    notificationColor: string | null;
+}
+```
+
+## Manifest types
+
+These describe the `signalx-module.json` shipped by native `@sigx/lynx-*` modules. They are consumed by the autolinker, not authored in an app config.
+
+### ModuleManifest
+
+```ts
+export interface ModuleManifest {
+    name: string;        // bridge name in NativeModules
+    package: string;
+    description: string;
+    type?: 'module' | 'dev-client';
+    platforms: ('android' | 'ios')[];
+    android?: AndroidManifest;
+    ios?: IosManifest;
+}
+```
+
+### AndroidManifest
+
+```ts
+export interface AndroidManifest {
+    moduleClass?: string;
+    publisherClass?: string;
+    activityHook?: ActivityHookManifest;
+    initClass?: string;
+    sourceDir?: string;
+    releaseStubsDir?: string;
+    debugOnly?: boolean;
+    dependencies?: string[];
+    permissions?: string[];
+    features?: AndroidFeatureEntry[];
+    minSdk?: number;
+    services?: AndroidServiceEntry[];
+    behaviors?: AndroidBehaviorEntry[];
+    metaData?: AndroidMetaDataEntry[];
+}
+```
+
+### IosManifest
+
+```ts
+export interface IosManifest {
+    moduleClass?: string;
+    publisherClass?: string;
+    appDelegateHook?: IosAppDelegateHookManifest;
+    initClass?: string;
+    sourceDir?: string;
+    debugOnly?: boolean;
+    methods?: string[];
+    pods?: Record<string, string>;
+    usageDescriptions?: Record<string, string>;
+    backgroundModes?: string[];
+    bgTaskIdentifiers?: string[];
+    uiComponents?: IosUiComponentEntry[];
+    deploymentTarget?: string;
+}
+```
+
+### AndroidMetaDataEntry
+
+```ts
+export interface AndroidMetaDataEntry {
+    name: string;
+    value?: string;     // literal, highest precedence
+    valueFrom?: string; // dotted path into resolved config, e.g. 'android.googleMapsApiKey'
+    default?: string;   // fallback
+    helpUrl?: string;
+}
+```
+
+### AndroidBehaviorEntry
+
+```ts
+export interface AndroidBehaviorEntry {
+    name: string;          // JSX tag
+    behaviorClass: string; // FQ Kotlin class extending com.lynx.tasm.behavior.Behavior
+}
+```
+
+### AndroidFeatureEntry
+
+```ts
+export interface AndroidFeatureEntry {
+    name: string;
+    required?: boolean; // default false
+}
+```
+
+### AndroidServiceEntry
+
+```ts
+export interface AndroidServiceEntry {
+    name: string;        // FQ service class
+    exported?: boolean;  // default false
+    actions?: string[];  // each becomes one intent-filter action
+}
+```
+
+### AndroidActivityHookMethod
+
+```ts
+export type AndroidActivityHookMethod =
+    | 'onCreate' | 'onResume' | 'onPause'
+    | 'onNewIntent' | 'onBackPressed' | 'onRequestPermissionsResult';
+```
+
+### ActivityHookManifest
+
+```ts
+export interface ActivityHookManifest {
+    class: string; // FQ Kotlin object (singleton)
+    methods: AndroidActivityHookMethod[];
+}
+```
+
+### IosUiComponentEntry
+
+```ts
+export interface IosUiComponentEntry {
+    name: string;    // JSX tag
+    uiClass: string; // Swift class extending LynxUI<UIView>
+}
+```
+
+### IosAppDelegateHookMethod
+
+```ts
+export type IosAppDelegateHookMethod =
+    | 'didFinishLaunching' | 'openURL' | 'continueUserActivity'
+    | 'didRegisterForRemoteNotificationsWithDeviceToken'
+    | 'didFailToRegisterForRemoteNotificationsWithError';
+```
+
+### IosAppDelegateHookManifest
+
+```ts
+export interface IosAppDelegateHookManifest {
+    class: string; // Swift class/enum name
+    methods: IosAppDelegateHookMethod[];
+}
+```
+
+## Autolink result types
+
+`AndroidLinkResult` and `IosLinkResult` are re-exported from the root entry. Note that several of the sub-types they reference (`ResolvedAndroidMetaData`, `AndroidLifecyclePublisherInfo`, `DevClientInfo`, `IosLifecyclePublisherInfo`, `IosDevClientInfo`) are **not** re-exported from the autolink barrel, so these results are only partially usable by external consumers.
+
+### AndroidLinkResult
+
+```ts
+export interface AndroidLinkResult {
+    registryCode: string;
+    lifecycleCode: string;
+    activityHooksCode: string;
+    behaviorsCode: string;
+    linkedBehaviors: string[];
+    gradleDependencies: string[];
+    debugGradleDependencies: string[];
+    permissions: string[];
+    debugPermissions: string[];
+    features: AndroidFeatureEntry[];
+    services: AndroidServiceEntry[];
+    metaData: ResolvedAndroidMetaData[];
+    metaDataWarnings: string[];
+    linkedModules: string[];
+    linkedLifecyclePublishers: string[];
+    lifecyclePublishers: AndroidLifecyclePublisherInfo[];
+    linkedActivityHooks: string[];
+    devClient?: DevClientInfo;
+}
+```
+
+### IosLinkResult
+
+```ts
+export interface IosLinkResult {
+    podfileEntries: string[];
+    debugPodfileEntries: string[];
+    usageDescriptions: Record<string, string>;
+    debugUsageDescriptions: Record<string, string>;
+    backgroundModes: string[];
+    bgTaskIdentifiers: string[];
+    registryCode: string;
+    lifecycleCode: string;
+    appDelegateHooksCode: string;
+    componentRegistryCode: string;
+    linkedComponents: string[];
+    linkedModules: string[];
+    linkedLifecyclePublishers: string[];
+    lifecyclePublishers: IosLifecyclePublisherInfo[];
+    linkedAppDelegateHooks: string[];
+    devClient?: IosDevClientInfo;
+}
+```
+
+## Referenced-but-not-exported types
+
+The named value re-exports above use option and result types that are defined and exported in their own modules but are **not** pulled into the package's root barrel — so they are not importable from `@sigx/lynx-cli`. They are documented here for completeness.
+
+### PrebuildOptions
+
+```ts
+export interface PrebuildOptions {
+    android?: boolean; // default true
+    ios?: boolean;     // default true
+    clean?: boolean;   // bypass fingerprint fast-path
+    cwd?: string;      // default process.cwd()
+}
+```
+
+### DevServerOptions
+
+```ts
+export interface DevServerOptions {
+    cwd: string;
+    port?: string | number;  // default 8788
+    host?: boolean;
+    logger: Logger;
+    launchAppId?: string;    // Android applicationId to auto-launch w/ dev URL
+    launchBundleId?: string; // iOS bundleId to auto-launch on booted sims
+    iosSimulatorName?: string;
+    selectedTargets?: unknown; // explicit picker/flag target list
+    verbose?: boolean;
+    disableDeviceLogs?: boolean;
+    // ...additional fields
+}
+```
+
+### AndroidDevice
+
+```ts
+export interface AndroidDevice {
+    id: string;
+    type: 'device' | 'emulator' | 'offline';
+    model?: string;
+}
+```
+
+### IosSimulator
+
+```ts
+export interface IosSimulator {
+    udid: string;
+    name: string;
+    state: string;
+    runtime: string;
+}
+```
+
+### IosDevice
+
+```ts
+export interface IosDevice {
+    udid: string;       // devicectl identifier
+    name: string;
+    model?: string;
+    osVersion?: string;
+    transport?: string; // 'wired' | 'wireless'
+}
+```
+
+### DeviceStatus
+
+```ts
+export interface DeviceStatus {
+    devices: AndroidDevice[];
+    lynxGoInstalled: Map<string, boolean>;
+    appInstalled?: Map<string, boolean>;
+    adbAvailable: boolean;
+    iosSimulators: IosSimulator[];
+    xcrunAvailable: boolean;
+    iosAppInstalled?: Map<string, boolean>;
+    iosDevices: IosDevice[];
+    devicectlAvailable: boolean;
+    iosDeviceAppInstalled?: Map<string, boolean>;
+}
+```

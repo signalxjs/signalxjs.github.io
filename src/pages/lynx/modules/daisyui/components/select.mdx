@@ -1,0 +1,148 @@
+---
+title: Select
+description: "Select — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 145
+---
+
+# Select
+
+<p class="lede">A tap-to-open dropdown for picking one value from a list of options, styled with daisyUI and built on native Lynx gestures.</p>
+
+## Import
+
+```tsx
+import { Select } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+`Select` is a controlled component. It does not own its value: pass the current selection through `value` and update your own signal in the `onChange` handler (see [Binding to state](#binding-to-state) below).
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `options` | `SelectOption[]` | `[]` | The choices to render. Each option is `{ label: string; value: string }` &mdash; `label` is shown, `value` is reported on change. |
+| `value` | `string` | &mdash; | The currently selected option's `value`. The matching option's `label` is shown on the trigger; if no option matches, `placeholder` is shown instead. |
+| `placeholder` | `string` | `'Select...'` | Text shown on the trigger when `value` matches no option. |
+| `size` | `'xs' \| 'sm' \| 'md' \| 'lg'` | &mdash; | Control size. |
+| `variant` | `'bordered' \| 'ghost'` | &mdash; | Visual style. `bordered` adds an outline; `ghost` is borderless. |
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'info' \| 'success' \| 'warning' \| 'error'` | &mdash; | Accent color applied via the daisyUI `select-*` class. |
+| `disabled` | `boolean` | `false` | Dims the control and prevents opening the dropdown. |
+| `class` | `string` | &mdash; | Extra CSS classes appended to the trigger. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `onChange` | `(value: string) => void` | Fired when an option is tapped, with that option's `value`. The dropdown closes automatically. |
+
+### Types
+
+```ts
+interface SelectOption {
+  label: string;
+  value: string;
+}
+
+type SelectSize = 'xs' | 'sm' | 'md' | 'lg';
+type SelectVariant = 'bordered' | 'ghost';
+type SelectColor =
+  | 'primary' | 'secondary' | 'accent'
+  | 'info' | 'success' | 'warning' | 'error';
+```
+
+## Binding to state
+
+`Select` is controlled, so two-way binding is wired manually: read the selection from a signal for `value`, and write it back in `onChange`.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Select } from '@sigx/lynx-daisyui';
+
+export const FruitPicker = component(({ signal }) => {
+  const state = signal({ fruit: 'apple' });
+
+  return () => (
+    <Select
+      value={state.fruit}
+      onChange={(value) => { state.fruit = value; }}
+      options={[
+        { label: 'Apple', value: 'apple' },
+        { label: 'Banana', value: 'banana' },
+        { label: 'Cherry', value: 'cherry' },
+      ]}
+    />
+  );
+});
+```
+
+## Placeholder
+
+Leave `value` empty (or set it to something no option matches) to show the `placeholder` until the user picks.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Select } from '@sigx/lynx-daisyui';
+
+export const CountryPicker = component(({ signal }) => {
+  const state = signal({ country: '' });
+
+  return () => (
+    <Select
+      value={state.country}
+      placeholder="Choose a country"
+      variant="bordered"
+      onChange={(value) => { state.country = value; }}
+      options={[
+        { label: 'Sweden', value: 'se' },
+        { label: 'Norway', value: 'no' },
+        { label: 'Denmark', value: 'dk' },
+      ]}
+    />
+  );
+});
+```
+
+## Sizes, colors and variants
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Select, Col } from '@sigx/lynx-daisyui';
+
+const sizes = [
+  { label: 'Low', value: 'low' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'High', value: 'high' },
+];
+
+export const SelectGallery = component(({ signal }) => {
+  const state = signal({ a: 'low', b: 'medium', c: 'high' });
+
+  return () => (
+    <Col gap="4">
+      <Select
+        size="sm"
+        value={state.a}
+        onChange={(value) => { state.a = value; }}
+        options={sizes}
+      />
+      <Select
+        color="primary"
+        variant="bordered"
+        value={state.b}
+        onChange={(value) => { state.b = value; }}
+        options={sizes}
+      />
+      <Select
+        size="lg"
+        color="success"
+        disabled
+        value={state.c}
+        onChange={(value) => { state.c = value; }}
+        options={sizes}
+      />
+    </Col>
+  );
+});
+```

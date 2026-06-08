@@ -8,16 +8,105 @@ order: 30
 
 # Using Haptics
 
-<p class="lede">Haptic feedback — the essentials.</p>
+<p class="lede">Add impact, selection and notification haptics to taps, toggles and async outcomes.</p>
 
 ## Basic usage
 
+Everything lives on a single `Haptics` object. The three trigger methods are synchronous, fire-and-forget, and return nothing — call them right inside your event handlers.
+
 ```tsx
-import * as Haptics from '@sigx/lynx-haptics';
+import { Haptics } from '@sigx/lynx-haptics';
+
+Haptics.impact('medium');        // 'light' | 'medium' | 'heavy'
+Haptics.notification('success'); // 'success' | 'warning' | 'error'
+Haptics.selection();             // lightest tick — picker scrolls, toggles
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-haptics */}
+No setup beyond installing the package. `sigx prebuild` auto-links the native module and injects the Android `VIBRATE` permission into your manifest. `VIBRATE` is a normal-level permission, granted automatically — there is no runtime permission prompt, and iOS has no permission flow at all.
 
-## Notes
+## Tap and press feedback
 
-Impact, selection and notification haptic feedback.
+Use `impact` to confirm a deliberate action — a button press, a long-press, a successful drag-drop. Pick the intensity to match the weight of the action: `light` for incidental touches, `medium` for standard buttons, `heavy` for significant or destructive actions.
+
+```tsx
+import { Haptics } from '@sigx/lynx-haptics';
+
+function SaveButton() {
+  function onSave() {
+    Haptics.impact('medium');
+    save();
+  }
+
+  return <view bindtap={onSave}><text>Save</text></view>;
+}
+```
+
+## Selection ticks
+
+`selection` is the lightest cue. Reach for it on continuous or repeated changes where a full impact would feel heavy — segmented controls, steppers, picker wheels, toggling a switch.
+
+```tsx
+import { Haptics } from '@sigx/lynx-haptics';
+
+function Stepper(props: { value: number; onChange: (n: number) => void }) {
+  function step(delta: number) {
+    Haptics.selection();
+    props.onChange(props.value + delta);
+  }
+
+  return (
+    <view>
+      <view bindtap={() => step(-1)}><text>-</text></view>
+      <text>{props.value}</text>
+      <view bindtap={() => step(1)}><text>+</text></view>
+    </view>
+  );
+}
+```
+
+## Outcome feedback for async work
+
+`notification` plays a multi-step pattern that maps to a semantic result. Fire it when an async operation settles so the buzz reinforces the on-screen state.
+
+```tsx
+import { Haptics } from '@sigx/lynx-haptics';
+
+async function submit(form: FormData) {
+  try {
+    await api.send(form);
+    Haptics.notification('success');
+  } catch (err) {
+    Haptics.notification('error'); // or 'warning' for recoverable issues
+    throw err;
+  }
+}
+```
+
+The trigger methods never throw and surface no error channel — if the platform can't play a haptic the call is simply a no-op. Drive your error UI from the awaited result as above; treat the haptic as a non-essential cue.
+
+## Why isn't it buzzing?
+
+A silent device is almost always a platform setting, not a bug:
+
+- **Android** — the global toggle under Settings → Sound & vibration → Vibration & haptics silently disables every API in this module.
+- **iOS** — the system feedback generators no-op when the device is locked or the app is backgrounded.
+
+To investigate on a device, call `diagnose`. It returns meaningful data on Android (vibrator presence, SDK level, permission and amplitude-control flags); on iOS it returns a fixed `{ hasVibrator: true }` placeholder because there is no public API to read the system-haptics state.
+
+```tsx
+import { Haptics } from '@sigx/lynx-haptics';
+
+async function checkHaptics() {
+  if (!Haptics.isAvailable()) return; // native module not in this build
+
+  const info = await Haptics.diagnose();
+  console.log(info.hasVibrator, info.hasAmplitudeControl);
+}
+```
+
+Use `isAvailable` to guard code paths in builds that may not include the native module — it returns `false` when the `Haptics` module isn't registered.
+
+## See also
+
+- [API reference](/lynx/modules/haptics/api) — every export and signature.
+- [Installation](/lynx/modules/haptics/installation) — project setup and prebuild.

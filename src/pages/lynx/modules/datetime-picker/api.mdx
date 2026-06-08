@@ -1,0 +1,169 @@
+---
+title: "API reference"
+description: "Date/Time Picker — Native date & time picker"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Every export of `@sigx/lynx-datetime-picker` v0.4.9.</p>
+
+The package has a single import surface: the `DateTimePicker` object plus the mode, option, and result types.
+
+```ts
+import { DateTimePicker } from '@sigx/lynx-datetime-picker';
+import type {
+  DateTimePickerMode,
+  DateTimePickerOptions,
+  DateTimePickerResult,
+} from '@sigx/lynx-datetime-picker';
+```
+
+## DateTimePicker
+
+The single value export — a frozen (`as const`) object grouping all picker entry points. It presents a native date/time picker (`UIDatePicker` in a presented sheet on iOS, `DatePickerDialog` / `TimePickerDialog` on Android) and bridges to the native `DateTimePicker` module. The methods are closed-over and do not depend on `this`, so the object survives destructuring.
+
+```ts
+const DateTimePicker: {
+  pick(opts?: DateTimePickerOptions): Promise<DateTimePickerResult>;
+  pickDate(opts?: Omit<DateTimePickerOptions, 'mode'>): Promise<DateTimePickerResult>;
+  pickTime(opts?: Omit<DateTimePickerOptions, 'mode'>): Promise<DateTimePickerResult>;
+  pickDateTime(opts?: Omit<DateTimePickerOptions, 'mode'>): Promise<DateTimePickerResult>;
+  isModuleAvailable(): boolean;
+};
+```
+
+Platform: iOS and Android.
+
+## Methods
+
+### DateTimePicker.pick
+
+Presents the picker; `opts.mode` selects what to pick.
+
+```ts
+DateTimePicker.pick(opts?: DateTimePickerOptions): Promise<DateTimePickerResult>
+```
+
+- `opts` — optional [`DateTimePickerOptions`](#datetimepickeroptions). Defaults to `{}`. `mode` defaults to `'date'`.
+- Returns a [`DateTimePickerResult`](#datetimepickerresult). The promise **always resolves** — cancellation, swipe-to-dismiss, a missing native module, a missing host/activity, and any bridge error all come back as `{ cancelled: true }` rather than rejecting. A malformed or non-finite native value also resolves to cancelled.
+
+Platform: iOS and Android.
+
+### DateTimePicker.pickDate
+
+Convenience wrapper for `pick({ ...opts, mode: 'date' })` — picks a calendar date.
+
+```ts
+DateTimePicker.pickDate(opts?: Omit<DateTimePickerOptions, 'mode'>): Promise<DateTimePickerResult>
+```
+
+- `opts` — optional options without `mode`. Defaults to `{}`.
+- Returns a [`DateTimePickerResult`](#datetimepickerresult).
+
+Platform: iOS and Android.
+
+### DateTimePicker.pickTime
+
+Convenience wrapper for `pick({ ...opts, mode: 'time' })` — picks a time of day.
+
+```ts
+DateTimePicker.pickTime(opts?: Omit<DateTimePickerOptions, 'mode'>): Promise<DateTimePickerResult>
+```
+
+- `opts` — optional options without `mode`. Defaults to `{}`.
+- Returns a [`DateTimePickerResult`](#datetimepickerresult). The value is still a full `Date` anchored to the initial value's day (or today); read `result.hour` / `result.minute` for the time-only answer.
+- `minimumDate` / `maximumDate` are ignored in this mode.
+
+Platform: iOS and Android. `minuteInterval` applies only on iOS.
+
+### DateTimePicker.pickDateTime
+
+Convenience wrapper for `pick({ ...opts, mode: 'datetime' })` — picks combined date and time.
+
+```ts
+DateTimePicker.pickDateTime(opts?: Omit<DateTimePickerOptions, 'mode'>): Promise<DateTimePickerResult>
+```
+
+- `opts` — optional options without `mode`. Defaults to `{}`.
+- Returns a [`DateTimePickerResult`](#datetimepickerresult).
+
+Platform: iOS shows a single combined wheel. Android chains a date dialog and then a time dialog — cancelling either step cancels the whole pick.
+
+### DateTimePicker.isModuleAvailable
+
+Reports whether the native `DateTimePicker` module is wired into the current build.
+
+```ts
+DateTimePicker.isModuleAvailable(): boolean
+```
+
+- Returns `true` if the native module was linked (by `sigx prebuild`), otherwise `false`. Synchronous. Delegates to `@sigx/lynx-core`'s `isModuleAvailable('DateTimePicker')`.
+
+Platform: iOS and Android.
+
+## Types
+
+### DateTimePickerMode
+
+What the picker selects. Used as the `mode` option.
+
+```ts
+type DateTimePickerMode = 'date' | 'time' | 'datetime';
+```
+
+- `'date'` — calendar date only (the default).
+- `'time'` — time of day only.
+- `'datetime'` — combined date and time.
+
+Platform: cross-platform.
+
+### DateTimePickerOptions
+
+Options for presenting the picker.
+
+```ts
+interface DateTimePickerOptions {
+  mode?: DateTimePickerMode;
+  value?: Date;
+  minimumDate?: Date;
+  maximumDate?: Date;
+  minuteInterval?: number;
+  is24Hour?: boolean;
+  title?: string;
+}
+```
+
+- `mode` — what to pick. Defaults to `'date'`. See [`DateTimePickerMode`](#datetimepickermode).
+- `value` — initial selection. Defaults to "now" (decided native-side). An invalid or absent `Date` is dropped before crossing the bridge.
+- `minimumDate` — earliest selectable instant. Ignored in `'time'` mode.
+- `maximumDate` — latest selectable instant. Ignored in `'time'` mode.
+- `minuteInterval` — iOS-only `UIDatePicker.minuteInterval`. Must evenly divide 60 (native clamps to `1-30` with `60 % n === 0`, otherwise it is ignored). Android has no equivalent.
+- `is24Hour` — use a 24-hour clock for time. Defaults to the device setting. On iOS this is emulated via the BCP-47 `hc` locale extension; on Android it defaults to `DateFormat.is24HourFormat`.
+- `title` — sheet/toolbar title. iOS only; unused on Android.
+
+Platform: cross-platform (`minuteInterval` and `title` are iOS-only).
+
+### DateTimePickerResult
+
+The result of a pick.
+
+```ts
+interface DateTimePickerResult {
+  cancelled: boolean;
+  value?: Date;
+  year?: number;
+  month?: number;
+  day?: number;
+  hour?: number;
+  minute?: number;
+}
+```
+
+- `cancelled` — `true` when dismissed without choosing, or on bridge failure / a malformed value.
+- `value` — the selected instant as a JS `Date`. Absent when cancelled.
+- `year` / `month` / `day` / `hour` / `minute` — convenience **local** components of `value`. `month` is `1-12` (unlike `Date#getMonth`, which is `0-11`) and `hour` is `0-23`. All component fields are absent when cancelled.
+
+Platform: cross-platform.

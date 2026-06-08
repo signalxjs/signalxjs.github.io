@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "HTTP — WHATWG fetch transport"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-http` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-http
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as HTTP from '@sigx/lynx-http';
+
+console.log(Object.keys(HTTP));
+```

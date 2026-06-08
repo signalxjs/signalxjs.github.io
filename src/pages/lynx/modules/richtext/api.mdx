@@ -1,0 +1,536 @@
+---
+title: "API reference"
+description: "Rich Text — Native rich-text input"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-richtext` v0.4.9 — one component, one command object, five helper functions, and the typed document/event model.</p>
+
+The public surface is the `RichTextInput` component plus the `RichTextMethods` command object, a set of pure document helpers, and the supporting types:
+
+```ts
+import {
+  RichTextInput,
+  RichTextMethods,
+  encodeDoc,
+  decodeDoc,
+  docEquals,
+  normalizeDoc,
+  emptyDoc,
+} from '@sigx/lynx-richtext';
+import type {
+  RichTextInputProps,
+  RichTextHandle,
+  RichDoc,
+  InlineSpan,
+  InlineSpanType,
+  BlockAttr,
+  BlockAttrType,
+  SelectionState,
+  RichTextChangeEvent,
+  RichTextSelectionEvent,
+  RichTextHeightChangeEvent,
+  RichTextFocusEvent,
+  SigxRichTextAttributes,
+} from '@sigx/lynx-richtext';
+```
+
+Unless noted, the runtime exports (`RichTextInput`, `RichTextMethods`) require the native element and work on **iOS + Android only**. The helper functions and the types are platform-shared. Importing the package entry also registers the `sigx-richtext` tag in the JSX namespace.
+
+## Component
+
+### `RichTextInput`
+
+The typed SignalX wrapper over the native `sigx-richtext` element — a generic attributed-text input that knows nothing about markdown. It decodes native events into typed shapes (`RichDoc`, `SelectionState`) before they reach your handlers, and delivers the element handle through `onElement` so you can issue commands.
+
+Created via `component<RichTextInputProps>(...)`; its concrete type is `ComponentFactory<RichTextInputProps, void, {}>` (from `@sigx/runtime-core`).
+
+```ts
+const RichTextInput: ComponentFactory<RichTextInputProps, void, {}>
+```
+
+- **Props** — see [`RichTextInputProps`](#richtextinputprops). All props are optional.
+- **Renders** — an internal `sigx-richtext` element with kebab-case attributes (`min-height`, `max-height`, `font-size`, `text-color`, `accent-color`, `placeholder-color`, `confirm-type`, `auto-focus`) and `bind*` event wiring (`bindchange`, `bindselection`, `bindheightchange`, `bindfocus`, `bindblur`). A `RichDoc` passed to `value` is stringified to JSON automatically.
+
+Platform notes: iOS + Android only. Backed by `UITextView` (iOS) / `EditText` (Android); it renders nothing meaningful under pure web/SSR. Most consumers use this component rather than the raw [`sigx-richtext`](#sigxrichtextattributes) tag.
+
+### `RichTextInputProps`
+
+The prop type for [`RichTextInput`](#richtextinput). Every prop is optional.
+
+```ts
+type RichTextInputProps =
+  & Define.Prop<'value', RichDoc | string, false>
+  & Define.Prop<'placeholder', string, false>
+  & Define.Prop<'editable', boolean, false>
+  & Define.Prop<'minHeight', number, false>
+  & Define.Prop<'maxHeight', number, false>
+  & Define.Prop<'fontSize', number, false>
+  & Define.Prop<'textColor', string, false>
+  & Define.Prop<'accentColor', string, false>
+  & Define.Prop<'placeholderColor', string, false>
+  & Define.Prop<'confirmType', 'send' | 'search' | 'next' | 'go' | 'done', false>
+  & Define.Prop<'autoFocus', boolean, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', string | Record<string, string | number>, false>
+  & Define.Prop<'onElement', (el: RichTextHandle) => void, false>
+  & Define.Prop<'onChange', (doc: RichDoc, isComposing: boolean) => void, false>
+  & Define.Prop<'onSelection', (sel: SelectionState) => void, false>
+  & Define.Prop<'onHeightChange', (height: number, lines: number) => void, false>
+  & Define.Prop<'onFocus', () => void, false>
+  & Define.Prop<'onBlur', () => void, false>;
+```
+
+- **`value`** — a [`RichDoc`](#richdoc) or a JSON string. Initial-only: once the user has edited (or after any applied `setDocument`), `value` is ignored — use [`RichTextMethods.setDocument`](#richtextmethodssetdocument) for later programmatic replacement. A `RichDoc` is JSON-stringified for you.
+- **`placeholder`** — placeholder text shown when the field is empty.
+- **`editable`** — whether the field accepts edits. Defaults to `true`. Pass an explicit boolean; `editable={undefined}` historically coerced to `false` on Android.
+- **`minHeight`** / **`maxHeight`** — px bounds for auto-grow. `maxHeight` clamps the frame and enables internal scrolling past the ceiling.
+- **`fontSize`** — base font size in px; headings scale from it.
+- **`textColor`** / **`accentColor`** / **`placeholderColor`** — hex color strings (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`; leading `#` optional). `accentColor` is the caret tint and the link color.
+- **`confirmType`** — the keyboard return-key style: `'send'`, `'search'`, `'next'`, `'go'`, or `'done'`.
+- **`autoFocus`** — raises the keyboard on mount.
+- **`class`** / **`style`** — standard styling props.
+- **`onElement`** — receives the [`RichTextHandle`](#richtexthandle) for command calls.
+- **`onChange`** — receives a decoded [`RichDoc`](#richdoc) plus `isComposing`. Do not echo writes while `isComposing` is `true`.
+- **`onSelection`** — receives a [`SelectionState`](#selectionstate); drives toolbar active state and popup anchoring.
+- **`onHeightChange`** — receives `(height, lines)` for auto-grow.
+- **`onFocus`** / **`onBlur`** — fire on focus / blur.
+
+Platform notes: shared type. The runtime behavior backing it is iOS + Android only.
+
+## Command object
+
+### `RichTextMethods`
+
+The background-thread, fire-and-forget command surface for the field. Each method rides the `INVOKE_UI_METHOD` op (background → main) and returns `void` — state reconciles through the field's `bindchange` / `bindselection` events, which are the editor's single source of truth. A `null`/`undefined` handle makes any command a silent no-op.
+
+```ts
+const RichTextMethods: {
+  setDocument(el: RichTextHandle, doc: RichDoc): void;
+  toggleFormat(el: RichTextHandle, type: InlineSpanType): void;
+  setBlockType(el: RichTextHandle, type: BlockAttrType, level?: number, checked?: boolean): void;
+  applyFormat(el: RichTextHandle, type: 'link', start: number, end: number, attrs?: { href?: string }): void;
+  insertText(el: RichTextHandle, text: string): void;
+  setSelectionRange(el: RichTextHandle, start: number, end: number): void;
+  insertChip(el: RichTextHandle, chip: { id: string; label: string; kind?: string }, replace?: { from: number; to: number }): void;
+  focus(el: RichTextHandle): void;
+  blur(el: RichTextHandle): void;
+};
+```
+
+The first argument of every method is a [`RichTextHandle`](#richtexthandle). All methods are iOS + Android native UI methods. See each method below.
+
+### `RichTextMethods.setDocument`
+
+Replace the entire document.
+
+```ts
+setDocument(el: RichTextHandle, doc: RichDoc): void
+```
+
+- **`doc`** — the new [`RichDoc`](#richdoc). Its `v` (version) is carried for stale-write protection.
+- Drops a write whose `v` is older than the field's current version; no-ops on structurally-identical content; drops writes during IME composition; locks out the initial `value` prop. Returns nothing — the new state re-emits through `onChange`.
+
+### `RichTextMethods.toggleFormat`
+
+Toggle an inline format over the current selection.
+
+```ts
+toggleFormat(el: RichTextHandle, type: InlineSpanType): void
+```
+
+- **`type`** — an [`InlineSpanType`](#inlinespantype). A collapsed selection flips the typing attributes instead.
+- Note: `'code'` is terminal — it excludes bold/italic/strike, which cannot be enabled inside a code run. Links and mentions are not toggled here (use `applyFormat` / `insertChip`).
+
+### `RichTextMethods.setBlockType`
+
+Set the block type of the paragraph(s) covered by the selection.
+
+```ts
+setBlockType(el: RichTextHandle, type: BlockAttrType, level?: number, checked?: boolean): void
+```
+
+- **`type`** — a [`BlockAttrType`](#blockattrtype).
+- **`level`** — optional heading level (1–6) when `type` is `'heading'`.
+- **`checked`** — optional initial checkbox state when `type` is `'task'`.
+
+### `RichTextMethods.applyFormat`
+
+Apply a payload-carrying inline format over an explicit character range. Only `'link'` is supported.
+
+```ts
+applyFormat(el: RichTextHandle, type: 'link', start: number, end: number, attrs?: { href?: string }): void
+```
+
+- **`type`** — must be `'link'`.
+- **`start`** / **`end`** — the range in UTF-16 code units (inclusive start, exclusive end).
+- **`attrs.href`** — a non-empty `href` links the range; an empty or missing `href` unlinks it. The command is refused inside a `codeBlock` (it would not round-trip).
+
+### `RichTextMethods.insertText`
+
+Insert text at the caret.
+
+```ts
+insertText(el: RichTextHandle, text: string): void
+```
+
+- **`text`** — the string to insert. It inherits the current typing attributes.
+
+### `RichTextMethods.setSelectionRange`
+
+Move or extend the caret/selection.
+
+```ts
+setSelectionRange(el: RichTextHandle, start: number, end: number): void
+```
+
+- **`start`** / **`end`** — the new selection bounds in UTF-16 code units. A collapsed range (`start === end`) places the caret.
+
+### `RichTextMethods.insertChip`
+
+Insert an atomic mention chip — one `U+FFFC` code unit carrying the mention attributes.
+
+```ts
+insertChip(el: RichTextHandle, chip: { id: string; label: string; kind?: string }, replace?: { from: number; to: number }): void
+```
+
+- **`chip.id`** / **`chip.label`** — both required and non-empty; otherwise the command is refused. The visible label lives in the attributes, not in the covered text.
+- **`chip.kind`** — optional classifier.
+- **`replace`** — when both `from` and `to` are given (UTF-16 code units), the range `[from, to)` is removed first; otherwise the chip replaces the live selection. The chip never inherits or leaks typing attributes.
+
+### `RichTextMethods.focus`
+
+Focus the field (shows the soft keyboard).
+
+```ts
+focus(el: RichTextHandle): void
+```
+
+### `RichTextMethods.blur`
+
+Blur the field (dismisses the keyboard).
+
+```ts
+blur(el: RichTextHandle): void
+```
+
+## Functions
+
+These are pure, platform-shared helpers for working with the document model and the JSON wire form.
+
+### `encodeDoc`
+
+Serialize a [`RichDoc`](#richdoc) to the single JSON wire schema.
+
+```ts
+function encodeDoc(doc: RichDoc): string
+```
+
+- **`doc`** — the document to serialize.
+- **Returns** — the JSON string (`JSON.stringify`). This is the one encode point used by the `value` prop and the `setDocument` command, opposite [`decodeDoc`](#decodedoc).
+
+Platform: shared.
+
+### `decodeDoc`
+
+Parse a JSON `RichDoc` defensively.
+
+```ts
+function decodeDoc(raw: string | null | undefined): RichDoc
+```
+
+- **`raw`** — a JSON string (or `null`/`undefined`).
+- **Returns** — a sanitized [`RichDoc`](#richdoc). Malformed or empty input degrades to [`emptyDoc()`](#emptydoc) instead of throwing (native events must never crash the background thread). It clamps span/block offsets to `[0, text.length]`, drops unknown types and empty/inverted ranges, clamps heading `level` to 1–6, drops an `ordered` `start` of 1, keeps `checked` only for `task` and `lang` only when non-empty, and coerces `v` to a finite number (else `0`). Used internally by `RichTextInput`'s `onChange`.
+
+Platform: shared.
+
+### `docEquals`
+
+Structural equality ignoring the version field `v` — the echo-suppression comparison.
+
+```ts
+function docEquals(a: RichDoc, b: RichDoc): boolean
+```
+
+- **`a`** / **`b`** — the documents to compare.
+- **Returns** — `true` when `text`, span/block counts, and each span/block's fields match (deep `attrs` equality for spans; `level`/`checked`/`lang` for blocks). The comparison ignores `v`.
+- Note: order-sensitive — run [`normalizeDoc`](#normalizedoc) on both inputs first if producer ordering may differ.
+
+Platform: shared.
+
+### `normalizeDoc`
+
+Return a copy with spans and blocks sorted into a canonical order.
+
+```ts
+function normalizeDoc(doc: RichDoc): RichDoc
+```
+
+- **`doc`** — the document to normalize.
+- **Returns** — a copy with spans sorted by `(start, end, type)` and blocks sorted by `start`, so structurally-identical content compares equal under [`docEquals`](#docequals) regardless of producer ordering. `text` and `v` are preserved.
+
+Platform: shared.
+
+### `emptyDoc`
+
+Construct an empty document.
+
+```ts
+function emptyDoc(v?: number): RichDoc
+```
+
+- **`v`** — optional starting version (default `0`).
+- **Returns** — `{ text: '', spans: [], blocks: [], v }`. This is the fallback that [`decodeDoc`](#decodedoc) returns on bad input.
+
+Platform: shared.
+
+## Types
+
+### `RichTextHandle`
+
+The minimal structural handle to the native element — the background `ShadowElement` delivered by a callback ref (or via `RichTextInput`'s `onElement` prop).
+
+```ts
+type RichTextHandle = { id: number } | null | undefined;
+```
+
+It is the first argument to every [`RichTextMethods`](#richtextmethods) command; a `null`/`undefined` handle makes a command a no-op. Platform: shared.
+
+### `RichDoc`
+
+The flat, span-based document model that crosses the JS ↔ native bridge.
+
+```ts
+interface RichDoc {
+  text: string;
+  spans: InlineSpan[];
+  blocks: BlockAttr[];
+  /** Monotonic document version (see module docs). */
+  v: number;
+}
+```
+
+- **`text`** — the flat text; `\n` separates paragraphs.
+- **`spans`** — inline character-range formats ([`InlineSpan`](#inlinespan)).
+- **`blocks`** — paragraph-range attributes ([`BlockAttr`](#blockattr)).
+- **`v`** — a monotonic version bumped on every native user edit (used for echo/stale-write ordering).
+
+Platform notes: maps 1:1 onto `NSAttributedString` (iOS) / `Spannable` (Android), with UTF-16 code-unit offsets everywhere — surrogate pairs count as 2. Native never parses markdown; it reads the model back out of its own text storage after each edit.
+
+### `InlineSpan`
+
+An inline character-range format.
+
+```ts
+interface InlineSpan {
+  /** Inclusive start, UTF-16 code units. */
+  start: number;
+  /** Exclusive end, UTF-16 code units. */
+  end: number;
+  type: InlineSpanType;
+  /** Type-specific payload (`href` for links, `id`/`label` for mentions). */
+  attrs?: Record<string, string>;
+}
+```
+
+- **`start`** / **`end`** — the range (start inclusive, end exclusive) in UTF-16 code units.
+- **`type`** — an [`InlineSpanType`](#inlinespantype).
+- **`attrs`** — type-specific payload: `href` for `link`; `id` / `label` (+ optional `kind`) for `mention`. A `mention` span covers exactly one `U+FFFC` code unit; its visible label lives only in `attrs.label`. Platform: shared.
+
+### `InlineSpanType`
+
+The fixed v1 vocabulary of inline formats.
+
+```ts
+type InlineSpanType = 'bold' | 'italic' | 'strike' | 'code' | 'link' | 'mention';
+```
+
+- `bold` / `italic` / `strike` / `code` are toggleable via [`toggleFormat`](#richtextmethodstoggleformat).
+- `link` is applied via [`applyFormat`](#richtextmethodsapplyformat) with `attrs.href`.
+- `mention` is an atomic chip inserted via [`insertChip`](#richtextmethodsinsertchip).
+- `'code'` is terminal — it excludes bold/italic/strike. Platform: shared.
+
+### `BlockAttr`
+
+A paragraph-level block attribute over a line-aligned range.
+
+```ts
+interface BlockAttr {
+  /** Inclusive start of the paragraph's char range (line boundary). */
+  start: number;
+  /** Exclusive end (line boundary / end of text). */
+  end: number;
+  type: BlockAttrType;
+  /** Heading level 1–6, or an ordered run's start number (omitted when 1). */
+  level?: number;
+  /** Task checkbox state (task only). */
+  checked?: boolean;
+  /** Code fence info string (codeBlock only) — carried opaquely by native. */
+  lang?: string;
+}
+```
+
+- **`start`** / **`end`** — the line-aligned range (UTF-16 code units).
+- **`type`** — a [`BlockAttrType`](#blockattrtype).
+- **`level`** — heading level (1–6) or an `ordered` run's start number (omitted when 1; ordered numbering itself is derived from position at draw time).
+- **`checked`** — task checkbox state (`task` only).
+- **`lang`** — code-fence info string (`codeBlock` only).
+
+Platform notes: markers (bullet/ordered/task) are draw-only and never present in `text`. Producers normalize ranges to line boundaries; native re-snaps defensively. Platform: shared.
+
+### `BlockAttrType`
+
+Paragraph-level block types.
+
+```ts
+type BlockAttrType =
+  | 'paragraph'
+  | 'heading'
+  | 'bullet'
+  | 'ordered'
+  | 'task'
+  | 'blockquote'
+  | 'codeBlock'
+  | 'raw';
+```
+
+All render in-field natively (headings; bullet/ordered/task lists; blockquote with a leading bar + inset; codeBlock with mono text + full-width background). `raw` is a consumer escape hatch — rendered as a plain paragraph with the attribute round-tripped untouched. Platform: shared.
+
+### `SelectionState`
+
+The parsed form of the selection event, delivered to `RichTextInput`'s `onSelection`.
+
+```ts
+interface SelectionState {
+  start: number;
+  end: number;
+  activeFormats: InlineSpanType[];
+  activeBlock: BlockAttrType;
+  headingLevel?: number;
+  caretRect: { x: number; y: number; height: number };
+}
+```
+
+- **`start`** / **`end`** — the selection bounds in UTF-16 code units.
+- **`activeFormats`** — inline formats covering the selection, or the typing attributes when collapsed.
+- **`activeBlock`** — the caret paragraph's block type (defaults to `'paragraph'`).
+- **`headingLevel`** — present only when `activeBlock === 'heading'`.
+- **`caretRect`** — the caret rectangle in the element's own coordinate space, for popup anchoring (e.g. mention/link popups). Platform: shared.
+
+## Event types
+
+These are the raw native payloads on the `sigx-richtext` tag. `RichTextInput` decodes them for you into its typed callbacks — you only need these when wiring the raw element directly.
+
+### `RichTextChangeEvent`
+
+Raw `bindchange` payload — fired after every user edit and after applied programmatic mutations.
+
+```ts
+interface RichTextChangeEvent {
+  type: 'change';
+  detail: {
+    /** JSON-encoded RichDoc (decode with decodeDoc). */
+    doc: string;
+    /** True while an IME composition session is active — do NOT echo writes back. */
+    isComposing: boolean;
+  };
+}
+```
+
+- **`detail.doc`** — a JSON-encoded [`RichDoc`](#richdoc); decode with [`decodeDoc`](#decodedoc).
+- **`detail.isComposing`** — `true` during an active IME composition; callers must not echo writes mid-composition. `RichTextInput` decodes this into `onChange(doc, isComposing)`. Platform: shared (event type).
+
+### `RichTextSelectionEvent`
+
+Raw `bindselection` payload — fired when the caret/selection moves.
+
+```ts
+interface RichTextSelectionEvent {
+  type: 'selection';
+  detail: {
+    start: number;
+    end: number;
+    /** Comma-separated inline formats, e.g. "bold,italic". */
+    activeFormats: string;
+    /** Block type of the caret's paragraph. */
+    activeBlock: string;
+    /** Heading level when activeBlock === 'heading'. */
+    headingLevel?: number;
+    /** Caret rectangle in the element's own coordinate space. */
+    caretX: number;
+    caretY: number;
+    caretHeight: number;
+  };
+}
+```
+
+`activeFormats` is a comma-separated string; `RichTextInput` parses it and reshapes `caretX`/`caretY`/`caretHeight` into `caretRect` to produce a [`SelectionState`](#selectionstate) for `onSelection`. Platform: shared (event type).
+
+### `RichTextHeightChangeEvent`
+
+Raw `bindheightchange` payload — fired when the intrinsic content height changes (auto-grow).
+
+```ts
+interface RichTextHeightChangeEvent {
+  type: 'heightchange';
+  detail: {
+    /** Content height in px (may exceed the clamped frame height). */
+    height: number;
+    /** Line count. */
+    lines: number;
+  };
+}
+```
+
+- **`detail.height`** — px (already clamped to min/max in native; emitted only when it moves by at least 0.5px).
+- **`detail.lines`** — line count. `RichTextInput` forwards this to `onHeightChange(height, lines)`. Platform: shared (event type).
+
+### `RichTextFocusEvent`
+
+Raw `bindfocus` / `bindblur` payload (empty detail).
+
+```ts
+interface RichTextFocusEvent {
+  type: 'focus' | 'blur';
+  detail: Record<string, never>;
+}
+```
+
+`RichTextInput` forwards these to `onFocus()` / `onBlur()`. Platform: shared (event type).
+
+## JSX element
+
+### `SigxRichTextAttributes`
+
+The JSX intrinsic attribute/event surface for the raw native `sigx-richtext` tag (kebab-case props, `bind*` event handlers). Importing the package entry registers the `sigx-richtext` tag in the JSX namespace.
+
+```ts
+interface SigxRichTextAttributes extends LynxCommonAttributes {
+  value?: string;
+  placeholder?: string;
+  editable?: boolean;
+  'min-height'?: number;
+  'max-height'?: number;
+  'font-size'?: number;
+  'text-color'?: string;
+  'accent-color'?: string;
+  'placeholder-color'?: string;
+  'confirm-type'?: 'send' | 'search' | 'next' | 'go' | 'done';
+  'auto-focus'?: boolean;
+  bindchange?: LynxEventHandler<RichTextChangeEvent>;
+  bindselection?: LynxEventHandler<RichTextSelectionEvent>;
+  bindheightchange?: LynxEventHandler<RichTextHeightChangeEvent>;
+  bindfocus?: LynxEventHandler<RichTextFocusEvent>;
+  bindblur?: LynxEventHandler<RichTextFocusEvent>;
+}
+```
+
+- **`value`** — a JSON-encoded [`RichDoc`](#richdoc) (use [`encodeDoc`](#encodedoc)). Initial-only once the user has edited — use [`setDocument`](#richtextmethodssetdocument) afterward.
+- The remaining attributes mirror the [component props](#richtextinputprops) in kebab-case.
+- The `bind*` handlers receive the raw event types above.
+
+Platform notes: iOS + Android native element. Most consumers use the typed [`RichTextInput`](#richtextinput) component instead of this raw tag. `LynxCommonAttributes` and `LynxEventHandler` come from `@sigx/lynx-runtime`.

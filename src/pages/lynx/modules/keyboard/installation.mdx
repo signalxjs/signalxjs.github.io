@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Keyboard — Soft-keyboard handling"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-keyboard` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-keyboard
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as Keyboard from '@sigx/lynx-keyboard';
+
+console.log(Object.keys(Keyboard));
+```

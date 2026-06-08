@@ -1,0 +1,181 @@
+---
+title: "API reference"
+description: "Keyboard — Soft-keyboard handling"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-keyboard` v0.4.9.</p>
+
+All exports are shared (Lynx) and work on both iOS and Android. Every primitive requires a `SafeAreaProvider` ancestor (from `@sigx/lynx-safe-area`); without one the hooks read zero insets and warn once in development. Heights are in dp/pt (logical pixels). The lift is always computed as `max(0, keyboard - (discountBottomInset ? bottom : 0) + offset)`.
+
+## Components
+
+### KeyboardAvoidingView
+
+Wraps screen content and keeps it above the soft keyboard, mirroring React Native's component of the same name. Because it is layout-affecting, it applies its lift through inline background-thread styles in a single re-render rather than animating on the main thread — the native keyboard slide masks the snap. Renders a `<view>` with fill-parent flex defaults (`flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0, display: 'flex', flexDirection: 'column'`).
+
+```ts
+export const KeyboardAvoidingView = component<KeyboardAvoidingViewProps>(...)
+
+export type KeyboardAvoidingViewProps =
+  & Define.Prop<'behavior', KeyboardAvoidingBehavior, false>
+  & Define.Prop<'keyboardVerticalOffset', number, false>
+  & Define.Prop<'discountBottomInset', boolean, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```
+
+- `behavior` — how content is kept above the keyboard. One of `KeyboardAvoidingBehavior`; defaults to `'padding'`.
+- `keyboardVerticalOffset` — number (dp) added to the computed lift, for RN parity. Defaults to `0`.
+- `discountBottomInset` — subtract the bottom safe-area inset from the lift. Defaults to `true`; set `false` to lift by the full keyboard height when no ancestor applies the bottom inset.
+- `class` / `style` — passthrough to the host view. `style` is merged over the component's base flex defaults and wins on conflicts.
+- `default` slot — the content to keep above the keyboard.
+
+### KeyboardStickyView
+
+Pins its children to the top edge of the soft keyboard — the home for a chat composer or input-accessory toolbar. The bar flows as a normal bottom flex sibling; when the keyboard opens it is lifted with `transform: translateY(-lift)`. Because a transform does not reflow layout, it is safe to animate on the main thread via `useAnimatedStyle` (smooth 60fps via a `SharedValue` and `withTiming`). Content behind the translated bar does **not** shrink — pair it with a `KeyboardAvoidingView behavior="padding"` around the content area only (never around the bar, or it double-lifts).
+
+```ts
+export const KeyboardStickyView = component<KeyboardStickyViewProps>(...)
+
+export type KeyboardStickyViewProps =
+  & Define.Prop<'offset', number, false>
+  & Define.Prop<'animated', boolean, false>
+  & Define.Prop<'discountBottomInset', boolean, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```
+
+- `offset` — number (dp) of extra gap between the bar and the keyboard's top edge. Defaults to `0`.
+- `animated` — when `true` (default), a smooth main-thread-driven `translateY` via `SharedValue` + timing; when `false`, a plain background re-render with an inline transform (debug fallback).
+- `discountBottomInset` — subtract the bottom safe-area inset from the lift. Defaults to `true`.
+- `class` — passthrough to the host view.
+- `style` — passthrough, but any `transform` in `style` is overridden on the animated path (the bar's transform is controlled internally). Wrap children in their own view for an additional transform.
+- `default` slot — the bar's children.
+
+## Aliases
+
+### KeyboardAccessoryView
+
+Alias for [KeyboardStickyView](#keyboardstickyview). RN-naming bridge: React Native core's `InputAccessoryView` role is covered by the sticky view. Identical component and props (`KeyboardStickyViewProps`).
+
+```ts
+export { KeyboardStickyView as KeyboardAccessoryView } from './keyboard-sticky-view.js';
+```
+
+### KeyboardToolbar
+
+Alias for [KeyboardStickyView](#keyboardstickyview). RN-naming bridge: matches `react-native-keyboard-controller`'s name for the same shape. Identical component and props (`KeyboardStickyViewProps`).
+
+```ts
+export { KeyboardStickyView as KeyboardToolbar } from './keyboard-sticky-view.js';
+```
+
+## Hooks
+
+### useKeyboard
+
+Background-reactive soft-keyboard state. Height comes from the safe-area bridge (`useSafeAreaInsets().value.keyboard`, fed by the native `safeAreaChanged` event) — Lynx has no separate keyboard event API. `visible` is `height > 0`. Consumers re-render on keyboard show/hide.
+
+```ts
+export function useKeyboard(): Computed<KeyboardState>
+```
+
+- **Returns** — a `Computed<KeyboardState>`; read `.value` to subscribe.
+- Must be used under a `SafeAreaProvider`; without one it reads zero insets and warns in development.
+
+### useKeyboardLift
+
+Background-reactive raw lift — how far a bottom-anchored bar must rise to clear the keyboard. The bottom inset is discounted by default because an ancestor `SafeAreaView edges={['bottom']}` typically already keeps the bar above the home indicator, which the keyboard covers when open.
+
+```ts
+export function useKeyboardLift(
+  discountBottomInset = true,
+  offset = 0,
+): Computed<number>
+```
+
+- `discountBottomInset` — subtract the bottom safe-area inset from the lift. Defaults to `true`.
+- `offset` — extra gap (dp) added to the lift. Defaults to `0`.
+- **Returns** — a `Computed<number>` equal to `max(0, keyboard - (discountBottomInset ? bottom : 0) + offset)` while the keyboard is visible (`keyboard > 0`), `0` otherwise.
+
+### useKeyboardLiftSV
+
+Smoothly animated main-thread `SharedValue<number>` tracking the keyboard lift, for `useAnimatedStyle(ref, sv, 'translateY', { factor: -1 })` bindings. Acts as the background→main-thread bridge: the keyboard inset is a background-only signal, so a background effect watches it and dispatches a main-thread `withTiming` (from `@sigx/lynx-motion`) toward each new target; the timing loop runs entirely on the main thread (no per-frame thread crossing). Seeded from current insets so a screen mounting while the keyboard is already open paints at the lifted position on the first frame. Dedupes by last dispatched target to skip rotation/status-bar inset changes that do not affect the lift. The internal watcher effect is stopped on unmount.
+
+```ts
+export function useKeyboardLiftSV(
+  discountBottomInset = true,
+  offset = 0,
+  /** Tween duration in seconds (lynx-motion convention). */
+  duration = 0.25,
+): SharedValue<number>
+```
+
+- `discountBottomInset` — subtract the bottom safe-area inset from the lift. Defaults to `true`.
+- `offset` — extra gap (dp) added to the lift. Defaults to `0`.
+- `duration` — tween duration in seconds (lynx-motion convention). Defaults to `0.25`.
+- **Returns** — a `SharedValue<number>` tracking the lift, animatable on the main thread.
+
+## Types
+
+### KeyboardAvoidingBehavior
+
+RN-mirroring behavior modes for [KeyboardAvoidingView](#keyboardavoidingview).
+
+```ts
+export type KeyboardAvoidingBehavior = 'padding' | 'translate' | 'height';
+```
+
+- `'padding'` — add `paddingBottom` equal to the keyboard overlap, squeezing the flex column so all content stays above the keyboard.
+- `'translate'` — shift the whole container up by the overlap (top content can move off-screen; no reflow).
+- `'height'` — append a trailing spacer view of the overlap height, squeezing content above without touching container padding. This is the closest analogue of RN's height-resizing; the implementation differs — RN shrinks the container's own height, this inserts a spacer.
+
+### KeyboardState
+
+Background-reactive keyboard state returned by [useKeyboard](#usekeyboard).
+
+```ts
+export interface KeyboardState {
+  /** Soft-keyboard height in dp; 0 when hidden. */
+  height: number;
+  visible: boolean;
+}
+```
+
+- `height` — the soft-keyboard height in dp (`0` when hidden).
+- `visible` — mirrors `height > 0`.
+
+### KeyboardAvoidingViewProps
+
+Props for [KeyboardAvoidingView](#keyboardavoidingview). All props are optional (the `false` third arg to `Define.Prop` marks the prop not required).
+
+```ts
+export type KeyboardAvoidingViewProps =
+  & Define.Prop<'behavior', KeyboardAvoidingBehavior, false>
+  & Define.Prop<'keyboardVerticalOffset', number, false>
+  & Define.Prop<'discountBottomInset', boolean, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```
+
+### KeyboardStickyViewProps
+
+Props for [KeyboardStickyView](#keyboardstickyview) and its aliases [KeyboardAccessoryView](#keyboardaccessoryview) / [KeyboardToolbar](#keyboardtoolbar). All props are optional.
+
+```ts
+export type KeyboardStickyViewProps =
+  & Define.Prop<'offset', number, false>
+  & Define.Prop<'animated', boolean, false>
+  & Define.Prop<'discountBottomInset', boolean, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```

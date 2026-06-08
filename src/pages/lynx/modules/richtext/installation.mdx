@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Rich Text — Native rich-text input"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-richtext` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-richtext
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as RichText from '@sigx/lynx-richtext';
+
+console.log(Object.keys(RichText));
+```

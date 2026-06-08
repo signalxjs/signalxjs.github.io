@@ -8,10 +8,157 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-biometric` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-biometric`. All methods work on both iOS and Android.</p>
 
-## Exports
+```tsx
+import { Biometric } from '@sigx/lynx-biometric';
+import type {
+  BiometricType,
+  BiometricAvailability,
+  BiometricErrorCode,
+  BiometricAuthenticateOptions,
+  BiometricAuthenticateResult,
+} from '@sigx/lynx-biometric';
+```
 
-{/* TODO: document the public API of @sigx/lynx-biometric */}
+## Namespace
 
-See the package source for the complete typed surface.
+### Biometric
+
+The package's single value export: a frozen object exposing the three biometric methods. Declared `as const`.
+
+```ts
+const Biometric: {
+  isAvailable(): Promise<BiometricAvailability>;
+  authenticate(opts: BiometricAuthenticateOptions): Promise<BiometricAuthenticateResult>;
+  isModuleAvailable(): boolean;
+};
+```
+
+## Functions
+
+### Biometric.isAvailable
+
+```ts
+isAvailable(): Promise<BiometricAvailability>
+```
+
+Checks whether the device has biometric hardware enrolled and usable. Never prompts the user.
+
+- **Returns** a `Promise<BiometricAvailability>`: `available` is `true` only when usable, enrolled biometric hardware is present, and `type` reports the modality.
+- If the native module isn't wired into the build, it resolves to `{ available: false, type: 'none' }` without calling the native bridge.
+- **Platform** — Android queries `BiometricManager.canAuthenticate(BIOMETRIC_STRONG)`, so class-3-only requirements mean `BIOMETRIC_WEAK` face sensors report `available: false`. iOS uses `LAContext.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)`.
+
+### Biometric.authenticate
+
+```ts
+authenticate(opts: BiometricAuthenticateOptions): Promise<BiometricAuthenticateResult>
+```
+
+Prompts the user to authenticate.
+
+- **Parameters** — `opts: BiometricAuthenticateOptions` (see below); `reason` is required.
+- **Returns** a `Promise<BiometricAuthenticateResult>`. It ALWAYS resolves and never rejects — failures, including the user cancelling, come back as `{ success: false, error, errorCode }`, so no try/catch is needed.
+- Returns `{ success: false, error: 'reason is required', errorCode: 'unknown' }` if `opts` is missing or `reason` is empty — validated JS-side, the native layer is not called.
+- Returns `{ success: false, error: 'Biometric module not available in this build', errorCode: 'biometryNotAvailable' }` if the native module isn't registered.
+- Any underlying bridge rejection is caught and converted to `{ success: false, errorCode: 'unknown' }`.
+- **Platform** — Android shows a `BiometricPrompt` and requires a foregrounded `FragmentActivity` host; if none is available it returns `errorCode: 'noActivity'`. A single mismatch keeps the prompt up for retry rather than reporting `'authenticationFailed'`. iOS uses `LAContext` and forwards callbacks to the main thread.
+
+### Biometric.isModuleAvailable
+
+```ts
+isModuleAvailable(): boolean
+```
+
+Returns whether the native Biometric module is wired into the current build. Use it to hide biometric UI in builds where the module isn't linked.
+
+- **Returns** `true` if the native module is registered, otherwise `false`.
+
+## Types
+
+### BiometricType
+
+```ts
+type BiometricType =
+  | 'faceId'
+  | 'touchId'
+  | 'fingerprint'
+  | 'face'
+  | 'iris'
+  | 'none';
+```
+
+The biometric modality reported by `isAvailable()`. `'none'` means no enrolled biometric or no hardware.
+
+- **Platform** — iOS maps Face ID → `'faceId'`, Touch ID → `'touchId'`, and Optic ID (Vision Pro, iOS 17+) → `'iris'`. Android maps a fingerprint sensor → `'fingerprint'`, a class-3 face sensor → `'face'`, and an iris sensor → `'iris'`.
+
+### BiometricAvailability
+
+```ts
+interface BiometricAvailability {
+  available: boolean;
+  type: BiometricType;
+}
+```
+
+The return shape of `Biometric.isAvailable()`. `available` is `true` only when usable biometric hardware is enrolled (Android requires the `BIOMETRIC_STRONG` class).
+
+### BiometricErrorCode
+
+```ts
+type BiometricErrorCode =
+  | 'userCancel'
+  | 'userFallback'
+  | 'systemCancel'
+  | 'authenticationFailed'
+  | 'biometryNotAvailable'
+  | 'biometryNotEnrolled'
+  | 'biometryLockout'
+  | 'noActivity'
+  | 'unknown';
+```
+
+The machine-readable error code returned in `BiometricAuthenticateResult.errorCode` when a prompt fails.
+
+- **Platform** — `'userFallback'` and `'authenticationFailed'` are iOS-only; `'noActivity'` is Android-only (the host wasn't a foregrounded `FragmentActivity`). The rest occur on both platforms.
+
+### BiometricAuthenticateOptions
+
+```ts
+interface BiometricAuthenticateOptions {
+  /** Reason shown to the user. iOS: LAContext.localizedReason (required by the OS). Android: prompt subtitle. */
+  reason: string;
+  /** Android only. Title of the BiometricPrompt. Defaults to "Authenticate". Ignored on iOS. */
+  title?: string;
+  /** iOS only. LAContext.localizedFallbackTitle — text on the fallback button (e.g. "Use Passcode"). Empty string hides it. */
+  fallbackTitle?: string;
+  /** Allow falling back to the device PIN/passcode/pattern when biometrics fail or aren't enrolled. */
+  allowDeviceCredential?: boolean;
+}
+```
+
+Options passed to `Biometric.authenticate()`.
+
+- `reason` — **required**; an empty string is rejected JS-side.
+- `title` — **Android only**; ignored on iOS, where the OS controls the title.
+- `fallbackTitle` — **iOS only**; an empty string hides the fallback button.
+- `allowDeviceCredential` — **both platforms**. iOS switches the policy to `.deviceOwnerAuthentication`; Android adds `DEVICE_CREDENTIAL` to the allowed authenticators. Degrades the gate to passcode strength.
+
+### BiometricAuthenticateResult
+
+```ts
+interface BiometricAuthenticateResult {
+  success: boolean;
+  /** Human-readable error message if success is false. */
+  error?: string;
+  /** Machine-readable error code if success is false. */
+  errorCode?: BiometricErrorCode;
+}
+```
+
+The return shape of `Biometric.authenticate()`. When `success` is `true`, `error` and `errorCode` are absent; on failure both are populated.
+
+## See also
+
+- [Using Biometric](/lynx/modules/biometric/usage) — practical guide with complete examples.
+- [Installation](/lynx/modules/biometric/installation) — native setup and permissions.

@@ -8,10 +8,302 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-motion` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-motion` — drivers, the pure spring solver, easing curves and the supporting types.</p>
 
-## Exports
+The package has a single entry point and depends only on `@sigx/lynx` (for the `SharedValue` type). The three drivers — `animate`, `withSpring`, `withTiming` — are **main-thread worklets**: call them from inside a `'main thread'` context (e.g. a `main-thread-bindtap` handler). They write a `SharedValue&lt;number&gt;`; bind that value with `useAnimatedStyle` from `@sigx/lynx` to make an element move. See [Usage](/lynx/modules/motion/usage) for the threading model and composition idioms.
 
-{/* TODO: document the public API of @sigx/lynx-motion */}
+## Functions
 
-See the package source for the complete typed surface.
+### animate
+
+```ts
+function animate(
+    sv: SharedValue<number>,
+    target: number,
+    options?: AnimateOptions,
+): AnimateControls
+```
+
+Animates `sv` toward `target` and returns `{ stop, finished }` controls.
+
+- **`sv`** — the `SharedValue&lt;number&gt;` to drive. Only its value is written; you must bind it to a transform separately.
+- **`target`** — the destination value.
+- **`options`** — `AnimateOptions`. The mode defaults to `spring`; pass `type: 'tween'` (or a `duration`) for a tween, which always uses `easeOut`.
+- **Returns** — `AnimateControls`: call `stop()` to cancel; `await finished` to wait for completion.
+
+Marked **main thread** — must be invoked from a `'main thread'` context. Each SharedValue has at most one in-flight animation; starting a new one cancels the previous (whose `finished` still resolves).
+
+### withSpring
+
+```ts
+function withSpring(
+    sv: SharedValue<number>,
+    target: number,
+    options?: SpringOptions,
+): Promise<void>
+```
+
+Promise-returning sugar over `animate(sv, target, { ...options, type: 'spring' }).finished`. Resolves on completion **or** cancellation (never rejects).
+
+- **`options`** — `SpringOptions` physics parameters (`stiffness`, `damping`, `mass`, `velocity`, `restSpeed`, `restDelta`).
+- **Returns** — `Promise&lt;void&gt;`. There is no cancellation handle; use `animate` when you need `stop()`.
+
+Marked **main thread**.
+
+### withTiming
+
+```ts
+function withTiming(
+    sv: SharedValue<number>,
+    target: number,
+    options?: TimingOptions,
+): Promise<void>
+```
+
+Promise-returning tween sugar over `animate(sv, target, { ...options, type: 'tween' }).finished`.
+
+- **`options`** — `TimingOptions`; `duration` is in **seconds** (default `0.3`).
+- **Easing** — fixed to `easeOut`; custom easing cannot be passed (see the easing note below).
+- **Returns** — `Promise&lt;void&gt;`, resolving on completion or cancellation.
+
+Marked **main thread**.
+
+### spring
+
+```ts
+function spring(options: SpringSolverOptions): SpringSolver
+```
+
+Pure-math spring solver factory. Returns a stateless stepper, `{ next(t) }`, where `t` is elapsed milliseconds. The solver owns no time state — you advance it.
+
+- **`options`** — `SpringSolverOptions`: physics parameters plus a required `keyframes: [origin, target]` tuple.
+- **Returns** — `SpringSolver`.
+
+This is **not** used by the worklet drivers (`animate` has its own inlined copy). It is for tests, background-side use and advanced driving of non-SharedValue values.
+
+### cubicBezier
+
+```ts
+function cubicBezier(mX1: number, mY1: number, mX2: number, mY2: number): Easing
+```
+
+Builds a cubic-bezier easing function from four control points. Returns the identity easing when `(mX1, mY1) === (mX2, mY2)`. Modified from Gaëtan Renaudeau's bezier-easing (MIT). Note: custom easings cannot be passed to the drivers — this is for math and BG-side use.
+
+## Easing curves and modifiers
+
+All curves are of type `Easing` (`(t: number) =&gt; number`). The drivers always use the built-in `easeOut`; these exports are for the pure-math / BG-side path, not for feeding into `animate`.
+
+### linear
+
+```ts
+const linear: Easing
+```
+
+Identity easing (`t =&gt; t`).
+
+### easeIn
+
+```ts
+const easeIn: Easing // cubicBezier(0.42, 0, 1, 1)
+```
+
+Accelerating ease-in curve.
+
+### easeOut
+
+```ts
+const easeOut: Easing // cubicBezier(0, 0, 0.58, 1)
+```
+
+Decelerating ease-out curve. This is the fixed easing used by all tween animations.
+
+### easeInOut
+
+```ts
+const easeInOut: Easing // cubicBezier(0.42, 0, 0.58, 1)
+```
+
+Accelerate-then-decelerate ease-in-out curve.
+
+### circIn
+
+```ts
+const circIn: Easing
+```
+
+Circular ease-in curve.
+
+### circOut
+
+```ts
+const circOut: Easing // reverseEasing(circIn)
+```
+
+Circular ease-out curve.
+
+### circInOut
+
+```ts
+const circInOut: Easing // mirrorEasing(circIn)
+```
+
+Circular ease-in-out curve.
+
+### backIn
+
+```ts
+const backIn: Easing // reverseEasing(backOut)
+```
+
+Back ease-in — overshoots backward before moving forward.
+
+### backOut
+
+```ts
+const backOut: Easing // cubicBezier(0.33, 1.53, 0.69, 0.99)
+```
+
+Back ease-out — overshoots past the target then settles.
+
+### backInOut
+
+```ts
+const backInOut: Easing // mirrorEasing(backIn)
+```
+
+Back ease-in-out — overshoots at both ends.
+
+### anticipate
+
+```ts
+const anticipate: Easing
+```
+
+Anticipation easing — pulls back slightly before springing forward.
+
+### reverseEasing
+
+```ts
+const reverseEasing = (easing: Easing): Easing => (p) => 1 - easing(1 - p)
+```
+
+Easing modifier that reverses a curve — turns an ease-in into an ease-out.
+
+### mirrorEasing
+
+```ts
+const mirrorEasing = (easing: Easing): Easing =>
+    (p) => p <= 0.5 ? easing(2 * p) / 2 : (2 - easing(2 * (1 - p))) / 2
+```
+
+Easing modifier that mirrors a curve across its midpoint — turns an ease-in into an ease-in-out.
+
+## Helpers
+
+### clamp
+
+```ts
+const clamp = (min: number, max: number, v: number): number =>
+    v > max ? max : v < min ? min : v
+```
+
+Clamps `v` to the range `[min, max]`. A small animation-math helper.
+
+## Types
+
+### AnimateOptions
+
+```ts
+interface AnimateOptions extends SpringOptions, TimingOptions {
+    type?: 'spring' | 'tween';
+}
+// Effective fields: type?, stiffness?, damping?, mass?, velocity?,
+//                   restSpeed?, restDelta?, duration?
+```
+
+Options for `animate`. Merges spring physics and tween duration. `type` selects the mode; the mode defaults to `spring` unless a `duration` is set.
+
+### AnimateControls
+
+```ts
+interface AnimateControls {
+    stop(): void;
+    finished: Promise<void>;
+}
+```
+
+Return value of `animate`. `stop()` cancels the animation (`finished` still resolves, never rejects); `finished` resolves on completion or cancellation.
+
+### SpringOptions
+
+```ts
+interface SpringOptions {
+    stiffness?: number; // default 100
+    damping?: number;   // default 10
+    mass?: number;      // default 1
+    velocity?: number;  // initial velocity, units/sec, default 0
+    restSpeed?: number; // rest threshold, default 2
+    restDelta?: number; // rest threshold, default 0.5
+}
+```
+
+Physics-only spring parameters, accepted by `withSpring`, `animate` (spring mode) and the `spring` solver. The damping ratio determines behaviour: low damping overshoots (underdamped), a critically damped value settles without overshoot, and high damping approaches slowly (overdamped).
+
+### TimingOptions
+
+```ts
+interface TimingOptions {
+    /** Tween duration in seconds. Default 0.3. */
+    duration?: number;
+}
+```
+
+Tween options for `withTiming` and `animate` (tween mode). Duration is in seconds.
+
+### SpringSolverOptions
+
+```ts
+interface SpringSolverOptions extends SpringOptions {
+    /** Required: [origin, target]. */
+    keyframes: [number, number];
+}
+```
+
+Options for the `spring` factory. Extends `SpringOptions` and requires `keyframes` as a 2-tuple `[origin, target]`.
+
+### SpringSolver
+
+```ts
+interface SpringSolver {
+    next(t: number): SpringStep;
+}
+```
+
+The stateless stepper returned by `spring`. Call `next(elapsedMs)` each tick to get the integrated value and a `done` flag.
+
+### SpringStep
+
+```ts
+interface SpringStep {
+    done: boolean;
+    value: number;
+}
+```
+
+One step of the spring solver. `done` is `true` once the value is below the rest thresholds; `value` snaps to the target when `done`.
+
+### Easing
+
+```ts
+type Easing = (t: number) => number
+```
+
+An easing function mapping normalized progress `t` (`0..1`) to eased progress.
+
+## Notes
+
+- The three drivers are main-thread worklets — call them from a `'main thread'` context.
+- Tween animations always use the built-in `easeOut`; custom easing functions cannot be passed to the drivers (function references do not survive the worklet capture across the MT/BG bridge).
+- The easing curves, easing modifiers and the `spring` solver are **not** used by the driver path; they exist for tests, BG-side math and advanced non-SharedValue driving.
+
+This package is licensed MIT AND Apache-2.0. The spring solver and easings are ported from `@lynx-js/motion` (Apache-2.0); the cubic-bezier helper is modified from gre/bezier-easing (MIT).

@@ -8,10 +8,213 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/runtime-dom` v0.4.9.</p>
+<p class="lede">Exports of `@sigx/runtime-dom` v0.4.9. Import from `@sigx/runtime-dom`; low-level renderer primitives also re-export from `@sigx/runtime-dom/internals`.</p>
 
-## Exports
+## Side effects on import
 
-{/* TODO: document the public API of @sigx/runtime-dom */}
+Importing the package entry is impure by design (`package.json` marks `index` as having side effects). Loading it installs global JSX type augmentation, sets `HTMLElement` as the default element type for `@sigx/runtime-core`, registers the DOM renderer as core's default mount target, enables v-model on form elements, and auto-registers the built-in `show` directive. Merely importing `@sigx/runtime-dom` wires up the DOM platform globally.
 
-See the package source for the complete typed surface.
+## Rendering
+
+### `render`
+
+```ts
+export const render: (
+  element: JSXElement,
+  container: Element | string,
+  appContext?: AppContext,
+) => void
+```
+
+Mounts a SignalX element tree into a DOM container.
+
+- `element` — the JSX element tree to mount. Pass `null` to unmount and clear the container.
+- `container` — an `Element` reference or a CSS selector string.
+- `appContext` — optional app context (directives, plugins) to render under.
+- **Returns** `void`. Throws a render-target-not-found error if `container` resolves to nothing.
+
+## Components
+
+### `Portal`
+
+```ts
+export const Portal: ComponentFactory<PortalProps, void, {}>
+// PortalProps = Define.Prop<'to', string | Element> & Define.Prop<'disabled', boolean>
+```
+
+Renders its children into a different DOM container.
+
+- `to` — target container as an `Element` or CSS selector string. Defaults to `document.body`. If a selector is not found, `Portal` warns and falls back to `document.body`.
+- `disabled` — when `true`, renders children in place (via a Fragment) instead of portaling.
+
+Children are placed inside a generated `<div data-sigx-portal>` appended to the target. Moves are state-preserving when `moveBefore` is available (see `supportsMoveBefore`); otherwise `insertBefore` is used. On unmount, the effect is stopped, content is unmounted and the container `<div>` is removed.
+
+## Directives
+
+### `show`
+
+```ts
+export const show: DirectiveDefinition<boolean, HTMLElement>
+```
+
+Built-in directive that toggles element visibility via the CSS `display` property while keeping the element in the DOM. Auto-registered on import, so `use:show={visible}` resolves it by name. Also accepts the explicit tuple form `use:show={[show, visible]}`.
+
+## Custom directives
+
+### `patchDirective`
+
+```ts
+export function patchDirective(
+  el: Element,
+  name: string,
+  prevValue: any,
+  nextValue: any,
+  appContext: AppContext | null,
+): void
+```
+
+Processes a `use:*` prop, running directive `created`/`updated` lifecycle hooks. Resolves the directive from the value (definition, `[definition, value]` tuple, or name lookup against built-ins then `appContext.directives`). Unresolvable names log a warning and are skipped. Marked `@internal` in source.
+
+### `onElementMounted`
+
+```ts
+export function onElementMounted(el: Element): void
+```
+
+Invokes the `mounted` hook for all directives attached to an element after DOM insertion. Marked `@internal` in source.
+
+### `registerBuiltInDirective`
+
+```ts
+export function registerBuiltInDirective(name: string, def: DirectiveDefinition): void
+```
+
+Registers a built-in directive so the `use:<name>={value}` shorthand resolves it.
+
+- `name` — the directive name used in `use:<name>`.
+- `def` — the directive definition.
+
+Marked `@internal` in source.
+
+### `resolveBuiltInDirective`
+
+```ts
+export function resolveBuiltInDirective(name: string): DirectiveDefinition | undefined
+```
+
+Looks up a registered built-in directive by name; used by the SSR renderer. Returns the definition or `undefined`. Marked `@internal` in source.
+
+## DOM properties
+
+### `patchProp`
+
+```ts
+export function patchProp(
+  dom: Element,
+  key: string,
+  prevValue: any,
+  nextValue: any,
+  isSVG?: boolean,
+): void
+```
+
+Sets or updates a single DOM property on an element.
+
+- `dom` — the target element.
+- `key` — the prop key. `children`, `key` and `ref` are skipped. `style` accepts an object (with `--custom-prop` support) or a `cssText` string. `on*` keys add event listeners (a `CustomEvent` passes `e.detail`, otherwise the event). `className` is applied via `setAttribute('class')`. Keys starting with `.` or `prop:` force property assignment. SVG elements use case-preserving `setAttribute` and `xlink:` namespace handling. Form `value`/`checked` are set as properties; a `<select>` value is deferred via `queueMicrotask` until options mount (supports multi-select arrays).
+- `prevValue` — the previous value, used to remove stale listeners/attributes.
+- `nextValue` — the value to apply.
+- `isSVG` — optional flag selecting SVG attribute handling.
+
+## Low-level node operations
+
+### `moveNode`
+
+```ts
+export function moveNode(parent: Element, node: Node, anchor?: Node | null): void
+```
+
+Moves or inserts a node into a parent. Uses `moveBefore` for state-preserving moves when available, otherwise `insertBefore`.
+
+- `parent` — the destination element.
+- `node` — the node to move/insert.
+- `anchor` — optional node to insert before; appends when omitted or `null`.
+
+### `supportsMoveBefore`
+
+```ts
+export function supportsMoveBefore(): boolean
+```
+
+Returns `true` if the browser supports the state-preserving `Node.prototype.moveBefore` API (Chrome 133+).
+
+### `nodeOps`
+
+```ts
+export const nodeOps: RendererOptions<Node, Element>
+```
+
+Complete `RendererOptions` implementation for the DOM platform: create/insert/remove nodes, text handling, SVG namespace, customized built-in elements via the `is` option, and focus preservation (`restoreFocus` refocuses with `preventScroll` and suppresses focus/blur events during restoration). Used to construct the DOM renderer.
+
+## Renderer primitives (SSR/hydration)
+
+These are low-level primitives, exported for SSR/hydration plugins and extensions. They are also available from `@sigx/runtime-dom/internals`, are not stable public API, and may change without notice.
+
+### `patch`
+
+```ts
+export const patch: RendererPatchFn<Node, Element>
+```
+
+Diffs and patches an old VNode into a new one.
+
+### `mount`
+
+```ts
+export const mount: RendererMountFn<Node, Element>
+```
+
+Mounts a VNode into a container.
+
+### `unmount`
+
+```ts
+export const unmount: RendererUnmountFn<Node, Element>
+```
+
+Unmounts a VNode from a container.
+
+### `mountComponent`
+
+```ts
+export const mountComponent: RendererMountComponentFn<Node, Element>
+```
+
+Mounts a component VNode.
+
+## Types
+
+### `DOMDirective`
+
+```ts
+export type DOMDirective<T = any> = DirectiveDefinition<T, HTMLElement>
+```
+
+A directive definition narrowed to `HTMLElement`, for typing custom DOM directives. The type parameter `T` is the directive's value type.
+
+```ts
+import { defineDirective } from 'sigx';
+import type { DOMDirective } from '@sigx/runtime-dom';
+
+const tooltip: DOMDirective<string> = defineDirective<string, HTMLElement>({
+  mounted(el, { value }) {
+    el.title = value;
+  },
+});
+```
+
+## See also
+
+- [Usage](/core/packages/runtime-dom/usage) — practical guide.
+- [Directives](/core/docs/directives) and [DOM properties](/core/docs/dom-properties) — the underlying models.
+- [Portals](/core/docs/portal) and [Two-way binding](/core/docs/two-way-binding).

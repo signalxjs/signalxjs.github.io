@@ -8,10 +8,185 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-image-picker` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-image-picker` v0.4.9.</p>
 
-## Exports
+The package has a single import surface: the `ImagePicker` object and the option/result types. Permission types are re-exported from `@sigx/lynx-core`.
 
-{/* TODO: document the public API of @sigx/lynx-image-picker */}
+```ts
+import { ImagePicker } from '@sigx/lynx-image-picker';
+import type {
+  ImagePickerOptions,
+  ImagePickerResult,
+  ImagePickerAsset,
+  PermissionResponse,
+} from '@sigx/lynx-image-picker';
+```
 
-See the package source for the complete typed surface.
+## ImagePicker
+
+The single public object. All methods are backed by the native `ImagePicker` module.
+
+```ts
+const ImagePicker: {
+  pickImage(options?: ImagePickerOptions): Promise<ImagePickerResult>;
+  pickVideo(options?: ImagePickerOptions): Promise<ImagePickerResult>;
+  requestPermission(): Promise<PermissionResponse>;
+  getPermissionStatus(): Promise<PermissionResponse>;
+  isAvailable(): boolean;
+};
+```
+
+Platform: iOS and Android.
+
+## Functions
+
+### ImagePicker.pickImage
+
+Opens the system photo picker and resolves with the chosen image assets.
+
+```ts
+ImagePicker.pickImage(options?: ImagePickerOptions): Promise<ImagePickerResult>
+```
+
+- `options` — optional [`ImagePickerOptions`](#imagepickeroptions). `multiple` and `maxItems` control the selection limit (omitted or `false` picks one; `true` with no `maxItems` is unlimited; `true` with `maxItems` caps the count).
+- Returns a [`ImagePickerResult`](#imagepickerresult). The promise resolves with `cancelled: true` if the user dismisses the picker — it does not reject.
+
+Platform: iOS uses `PHPicker` with the `.images` filter; Android uses `PickVisualMedia`. Picked files are copied into app storage and returned as `file://` URIs.
+
+### ImagePicker.pickVideo
+
+Opens the system video picker and resolves with the chosen video asset.
+
+```ts
+ImagePicker.pickVideo(options?: ImagePickerOptions): Promise<ImagePickerResult>
+```
+
+- `options` — optional [`ImagePickerOptions`](#imagepickeroptions). On iOS the selection limit is always 1 (`multiple` is ignored for video).
+- Returns a [`ImagePickerResult`](#imagepickerresult) whose assets have `type: 'video'`.
+
+Platform: iOS only. On Android this method is currently a stub that always resolves with `cancelled: true` and an empty `assets` array.
+
+### ImagePicker.requestPermission
+
+Requests photo-library permission, showing the OS dialog if needed.
+
+```ts
+ImagePicker.requestPermission(): Promise<PermissionResponse>
+```
+
+- Returns a [`PermissionResponse`](#permissionresponse).
+
+Platform: the system picker grants per-pick access, so you do not need this before `pickImage`. On iOS it always resolves with `status: 'granted'`. On Android it delegates to the `photo_library` permission and reflects the real state. Avoid calling it before `pickImage` on Android 14+, where it surfaces an extra partial-access sheet.
+
+### ImagePicker.getPermissionStatus
+
+Checks the current photo-library permission status without prompting.
+
+```ts
+ImagePicker.getPermissionStatus(): Promise<PermissionResponse>
+```
+
+- Returns a [`PermissionResponse`](#permissionresponse).
+
+Platform: iOS always resolves with `status: 'granted'` (including for a limited library grant). Android reflects the real `photo_library` status.
+
+### ImagePicker.isAvailable
+
+Reports whether the native `ImagePicker` module is registered in the current build.
+
+```ts
+ImagePicker.isAvailable(): boolean
+```
+
+- Returns `true` if the native module was linked (by `sigx prebuild`), otherwise `false`. Synchronous.
+
+Platform: iOS and Android.
+
+## Types
+
+### ImagePickerOptions
+
+Options for `pickImage` and `pickVideo`.
+
+```ts
+interface ImagePickerOptions {
+  /** 'photo', 'video', or 'mixed' */
+  mediaType?: 'photo' | 'video' | 'mixed';
+  /** Allow multiple selection */
+  multiple?: boolean;
+  /** Max number of items (if multiple) */
+  maxItems?: number;
+  /** Image quality 0-1 */
+  quality?: number;
+}
+```
+
+- `mediaType` — forwarded to native, but the picker filters by the method you call (`pickImage` -> images, `pickVideo` -> videos); `'mixed'` is not honored.
+- `multiple` — allow selecting more than one item. Ignored for `pickVideo` on iOS.
+- `maxItems` — cap the number of selectable items when `multiple` is `true`.
+- `quality` — accepted and forwarded, but not applied on iOS (images are re-encoded to JPEG at a fixed quality).
+
+Platform: iOS and Android.
+
+### ImagePickerResult
+
+The result of a pick operation.
+
+```ts
+interface ImagePickerResult {
+  cancelled: boolean;
+  assets: ImagePickerAsset[];
+}
+```
+
+- `cancelled` — `true` if the user dismissed the picker without choosing.
+- `assets` — always an array; empty when `cancelled` is `true`.
+
+Platform: iOS and Android.
+
+### ImagePickerAsset
+
+A single picked asset.
+
+```ts
+interface ImagePickerAsset {
+  uri: string;
+  width: number;
+  height: number;
+  type: 'image' | 'video';
+  fileSize?: number;
+  fileName?: string;
+}
+```
+
+- `uri` — always carries a scheme (`file://`). The file is persisted into app storage, so the URI survives an app restart.
+- `width` / `height` — pixel dimensions.
+- `type` — `'image'` or `'video'`.
+- `fileSize` — byte size, when available.
+- `fileName` — original file name, when available.
+
+Platform: iOS and Android. On Android, persisted assets populate only `uri` and `type`; `width`, `height`, `fileSize`, and `fileName` are dropped.
+
+### PermissionResponse
+
+Re-exported from `@sigx/lynx-core`. Returned by `requestPermission` and `getPermissionStatus`.
+
+```ts
+type PermissionStatus = 'granted' | 'denied' | 'undetermined' | 'blocked';
+
+interface PermissionResponse {
+  /** Current permission status. */
+  status: PermissionStatus;
+  /**
+   * Whether the app can show the OS permission dialog again.
+   * `false` when the user selected "Don't ask again" (Android) or
+   * after the first denial (iOS — user must go to Settings).
+   */
+  canAskAgain: boolean;
+}
+```
+
+- `status` — current permission state.
+- `canAskAgain` — whether the OS dialog can be shown again.
+
+Platform: iOS and Android. On iOS these methods always report `status: 'granted'`, and `canAskAgain` may be absent at runtime.

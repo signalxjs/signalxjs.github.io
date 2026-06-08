@@ -8,16 +8,167 @@ order: 30
 
 # Using Motion
 
-<p class="lede">Animation drivers — the essentials.</p>
+<p class="lede">Drive a SharedValue toward a target with spring physics or a timed tween — all on the main thread, with progress readable from the background thread for free.</p>
+
+Motion gives you three drivers — `animate`, `withSpring` and `withTiming` — plus a set of easing curves and a pure-math spring solver. The drivers move a `SharedValue&lt;number&gt;`; you wire that value to a transform with `useAnimatedStyle` from `@sigx/lynx`.
+
+## How it works
+
+Every driver is a **main-thread worklet**. You must call it from inside a `'main thread'` context — typically a `main-thread-bindtap` handler whose body begins with the `'main thread'` directive. The driver writes `sv.current.value` on the main thread (MT), and the SharedValue bridge ships each frame to a background-thread (BG) signal automatically. That means a BG `effect(() =&gt; sv.value)` re-runs reactively every frame with no extra wiring.
+
+One thing to keep in mind: the drivers only **write** the SharedValue. They do not move any element on their own. You must bind the value to a transform with `useAnimatedStyle(elRef, sv, 'translateX', ...)` for anything to visibly move.
 
 ## Basic usage
 
+A tap that springs a box to the right, and a second tap that tweens it back. The text readout updates per frame because it reads `x.value` on the background thread.
+
 ```tsx
-import * as Motion from '@sigx/lynx-motion';
+import { useSharedValue, useMainThreadRef, useAnimatedStyle } from '@sigx/lynx';
+import { withSpring, withTiming } from '@sigx/lynx-motion';
+
+function Box() {
+    const x = useSharedValue(0);
+    const boxRef = useMainThreadRef(null);
+
+    // Bind the value to a transform — required for the box to actually move.
+    useAnimatedStyle(boxRef, x, 'translateX', { factor: 1 });
+
+    return (
+        <view>
+            <view
+                ref={boxRef}
+                main-thread-bindtap={() => {
+                    'main thread';
+                    withSpring(x, 200, { stiffness: 200, damping: 20 });
+                }}
+            />
+            <view
+                main-thread-bindtap={() => {
+                    'main thread';
+                    withTiming(x, 0, { duration: 0.4 });
+                }}
+            >
+                <text>reset</text>
+            </view>
+
+            {/* BG-reactive readout — updates every frame for free. */}
+            <text>x = {x.value.toFixed(0)}px</text>
+        </view>
+    );
+}
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-motion */}
+`withSpring` and `withTiming` return a `Promise&lt;void&gt;` that resolves when the animation completes (or is cancelled). Use them when you want `await`-style sequencing; reach for `animate` when you need a `stop()` handle.
+
+## Cancellation and controls
+
+`animate` returns `AnimateControls` — `{ stop, finished }`. Call `stop()` to cancel; `finished` still resolves (cancellation is never a rejection).
+
+```tsx
+import { useSharedValue, useMainThreadRef, useAnimatedStyle } from '@sigx/lynx';
+import { animate } from '@sigx/lynx-motion';
+
+function Draggable() {
+    const tx = useSharedValue(0);
+    const ref = useMainThreadRef(null);
+    useAnimatedStyle(ref, tx, 'translateX', { factor: 1 });
+
+    return (
+        <view
+            ref={ref}
+            main-thread-bindtap={() => {
+                'main thread';
+                const ctrl = animate(tx, 200, { type: 'spring', stiffness: 300, damping: 25 });
+                // Cancel after a moment, or whenever a new interaction starts:
+                // ctrl.stop();
+            }}
+        />
+    );
+}
+```
+
+Each SharedValue has at most one in-flight animation. Starting a new `animate` / `withSpring` / `withTiming` on a value that is already animating **cancels the previous one first** — the old `.finished` still resolves. You rarely need to call `stop()` yourself just to interrupt; a fresh driver call does it for you.
+
+## Sequencing and concurrency
+
+Because the drivers return promises, you compose them with plain `async`/`await`. Run a worklet `async` handler and chain or parallelize.
+
+```tsx
+import { withSpring, withTiming } from '@sigx/lynx-motion';
+
+// Concurrent — move two axes and fade in together:
+async function pop(x, y, opacity) {
+    'main thread';
+    await Promise.all([
+        withSpring(x, 200, { stiffness: 200, damping: 20 }),
+        withSpring(y, 100, { stiffness: 200, damping: 20 }),
+        withTiming(opacity, 1, { duration: 0.3 }),
+    ]);
+}
+
+// Sequential — spring in, then fade out:
+async function inThenOut(x, opacity) {
+    'main thread';
+    await withSpring(x, 200);
+    await withTiming(opacity, 0, { duration: 0.2 });
+}
+```
+
+Two-dimensional motion needs one driver call per axis — Motion animates a scalar `SharedValue&lt;number&gt;`, so use one value (and one `useAnimatedStyle` binding) per transform component.
+
+### Mass cancel
+
+Collect the `animate` handles and stop them together:
+
+```tsx
+import { animate } from '@sigx/lynx-motion';
+
+function cancelAll(a, b, c) {
+    'main thread';
+    const ctrls = [animate(a, 100), animate(b, 200), animate(c, 50)];
+    // later:
+    ctrls.forEach((c) => c.stop());
+}
+```
+
+## Reacting per frame and on complete
+
+Motion has no `onUpdate` / `onComplete` callbacks. Use signals and promises instead:
+
+- **Per frame** — read the value in a background-thread effect: `effect(() =&gt; doSomething(sv.value))`. It re-runs every published frame.
+- **On complete** — `await withSpring(sv, target)`, then run your BG code (e.g. via `runOnBackground(...)()` from `@sigx/lynx`).
+
+## Easing curves
+
+Tween animations through the drivers always use the built-in `easeOut` — **custom easing functions cannot be passed to `animate`**. A function reference does not survive the worklet capture across the MT/BG bridge (it arrives as `undefined`), so pass nothing and you get `easeOut`. The exported easing curves (`easeIn`, `easeInOut`, `circOut`, `backOut`, and the rest) and the modifiers (`reverseEasing`, `mirrorEasing`, `cubicBezier`) are for tests, BG-side math and advanced driving of non-SharedValue values — not for feeding into the drivers. See the [API reference](/lynx/modules/motion/api) for the full list.
+
+## Pure spring solver
+
+For tests or background-side math (no worklet, no SharedValue), `spring` gives you a stateless stepper. You own the clock and feed it elapsed milliseconds.
+
+```ts
+import { spring } from '@sigx/lynx-motion';
+
+const s = spring({ keyframes: [0, 100], stiffness: 200, damping: 20 });
+
+let step = { done: false, value: 0 };
+for (let t = 0; t < 5000 && !step.done; t += 16) {
+    step = s.next(t);
+}
+// step.done === true, step.value === 100
+```
+
+This solver is **not** what the drivers use internally (`animate` ships its own inlined copy to avoid cross-file capture issues). It exists for the cases where you need spring values outside the worklet path.
 
 ## Notes
 
-withSpring, withTiming, animate — progress is observable from the background thread for free.
+- **Scalar only** — `SharedValue&lt;number&gt;`; 2D needs one driver call per axis.
+- **No velocity carry-over** — a new animation starts at velocity `0` regardless of the value's current motion.
+- **Springs are physics-only** — configure `stiffness` / `damping` / `mass`; there is no `{ duration, bounce }` resolution for springs.
+- **No keyframes, sequences or stagger** built in — compose with `await` as shown above.
+
+## See also
+
+- [Overview](/lynx/modules/motion/overview) — what Motion is and why.
+- [API reference](/lynx/modules/motion/api) — every export, fully typed.
+- [Gestures](/lynx/modules/gestures/overview) — share a `SharedValue` to hand a pan off into a spring.

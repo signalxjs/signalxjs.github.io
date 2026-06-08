@@ -1,0 +1,306 @@
+---
+title: "API reference"
+description: "Audio — Recording & playback"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-audio` v0.4.9 — one runtime object and the types that describe it.</p>
+
+The public surface is a single `Audio` const plus a set of type-only exports:
+
+```ts
+import { Audio } from '@sigx/lynx-audio';
+import type {
+  PlayOptions,
+  RecordOptions,
+  AudioHandle,
+  RecordingHandle,
+  PlayerStatus,
+  RecordingResult,
+  MeterSample,
+  PermissionResponse,
+} from '@sigx/lynx-audio';
+```
+
+`PermissionResponse` is re-exported from `@sigx/lynx-core`. Every method works on both iOS and Android (with one exception: `RecordOptions.format: 'wav'` is iOS-only). Each `Audio.play` call allocates an independent native player, so concurrent playback is supported.
+
+## Object
+
+### `Audio`
+
+The single namespace object exposing all audio APIs. It is backed by the native `Audio` module through `@sigx/lynx-core` — iOS via `AVAudioPlayer` / `AVAudioRecorder`, Android via `MediaPlayer` / `MediaRecorder`. Declared `as const`.
+
+```ts
+const Audio: {
+  play(source: string, options?: PlayOptions): Promise<AudioHandle>;
+  preload(source: string): Promise<{ durationMs: number }>;
+  startRecording(options?: RecordOptions): Promise<RecordingHandle>;
+  requestPermission(): Promise<PermissionResponse>;
+  getPermissionStatus(): Promise<PermissionResponse>;
+  isAvailable(): boolean;
+};
+```
+
+See the methods below for each member. Platform: iOS and Android.
+
+## Methods
+
+### `Audio.play`
+
+Starts playing the audio at `source` and resolves with a handle controlling that one player.
+
+```ts
+play(source: string, options?: PlayOptions): Promise<AudioHandle>
+```
+
+- **`source`** — a `file://...` URI or a remote URL.
+- **`options`** — optional [`PlayOptions`](#playoptions). Defaults to `{}`.
+- **Returns** — a `Promise<`[`AudioHandle`](#audiohandle)`>` for the live player.
+- **Throws** — `Error('[lynx-audio] play failed: ...')` if the native side returns an error or no numeric id.
+
+Platform notes: each call allocates a fresh native player, so multiple handles can play concurrently (for example background music plus a UI sound effect). iOS and Android.
+
+### `Audio.preload`
+
+Decodes the asset at `source` and returns its duration **without** playing it — useful to avoid first-play latency on UI sound effects.
+
+```ts
+preload(source: string): Promise<{ durationMs: number }>
+```
+
+- **`source`** — a `file://...` URI or a remote URL.
+- **Returns** — a `Promise` resolving to `{ durationMs }`, the asset's duration in milliseconds.
+- **Throws** — `Error('[lynx-audio] preload failed: ...')` on native error or missing `durationMs`.
+
+Platform: iOS and Android.
+
+### `Audio.startRecording`
+
+Begins a new microphone recording and resolves with a handle controlling it.
+
+```ts
+startRecording(options?: RecordOptions): Promise<RecordingHandle>
+```
+
+- **`options`** — optional [`RecordOptions`](#recordoptions). Defaults to `{}`.
+- **Returns** — a `Promise<`[`RecordingHandle`](#recordinghandle)`>` for the active recording.
+- **Throws** — `Error('[lynx-audio] startRecording failed: ...')` on native error or missing id. Rejects with `A recording is already in progress` if another recording is live, and with `Microphone permission not granted` if the permission has not been granted.
+
+Platform notes: only one recording can be active per process. Microphone permission must already be granted — both native sides re-check and reject otherwise (this avoids zero-byte files and recorder state-machine crashes). Request permission with [`Audio.requestPermission`](#audiorequestpermission) first. iOS and Android.
+
+### `Audio.requestPermission`
+
+Requests microphone permission, showing the OS dialog if the status is undetermined.
+
+```ts
+requestPermission(): Promise<PermissionResponse>
+```
+
+- **Returns** — a `Promise<`[`PermissionResponse`](#permissionresponse)`>` describing the resulting status.
+
+Platform notes: on iOS, if permission was already denied this does NOT re-prompt — it returns `status: 'denied'` with `canAskAgain: false`, and the user must enable the mic from Settings. On Android it delegates to `@sigx/lynx-permissions` (`'microphone'` maps to `RECORD_AUDIO`). iOS and Android.
+
+### `Audio.getPermissionStatus`
+
+Reads the current microphone permission status without prompting.
+
+```ts
+getPermissionStatus(): Promise<PermissionResponse>
+```
+
+- **Returns** — a `Promise<`[`PermissionResponse`](#permissionresponse)`>` for the current status.
+
+Platform notes: never shows a dialog. iOS maps the record permission to `{ status: 'granted' | 'denied' | 'undetermined', canAskAgain }`; an `'undetermined'` status yields `canAskAgain: true`. iOS and Android.
+
+### `Audio.isAvailable`
+
+Returns whether the native `Audio` module is registered in the current runtime.
+
+```ts
+isAvailable(): boolean
+```
+
+- **Returns** — `true` if the module is linked, otherwise `false`.
+
+Platform notes: a synchronous JS-only check (via `@sigx/lynx-core`'s `isModuleAvailable`). Use it to guard before calling other methods on platforms or builds without the module. iOS and Android.
+
+## Types
+
+### `PlayOptions`
+
+Options for [`Audio.play`](#audioplay). All fields are optional.
+
+```ts
+interface PlayOptions {
+  /** Initial volume 0..1. Default: 1. */
+  volume?: number;
+  /** Loop indefinitely. Default: false. */
+  loop?: boolean;
+  /** Playback rate (1 = normal). Default: 1. */
+  rate?: number;
+}
+```
+
+- **`volume`** — initial volume from `0` to `1`; default `1`.
+- **`loop`** — loop indefinitely; default `false`.
+- **`rate`** — playback rate where `1` is normal speed; default `1`.
+
+Platform: iOS and Android.
+
+### `RecordOptions`
+
+Options for [`Audio.startRecording`](#audiostartrecording). All fields are optional.
+
+```ts
+interface RecordOptions {
+  /** Absolute file path to write to. Default: temp dir + uuid. */
+  outputPath?: string;
+  /** Container format. Default: 'm4a'. */
+  format?: 'm4a' | 'wav';
+  /** Sample rate in Hz. Default: 44100. */
+  sampleRate?: number;
+  /** Channel count. Default: 1 (mono). */
+  channels?: 1 | 2;
+}
+```
+
+- **`outputPath`** — absolute path to write to; defaults to a generated filename in the temp/cache directory.
+- **`format`** — container format; defaults to `'m4a'` (AAC).
+- **`sampleRate`** — sample rate in Hz; default `44100`.
+- **`channels`** — `1` (mono, default) or `2` (stereo).
+
+Platform notes: `format: 'wav'` is **iOS-only** — Android rejects it with an explicit error (use `'m4a'` and transcode if WAV is required; Android always encodes MPEG-4/AAC). Android coerces `channels` into the `1..2` range. iOS and Android.
+
+### `AudioHandle`
+
+Returned by [`Audio.play`](#audioplay). Controls a single live native player.
+
+```ts
+interface AudioHandle {
+  /** Native registry id. Exposed for debugging — don't pass between handles. */
+  readonly id: number;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
+  stop(): Promise<void>;
+  seek(seconds: number): Promise<void>;
+  setVolume(volume: number): Promise<void>;
+  getStatus(): Promise<PlayerStatus>;
+  /** Subscribe to playback completion. Returns an unsubscribe function. */
+  onEnd(cb: () => void): () => void;
+}
+```
+
+- **`id`** — the native registry id, for debugging only; do not pass it between handles.
+- **`pause`** / **`resume`** / **`stop`** — control the player; resolve when applied.
+- **`seek`** — jump to `seconds` (note: **seconds**, not milliseconds).
+- **`setVolume`** — set the volume from `0` to `1`.
+- **`getStatus`** — resolves with a [`PlayerStatus`](#playerstatus) snapshot.
+- **`onEnd`** — subscribe to playback completion; returns an unsubscribe function.
+
+Platform notes: control methods (`pause` / `resume` / `stop` / `seek` / `setVolume`) reject with `Error('[lynx-audio] <native error>')` on native failure. `onEnd` is delivered over the per-id event channel; listener errors are caught and logged rather than thrown. iOS and Android.
+
+### `RecordingHandle`
+
+Returned by [`Audio.startRecording`](#audiostartrecording). Controls the active recording.
+
+```ts
+interface RecordingHandle {
+  readonly id: number;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
+  stop(): Promise<RecordingResult>;
+  /**
+   * Subscribe to amplitude samples (peak/avg, linear 0..1) emitted ~10x/sec
+   * by the native side while recording. Opt-in — metering only runs while
+   * at least one listener is attached. Returns an unsubscribe function.
+   */
+  onMeter(cb: (m: MeterSample) => void): () => void;
+}
+```
+
+- **`id`** — the native registry id, for debugging only.
+- **`pause`** / **`resume`** — pause and resume the recording.
+- **`stop`** — resolves with a [`RecordingResult`](#recordingresult) (`uri` / `durationMs` / `sizeBytes`); keep this value, it is the only reference to the file.
+- **`onMeter`** — subscribe to ~10x/sec amplitude samples; returns an unsubscribe function.
+
+Platform notes: `pause` / `resume` / `stop` reject with `Error('[lynx-audio] <native error>')` on failure. `onMeter` is opt-in and ref-counted — the native metering loop runs only while at least one listener is attached (the handle toggles native metering on the 0↔1 listener transitions). iOS and Android.
+
+### `PlayerStatus`
+
+Returned by [`AudioHandle.getStatus`](#audiohandle).
+
+```ts
+interface PlayerStatus {
+  /** Current playback position in milliseconds. */
+  positionMs: number;
+  /** Total duration in milliseconds. 0 until the asset is loaded. */
+  durationMs: number;
+  /** True while actively playing (not paused/stopped). */
+  playing: boolean;
+}
+```
+
+- **`positionMs`** — current position in milliseconds.
+- **`durationMs`** — total duration in milliseconds; `0` until the asset is loaded.
+- **`playing`** — `true` while actively playing.
+
+Platform: iOS and Android.
+
+### `RecordingResult`
+
+The resolved value of [`RecordingHandle.stop`](#recordinghandle).
+
+```ts
+interface RecordingResult {
+  /** File URI of the recorded audio. */
+  uri: string;
+  /** Total recorded duration in milliseconds. */
+  durationMs: number;
+  /** File size on disk in bytes. */
+  sizeBytes: number;
+}
+```
+
+- **`uri`** — a `file://...` URI to the recorded file (Android prefixes the absolute output path with `file://`).
+- **`durationMs`** — total recorded duration in milliseconds, excluding paused time.
+- **`sizeBytes`** — file size on disk in bytes.
+
+Platform: iOS and Android.
+
+### `MeterSample`
+
+The payload for [`RecordingHandle.onMeter`](#recordinghandle) callbacks.
+
+```ts
+interface MeterSample {
+  /** Peak power in linear scale 0..1. */
+  peak: number;
+  /** Average power in linear scale 0..1. */
+  avg: number;
+}
+```
+
+- **`peak`** — peak power, linear `0..1`.
+- **`avg`** — average power, linear `0..1`.
+
+Platform notes: on Android, `MediaRecorder` exposes only `maxAmplitude` (peak since last read), so `peak` and `avg` report the same value there. Consumers needing one envelope value typically use `peak`. iOS and Android.
+
+### `PermissionResponse`
+
+The response shape for [`Audio.requestPermission`](#audiorequestpermission) and [`Audio.getPermissionStatus`](#audiogetpermissionstatus). Re-exported type-only from `@sigx/lynx-core`.
+
+```ts
+interface PermissionResponse {
+  status: 'granted' | 'denied' | 'undetermined';
+  canAskAgain: boolean;
+}
+```
+
+- **`status`** — the current permission status.
+- **`canAskAgain`** — whether the OS dialog can be shown again. On iOS, `granted` and `denied` both yield `false` (a denial cannot be re-prompted — the user must use Settings), while `undetermined` yields `true`.
+
+Platform notes: the exact type definition lives in `@sigx/lynx-core`, not this package. The shape above reflects the values the native iOS and Android layers return. iOS and Android.

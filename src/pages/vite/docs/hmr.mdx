@@ -1,0 +1,126 @@
+---
+title: HMR for Components
+description: "How @sigx/vite hot-reloads SignalX components while preserving per-instance signal state"
+layout: docs
+category: Guides
+order: 30
+---
+
+# HMR for Components
+
+Hot Module Replacement (HMR) lets you edit a component and see the change in the
+browser without a full page reload. With `@sigx/vite`, component HMR preserves
+each live instance's signal state — so editing a counter does not reset its
+value.
+
+You do not write any HMR code yourself. The plugin injects everything during
+the dev server's transform step.
+
+## Enabling HMR
+
+HMR is on by default. Simply having the plugin in your config is enough:
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+
+export default defineConfig({
+    plugins: [sigx()],
+});
+```
+
+To turn it off, pass `hmr: false`:
+
+```ts
+import sigx from '@sigx/vite';
+
+export default defineConfig({
+    plugins: [sigx({ hmr: false })],
+});
+```
+
+`hmr` is the only plugin option.
+
+## When the Transform Fires
+
+The HMR transform only runs when **all** of these are true:
+
+- The dev server is running (`vite` / `command === 'serve'`) — never during a
+  production build.
+- The plugin's `hmr` option is `true` (the default).
+- The file is a first-party `.ts`, `.tsx`, or `.jsx` file — files in
+  `node_modules` and `/dist/` are skipped.
+- The file's source text contains a component declaration, matched by the
+  pattern `component<` or `component(`.
+
+If a file has no `component(` or `component<` usage, it is left untouched.
+
+## What Gets Injected
+
+For each matching module, the plugin prepends a module registration and appends
+Vite's hot-accept call. Conceptually, your file is wrapped like this:
+
+```ts
+// --- injected at the top ---
+import { registerHMRModule } from '@sigx/vite/hmr';
+registerHMRModule('<module-id>');
+
+// --- your original source ---
+import { component, signal } from 'sigx';
+
+export const Counter = component(() => {
+    const count = signal(0);
+    return () => <button onClick={() => count.value++}>{count.value}</button>;
+});
+
+// --- injected at the bottom ---
+if (import.meta.hot) {
+    import.meta.hot.accept();
+}
+```
+
+You never write these lines — they are added automatically. The
+`registerHMRModule` and `installHMRPlugin` functions are re-exported from
+`@sigx/vite` only so the injected code can reference them; you rarely call them
+by hand.
+
+## How State Survives a Reload
+
+Each component gets a stable id of the form `moduleId:definitionIndex`.
+`registerHMRModule` resets the per-module component index to `0` at the top of
+every re-execution, so the first `component(...)` in a file always keeps the
+same id even after edits.
+
+When a module reloads, the browser-side HMR plugin (installed once via
+`installHMRPlugin`) re-binds each live instance to the new setup/render
+function: it replaces `ctx.renderFn` and calls `ctx.update()` against the
+existing context. Because the existing context is reused, signals created in
+`setup` keep their current values across the reload. Instances are tracked on
+define and cleaned up on `ctx.onUnmounted`.
+
+## When a Full Reload Happens
+
+If an HMR update throws, the runtime logs:
+
+```text
+[sigx] HMR failed for <name>
+```
+
+and falls back to a full page reload — the clean recovery path. This typically
+happens when an edit changes the shape of a component in a way that cannot be
+patched in place.
+
+## Why This Matters
+
+The deeper guarantee behind HMR is a **single physical copy** of
+`@sigx/reactivity`. In dev the plugin aliases the SignalX runtime packages to
+their `src` entries and excludes them from `optimizeDeps` pre-bundling; in build
+it dedupes them and forces them into a single `sigx` chunk. Without that single
+copy, signal mutations from `onMounted`, observers, `setTimeout`, or event
+handlers would silently fail to re-render after hydration.
+
+## Next Steps
+
+- [Library Builds](/vite/docs/library-builds) — build `@sigx/*` packages
+- [API Reference](/vite/docs/api) — `installHMRPlugin`, `registerHMRModule`, and options

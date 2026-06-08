@@ -1,0 +1,106 @@
+---
+title: Getting Started
+description: "@sigx/monaco-editor — pluggable Monaco editor wrapper with prebundled assets and a Vite plugin"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PrereqCallout } from '@/components/PrereqCallout';
+
+# Getting Started with Monaco
+
+<PrereqCallout items={[
+    { name: 'SignalX Core basics', path: '/core/docs/getting-started' },
+    { name: 'Components', path: '/core/docs/components' },
+]} />
+
+`@sigx/monaco-editor` is a pluggable wrapper around the [Monaco](https://microsoft.github.io/monaco-editor/) editor (the engine behind VS Code) built for SignalX apps. It gives you:
+
+- A reactive `<MonacoEditor />` SignalX component plus a low-level imperative `createEditor()` API.
+- A loader that lazy-loads Monaco on demand using one of two strategies — `prebundled` (assets committed to the package) or `cdn`.
+- Composable language packs for TypeScript/JSX, HTML, CSS, and JSON, each wiring the correct Monaco worker and IntelliSense.
+- Optional Shiki highlighting via a dedicated subpath.
+- A Vite plugin that keeps Monaco out of your application bundle and serves the prebundled assets.
+
+## Install
+
+```bash
+pnpm add @sigx/monaco-editor monaco-editor
+```
+
+`monaco-editor` is a peer dependency. See [Installation](/monaco/docs/installation) for peer deps, Vite wiring, and the required configuration.
+
+## Minimal example
+
+Wiring up Monaco is three steps: add the Vite plugin, register the language packs you need once at module load, then render the component.
+
+```tsx
+// vite.config.ts
+import { defineConfig } from 'vite';
+import { sigxPlugin } from '@sigx/vite';
+import { monacoPrebundledPlugin } from '@sigx/monaco-editor/vite';
+
+export default defineConfig({
+    plugins: [
+        sigxPlugin(),
+        monacoPrebundledPlugin({ strategy: 'prebundled', publicPath: '/monaco-bundle' }),
+    ],
+    oxc: { jsx: { runtime: 'automatic', importSource: 'sigx' } },
+});
+```
+
+```tsx
+// App.tsx
+import { component, render } from 'sigx';
+import {
+    MonacoEditor,
+    configureMonaco,
+    typescriptLanguagePack,
+    cssLanguagePack,
+    jsonLanguagePack,
+    htmlLanguagePack,
+} from '@sigx/monaco-editor';
+
+// Register language packs once, before the editor first mounts.
+configureMonaco({
+    languages: [
+        typescriptLanguagePack({ jsxImportSource: 'sigx' }),
+        cssLanguagePack(),
+        jsonLanguagePack(),
+        htmlLanguagePack(),
+    ],
+});
+
+const App = component(({ signal }) => {
+    const state = signal({
+        language: 'typescript',
+        theme: 'vs-dark',
+        code: 'const greeting: string = "Hello, Monaco";\n',
+    });
+
+    return () => (
+        <MonacoEditor
+            value={state.code}
+            language={state.language}
+            theme={state.theme}
+            onChange={(v) => (state.code = v)}
+        />
+    );
+});
+
+render(<App />, document.getElementById('app')!);
+```
+
+The component lazy-loads Monaco on mount, applies the registered language packs, and disposes the editor automatically on unmount. The container fills its parent by default (`width: 100%; height: 100%;`), so give it a sized parent element.
+
+## How loading works
+
+You never import `monaco-editor` directly in client code. The Vite plugin replaces every `monaco-editor` import with a throwing stub and keeps it out of `optimizeDeps`. Instead, Monaco is fetched at runtime by `loadMonaco()` — which the `<MonacoEditor />` component and `createEditor()` call for you. The plugin and the runtime loader agree on a strategy through a `window.__MONACO_LOADER_CONFIG__` snippet the plugin injects into your HTML.
+
+## Next steps
+
+- [Installation](/monaco/docs/installation) — peer deps, Vite wiring, and the prebundled vs CDN asset strategies.
+- [Language packs and IntelliSense](/monaco/docs/language-packs) — registering TS/JSX, HTML, CSS, and JSON, plus themes and extra type definitions.
+- [Imperative editors and Shiki highlighting](/monaco/docs/imperative-and-shiki) — `createEditor()` and the optional Shiki integration.
+- [API Reference](/monaco/docs/api) — every export with signatures.

@@ -1,0 +1,118 @@
+---
+title: Text
+description: "Text — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Typography"]
+order: 180
+---
+
+# Text
+
+<p class="lede">Themed body-text primitive that renders a Lynx `&lt;text&gt;` with the shared type ramp, weights, and semantic color tokens.</p>
+
+## Import
+
+```tsx
+import { Text } from '@sigx/lynx-heroui';
+```
+
+## Props
+
+`Text` has no model binding — it is a display primitive, not a form control. Its
+content is passed as children (the default slot).
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `size` | `'xs' \| 'sm' \| 'base' \| 'lg' \| 'xl' \| '2xl' \| '3xl'` | `'base'` | Font size from the shared type ramp (reads the `--text-*` tokens, so `fontScale` and theme overrides apply). |
+| `weight` | `'light' \| 'normal' \| 'medium' \| 'semibold' \| 'bold'` | - | Font weight. |
+| `color` | `'base-content' \| 'primary' \| 'secondary' \| 'accent' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Semantic text color token. |
+| `selectable` | `boolean` | `false` | Allow native text selection. Maps to Lynx's `text-selection` attribute and sets `flatten={false}` (required by Lynx for selection to work). |
+| `class` | `string` | - | Additional CSS classes appended to the resolved classes. |
+| children | slot | - | The text content to render (default slot). |
+
+## Basic Usage
+
+Pass the content as children. Without props it renders at the `base` size:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Text, Col } from '@sigx/lynx-heroui';
+
+const Demo = component(() => {
+  return () => (
+    <Col gap={8}>
+      <Text>Default body text at the base size.</Text>
+      <Text color="primary" weight="semibold">
+        Emphasized line in the primary color.
+      </Text>
+    </Col>
+  );
+});
+```
+
+## Sizes
+
+The `size` prop walks the shared type ramp from `xs` up to `3xl`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Text, Col } from '@sigx/lynx-heroui';
+
+const Demo = component(() => {
+  return () => (
+    <Col gap={6}>
+      <Text size="xs">Extra small</Text>
+      <Text size="sm">Small</Text>
+      <Text size="base">Base (default)</Text>
+      <Text size="lg">Large</Text>
+      <Text size="xl">Extra large</Text>
+      <Text size="2xl">2XL</Text>
+      <Text size="3xl">3XL</Text>
+    </Col>
+  );
+});
+```
+
+## Weights and Colors
+
+Combine `weight` and `color` to convey emphasis with semantic theme tokens:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Text, Col } from '@sigx/lynx-heroui';
+
+const Demo = component(() => {
+  return () => (
+    <Col gap={6}>
+      <Text weight="light">Light weight</Text>
+      <Text weight="normal">Normal weight</Text>
+      <Text weight="medium">Medium weight</Text>
+      <Text weight="semibold">Semibold weight</Text>
+      <Text weight="bold">Bold weight</Text>
+
+      <Text color="success" weight="medium">Saved successfully</Text>
+      <Text color="warning" weight="medium">Check your input</Text>
+      <Text color="error" weight="semibold">Something went wrong</Text>
+    </Col>
+  );
+});
+```
+
+## Selectable Text
+
+Set `selectable` to let users select and copy the text natively. This maps to
+Lynx's `text-selection` attribute and applies `flatten={false}`, which Lynx
+requires for selection to work:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Text } from '@sigx/lynx-heroui';
+
+const Demo = component(() => {
+  return () => (
+    <Text selectable size="sm" color="base-content">
+      Long-press to select and copy this value: SX-4821-9930.
+    </Text>
+  );
+});
+```

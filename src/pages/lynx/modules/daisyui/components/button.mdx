@@ -1,0 +1,147 @@
+---
+title: Button
+description: "Button — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Actions"]
+order: 101
+---
+
+# Button
+
+<p class="lede">A pressable, daisyUI-styled action button for Lynx native apps, with semantic colors, fill variants, sizes, and a built-in loading spinner.</p>
+
+## Import
+
+```tsx
+import { Button } from '@sigx/lynx-daisyui';
+```
+
+## Overview
+
+`Button` wraps `Pressable` from `@sigx/lynx-gestures`, so it gets native press
+feedback (scale + opacity) out of the box. It emits a `press` event — handle it
+with the `onPress` prop. Its children render as the button label via the default
+slot; when `loading` is set, the label is replaced by a spinner and the button
+becomes inert.
+
+The styling splits into two independent axes that compose: `color` is the
+semantic color (the shared vocabulary across sigx design systems) and `variant`
+is daisy's fill style. For example `color="primary" variant="outline"` produces
+an outlined primary button.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'neutral' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Semantic color of the button. |
+| `variant` | `'outline' \| 'soft' \| 'ghost' \| 'link'` | - | Fill style. Composes with `color`. |
+| `size` | `'xs' \| 'sm' \| 'md' \| 'lg' \| 'xl'` | `'md'` | Button size on the shared scale (`md` is the default and adds no modifier class). |
+| `wide` | `boolean` | `false` | Adds extra horizontal padding (`btn-wide`). |
+| `disabled` | `boolean` | `false` | Disables the button: non-interactive and styled as disabled. Suppresses `press`. |
+| `loading` | `boolean` | `false` | Shows a spinner in place of the label and makes the button inert. |
+| `block` | `boolean` | `false` | Full-width button (`btn-block`). |
+| `circle` | `boolean` | `false` | Circular button (`btn-circle`), for icon-only actions. |
+| `square` | `boolean` | `false` | Square button (`btn-square`), for icon-only actions. |
+| `active` | `boolean` | `false` | Forces the active/pressed visual state (`btn-active`). |
+| `class` | `string` | - | Additional CSS classes appended after the computed ones. |
+| `accessibility-element` | `boolean` | - | Marks the button as an accessibility element (forwarded to the host view). |
+| `accessibility-label` | `string` | - | Accessibility label for screen readers. |
+| `accessibility-role` | `string` | - | Accessibility role. |
+| `accessibility-trait` | `string` | - | Accessibility trait. |
+| `accessibility-status` | `string` | - | Accessibility status. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The button label/content. Hidden while `loading` is `true`. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onPress` | `() => void` | Fired when the button is pressed. Not emitted while `disabled` or `loading`. |
+
+## Basic Usage
+
+Children become the label; handle taps with `onPress`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button } from '@sigx/lynx-daisyui';
+
+export const SaveButton = component(() => {
+    return () => (
+        <Button color="primary" onPress={() => console.log('saved')}>
+            Save
+        </Button>
+    );
+});
+```
+
+## Colors and Variants
+
+`color` sets the semantic color, `variant` sets the fill style — they compose:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button, Col } from '@sigx/lynx-daisyui';
+
+export const ButtonGallery = component(() => {
+    return () => (
+        <Col gap="3">
+            <Button color="primary">Primary</Button>
+            <Button color="secondary">Secondary</Button>
+            <Button color="primary" variant="outline">Outline</Button>
+            <Button color="primary" variant="soft">Soft</Button>
+            <Button color="primary" variant="ghost">Ghost</Button>
+            <Button color="primary" variant="link">Link</Button>
+        </Col>
+    );
+});
+```
+
+## Sizes
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button, Row } from '@sigx/lynx-daisyui';
+
+export const ButtonSizes = component(() => {
+    return () => (
+        <Row gap="3" align="center">
+            <Button size="xs">Extra small</Button>
+            <Button size="sm">Small</Button>
+            <Button size="md">Medium</Button>
+            <Button size="lg">Large</Button>
+            <Button size="xl">Extra large</Button>
+        </Row>
+    );
+});
+```
+
+## States
+
+`disabled` and `loading` both make the button inert — `loading` also swaps the
+label for a spinner. Use `block` to stretch the button to its container's width:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button, Col } from '@sigx/lynx-daisyui';
+
+export const ButtonStates = component(({ signal }) => {
+    const state = signal({ submitting: false });
+
+    return () => (
+        <Col gap="3">
+            <Button color="primary" disabled>Disabled</Button>
+            <Button color="primary" loading={state.submitting}>
+                Submit
+            </Button>
+            <Button color="success" block onPress={() => (state.submitting = true)}>
+                Full-width action
+            </Button>
+        </Col>
+    );
+});
+```

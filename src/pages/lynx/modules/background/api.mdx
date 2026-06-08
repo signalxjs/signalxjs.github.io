@@ -1,0 +1,143 @@
+---
+title: "API reference"
+description: "Background Tasks — Periodic sync & fetch"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-background` v0.4.9.</p>
+
+The package exposes the `Background` singleton, a low-level `addBackgroundFireListener` function, and the supporting types. Most apps only need `Background`. Available on both iOS and Android; on web/SSR/test there is no native bridge, so `isAvailable()` returns `false` and the listener helpers become no-ops.
+
+## Background
+
+```ts
+const Background: {
+  register(taskName: string, options?: RegisterOptions): Promise<void>;
+  unregister(taskName: string): Promise<void>;
+  setHandler(taskName: string, handler: BackgroundHandler): () => void;
+  getRegistered(): Promise<string[]>;
+  isAvailable(): boolean;
+};
+```
+
+Main API object for scheduling periodic background tasks via iOS `BGTaskScheduler` and Android `WorkManager`. It runs JS handlers while the app is backgrounded or closed. Declared `as const`. A task is the pairing of a native registration (persisted across launches) and a JS handler (re-wired every cold start).
+
+## Methods
+
+### register
+
+```ts
+register(taskName: string, options?: RegisterOptions): Promise<void>
+```
+
+Schedules a background task. `options` defaults to `{}`. Idempotent — calling twice with the same `taskName` updates the existing request rather than creating a duplicate, so it is safe to call on every cold start. Internally ensures the native-to-JS fire dispatcher is wired before delegating to native.
+
+Platform notes: iOS submits a fresh `BGAppRefreshTaskRequest` or `BGProcessingTaskRequest` (the OS replaces a same-identifier pending request). Android enqueues a `PeriodicWorkRequest` with an UPDATE policy when `minimumInterval > 0`, otherwise a `OneTimeWorkRequest` with a REPLACE policy. On iOS the permitted identifier must be declared at build time under `ios.bgTaskIdentifiers` in `signalx.config.ts`.
+
+### unregister
+
+```ts
+unregister(taskName: string): Promise<void>
+```
+
+Cancels a previously-registered task and forgets its persisted identifier. No-op if the task is not registered. iOS calls `BGTaskScheduler.cancel(taskRequestWithIdentifier:)`; Android calls `cancelUniqueWork`.
+
+### setHandler
+
+```ts
+setHandler(taskName: string, handler: BackgroundHandler): () => void
+```
+
+Registers the JS handler for a task and returns an unsubscribe function. Must be called **before** the first `register` on every cold start — the OS can fire the task as soon as the process starts, before any UI is up. Handler registrations live only in JS and must be re-wired each cold start; native only persists task identifiers. Also wires the fire dispatcher.
+
+The returned unsubscribe only clears the handler if it is still **this** handler, which prevents clobbering a later `setHandler` for the same task. After unsubscribe, subsequent fires complete as no-ops until a new handler is set.
+
+If native fires but no JS handler is registered (a cold-start race), the dispatcher completes the run as a failure after a bounded native-side grace period, so the OS does not think the work silently succeeded.
+
+### getRegistered
+
+```ts
+getRegistered(): Promise<string[]>
+```
+
+Lists the short task identifiers currently persisted by the native side (`UserDefaults` on iOS, `SharedPreferences` on Android). Useful for diagnostics and for cleaning up stale registrations from previous app versions.
+
+### isAvailable
+
+```ts
+isAvailable(): boolean
+```
+
+Returns whether the native `Background` module is wired into the current build (delegates to `isModuleAvailable` from `@sigx/lynx-core`). Synchronous. Returns `false` on web/SSR/test, where there is no native bridge.
+
+## Functions
+
+### addBackgroundFireListener
+
+```ts
+function addBackgroundFireListener(cb: (event: BackgroundFireEvent) => void): () => void
+```
+
+Low-level native-to-JS subscription for raw background task fire events. Subscribes to the `__sigxBackgroundFire` channel on Lynx's `GlobalEventEmitter` JSModule and returns an unsubscribe function. It parses string-or-object payloads, validates that `taskName` and `runId` are both strings (dropping malformed events), and swallows and logs listener exceptions. On web/SSR/test (no native emitter) it returns a no-op unsubscribe.
+
+Most apps use `Background.setHandler` instead; this is the underlying channel that the `Background` dispatcher consumes. It does not pair completion with the OS task — use `setHandler` if you want native to mark runs as success or failure.
+
+## Types
+
+### RegisterOptions
+
+```ts
+interface RegisterOptions {
+  /**
+   * Seconds. On iOS this is `BGTaskRequest.earliestBeginDate` — the OS
+   * treats it as "no earlier than", and may fire much later (or never).
+   * On Android it's the `PeriodicWorkRequest` repeat interval, clamped to
+   * a 15-minute (900s) floor by the platform.
+   */
+  minimumInterval?: number;
+  requiresNetwork?: boolean;
+  requiresCharging?: boolean;
+  /**
+   * iOS only. `'fetch'` → `BGAppRefreshTask` (lightweight, ~30s budget).
+   * `'processing'` → `BGProcessingTask` (longer budget, can require
+   * charging). Defaults to `'fetch'`. Ignored on Android, where the
+   * `requiresCharging` constraint covers the same use case.
+   */
+  type?: BackgroundTaskType;
+}
+```
+
+Options for `Background.register`. `minimumInterval` is in **seconds**. `requiresNetwork` and `requiresCharging` map to native constraints.
+
+Platform note: on iOS the `requiresNetwork` and `requiresCharging` constraints are only honored for `type: 'processing'` (`BGProcessingTaskRequest`); they are silently ignored for the default `'fetch'` task because iOS does not expose those constraints on app refresh. On Android both constraints apply to either work type.
+
+### BackgroundTaskType
+
+```ts
+type BackgroundTaskType = 'fetch' | 'processing'
+```
+
+iOS task type. `'fetch'` maps to `BGAppRefreshTask` (lightweight, ~30s budget, default); `'processing'` maps to `BGProcessingTask` (longer budget, can require charging). Ignored on Android.
+
+### BackgroundHandler
+
+```ts
+type BackgroundHandler = () => unknown | Promise<unknown>
+```
+
+The JS callback run when a background task fires. May be sync or async. If it resolves, native completes the task as a success; if it throws or rejects, native completes it as a failure (a warning is logged). It must resolve within the platform time budget — roughly 30s for an iOS `fetch` task, minutes for `processing`; on Android the WorkManager budget is ~10 minutes but the worker self-times-out near ~9 minutes.
+
+### BackgroundFireEvent
+
+```ts
+interface BackgroundFireEvent {
+  taskName: string;
+  runId: string;
+}
+```
+
+Payload emitted by the native side when the OS wakes a task, delivered over the `__sigxBackgroundFire` channel. `taskName` is the short JS-side task name; `runId` is a native-generated UUID per fire, used to pair completion with the right OS task instance (a periodic task can fire concurrently with itself).

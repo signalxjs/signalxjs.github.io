@@ -1,0 +1,115 @@
+---
+title: Imperative editors and Shiki highlighting
+description: "Create editors imperatively with createEditor and add TextMate-grade highlighting with the Shiki subpath"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Imperative editors and Shiki highlighting
+
+The `<MonacoEditor />` component covers most cases, but you can also drop down to the imperative API when you need full control over the editor lifecycle, or add Shiki for TextMate-grade syntax highlighting.
+
+## Creating an editor imperatively
+
+`createEditor()` is the low-level building block the component is built on. It awaits `loadMonaco()`, creates a uniquely-named model, applies the editor defaults, wires `onChange`, and returns a live Monaco editor instance.
+
+```tsx
+import { createEditor } from '@sigx/monaco-editor';
+
+const container = document.getElementById('editor')!;
+
+const editor = await createEditor({
+    container,
+    value: 'const x: number = 1;\n',
+    language: 'typescript',
+    theme: 'vs-dark',
+    onChange: (value) => {
+        console.log('content changed:', value);
+    },
+});
+
+// editor is a Monaco IStandaloneCodeEditor — use the full Monaco API.
+editor.focus();
+
+// Dispose when you are done.
+editor.dispose();
+```
+
+`createEditor()` applies sensible defaults: `theme: 'vs-dark'`, `readOnly: false`, minimap off, `lineNumbers: 'on'`, `fontSize: 14`, `automaticLayout: true`, `tabSize: 2`, `wordWrap: 'on'`, and `fixedOverflowWidgets: true`. The `language` defaults to `'typescript'`. Pass raw Monaco construction options via `monacoOptions` to override anything:
+
+```tsx
+const editor = await createEditor({
+    container,
+    value: '',
+    language: 'json',
+    monacoOptions: { minimap: { enabled: true }, scrollBeyondLastLine: false },
+});
+```
+
+### The TSX/JSX trick
+
+When you ask for `tsx` or `jsx`, `createEditor()` first creates the model with the base `typescript`/`javascript` language id (so the TS worker assigns the correct script kind), then swaps the model language to `tsx`/`jsx` for highlighting. The TypeScript pack registers tsx/jsx completion and hover providers off the TS worker so IntelliSense survives the swap. This happens automatically — just pass `language: 'tsx'`.
+
+## Loader control
+
+If you need to load Monaco yourself or inspect loader state, use the loader exports directly. Register languages/themes with `configureMonaco()` and override the strategy with `configureMonacoLoader()` before the first `loadMonaco()`:
+
+```tsx
+import {
+    configureMonacoLoader,
+    loadMonaco,
+    isMonacoLoaded,
+    getMonaco,
+} from '@sigx/monaco-editor';
+
+// Must run before loadMonaco() — warns if Monaco is already loaded.
+configureMonacoLoader({ strategy: 'cdn', version: '0.55.1' });
+
+const monaco = await loadMonaco(); // idempotent; caches after first call
+
+if (isMonacoLoaded()) {
+    // Synchronous accessor — throws if not yet loaded.
+    const m = getMonaco();
+    m.editor.setTheme('vs-dark');
+}
+```
+
+## Shiki highlighting
+
+For TextMate-grade highlighting (and theme parity with static code blocks), use the optional Shiki integration from the `@sigx/monaco-editor/shiki` subpath. It dynamically imports `shiki/core`, the JS regex engine, and `@shikijs/monaco`, creates a highlighter, optionally registers Monaco languages first, then wires the grammars and themes into the live Monaco instance.
+
+Install the optional peers first:
+
+```bash
+pnpm add @shikijs/monaco shiki
+```
+
+Then apply themes after Monaco loads. Pass `import()` promises (or already-resolved objects) for the themes and langs:
+
+```tsx
+import { loadMonaco } from '@sigx/monaco-editor';
+import { applyShikiThemes } from '@sigx/monaco-editor/shiki';
+
+const monaco = await loadMonaco();
+
+const { highlighter } = await applyShikiThemes(monaco, {
+    themes: [import('@shikijs/themes/github-dark')],
+    langs: [import('@shikijs/langs/tsx')],
+    // Register Monaco languages before wiring grammars (omit if already registered).
+    monacoLanguages: [{ id: 'tsx', extensions: ['.tsx'] }],
+});
+
+// Reuse the returned highlighter to render static code outside Monaco.
+const html = await (highlighter as any).codeToHtml('const x = 1', {
+    lang: 'tsx',
+    theme: 'github-dark',
+});
+```
+
+`applyShikiThemes()` returns `{ highlighter }` (a Shiki `HighlighterCore`) so you can reuse it for non-Monaco code.
+
+## Next steps
+
+- [Language packs and IntelliSense](/monaco/docs/language-packs)
+- [API Reference](/monaco/docs/api)

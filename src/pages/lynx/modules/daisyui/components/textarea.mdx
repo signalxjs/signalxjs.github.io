@@ -1,0 +1,121 @@
+---
+title: Textarea
+description: "Textarea — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 144
+---
+
+# Textarea
+
+<p class="lede">Multi-line text input with daisyUI styling and two-way model binding for native Lynx apps.</p>
+
+## Import
+
+```tsx
+import { Textarea } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `Model<string>` | - | Two-way binding to a string signal property. Reads the current value and writes edits back as the user types. |
+| `placeholder` | `string` | - | Placeholder text shown when the textarea is empty. |
+| `rows` | `number` | `3` | Number of visible text rows. Drives the rendered height (`rows * 20 + 16` px). |
+| `size` | `'xs' \| 'sm' \| 'md' \| 'lg'` | `'md'` | Control size. `md` is the default and adds no extra class. |
+| `variant` | `'bordered' \| 'ghost'` | - | Visual style. `bordered` draws a visible border; `ghost` is borderless until focused. |
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Accent color applied to the border/focus state. |
+| `disabled` | `boolean` | `false` | Disables editing and dims the control. |
+| `class` | `string` | - | Additional CSS classes appended to the generated `textarea-*` classes. |
+
+The typed-text and placeholder colors are resolved from the active theme palette at render time, since native text widgets cannot read CSS custom properties.
+
+## Basic Usage
+
+Use `model` for two-way binding to a signal property:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Textarea, Card, Text } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const form = signal({ bio: '' });
+
+    return () => (
+        <Card>
+            <Card.Body class="gap-4">
+                <Textarea
+                    model={() => form.bio}
+                    placeholder="Tell us about yourself..."
+                    rows={4}
+                />
+                <Text size="sm" class="opacity-70">
+                    {form.bio.length} characters
+                </Text>
+            </Card.Body>
+        </Card>
+    );
+});
+
+render(<Demo />, "#root");
+```
+
+## Sizes and Variants
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Textarea, Col } from '@sigx/lynx-daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Col gap="4">
+            <Textarea size="xs" variant="bordered" placeholder="Extra small" />
+            <Textarea size="sm" variant="bordered" placeholder="Small" />
+            <Textarea size="md" variant="bordered" placeholder="Medium (default)" />
+            <Textarea size="lg" variant="bordered" placeholder="Large" />
+            <Textarea variant="ghost" placeholder="Ghost variant" />
+        </Col>
+    );
+});
+
+render(<Demo />, "#root");
+```
+
+## Colors and Disabled State
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Textarea, Col } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const form = signal({ note: '', locked: 'Read only content' });
+
+    return () => (
+        <Col gap="4">
+            <Textarea
+                model={() => form.note}
+                variant="bordered"
+                color="primary"
+                placeholder="Primary accent"
+                rows={3}
+            />
+            <Textarea
+                model={() => form.note}
+                variant="bordered"
+                color="success"
+                placeholder="Success accent"
+                rows={3}
+            />
+            <Textarea
+                model={() => form.locked}
+                variant="bordered"
+                disabled
+                rows={2}
+            />
+        </Col>
+    );
+});
+
+render(<Demo />, "#root");
+```

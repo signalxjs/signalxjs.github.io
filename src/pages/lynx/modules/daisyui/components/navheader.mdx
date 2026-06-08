@@ -1,0 +1,112 @@
+---
+title: NavHeader
+description: "NavHeader — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Navigation"]
+order: 141
+---
+
+# NavHeader
+
+<p class="lede">Batteries-included, daisy-themed header bar for `@sigx/lynx-navigation` stacks — renders the focused screen's title, back button, and slot fills with native-ish layout.</p>
+
+## Import
+
+```tsx
+import { NavHeader } from '@sigx/lynx-daisyui';
+```
+
+`NavHeader` pairs with `<Stack>` from `@sigx/lynx-navigation`. It reads the focused screen's options and slot fills via `useScreenChrome()`, then applies daisy theming: a `base-200` surface, a bottom separator, and a horizontal layout with a centred title flanked by left/right zones of equal minimum width.
+
+It takes no children and no title prop of its own — the title and the header action slots come from the active screen. Drop one `NavHeader` inside your `<Stack>` and every screen gets a consistent header.
+
+```tsx
+import { Stack } from '@sigx/lynx-navigation';
+import { NavHeader } from '@sigx/lynx-daisyui';
+
+<Stack initialRoute="home">
+    <NavHeader />
+</Stack>
+```
+
+## Props
+
+All props are optional. When a screen supplies its own header content via `<Screen.Header>`, `<Screen.HeaderLeft>`, or `<Screen.HeaderRight>`, those slot fills take priority over the matching `NavHeader` props.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `background` | `'base-100' \| 'base-200' \| 'base-300' \| 'transparent'` | `'base-200'` | Surface color token for the header bar. `'transparent'` applies no background. |
+| `bordered` | `boolean` | `true` | Show a separator line (`border-b`) at the bottom of the header. |
+| `backIcon` | `IconSpec` | - | Render the back chevron from an icon spec (e.g. `{ set: 'lucide', name: 'chevron-left' }`). The icon renders with `variant="primary"` so the theme's primary color is substituted into the SVG. Wrapped in a `Pressable` wired to the stack's pop. Falls back to the default "‹ Back" text when not provided. |
+| `renderBack` | `(ctx: { pop: () =&gt; void }) =&gt; JSXElement` | - | Full override for the back button. Receives a `pop` callback and returns any JSX. Takes priority over `backIcon`. |
+
+The back-button resolution order is: `<Screen.HeaderLeft>` slot fill → `renderBack` → `backIcon` → the default "‹ Back" text. The back zone only appears when the stack can actually pop (`canGoBack`).
+
+`IconSpec` is imported from `@sigx/lynx-icons` and has the shape `{ set, name }`.
+
+## Basic usage
+
+A header with default styling — a `base-200` surface and a bottom border. The title comes from the active screen's options.
+
+```tsx
+import { Stack, Screen } from '@sigx/lynx-navigation';
+import { NavHeader } from '@sigx/lynx-daisyui';
+
+<Stack initialRoute="home">
+    <NavHeader />
+</Stack>
+```
+
+## Background and border
+
+Use `background` to change the surface color and `bordered={false}` to drop the separator line — useful for a flush, borderless header on a matching screen background.
+
+```tsx
+import { Stack } from '@sigx/lynx-navigation';
+import { NavHeader } from '@sigx/lynx-daisyui';
+
+<Stack initialRoute="home">
+    <NavHeader background="base-100" bordered={false} />
+</Stack>
+```
+
+```tsx
+import { Stack } from '@sigx/lynx-navigation';
+import { NavHeader } from '@sigx/lynx-daisyui';
+
+// Transparent header that floats over the screen content
+<Stack initialRoute="home">
+    <NavHeader background="transparent" />
+</Stack>
+```
+
+## Custom back button
+
+Provide `backIcon` to swap the default "‹ Back" text for a themed chevron icon. The icon is automatically wrapped in a pressable wired to the stack's pop.
+
+```tsx
+import { Stack } from '@sigx/lynx-navigation';
+import { NavHeader } from '@sigx/lynx-daisyui';
+
+<Stack initialRoute="detail">
+    <NavHeader backIcon={{ set: 'lucide', name: 'chevron-left' }} />
+</Stack>
+```
+
+For complete control over the back affordance, use `renderBack`. It receives a `pop` callback you wire to your own pressable element.
+
+```tsx
+import { Stack } from '@sigx/lynx-navigation';
+import { Pressable } from '@sigx/lynx-gestures';
+import { NavHeader, Text } from '@sigx/lynx-daisyui';
+
+<Stack initialRoute="detail">
+    <NavHeader
+        renderBack={({ pop }) => (
+            <Pressable class="px-2 py-2" onPress={() => pop()}>
+                <Text color="primary">Cancel</Text>
+            </Pressable>
+        )}
+    />
+</Stack>
+```

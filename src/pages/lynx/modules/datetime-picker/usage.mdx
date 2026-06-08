@@ -1,0 +1,142 @@
+---
+title: "Usage"
+description: "Date/Time Picker — Native date & time picker"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Date/Time Picker
+
+<p class="lede">Present the native date / time / datetime picker, read the chosen instant, and handle cancellation — without touching native code.</p>
+
+The whole API hangs off a single `DateTimePicker` object. Every entry point is async and resolves to a result you can branch on, so there is nothing to wire up and no events to subscribe to. The picker always resolves — a dismissal gives you a cancelled result rather than an error, so call sites never need a try/catch.
+
+## Basic usage
+
+Call `pickDate` and check `cancelled` before reading the value. The result carries both a JS `Date` and convenience local components.
+
+```tsx
+import { DateTimePicker } from '@sigx/lynx-datetime-picker';
+
+async function chooseDate() {
+  const result = await DateTimePicker.pickDate();
+  if (result.cancelled) return;
+
+  // result.value is a JS Date
+  // result.year, result.month (1-12), result.day are local components
+  console.log(result.value, result.year, result.month, result.day);
+}
+```
+
+Note that `result.month` is `1-12` (January is `1`), unlike `Date#getMonth` which is `0-11`. All component fields (`year`, `month`, `day`, `hour`, `minute`) are absent when the pick is cancelled.
+
+## Seeding the initial value and bounding the range
+
+Pass `value` to preselect a date, and `minimumDate` / `maximumDate` to bound what the user can choose. This is the common pattern for editing a date the user already set.
+
+```tsx
+import { DateTimePicker } from '@sigx/lynx-datetime-picker';
+
+let current = new Date();
+
+async function editDate() {
+  const result = await DateTimePicker.pickDate({
+    value: current,
+    minimumDate: new Date(2020, 0, 1),
+    maximumDate: new Date(2030, 11, 31),
+  });
+
+  if (!result.cancelled && result.value) {
+    current = result.value;
+  }
+}
+```
+
+If `value` is omitted the picker defaults to "now" (decided native-side). Invalid or absent `Date` options are dropped before crossing the bridge, so passing an `Invalid Date` simply falls back to the default.
+
+## Picking a time of day
+
+`pickTime` opens the time picker. It still resolves with a full `Date` (anchored to the initial value's day, or today), so read `result.hour` and `result.minute` for the time-only answer. Use `is24Hour` to force a 24-hour clock; omit it to follow the device setting.
+
+```tsx
+import { DateTimePicker } from '@sigx/lynx-datetime-picker';
+
+async function chooseTime() {
+  const result = await DateTimePicker.pickTime({ is24Hour: true });
+  if (result.cancelled) return;
+
+  // result.hour is 0-23, result.minute is 0-59
+  console.log(`${result.hour}:${result.minute}`);
+}
+```
+
+Two caveats in time mode:
+
+- `minimumDate` / `maximumDate` are silently ignored on both platforms.
+- `minuteInterval` is honored only on iOS (the native `UIDatePicker.minuteInterval`) and must evenly divide 60. Android has no equivalent — round `result.minute` yourself if you need stepped minutes.
+
+## Picking date and time together
+
+`pickDateTime` collects both in one flow. On iOS this is a single combined wheel; on Android it chains a date dialog and then a time dialog, and cancelling either step cancels the whole pick.
+
+```tsx
+import { DateTimePicker } from '@sigx/lynx-datetime-picker';
+
+async function chooseDateTime() {
+  const result = await DateTimePicker.pickDateTime({
+    value: new Date(),
+    minuteInterval: 15, // iOS only
+  });
+  if (result.cancelled || !result.value) return;
+
+  console.log(result.value.toISOString());
+}
+```
+
+You can also call `DateTimePicker.pick(opts)` directly and select the mode with `opts.mode` (`'date'` | `'time'` | `'datetime'`, defaulting to `'date'`). The three `pickDate` / `pickTime` / `pickDateTime` methods are just thin wrappers that set `mode` for you.
+
+## Guarding against an unlinked build
+
+If you want to branch before presenting, `isModuleAvailable` reports whether the native module is wired into the current build. You rarely need it — `pick` already resolves with `{ cancelled: true }` when the module is missing.
+
+```tsx
+import { DateTimePicker } from '@sigx/lynx-datetime-picker';
+
+if (DateTimePicker.isModuleAvailable()) {
+  const result = await DateTimePicker.pickDate();
+  // ...
+}
+```
+
+The `DateTimePicker` object is frozen and its methods are closed-over, so it also survives destructuring:
+
+```tsx
+import { DateTimePicker } from '@sigx/lynx-datetime-picker';
+
+const { pickDate, pickTime } = DateTimePicker;
+const result = await pickDate();
+```
+
+## Native setup
+
+No permissions or usage descriptions are required on either platform. `sigx prebuild` auto-discovers the package and links the native module for you — no `Info.plist` entries, no Android manifest permissions, no Material/AndroidX dependency to add by hand.
+
+```bash
+pnpm add @sigx/lynx-datetime-picker
+sigx prebuild
+```
+
+## Notes
+
+- The promise never rejects — dismissal, swipe-to-dismiss, a missing native module, and any bridge error all surface as `{ cancelled: true }`.
+- Values cross the bridge as epoch milliseconds (numbers), not strings, so there is no timezone or format ambiguity. The JS surface accepts and returns JS `Date` objects.
+- Convenience components (`year` / `month` / `day` / `hour` / `minute`) are derived in the local timezone; `month` is `1-12` and `hour` is `0-23`.
+- `minimumDate` / `maximumDate` are ignored in `'time'` mode.
+- `minuteInterval` and `title` are iOS-only; `title` is shown in the toolbar and unused on Android.
+- A new pick supersedes any in-flight one — the older pick resolves cancelled and its sheet is dismissed.
+
+## See also
+
+- [API reference](/lynx/modules/datetime-picker/api) — every export and option.
+- [Installation](/lynx/modules/datetime-picker/installation) — project setup.

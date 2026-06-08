@@ -10,14 +10,220 @@ order: 30
 
 <p class="lede">Renderer-agnostic component model — the essentials.</p>
 
-## Basic usage
+`@sigx/runtime-core` is the platform-agnostic heart of the framework: the component system, the JSX runtime, lifecycle hooks, dependency injection, control-flow helpers, and the reconciler base. It has no DOM dependency of its own — a render target (such as the DOM renderer) plugs in via the `mount` function.
 
-```tsx
-import * as RuntimeCore from '@sigx/runtime-core';
+Most applications should install the `sigx` meta-package instead, which bundles this core with the DOM renderer and `@sigx/reactivity` so everything is wired up for you. Install `@sigx/runtime-core` directly when you are building a custom renderer or need the component primitives in isolation.
+
+```bash
+pnpm add @sigx/runtime-core
 ```
 
-{/* TODO: author real guide content for @sigx/runtime-core */}
+To make TSX compile against this runtime, point your `tsconfig.json` at the package as the JSX import source:
 
-## Notes
+```json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "@sigx/runtime-core"
+  }
+}
+```
 
-Component model and renderer base shared across every render target.
+## Defining a component
+
+A component is a `setup` function that runs once and returns a render (view) function. Put reactive reads inside the returned function so re-renders track them. The `setup` receives a context object with `props`, `slots`, `emit`, `signal`, `el`, and the lifecycle registrars.
+
+```tsx
+import { component, signal, onMounted, onUnmounted } from '@sigx/runtime-core';
+
+const Timer = component(() => {
+  const elapsed = signal(0);
+  let interval: ReturnType<typeof setInterval>;
+
+  onMounted(() => {
+    interval = setInterval(() => elapsed.value++, 1000);
+  });
+  onUnmounted(() => clearInterval(interval));
+
+  return () => <span>Elapsed: {elapsed.value}s</span>;
+});
+```
+
+`onMounted`, `onUnmounted`, `onCreated`, and `onUpdated` must be called synchronously during `setup`. Called outside a component they simply warn and no-op. `onUnmounted` is your cleanup hook — clear timers and unsubscribe there.
+
+## Typing props, events, and slots
+
+Type a component through the `Define` namespace and combine members with the `&` intersection. The render context destructures `props` (a reactive accessor), `slots` (always carries `.default()`), and `emit`.
+
+```tsx
+import { component, type Define } from '@sigx/runtime-core';
+
+type ButtonProps =
+  & Define.Prop<'variant', 'primary' | 'secondary'>
+  & Define.Prop<'disabled', boolean>
+  & Define.Event<'click', MouseEvent>
+  & Define.Slot<'default'>;
+
+const Button = component<ButtonProps>(({ props, slots, emit }) => {
+  return () => (
+    <button
+      class={props.variant}
+      disabled={props.disabled}
+      onClick={(e: MouseEvent) => emit('click', e)}
+    >
+      {slots.default?.()}
+    </button>
+  );
+});
+```
+
+`Define.Prop`, `Define.Event`, `Define.Model`, `Define.Slot`, and `Define.Expose` are the discoverable way to describe a component's surface. The older flat `DefineProp` / `DefineModel` aliases are deprecated — prefer the namespace.
+
+## Creating and mounting an app
+
+`defineApp` builds a renderer-agnostic application instance with a chainable API. Install plugins with `use`, register directives with `directive`, and provide app-wide services with `defineProvide`, then call `mount` with a render target.
+
+```tsx
+import { defineApp, defineInjectable } from '@sigx/runtime-core';
+
+const useApiConfig = defineInjectable(() => ({ baseUrl: '' }));
+
+const app = defineApp(<App />);
+
+const config = app.defineProvide(useApiConfig);
+config.baseUrl = 'https://api.example.com';
+
+app
+  .use(myPlugin)
+  .mount(document.getElementById('app'));
+```
+
+When you use the `sigx` meta-package, `mount` already has the DOM renderer wired in. With `@sigx/runtime-core` alone, pass a `MountFn` as the second argument to `mount` so the core knows how to render into your target.
+
+## Dependency injection
+
+`defineInjectable` returns a callable token. Calling it resolves the nearest instance provided up the component tree, or lazily creates a global singleton if none was provided. Provide a fresh instance for a subtree with `defineProvide` during `setup`.
+
+```tsx
+import { component, defineInjectable, defineProvide } from '@sigx/runtime-core';
+
+const useStore = defineInjectable(() => ({ count: signal(0) }));
+
+const Provider = component(({ slots }) => {
+  defineProvide(useStore); // new instance for descendants
+  return () => <>{slots.default()}</>;
+});
+
+const Consumer = component(() => {
+  const store = useStore(); // nearest provided instance
+  return () => <span>{store.count.value}</span>;
+});
+```
+
+`defineProvide` must run during `setup` — calling it elsewhere throws `SIGX200`. Because an unprovided injectable falls back to a process-wide global singleton, prefer explicit `defineProvide` in SSR so state does not leak across requests.
+
+## Two-way binding with models
+
+A `Model<T>` unifies reading (`.value` get), writing (`.value` set routes through the update handler), and forwarding (`.binding`). At the JSX level the runtime accepts a getter, a `[obj, 'key']` tuple, or a forwarded model on the `model` prop; named models use `model:name` and emit `update:name`.
+
+```tsx
+import { component, createModel, type Define } from '@sigx/runtime-core';
+
+type FieldProps = Define.Model<string>;
+
+const Field = component<FieldProps>(({ props }) => {
+  return () => <input value={props.model?.value} />;
+});
+
+// In a parent, build a model from a [source, key] tuple:
+const state = signal({ name: '' });
+const nameModel = createModel<string>([state, 'name'], (v) => {
+  state.name = v;
+});
+```
+
+Use `createModelFromBinding` when you need to forward a full `[obj, key, handler]` binding tuple down to a child, and `isModel` to detect a model at runtime.
+
+## Lazy loading and Suspense
+
+`lazy` wraps a dynamic-import loader into a component loaded on first render. Render it inside `Suspense`, which shows a fallback until the chunk resolves. The lazy factory also exposes `preload()` so you can warm the chunk ahead of time.
+
+```tsx
+import { lazy, Suspense } from '@sigx/runtime-core';
+
+const HeavyChart = lazy(() => import('./HeavyChart'));
+
+const Dashboard = component(() => {
+  return () => (
+    <Suspense fallback={<span>Loading chart…</span>}>
+      <HeavyChart />
+    </Suspense>
+  );
+});
+
+// Warm the chunk on hover, before it is needed:
+// onMouseEnter={() => HeavyChart.preload()}
+```
+
+For ad-hoc async data inside a single component, reach for `useAsync`, which returns a reactive `{ value, loading, error }` state and re-runs the render as the state changes.
+
+```tsx
+import { component, useAsync } from '@sigx/runtime-core';
+
+const Editor = component(() => {
+  const libs = useAsync(async () => ({
+    EditorView: (await import('@codemirror/view')).EditorView,
+  }));
+
+  return () => {
+    if (libs.loading) return <span>Loading…</span>;
+    if (libs.error) return <span>Failed: {libs.error.message}</span>;
+    return <div>Editor ready</div>;
+  };
+});
+```
+
+## Handling errors
+
+Wrap risky subtrees in `ErrorBoundary` to catch render errors and show a fallback. The fallback can be a node or a function receiving the error and a `retry()` that resets the boundary. It works in both SSR and on the client.
+
+```tsx
+import { ErrorBoundary } from '@sigx/runtime-core';
+
+const Safe = component(() => {
+  return () => (
+    <ErrorBoundary
+      fallback={(error, retry) => (
+        <div>
+          {error.message}
+          <button onClick={retry}>Retry</button>
+        </div>
+      )}
+    >
+      <RiskyComponent />
+    </ErrorBoundary>
+  );
+});
+```
+
+Runtime errors are instances of `SigxError`, each carrying a stable `code` (such as `SIGX102` for an async setup attempted on the client). Catch `SigxError` and branch on `.code` for targeted handling.
+
+## Directives
+
+`defineDirective` marks a directive definition so it can be applied through the `use:name` prop syntax. Each lifecycle hook receives the element and a binding with the current `value`.
+
+```tsx
+import { defineDirective } from '@sigx/runtime-core';
+
+const tooltip = defineDirective<string>({
+  mounted(el, { value }) { el.title = value; },
+  updated(el, { value }) { el.title = value; },
+  unmounted(el) { el.title = ''; },
+});
+
+// Usage: <div use:tooltip="Helpful hint" />
+```
+
+## Next steps
+
+See the [API reference](/core/packages/runtime-core/api) for the complete typed surface, or the [Installation](/core/packages/runtime-core/installation) guide for project setup.

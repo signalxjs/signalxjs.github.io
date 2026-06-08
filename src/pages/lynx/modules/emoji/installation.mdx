@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Emoji Picker — Themable emoji picker"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-emoji` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-emoji
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as EmojiPicker from '@sigx/lynx-emoji';
+
+console.log(Object.keys(EmojiPicker));
+```

@@ -8,16 +8,171 @@ order: 30
 
 # Using CLI Plugin
 
-<p class="lede">@sigx/cli plugin — the essentials.</p>
+<p class="lede">The build toolchain for a sigx-lynx app: a dev server, native prebuild, autolinking and device runners — driven from the command line, configured from a single TypeScript file.</p>
 
 ## Basic usage
 
-```tsx
-import * as CLIPlugin from '@sigx/lynx-cli';
+`@sigx/lynx-cli` is mostly a **command-line tool**, not a library you import. It registers as a plugin for `@sigx/cli` (auto-discovered via the package's `sigx-cli.plugin` field), which adds the `sigx` subcommands to your project.
+
+Install both packages into a Lynx app:
+
+```bash
+pnpm add -D @sigx/cli @sigx/lynx-cli
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-cli */}
+A project is detected as a Lynx project when `signalx.config.ts` (or `.js`/`.mjs`) or `lynx.config.ts` exists at its root. From there, the day-to-day commands are:
 
-## Notes
+```bash
+sigx dev            # start the dev server, pick a device
+sigx prebuild       # render native ios/ and android/ projects + autolink
+sigx run:android    # build, install and launch on Android
+sigx run:ios        # build, install and launch on iOS (macOS only)
+sigx build          # production rspeedy bundle
+sigx doctor         # environment health report
+```
 
-dev / build / prebuild / doctor / run:android / run:ios, plus the autolinker for native modules.
+The JavaScript API (`defineLynxConfig`, `runPrebuild`, `resolveConfig`, the device-detect helpers, etc.) exists for tooling that needs to drive the same machinery programmatically, but most apps only ever touch `defineLynxConfig`.
+
+## Configuring your app
+
+Everything about the native shell — name, icons, splash, permissions, deep-link scheme, native modules — lives in `signalx.config.ts`. Wrap the object in `defineLynxConfig` for full typing and editor completion. It is a pure identity helper, so it has no runtime effect beyond typing.
+
+```ts
+// signalx.config.ts
+import { defineLynxConfig } from '@sigx/lynx-cli/config';
+
+export default defineLynxConfig({
+    name: 'My App',
+    version: '1.0.0',
+    scheme: 'myapp',
+    orientation: 'portrait',
+    icon: 'assets/icon.png',
+    splash: {
+        image: 'assets/splash.png',
+        backgroundColor: '#0D9488',
+        dark: { backgroundColor: '#134E4A' },
+    },
+    modules: [
+        { package: '@sigx/lynx-location', config: { accuracy: 'high' } },
+    ],
+    iconSets: [
+        { id: 'fa', source: '@sigx/lynx-icons-fa-free', styles: ['solid', 'brands'] },
+        { id: 'lucide', source: '@sigx/lynx-icons-lucide' },
+    ],
+    android: {
+        applicationId: 'com.mycompany.myapp',
+        versionCode: 2,
+        adaptiveIcon: {
+            foreground: 'assets/adaptive-foreground.png',
+            backgroundColor: '#0D9488',
+            monochrome: 'assets/adaptive-monochrome.png',
+        },
+        notificationIcon: 'assets/notification-icon.png',
+        notificationColor: '#0D9488',
+    },
+    ios: {
+        bundleIdentifier: 'com.mycompany.myapp',
+        buildNumber: '2',
+        icon: { light: 'assets/icon.png', dark: 'assets/icon-dark.png' },
+    },
+});
+```
+
+Notes:
+
+- Installed `@sigx/lynx-*` modules are **autolinked automatically** — you only list a module in `modules` when you need to pass it native config or restrict it to one platform. Use `excludeModules` to opt out of one.
+- The config file is evaluated at prebuild time, so you can read `process.env` for secrets like `android.googleMapsApiKey`.
+- Sensible defaults are applied for everything you omit: `version` `1.0.0`, `buildNumber` `1`, `orientation` `portrait`, both platforms, Android `minSdk` 24 / `targetSdk` 35, iOS `deploymentTarget` `15.0`. Missing icon or splash images fall back to bundled placeholders.
+- When `applicationId` / `bundleIdentifier` are omitted, run and dev commands fall back to `com.sigx.<name>` (lowercased, non-alphanumerics stripped).
+
+## Running the dev server
+
+`sigx dev` starts the rspeedy dev server, probes for a free port (default `8788`), and prints a QR code plus your LAN IP so a device on the same network can load the bundle.
+
+```bash
+sigx dev                  # interactive target picker (TTY)
+sigx dev --all            # build for every connected target
+sigx dev --ios            # iOS only
+sigx dev --android        # Android only
+sigx dev --last           # reuse the last selected target
+sigx dev --port 9000      # custom port
+sigx dev --no-device-logs # don't stream device console.* output
+```
+
+Behavior worth knowing:
+
+- The first `dev` run with no `android/` or `ios/` folder auto-runs `prebuild` for you.
+- In a TTY it shows an interactive target picker and remembers your last choice (`--last` reuses it). In a non-TTY environment it behaves like `--all`.
+- Device `console.*` logs stream back to your terminal; selected targets are auto-launched with the dev URL.
+- An app with no `lynx.config.ts` (a bundle-loader client such as sigx-lynx-go) skips the JS dev server.
+
+## Prebuilding native projects
+
+`sigx prebuild` renders the managed `ios/` and `android/` native projects from templates, autolinks every installed `@sigx/lynx-*` module (generating the native registries, Podfile entries, Gradle deps, manifest permissions and so on), then runs your `prebuild.post` hook.
+
+```bash
+sigx prebuild             # both platforms
+sigx prebuild --android   # Android only
+sigx prebuild --ios       # iOS only
+sigx prebuild --clean     # bypass the fingerprint fast-path, full re-render
+```
+
+Prebuild has a **fingerprint-based fast path**: it skips work when its inputs are unchanged. Editing `signalx.config.ts` or the post-hook script re-triggers it; `--clean` forces a full re-render regardless.
+
+Because prebuild re-renders managed native files pristine each time, a `prebuild.post` hook that patches them must anchor on template text and fail loudly when the anchor is missing:
+
+```ts
+// signalx.config.ts excerpt
+export default defineLynxConfig({
+    name: 'My App',
+    prebuild: { post: './scripts/native-patches.mjs' },
+});
+```
+
+The post hook's default export, if a function, is awaited with `{ cwd, config, platforms }`.
+
+To drive prebuild programmatically from your own tooling, call `runPrebuild`:
+
+```ts
+import { runPrebuild } from '@sigx/lynx-cli';
+
+await runPrebuild({ ios: true, android: true, clean: true });
+```
+
+## Building and running on a device
+
+```bash
+sigx run:android                       # debug build, install, launch
+sigx run:android --release             # release: bundle -> prebuild -> gradle installRelease
+sigx run:ios --simulator "iPhone 15"   # boot a named simulator
+sigx run:ios --device "My iPhone"      # a physical device (Xcode 15+ / devicectl)
+sigx run:ios --release
+sigx build --analyze                   # production bundle + size summary
+```
+
+Platform notes:
+
+- `run:ios` (and any iOS build) is **macOS only** and errors elsewhere.
+- Android needs the Android SDK + JDK + Gradle; `adb` is resolved from `ANDROID_HOME/platform-tools` and `PATH`. iOS needs Xcode, CocoaPods and `xcrun`/`devicectl`.
+- Run `sigx doctor` first to confirm your toolchain: it reports Node, your package manager, the Android SDK/JDK/ADB, iOS Xcode/CocoaPods and connected devices.
+
+## Keeping the module family in sync
+
+The `@sigx/lynx-*` packages are versioned in lockstep, so the CLI ships commands to manage them as a set:
+
+```bash
+sigx add @sigx/lynx-camera        # install a module (autolinks on next prebuild)
+sigx remove @sigx/lynx-camera     # uninstall
+sigx outdated                     # report available updates / lockstep drift
+sigx upgrade --to latest          # bump the whole family together
+sigx upgrade --dry-run            # preview without writing
+```
+
+`outdated` exits non-zero on lockstep drift, and on an available update for the default `latest` check. `upgrade` writes exact pins by default (`--caret` for caret ranges) and refuses to run on a dirty git tree unless you pass `--force`.
+
+## See also
+
+- [Overview](/lynx/modules/cli/overview) — what the plugin is and how it fits the family.
+- [Installation](/lynx/modules/cli/installation) — project setup.
+- [API reference](/lynx/modules/cli/api) — the full typed surface.
+- [Your first app](/lynx/docs/your-first-app) — an end-to-end walkthrough.

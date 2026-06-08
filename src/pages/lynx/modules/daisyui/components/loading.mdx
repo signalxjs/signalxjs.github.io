@@ -1,0 +1,83 @@
+---
+title: Loading
+description: "Loading — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Feedback"]
+order: 142
+---
+
+# Loading
+
+<p class="lede">Animated loading indicator with spinner, dots, ring, ball, bars and infinity styles for native Lynx apps.</p>
+
+## Import
+
+```tsx
+import { Loading } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+`Loading` is a presentational indicator — it renders a single animated `view` and takes no children or model binding.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `type` | `'spinner' \| 'dots' \| 'ring' \| 'ball' \| 'bars' \| 'infinity'` | `'spinner'` | Animation style of the indicator |
+| `size` | `'xs' \| 'sm' \| 'md' \| 'lg'` | - | Indicator size |
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Semantic color of the indicator |
+| `class` | `string` | - | Additional CSS classes |
+
+## Basic Usage
+
+Render a default spinner with no props:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Loading } from '@sigx/lynx-daisyui';
+
+const Demo = component(() => {
+    return () => <Loading />;
+});
+```
+
+## Types
+
+Pick an animation style with `type`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Loading, Row } from '@sigx/lynx-daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Row gap="4" align="center">
+            <Loading type="spinner" />
+            <Loading type="dots" />
+            <Loading type="ring" />
+            <Loading type="ball" />
+            <Loading type="bars" />
+            <Loading type="infinity" />
+        </Row>
+    );
+});
+```
+
+## Sizes and Colors
+
+Combine `size` and `color` to match the surrounding UI:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Loading, Row } from '@sigx/lynx-daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Row gap="4" align="center">
+            <Loading type="spinner" size="xs" color="primary" />
+            <Loading type="spinner" size="sm" color="secondary" />
+            <Loading type="spinner" size="md" color="accent" />
+            <Loading type="spinner" size="lg" color="success" />
+        </Row>
+    );
+});
+```

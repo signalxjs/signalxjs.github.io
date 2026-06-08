@@ -1,0 +1,191 @@
+---
+title: NavTabBar
+description: "NavTabBar — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Navigation"]
+order: 140
+---
+
+# NavTabBar
+
+<p class="lede">A daisy-themed bottom tab bar for native apps — drives `@sigx/lynx-navigation` tabs, or runs standalone from an explicit item list.</p>
+
+## Import
+
+```tsx
+import { NavTabBar } from '@sigx/lynx-daisyui';
+```
+
+## Overview
+
+`NavTabBar` is pure UI: it renders a horizontal row of tab buttons (icon + label) and reports presses. It works in two mutually exclusive modes, chosen once at mount:
+
+- **Navigator mode** (default) — placed inside `<Tabs>` from `@sigx/lynx-navigation`, it subscribes to `useTabs()` for the tab list and active tab, and calls `setActive` on press. Used without `items`, it throws when there is no enclosing `<Tabs>`.
+- **Standalone mode** — pass an explicit `items` list and the bar never touches the navigator. It highlights `activeId` and reports presses through `onSelect`. It is fully controlled: nothing is highlighted until `activeId` matches an item. Use this for docs pages, galleries, and previews.
+
+The default visual treatment is a bottom navigation bar: `base-200` surface, a top separator line, and the active label/icon tinted with the `primary` color.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `position` | `'top' \| 'bottom'` | `'bottom'` | Where the bar sits. Controls which edge gets the separator border (bottom bar → top border, top bar → bottom border). |
+| `background` | `'base-100' \| 'base-200' \| 'base-300' \| 'transparent'` | `'base-200'` | Surface color token. |
+| `bordered` | `boolean` | `true` | Show a separator line on the edge opposite `position`. |
+| `renderTab` | `(info: TabInfo, ctx: NavTabRenderContext) => JSXElement` | - | Replace per-tab rendering entirely. See [Custom rendering](#custom-rendering). |
+| `items` | `ReadonlyArray<TabInfo>` | - | Standalone mode: explicit tab list. When set, the bar never calls `useTabs()`. Mode is fixed at mount. |
+| `activeId` | `string` | - | Standalone mode: `name` of the active tab. No item is active when unset or unmatched. |
+| `onSelect` | `(name: string) => void` | - | Fired when a tab is pressed; payload is the tab's `name`. Fires in both modes (navigator mode also calls `setActive`). |
+
+### TabInfo
+
+Each entry in `items` (and each tab surfaced by the navigator) is a `TabInfo`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `string` | Stable tab id, used for matching `activeId` / `setActive` and as the `onSelect` payload. |
+| `label` | `string` | Human-readable label. Defaults to `name`. |
+| `icon` | `IconSpec \| JSXElement` | Optional icon. An `IconSpec` (`{ set, name }`) lets the bar render an `<Icon>` and theme its color/size automatically; a JSX node gives you full control. |
+| `accessibilityLabel` | `string` | Label announced by screen readers. Falls back to `label`, then `name`. |
+
+### NavTabRenderContext
+
+The second argument passed to `renderTab`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `active` | `boolean` | True when this tab is currently active. Reactive — re-runs render on change. |
+| `onPress` | `() => void` | Activates this tab. Use as a `bindtap` / press handler on the rendered node. |
+
+## Navigator mode
+
+Drop the bar inside `<Tabs>` from `@sigx/lynx-navigation`. It reads the registered `<Tabs.Screen>` list and the active tab automatically; pressing a tab switches screens.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Tabs } from '@sigx/lynx-navigation';
+import { NavTabBar } from '@sigx/lynx-daisyui';
+
+const App = component(() => {
+    return () => (
+        <Tabs>
+            <Tabs.Screen
+                name="home"
+                label="Home"
+                icon={{ set: 'lucide', name: 'house' }}
+            >
+                <HomeScreen />
+            </Tabs.Screen>
+            <Tabs.Screen
+                name="search"
+                label="Search"
+                icon={{ set: 'lucide', name: 'search' }}
+            >
+                <SearchScreen />
+            </Tabs.Screen>
+            <Tabs.Screen
+                name="profile"
+                label="Profile"
+                icon={{ set: 'lucide', name: 'user' }}
+            >
+                <ProfileScreen />
+            </Tabs.Screen>
+
+            <NavTabBar position="bottom" />
+        </Tabs>
+    );
+});
+```
+
+## Standalone mode
+
+Pass `items` and control the highlight with `activeId`. Track the active tab in a signal and update it from `onSelect` — no navigator required.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { NavTabBar } from '@sigx/lynx-daisyui';
+
+const Bar = component(({ signal }) => {
+    const state = signal({ active: 'home' });
+
+    const items = [
+        { name: 'home', label: 'Home', icon: { set: 'lucide', name: 'house' } },
+        { name: 'search', label: 'Search', icon: { set: 'lucide', name: 'search' } },
+        { name: 'profile', label: 'Profile', icon: { set: 'lucide', name: 'user' } },
+    ];
+
+    return () => (
+        <NavTabBar
+            items={items}
+            activeId={state.active}
+            onSelect={(name) => { state.active = name; }}
+        />
+    );
+});
+```
+
+## Position, background, and border
+
+The default is a bottom bar with a top separator on a `base-200` surface. Use `position="top"` for a top tab bar (the border flips to the bottom edge), pick a different `background` token, or drop the separator with `bordered={false}`.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { NavTabBar } from '@sigx/lynx-daisyui';
+
+const TopBar = component(({ signal }) => {
+    const state = signal({ active: 'feed' });
+
+    const items = [
+        { name: 'feed', label: 'Feed', icon: { set: 'lucide', name: 'newspaper' } },
+        { name: 'alerts', label: 'Alerts', icon: { set: 'lucide', name: 'bell' } },
+    ];
+
+    return () => (
+        <NavTabBar
+            position="top"
+            background="base-100"
+            bordered={false}
+            items={items}
+            activeId={state.active}
+            onSelect={(name) => { state.active = name; }}
+        />
+    );
+});
+```
+
+## Custom rendering
+
+Provide `renderTab` to replace the default icon + label button entirely. You receive each `TabInfo` plus a `NavTabRenderContext` carrying the `active` flag and an `onPress` handler to wire onto your node.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Pressable } from '@sigx/lynx-gestures';
+import { NavTabBar } from '@sigx/lynx-daisyui';
+
+const CustomBar = component(({ signal }) => {
+    const state = signal({ active: 'home' });
+
+    const items = [
+        { name: 'home', label: 'Home' },
+        { name: 'cart', label: 'Cart' },
+    ];
+
+    return () => (
+        <NavTabBar
+            items={items}
+            activeId={state.active}
+            onSelect={(name) => { state.active = name; }}
+            renderTab={(info, ctx) => (
+                <Pressable
+                    class="flex-1 items-center justify-center py-3"
+                    onPress={ctx.onPress}
+                >
+                    <text class={ctx.active ? 'text-primary font-semibold' : 'text-base-content opacity-60'}>
+                        {info.label ?? info.name}
+                    </text>
+                </Pressable>
+            )}
+        />
+    );
+});
+```

@@ -1,0 +1,123 @@
+---
+title: "Usage"
+description: "File Picker — Document picker"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using File Picker
+
+<p class="lede">Open the system document picker, read the chosen files, and hand them to uploads or the file system — without touching native code.</p>
+
+The whole API hangs off a single `FilePicker` object. `pick` is async and always resolves to a result you can branch on, so there is nothing to wire up and no events to subscribe to. There are no permissions to request — the picker UI itself is the consent.
+
+This is the generic file picker (the Files app on iOS, the SAF document browser on Android). For the photo-library grid, use [`@sigx/lynx-image-picker`](/lynx/modules/image-picker/overview) — the OS ships two distinct picker UIs.
+
+## Basic usage
+
+Call `pick` and check `cancelled` before reading `assets`. The promise always resolves — dismissing the picker gives you a cancelled result rather than an error.
+
+```tsx
+import { FilePicker } from '@sigx/lynx-file-picker';
+
+async function pickOne() {
+  const result = await FilePicker.pick();
+  if (result.cancelled) return;
+
+  const asset = result.assets[0];
+  console.log(asset.name, asset.mimeType, asset.size, asset.uri);
+}
+```
+
+Every asset is a ready-made file handle. `name`, `mimeType`, and `size` are always present (with `application/octet-stream` and `0` as fallbacks), and `uri` carries a scheme you can read from. By default the picked bytes are copied into app storage and returned as a stable `file://` URI that survives an app restart.
+
+## Filtering by type and picking multiple files
+
+Pass `types` to filter by MIME type and `multiple: true` to allow more than one selection. Omit `types` (or pass an empty array) to allow any file.
+
+```tsx
+import { FilePicker } from '@sigx/lynx-file-picker';
+
+async function pickPdfs() {
+  const result = await FilePicker.pick({
+    types: ['application/pdf'],
+    multiple: true,
+  });
+  if (result.cancelled) return;
+
+  for (const asset of result.assets) {
+    console.log(asset.name, asset.size);
+  }
+}
+```
+
+MIME filters are exact on Android (passed straight to the SAF `OpenDocument` intent). On iOS they are best-effort: MIME strings map to UTTypes (`image/*` to `.image`, `video/*` to `.movie`, `audio/*` to `.audio`, `text/*` to `.text`, `*/*` to `.item`), unknown strings are skipped, and if nothing maps the picker falls back to any file rather than failing.
+
+## Uploading a picked file
+
+Asset objects are accepted directly as file handles by [`@sigx/lynx-http`](/lynx/modules/http/overview) `FormData` — append the asset and the native layer streams its bytes from the URI. No manual reading required.
+
+```tsx
+import { FilePicker } from '@sigx/lynx-file-picker';
+
+async function upload(url: string) {
+  const result = await FilePicker.pick({ types: ['application/pdf'] });
+  if (result.cancelled) return;
+
+  const form = new FormData();
+  form.append('file', result.assets[0]);
+  await fetch(url, { method: 'POST', body: form });
+}
+```
+
+## Reading file bytes
+
+When you need the contents in JS, pass the asset's `uri` to [`@sigx/lynx-file-system`](/lynx/modules/file-system/overview).
+
+```tsx
+import { FilePicker } from '@sigx/lynx-file-picker';
+import { FileSystem } from '@sigx/lynx-file-system';
+
+async function readPicked() {
+  const result = await FilePicker.pick();
+  if (result.cancelled) return;
+
+  const bytes = await FileSystem.readFileAsArrayBuffer(result.assets[0].uri);
+  console.log(bytes.byteLength);
+}
+```
+
+This works because of the default `copyToCache: true`: the file lives in app storage (iOS `Documents/picked/`, Android `filesDir/picked/`) under a `pick_<uuid>_<name>` filename, while the asset's `name` field keeps the unmodified display name. Set `copyToCache: false` only when you want the ephemeral native URI — see the notes below.
+
+## Native setup
+
+`sigx prebuild` auto-discovers the package and links the native module for you. There is nothing to install or register by hand, and — unlike the photo library — **no permissions and no iOS Info.plist usage descriptions are needed**. Both platform pickers grant per-pick access on the fly.
+
+```bash
+pnpm add @sigx/lynx-file-picker
+sigx prebuild
+```
+
+If you want to guard against a build where the module was not linked, check `FilePicker.isAvailable()` before calling.
+
+```tsx
+import { FilePicker } from '@sigx/lynx-file-picker';
+
+if (FilePicker.isAvailable()) {
+  // native module registered — safe to call pick()
+}
+```
+
+## Notes
+
+- The promise never rejects on user cancellation — branch on `result.cancelled`. `assets` is always an array, empty when cancelled.
+- There are no permission methods by design. The picker UI is the consent, so there is no runtime permission to request.
+- With the default `copyToCache: true`, the picked bytes are copied into app storage and returned as a stable `file://` URI that survives an app restart.
+- With `copyToCache: false` the URI is ephemeral on both platforms. On Android the raw `content://` read grant is Activity-scoped and unreadable after the app is killed; on iOS you get a temporary `file://` copy that the OS may purge at any time.
+- Starting a new `pick` resolves any prior pending pick as cancelled, so promises never hang.
+
+## See also
+
+- [API reference](/lynx/modules/file-picker/api) — every export and option.
+- [Installation](/lynx/modules/file-picker/installation) — project setup.

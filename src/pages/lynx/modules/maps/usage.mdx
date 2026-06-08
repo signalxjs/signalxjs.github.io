@@ -1,0 +1,242 @@
+---
+title: "Usage"
+description: "Maps — Native map view"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Maps
+
+<p class="lede">Drop a native map into your screen, place markers, and react to pans, taps, and marker presses — on both iOS and Android.</p>
+
+## Basic usage
+
+`@sigx/lynx-maps` is a component module, not a method namespace. Render a `Map` and give it a `region`, then nest any number of `MapMarker` children as pins:
+
+```tsx
+import { Map, MapMarker } from '@sigx/lynx-maps';
+
+const region = {
+  latitude: 59.3293,
+  longitude: 18.0686,
+  latitudeDelta: 0.1,
+  longitudeDelta: 0.1,
+};
+
+export function MapScreen() {
+  return (
+    <Map region={region} mapType="standard" class="flex-1">
+      <MapMarker
+        coordinate={{ latitude: 59.3293, longitude: 18.0686 }}
+        title="Stockholm"
+        description="Sweden's capital"
+        id="sthlm"
+      />
+    </Map>
+  );
+}
+```
+
+`Map` renders `MKMapView` on iOS (Apple Maps, no API key) and a Google Maps `MapView` on Android (which does require a key — see [Installing and linking](#installing-and-linking)). A `region` is a rectangle: a center `latitude`/`longitude` plus `latitudeDelta`/`longitudeDelta`, the span in degrees visible above-and-below and left-and-right of the center. Markers use a single `coordinate` point and show their `title`/`description` in a callout when tapped.
+
+## Treating region as initial-region only
+
+This is the most important gotcha. `Map` snaps the camera to `region` on **every** prop change. If you store the region in a signal and update it from `onRegionChange`, each user pan re-applies the value and the map fights the gesture.
+
+For initial-region-only semantics — the common "center here on load, then let the user roam freely" behavior — set `region` once and hold it in local state so it never changes identity:
+
+```tsx
+import { signal } from '@sigx/core';
+import { Map, MapMarker } from '@sigx/lynx-maps';
+
+export function FreeRoamMap() {
+  // Created once; never reassigned, so the map never re-snaps.
+  const initialRegion = signal({
+    latitude: 37.7749,
+    longitude: -122.4194,
+    latitudeDelta: 0.2,
+    longitudeDelta: 0.2,
+  });
+
+  return (
+    <Map region={initialRegion()} class="flex-1">
+      <MapMarker
+        coordinate={{ latitude: 37.7749, longitude: -122.4194 }}
+        title="San Francisco"
+      />
+    </Map>
+  );
+}
+```
+
+If you genuinely need to drive the camera programmatically after mount, note that the imperative helpers (`animateToRegion`, `fitToCoordinates`) are **not** implemented in v1. Recentering means changing the `region` prop, which snaps rather than animates.
+
+## Responding to map events
+
+`Map` exposes three event props. Each handler receives a typed event whose payload lives on `event.detail`:
+
+- `onRegionChange` — fires after a pan/zoom (or a programmatic region change) with the new visible `region`.
+- `onPress` — fires when the user taps the map away from any marker, with the tapped `coordinate`.
+- `onMarkerPress` — fires when a marker is tapped, with the marker's `id` and `coordinate`.
+
+```tsx
+import { signal } from '@sigx/core';
+import { Map, MapMarker } from '@sigx/lynx-maps';
+import type {
+  MapRegionChangeEvent,
+  MapPressEvent,
+  MapMarkerPressEvent,
+} from '@sigx/lynx-maps';
+
+const initialRegion = {
+  latitude: 51.5074,
+  longitude: -0.1278,
+  latitudeDelta: 0.15,
+  longitudeDelta: 0.15,
+};
+
+export function EventfulMap() {
+  const selected = signal('');
+
+  function handleRegionChange(e: MapRegionChangeEvent) {
+    // Read the new viewport, but do NOT feed it back into region.
+    console.log('viewport', e.detail.region);
+  }
+
+  function handlePress(e: MapPressEvent) {
+    console.log('tapped empty map at', e.detail.coordinate);
+  }
+
+  function handleMarkerPress(e: MapMarkerPressEvent) {
+    // id is the empty string when the marker had no id set.
+    selected.set(e.detail.id || '(unnamed)');
+  }
+
+  return (
+    <Map
+      region={initialRegion}
+      onRegionChange={handleRegionChange}
+      onPress={handlePress}
+      onMarkerPress={handleMarkerPress}
+      class="flex-1"
+    >
+      <MapMarker coordinate={{ latitude: 51.5074, longitude: -0.1278 }} id="london" title="London" />
+    </Map>
+  );
+}
+```
+
+When you read `onMarkerPress`, remember `e.detail.id` is the empty string if the tapped marker had no `id` prop. Set a distinct `id` on each marker you want to identify — it is also the only way to disambiguate two markers that share a coordinate.
+
+## Rendering a list of markers
+
+Markers are plain children, so map your data straight into them. Give each one a stable `id` so press handling can tell them apart:
+
+```tsx
+import { Map, MapMarker } from '@sigx/lynx-maps';
+import type { MapMarkerPressEvent } from '@sigx/lynx-maps';
+
+const region = {
+  latitude: 48.8566,
+  longitude: 2.3522,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
+
+const places = [
+  { id: 'eiffel', name: 'Eiffel Tower', lat: 48.8584, lng: 2.2945 },
+  { id: 'louvre', name: 'Louvre', lat: 48.8606, lng: 2.3376 },
+  { id: 'notre-dame', name: 'Notre-Dame', lat: 48.852968, lng: 2.349902 },
+];
+
+export function ParisMap() {
+  return (
+    <Map
+      region={region}
+      class="flex-1"
+      onMarkerPress={(e: MapMarkerPressEvent) => console.log('selected', e.detail.id)}
+    >
+      {places.map((p) => (
+        <MapMarker
+          coordinate={{ latitude: p.lat, longitude: p.lng }}
+          title={p.name}
+          id={p.id}
+        />
+      ))}
+    </Map>
+  );
+}
+```
+
+v1 markers are intentionally minimal: the platform default pin only. Custom marker icons, draggable pins, and custom callout views are not available yet.
+
+## Showing the user's location
+
+Set `showsUserLocation` to render the blue user-location dot. This needs location permission at runtime:
+
+```tsx
+import { Map } from '@sigx/lynx-maps';
+
+const region = {
+  latitude: 40.7128,
+  longitude: -74.006,
+  latitudeDelta: 0.1,
+  longitudeDelta: 0.1,
+};
+
+export function LocatedMap() {
+  return <Map region={region} showsUserLocation class="flex-1" />;
+}
+```
+
+On iOS the module auto-injects `NSLocationWhenInUseUsageDescription` ("Show your location on the map."). On Android it declares `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`. The native module ships these permission declarations, but actually being granted the permission still happens through the normal runtime flow — pair `showsUserLocation` with a permission request (for example via `@sigx/lynx-permissions`) before relying on the dot to appear.
+
+## Installing and linking
+
+Install the package, then let the CLI wire up the native module:
+
+```bash
+pnpm add @sigx/lynx-maps
+pnpm sigx prebuild
+```
+
+`sigx prebuild` auto-discovers the package from its `signalx-module.json`, regenerates the native registration (the iOS `LynxConfig` registration and the Android `Behavior` attachment), and binds the `<sigx-map>` / `<sigx-map-marker>` tags to their native UI classes. The intrinsic JSX elements register globally just by importing `@sigx/lynx-maps`, but the tags only resolve to real native views once prebuild has run — so always prebuild after adding the dependency.
+
+iOS needs no further setup: it is backed by Apple Maps via `MKMapView` and requires no API key.
+
+## Android Google Maps API key
+
+Android renders through Google Maps and **requires an API key**. Provide it in `signalx.config.ts`, reading from the environment so the key stays out of source control:
+
+```ts
+import { defineLynxConfig } from '@sigx/lynx-cli/config';
+
+export default defineLynxConfig({
+  android: {
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
+  },
+});
+```
+
+Then prebuild with the key in the environment:
+
+```bash
+GOOGLE_MAPS_API_KEY=AIza... pnpm sigx prebuild
+```
+
+Prebuild injects `com.google.android.geo.API_KEY` into the generated `AndroidManifest.xml`. That manifest is a managed, regenerated-every-prebuild file — do not hand-edit it; set the key in config instead. Without a key, prebuild injects a placeholder and a warning: the app still launches (it does not crash) but the Android map renders blank and logs an `Authorization failure ... API Key:` message. On the prebuilt `sigx-lynx-go` sandbox the blank map with a "For development purposes only" watermark is expected, since a per-user key cannot be bundled.
+
+## Notes
+
+- **`region` snaps on every prop change.** For an initial region that the user can then move freely, set it once and keep it stable (see above). There is no separate `initialRegion` prop in v1.
+- **Objects on the high-level API, JSON on the wire.** `region` and a marker's `coordinate` are objects in the component props, but the components JSON-stringify them before crossing the Lynx bridge (nested objects aren't supported on the wire). You pass objects; you don't stringify anything yourself.
+- **`onMarkerPress` id can be empty.** `e.detail.id` is the empty string when the marker had no `id`. Set an `id` to identify markers.
+- **No imperative camera control yet.** `animateToRegion` and `fitToCoordinates` are not in v1; recentering means changing `region` (which snaps, not animates).
+- **v1 is deliberately small.** No custom marker icons, draggable pins, or custom callouts; no polylines/polygons/circles/overlays; no clustering, offline tiles, or snapshots; iOS stays on MapKit (no Google Maps SDK for iOS).
+- **Android lifecycle is partially forwarded.** Mounting runs `onCreate`/`onStart`/`onResume` and detaching runs `onPause`/`onStop`. If the host Activity is paused while the map stays mounted, tile prefetching keeps running until the `LynxUI` detaches — full Activity lifecycle plumbing is a follow-up.
+
+## See also
+
+- [Overview](/lynx/modules/maps/overview) — what the package is and how it fits the family.
+- [API reference](/lynx/modules/maps/api) — every export with signatures.

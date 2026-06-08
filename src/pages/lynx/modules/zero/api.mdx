@@ -1,0 +1,838 @@
+---
+title: "API reference"
+description: "Zero — Headless design-system foundation"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Every export of `@sigx/lynx-zero` v0.4.9 — the headless contract, shared style/press/tabs helpers, the theme engine, layout primitives and the Tailwind preset.</p>
+
+`@sigx/lynx-zero` is the foundation a Lynx design system builds on. It owns the shared vocabulary (sizes, semantic colors, tokens, prop fragments, the `press` event), the theme registry and runtime, the headless tabs-selection contract and the layout primitives. A DS (such as `@sigx/lynx-daisyui`) extends these types and re-exports the runtime.
+
+Most exports live on the main barrel. The Tailwind preset is a **subpath-only** export (`@sigx/lynx-zero/preset`), and `useScreenTheme` is exposed from its own subpath (`@sigx/lynx-zero/screen-theme`) because it depends on the optional `@sigx/lynx-navigation` peer.
+
+## Entry points
+
+```ts
+import {
+  // contract + shared helpers
+  resolveColorToken, resolveSpacing, resolveBoxStyle,
+  PRESSED_SCALE, PRESSED_OPACITY,
+  useTabsSelection, provideTabsSelection,
+  // theme engine
+  ThemeProvider, StatusBarSync, themeController, useTheme,
+  registerTheme, extendTheme, listThemes, completeTheme,
+  pickThemeFor, pairOf, variantOf, colorsOf, radiusOf, sizesOf,
+  mixColors, useThemeColors, toHexColor, withAlpha,
+  // layout primitives
+  Row, Col, Center, Spacer, ScrollView,
+} from '@sigx/lynx-zero';
+
+// Tailwind preset (subpath only)
+import { zeroPreset, contractColors, contractFontSizes, lynxLayoutPlugin } from '@sigx/lynx-zero/preset';
+
+// screen-theme (subpath only; needs the @sigx/lynx-navigation peer)
+import { useScreenTheme } from '@sigx/lynx-zero/screen-theme';
+```
+
+## Contract
+
+The shared vocabulary that components and themes agree on. These are the single source of truth a DS extends — sizes, semantic colors, the token derivations, the reusable prop fragments and the canonical `press` event. A DS never redeclares these; it imports and layers on top.
+
+### SizeScale
+
+```ts
+type SizeScale = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+```
+
+Shared component size scale. DS sizes **are** this type (extended, never redeclared).
+
+### COLOR_VARIANT_LIST
+
+```ts
+const COLOR_VARIANT_LIST: readonly [
+  'primary', 'secondary', 'accent', 'neutral',
+  'info', 'success', 'warning', 'error',
+];
+```
+
+Single source of truth for the semantic color vocabulary; `ColorVariant` and every token derivation come from this tuple.
+
+### ColorVariant
+
+```ts
+type ColorVariant = typeof COLOR_VARIANT_LIST[number];
+```
+
+Semantic color names — the shared `color` prop vocabulary. A DS maps each name onto its palette.
+
+### CoreColorToken
+
+```ts
+type CoreColorToken =
+  | ColorVariant
+  | `${ColorVariant}-content`
+  | 'base-100' | 'base-200' | 'base-300' | 'base-content';
+```
+
+Tokens authored by every theme: each variant, its `-content` pairing, and the base surfaces.
+
+### SoftColorToken
+
+```ts
+type SoftColorToken = `${ColorVariant}-soft`;
+```
+
+Tinted-surface tokens, one per variant; materialized in the palette at registration (a `softMix` of the variant color into `base-100`).
+
+### ColorToken
+
+```ts
+type ColorToken = CoreColorToken | SoftColorToken;
+```
+
+The full set of semantic color tokens every registered theme carries, exposed at runtime as `--color-<token>`.
+
+### BackgroundValue
+
+```ts
+type BackgroundValue = ColorToken | (string & {});
+```
+
+A semantic color token (autocompleted) **or** any raw CSS color string.
+
+### WithClass
+
+```ts
+type WithClass = Define.Prop<'class', string, false>;
+```
+
+Prop fragment: arbitrary extra classes, appended after the DS-computed ones.
+
+### WithDisabled
+
+```ts
+type WithDisabled = Define.Prop<'disabled', boolean, false>;
+```
+
+Prop fragment: `disabled` (non-interactive plus DS disabled styling).
+
+### WithColor
+
+```ts
+type WithColor = Define.Prop<'color', ColorVariant, false>;
+```
+
+Prop fragment: the semantic color of the component.
+
+### WithSize
+
+```ts
+type WithSize = Define.Prop<'size', SizeScale, false>;
+```
+
+Prop fragment: component size on the shared scale.
+
+### WithAccessibility
+
+```ts
+type WithAccessibility =
+  & Define.Prop<'accessibility-element', boolean, false>
+  & Define.Prop<'accessibility-label', string, false>
+  & Define.Prop<'accessibility-role', string, false>
+  & Define.Prop<'accessibility-trait', string, false>
+  & Define.Prop<'accessibility-status', string, false>;
+```
+
+Prop fragment: accessibility passthrough mirroring the `@sigx/lynx-gestures` `Pressable` host-view surface.
+
+### PressEvent
+
+```ts
+type PressEvent = Define.Event<'press', void>;
+```
+
+The shared press event. The sigx convention is `onPress` (not `onTap` / `onClick`).
+
+### resolveColorToken
+
+```ts
+function resolveColorToken(value: string): string;
+```
+
+Maps a known semantic token to `var(--color-<token>)`; anything else (hex / rgb / `var(...)`) passes through unchanged.
+
+## Shared styles
+
+Box-model and spacing helpers shared by the layout primitives and DS components. These convert the friendly prop shapes (`SpacingValue`, `BoxProps`) into Lynx-safe long-form style objects.
+
+### SpacingValue
+
+```ts
+type SpacingValue =
+  | number
+  | { x?: number; y?: number; top?: number; right?: number; bottom?: number; left?: number };
+```
+
+Spacing input for padding / margin: a number applies to all sides, or pass a per-axis (`x` / `y`) / per-side object.
+
+### BoxProps
+
+```ts
+interface BoxProps {
+  width?: number | string;
+  height?: number | string;
+  flex?: number;
+  background?: BackgroundValue;
+  borderRadius?: number;
+  padding?: SpacingValue;
+  margin?: SpacingValue;
+}
+```
+
+The box-model props shared by layout primitives and DS components.
+
+### resolveSpacing
+
+```ts
+function resolveSpacing(
+  value: SpacingValue | undefined,
+  prefix: 'padding' | 'margin',
+): Record<string, number>;
+```
+
+Expands a `SpacingValue` into long-form `{ paddingTop, ... }` / `{ marginTop, ... }` style entries; returns `{}` for `undefined`.
+
+### resolveBoxStyle
+
+```ts
+function resolveBoxStyle(props: BoxProps): Record<string, unknown>;
+```
+
+Converts `BoxProps` to a Lynx style object: resolves color tokens and writes long-form flex (`flexGrow` / `flexShrink` / `flexBasis` / `minHeight`) to avoid Lynx flex-collapse.
+
+## Shared press
+
+Defaults for the press-feedback affordance. Lynx has no CSS `:active`, so `Pressable` applies these on the main thread.
+
+### PRESSED_SCALE
+
+```ts
+const PRESSED_SCALE = 0.97;
+```
+
+Default press-feedback scale applied by `Pressable` on the main thread.
+
+### PRESSED_OPACITY
+
+```ts
+const PRESSED_OPACITY = 0.85;
+```
+
+Default press-feedback opacity for interactive components.
+
+## Shared tabs selection
+
+The headless tabs-selection contract: a reactive `isActive()` / `select()` pair that a DS `Tabs` container injects into its `Tab`s. Tabs read it through `useTabsSelection`; the container provides it with `provideTabsSelection`.
+
+### TabsSelection
+
+```ts
+interface TabsSelection {
+  isActive(value: string): boolean;
+  select(value: string): void;
+}
+```
+
+The headless tabs-selection contract.
+
+### useTabsSelection
+
+```ts
+const useTabsSelection: () => TabsSelection; // defineInjectable<TabsSelection>(() => NO_SELECTION)
+```
+
+Injects the nearest `Tabs` container's selection. Outside any container it resolves to an inert selection — never active, and `select()` is a no-op.
+
+### provideTabsSelection
+
+```ts
+function provideTabsSelection(
+  getActive: () => string | undefined,
+  onSelect: (value: string) => void,
+): void;
+```
+
+Provides a `TabsSelection` for the subtree. Call it from the DS `Tabs` container setup, passing **getters** into the reactive props so `isActive()` reads stay reactive.
+
+## Theme engine
+
+The theme runtime and registry. `ThemeProvider` applies a theme's CSS vars to a subtree; `themeController` / `useTheme` read and mutate the active theme; the registry functions register, derive and inspect themes; and the color helpers resolve the palette to concrete literals for native widgets that cannot read CSS vars.
+
+### ThemeProvider
+
+```ts
+const ThemeProvider: Component<ThemeProviderProps>;
+```
+
+Wraps children in `<view class={theme}>` and applies the theme CSS vars (via the Lynx `setProperty` runtime API), so descendants inherit `--color-*` / `--radius-*` / `--text-*`. The root provider (depth 0) binds the global singleton; nested providers are content sub-scopes. Platform: iOS and Android.
+
+### ThemeProviderProps
+
+```ts
+type ThemeProviderProps =
+  & Define.Prop<'initial', ThemeName, false>
+  & Define.Prop<'light', ThemeName, false>
+  & Define.Prop<'dark', ThemeName, false>
+  & Define.Prop<'fontScale', number, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```
+
+ThemeProvider props. `initial` pins a theme (ignoring the system); `light` / `dark` are the choices used while following the system; `fontScale` seeds the initial text-scale multiplier.
+
+### StatusBarSync
+
+```ts
+const StatusBarSync: Component<StatusBarSyncProps>;
+```
+
+Side-effect-only component that keeps the OS status / navigation bar tint legible against the active **global** theme (light theme to dark icons, dark to light). Renders a zero-size placeholder; mount once inside `ThemeProvider`. Platform: iOS and Android.
+
+### StatusBarSyncProps
+
+```ts
+type StatusBarSyncProps = Define.Prop<'matchBackground', boolean, false>;
+```
+
+`matchBackground` is currently a reserved no-op (future Android `base-100` bar background).
+
+### themeController
+
+```ts
+const themeController: ThemeController;
+```
+
+The global headless theme controller — import and call it from anywhere, with no `ThemeProvider` ancestor required. `useTheme()`'s default returns this, and `StatusBarSync` binds to it.
+
+### useTheme
+
+```ts
+const useTheme: () => ThemeController; // defineInjectable<ThemeController>(() => themeController)
+```
+
+Accesses the active `ThemeController` — the nearest `ThemeProvider`, or the global `themeController` at the root / headless. Never throws.
+
+### ThemeController
+
+```ts
+interface ThemeController {
+  readonly name: ThemeName;
+  readonly followingSystem: boolean;
+  set(name: ThemeName): void;
+  toggle(): void;
+  followSystem(): void;
+  readonly fontScale: number;
+  setFontScale(scale: number): void;
+}
+```
+
+Reactive handle over theme selection: read / track `name`, `followingSystem` and `fontScale`; mutate via `set` / `toggle` / `followSystem` / `setFontScale`.
+
+### ThemeName
+
+```ts
+type ThemeName = string & {};
+```
+
+The theme class set on the provider host view. A plain string; a DS layers a literal union on top for autocomplete. Multi-class names (e.g. `'daisy-light daisy-rounded'`) are accepted.
+
+### listThemes
+
+```ts
+function listThemes(): readonly Theme[];
+```
+
+All registered themes in insertion order (a shallow copy; each entry is a full `Theme`, suitable for swatch rendering). Re-exported via `ThemeProvider`.
+
+### registerTheme
+
+```ts
+function registerTheme(theme: ThemeInput): void;
+```
+
+Registers or replaces (by name) a theme; the palette is completed on the way in (`completeTheme` computes the omitted `*-soft` tints). Call it at module load, before mounting.
+
+### extendTheme
+
+```ts
+function extendTheme(base: string, patch: {
+  name: string;
+  variant?: ThemeVariant;
+  pair?: string;
+  colors?: Partial<ThemePalette>;
+  radius?: ThemeRadius;
+  sizes?: ThemeSizes;
+  softMix?: number;
+}): Theme;
+```
+
+Derives a new full `Theme` from a registered `base`, overriding tokens and recomputing any soft tints the patch did not set. Throws if `base` is not registered. Pass the result to `registerTheme()`.
+
+### pickThemeFor
+
+```ts
+function pickThemeFor(scheme: ThemeVariant): string;
+```
+
+The default theme name for a system color scheme — the first registered theme of that variant, else the first of any, else `''`.
+
+### pairOf
+
+```ts
+function pairOf(name: string): string;
+```
+
+Resolves a theme's paired theme (used by `toggle()`) — follows the declared `pair`, else the first of the opposite variant; returns the input unchanged if it is not registered.
+
+### variantOf
+
+```ts
+function variantOf(name: string | undefined): ThemeVariant | undefined;
+```
+
+The variant of a registered theme, or `undefined` if it is not registered.
+
+### colorsOf
+
+```ts
+function colorsOf(name: string | undefined): ThemePalette | undefined;
+```
+
+The full, completed color palette of a registered theme, or `undefined`.
+
+### radiusOf
+
+```ts
+function radiusOf(name: string | undefined): ThemeRadius | undefined;
+```
+
+The roundness overrides of a registered theme, if any.
+
+### sizesOf
+
+```ts
+function sizesOf(name: string | undefined): ThemeSizes | undefined;
+```
+
+The base size-unit overrides of a registered theme, if any.
+
+### completeTheme
+
+```ts
+function completeTheme(input: ThemeInput): Theme;
+```
+
+Completes a theme's palette: computes any omitted `*-soft` token as `softMix` of the variant color into `base-100` (in JS). Idempotent; explicit softs are kept.
+
+### ThemeInput
+
+```ts
+interface ThemeInput {
+  name: string;
+  variant: ThemeVariant;
+  colors: ThemePaletteInput;
+  pair?: string;
+  radius?: ThemeRadius;
+  sizes?: ThemeSizes;
+  staticCss?: boolean;
+  softMix?: number;
+}
+```
+
+What a theme author writes: core tokens required, `*-soft` optional. `softMix` defaults to `0.16`; `staticCss` marks a build-time CSS class (for first-frame paint).
+
+### ThemePaletteInput
+
+```ts
+type ThemePaletteInput =
+  & Record<CoreColorToken, string>
+  & Partial<Record<SoftColorToken, string>>;
+```
+
+The author-side palette: every core token required, the `*-soft` tints optional.
+
+### Theme
+
+```ts
+interface Theme extends Omit<ThemeInput, 'colors'> {
+  colors: ThemePalette;
+}
+```
+
+A registered theme — the same shape as `ThemeInput`, with the palette completed (no holes).
+
+### ThemePalette
+
+```ts
+type ThemePalette = Record<ColorToken, string>;
+```
+
+The full registered color palette — every semantic token including `*-soft`. This is what `colorsOf()` returns.
+
+### ThemeRadius
+
+```ts
+interface ThemeRadius {
+  selector?: string;
+  field?: string;
+  box?: string;
+}
+```
+
+Roundness token overrides, emitted as `--radius-selector` / `--radius-field` / `--radius-box`.
+
+### ThemeSizes
+
+```ts
+interface ThemeSizes {
+  selector?: string;
+  field?: string;
+}
+```
+
+Base size-unit overrides, emitted as `--size-selector` / `--size-field`; component dimensions are integer multiples.
+
+### ThemeVariant
+
+```ts
+type ThemeVariant = 'light' | 'dark';
+```
+
+The theme variant — drives follow-system selection and status-bar tint.
+
+### mixColors
+
+```ts
+function mixColors(color: string, base: string, ratio: number): string;
+```
+
+Mixes `ratio` of `color` into `base` (linear sRGB per-channel, like `color-mix` in srgb) and returns a hex string. Returns `base` unchanged if either input is unparseable or `ratio` is non-finite. Accepts `#rgb` / `#rrggbb` / `#rrggbbaa` / `rgb()` / `rgba()`.
+
+### useThemeColors
+
+```ts
+function useThemeColors(): ThemeColors;
+```
+
+Resolves the active, scoped theme palette to concrete color literals for consumers that cannot read CSS vars (native inputs, richtext, SVG). Reactive via `useTheme()`. Platform: iOS and Android.
+
+### ThemeColors
+
+```ts
+interface ThemeColors {
+  colorOf(token: ColorToken, alpha?: number): string;
+}
+```
+
+`colorOf(token, alpha?)` returns the active palette value normalized to hex, with an optional `alpha` (0–1) appended as `#RRGGBBAA`. Returns `''` when no theme is registered.
+
+### toHexColor
+
+```ts
+function toHexColor(color: string): string;
+```
+
+Normalizes an engine-safe palette color (`#RGB` / `#RGBA` / `rgb()` / `rgba()`) to full-form hex (`#RRGGBB` / `#RRGGBBAA`); unknown notations pass through.
+
+### withAlpha
+
+```ts
+function withAlpha(hex: string, alpha: number): string;
+```
+
+Appends an alpha channel (0–1) to a hex color, producing `#RRGGBBAA`. Non-hex / non-`#RRGGBB`-coercible input passes through; a non-finite `alpha` is treated as opaque.
+
+### useScreenTheme
+
+```ts
+// from '@sigx/lynx-zero/screen-theme'
+function useScreenTheme(name: ThemeName): void;
+```
+
+Pins the **global** theme while a navigation screen is focused, and restores it on blur (including resuming follow-system). Built on `useFocusEffect` from `@sigx/lynx-navigation` (an optional peer). Not exported from the barrel — import it from `@sigx/lynx-zero/screen-theme`.
+
+## Layout primitives
+
+Flexbox containers and a spacer, built on Lynx views, that consume the shared box-model / spacing helpers. Each accepts `class` for arbitrary extra utilities.
+
+### Row
+
+```ts
+const Row: Component<RowProps>;
+```
+
+Flex-row container (`flexDirection: row`). Platform: iOS and Android.
+
+### RowProps
+
+```ts
+type RowProps =
+  & Define.Prop<'gap', number, false>
+  & Define.Prop<'align', 'flex-start' | 'center' | 'flex-end' | 'stretch' | 'baseline', false>
+  & Define.Prop<'justify', 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly', false>
+  & Define.Prop<'wrap', boolean, false>
+  & Define.Prop<'padding', SpacingValue, false>
+  & Define.Prop<'margin', SpacingValue, false>
+  & Define.Prop<'width', number | string, false>
+  & Define.Prop<'height', number | string, false>
+  & Define.Prop<'flex', number, false>
+  & Define.Prop<'background', BackgroundValue, false>
+  & Define.Prop<'borderRadius', number, false>
+  & Define.Prop<'class', string, false>
+  & Define.Slot<'default'>;
+```
+
+Row props.
+
+### Col
+
+```ts
+const Col: Component<ColProps>;
+```
+
+Flex-column container (`flexDirection: column`). Platform: iOS and Android.
+
+### ColProps
+
+```ts
+type ColProps = /* identical shape to RowProps */;
+```
+
+Col props — identical shape to `RowProps`.
+
+### Center
+
+```ts
+const Center: Component<CenterProps>;
+```
+
+Flex container centering its children on both axes (`justifyContent` + `alignItems` center). Platform: iOS and Android.
+
+### CenterProps
+
+```ts
+type CenterProps =
+  & Define.Prop<'width', number | string, false>
+  & Define.Prop<'height', number | string, false>
+  & Define.Prop<'flex', number, false>
+  & Define.Prop<'background', BackgroundValue, false>
+  & Define.Prop<'borderRadius', number, false>
+  & Define.Prop<'class', string, false>
+  & Define.Slot<'default'>;
+```
+
+Center props.
+
+### Spacer
+
+```ts
+const Spacer: Component<SpacerProps>;
+```
+
+Spacing element: a fixed square of `size` (width + height), or `flex: 1` to fill when `size` is omitted. Platform: iOS and Android.
+
+### SpacerProps
+
+```ts
+type SpacerProps =
+  & Define.Prop<'size', number, false>
+  & Define.Prop<'class', string, false>;
+```
+
+Spacer props (no default slot).
+
+### ScrollView
+
+```ts
+const ScrollView: Component<ScrollViewProps>;
+```
+
+Scrollable container over the Lynx `<scroll-view>`; `direction` defaults to vertical, setting `scroll-orientation` / `scroll-x` / `scroll-y` accordingly. Platform: iOS and Android.
+
+### ScrollViewProps
+
+```ts
+type ScrollViewProps =
+  & Define.Prop<'direction', 'vertical' | 'horizontal', false>
+  & Define.Prop<'height', number | string, false>
+  & Define.Prop<'width', number | string, false>
+  & Define.Prop<'flex', number, false>
+  & Define.Prop<'showScrollbar', boolean, false>
+  & Define.Prop<'bounces', boolean, false>
+  & Define.Prop<'class', string, false>
+  & Define.Slot<'default'>;
+```
+
+ScrollView props.
+
+## Preset
+
+The Tailwind layer that wires the semantic tokens, the `--text-*` ramp and the Lynx-correct fill utility into your config. These are **subpath-only** exports — import them from `@sigx/lynx-zero/preset`, not the main barrel.
+
+### zeroPreset
+
+```ts
+// from '@sigx/lynx-zero/preset'
+const zeroPreset: Partial<Config>; // tailwindcss Config
+```
+
+The `@sigx/lynx-zero` Tailwind preset: composes the semantic color tokens, the `--text-*` font-size ramp and the `.flex-fill` utility. Subpath export only.
+
+### contractColors
+
+```ts
+// from '@sigx/lynx-zero/preset'
+const contractColors: Record<string, string>;
+```
+
+Every semantic color token (including `*-soft`) mapped to `var(--color-*)`; merged into Tailwind `theme.extend.colors`. Subpath export only.
+
+### contractFontSizes
+
+```ts
+// from '@sigx/lynx-zero/preset'
+const contractFontSizes: Record<string, string>;
+```
+
+Re-points the Tailwind `text-xs` … `text-3xl` sizes to the shared `--text-*` ramp; merged via `theme.extend.fontSize`. Subpath export only.
+
+### lynxLayoutPlugin
+
+```ts
+// from '@sigx/lynx-zero/preset'
+const lynxLayoutPlugin: ReturnType<typeof plugin>; // tailwindcss plugin
+```
+
+A Tailwind plugin shipping `.flex-fill` — the Lynx-correct long-form "fill remaining space" utility (`flexGrow` / `flexShrink` 1, `flexBasis` 0, `minHeight` 0). Subpath export only.
+
+## Examples
+
+A headless theme registered at module load, then applied around a layout built from the primitives:
+
+```tsx
+import { registerTheme } from '@sigx/lynx-zero';
+
+registerTheme({
+  name: 'brand-light',
+  variant: 'light',
+  pair: 'brand-dark',
+  colors: {
+    primary: '#4f46e5',
+    'primary-content': '#ffffff',
+    secondary: '#0ea5e9',
+    'secondary-content': '#ffffff',
+    accent: '#f59e0b',
+    'accent-content': '#1a1a1a',
+    neutral: '#374151',
+    'neutral-content': '#ffffff',
+    info: '#0284c7',
+    'info-content': '#ffffff',
+    success: '#16a34a',
+    'success-content': '#ffffff',
+    warning: '#d97706',
+    'warning-content': '#1a1a1a',
+    error: '#dc2626',
+    'error-content': '#ffffff',
+    'base-100': '#ffffff',
+    'base-200': '#f3f4f6',
+    'base-300': '#e5e7eb',
+    'base-content': '#1f2937',
+  },
+});
+```
+
+```tsx
+import { ThemeProvider, StatusBarSync, Col, Row, Center, Spacer } from '@sigx/lynx-zero';
+
+function App() {
+  return (
+    <ThemeProvider initial="brand-light">
+      <StatusBarSync />
+      <Col flex={1} gap={16} padding={20} background="base-100">
+        <Row gap={12} align="center" justify="space-between">
+          <view class="text-base-content text-lg">Dashboard</view>
+          <Spacer size={8} />
+        </Row>
+        <Center flex={1} background="base-200" borderRadius={12}>
+          <view class="text-base-content">Centered content</view>
+        </Center>
+      </Col>
+    </ThemeProvider>
+  );
+}
+```
+
+Reading and mutating the active theme via the controller (toggling between a theme and its pair):
+
+```tsx
+import { useTheme } from '@sigx/lynx-zero';
+import { Row } from '@sigx/lynx-zero';
+
+function ThemeToggle() {
+  const theme = useTheme();
+  return (
+    <Row gap={8} align="center">
+      <view class="text-base-content">Theme: {theme.name}</view>
+      <view bindtap={() => theme.toggle()} class="text-primary">Toggle</view>
+    </Row>
+  );
+}
+```
+
+Resolving palette tokens to concrete hex for a native widget that cannot read CSS vars:
+
+```tsx
+import { useThemeColors } from '@sigx/lynx-zero';
+
+function SwatchColors() {
+  const colors = useThemeColors();
+  const primary = colors.colorOf('primary');
+  const faintPrimary = colors.colorOf('primary', 0.12); // #RRGGBBAA
+  return <view style={{ backgroundColor: faintPrimary }}>{primary}</view>;
+}
+```
+
+Per-screen theme pinning (requires the optional `@sigx/lynx-navigation` peer):
+
+```tsx
+import { useScreenTheme } from '@sigx/lynx-zero/screen-theme';
+
+function SettingsScreen() {
+  useScreenTheme('brand-dark'); // pinned while focused, restored on blur
+  return <view class="text-base-content">Settings</view>;
+}
+```
+
+Wiring the preset into a Tailwind config:
+
+```ts
+import type { Config } from 'tailwindcss';
+import { zeroPreset } from '@sigx/lynx-zero/preset';
+
+const config: Partial<Config> = {
+  presets: [zeroPreset],
+};
+
+export default config;
+```
+
+## See also
+
+- [Overview](/lynx/modules/zero/overview) — what Zero is and how a DS builds on it.
+- [Installation](/lynx/modules/zero/installation) — package setup and the Tailwind preset.
+- [Usage](/lynx/modules/zero/usage) — setup and task-based guides.

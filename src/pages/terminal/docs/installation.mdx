@@ -1,0 +1,101 @@
+---
+title: Installation
+description: "Install @sigx/terminal and wire up the TSX runtime"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+## Install the package
+
+```bash
+npm install @sigx/terminal
+```
+
+`@sigx/terminal` is an aggregator package. It bundles its runtime dependencies — `@sigx/reactivity`, `@sigx/runtime-core` and `@sigx/runtime-terminal` — so a single install gives you the whole surface. You import `signal`, `component`, `defineApp`, the terminal intrinsics and the built-in widgets all from `@sigx/terminal`.
+
+The package is ESM-only (`"type": "module"`) and runs under Node. It is a library, not a CLI — there is no `bin` entry; you build your own TUI/CLI app on top of it.
+
+## Runtime requirements
+
+- **Node** with ESM support.
+- **A TTY** for full keyboard input. The runtime puts stdin into raw mode; if `setRawMode` is unavailable (for example in some terminals) it degrades gracefully rather than crashing.
+
+## TSX setup
+
+Terminal intrinsics (`box`, `text`, `br`) compile against the terminal JSX runtime. Add the pragma to the top of each `.tsx` file:
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+```
+
+Or set it once in `tsconfig.json` so you don't need the per-file pragma:
+
+```json
+{
+    "compilerOptions": {
+        "jsx": "react-jsx",
+        "jsxImportSource": "@sigx/terminal"
+    }
+}
+```
+
+The package exposes both `./jsx-runtime` and `./jsx-dev-runtime` conditions, so both production and dev JSX transforms resolve correctly.
+
+## Vite wiring
+
+When building with Vite, target Node and keep the framework and Node built-ins external so they are not bundled into your output:
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+    build: {
+        target: 'node18',
+        rollupOptions: {
+            external: [
+                /^@sigx\//,
+                'node:process',
+                'node:readline',
+                'node:tty',
+            ],
+        },
+    },
+    esbuild: {
+        jsx: 'automatic',
+        jsxImportSource: '@sigx/terminal',
+    },
+});
+```
+
+This mirrors how `@sigx/terminal` itself is built: a Node-platform library that marks all `@sigx/*` packages plus `node:process`, `node:readline` and `node:tty` as external.
+
+## Verify the install
+
+Create a file (for example `app.tsx`) and run it through your TSX-capable runner:
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <box border="rounded" label="Hello">
+            <text color="green">It works!</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+If you see a rounded box with green text, your TSX and runtime wiring are correct. Press Ctrl+C to exit.
+
+## Next steps
+
+- [Getting Started](/terminal/docs/getting-started) — the package overview and a minimal app.
+- [Layout & Styling](/terminal/docs/layout-and-styling) — boxes, borders and colors.
+- [Input & Interactive Components](/terminal/docs/input-and-components) — focus and the built-in widgets.

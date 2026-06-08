@@ -1,0 +1,139 @@
+---
+title: Layout & Styling
+description: "Boxes, borders, colors and the terminal line layout model"
+layout: docs
+category: Guides
+order: 30
+---
+
+# Layout & Styling
+
+The terminal renderer walks your component tree into an array of ANSI-styled lines and paints them every frame. This guide covers the three intrinsic elements, the line layout model, and how colors and borders work.
+
+## The intrinsic elements
+
+`@sigx/terminal` provides three host elements you can use in TSX:
+
+- **`box`** — a block container that can draw a border, a centered label, a background and a drop shadow.
+- **`text`** — an inline run of text, optionally colored.
+- **`br`** — a hard line break that starts a new line.
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <box border="single" label="Demo">
+            <text>First line of </text>
+            <text color="cyan">inline text.</text>
+            <br />
+            <text>Second line after a break.</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## How layout works
+
+The layout is a simple inline/block line flow — not a full flexbox engine. There are no row/column, justify or align props. The rules are:
+
+- A `box` (and any element whose immediate child is a `box`) is treated as a **block** — it gets its own lines.
+- `text` and other single-line children are appended **inline** to the current line.
+- A `br` forces a new line.
+- Multi-line non-box children are promoted to block so they don't break a surrounding border.
+
+So to stack content vertically, wrap each row in its own `box`, or separate runs with `br`:
+
+```tsx
+<box border="rounded" label="Stacked">
+    <box><text>Row one</text></box>
+    <box><text>Row two</text></box>
+    <box><text>Row three</text></box>
+</box>
+```
+
+## Borders
+
+The `border` prop accepts `single`, `double` or `rounded`. To draw **no** border, omit the prop entirely:
+
+```tsx
+<box border="single">...</box>    {/* ┌─┐ │ └─┘ */}
+<box border="double">...</box>    {/* ╔═╗ ║ ╚═╝ */}
+<box border="rounded">...</box>   {/* ╭─╮ │ ╰─╯ */}
+<box>...</box>                     {/* no border */}
+```
+
+> The renderer only draws a border when the `border` prop is truthy, and any unrecognized value falls back to the single-line style. So `border="none"` currently still renders a single border — leave the prop off to get no border at all.
+
+Set `borderColor` to color the border with a named color, and `label` to render a centered caption in the top border, like a fieldset legend:
+
+```tsx
+<box border="rounded" borderColor="cyan" label="Settings">
+    <text>Configuration goes here.</text>
+</box>
+```
+
+## Colors
+
+Colors use a fixed named palette mapped to ANSI codes:
+
+`red`, `green`, `blue`, `yellow`, `cyan`, `white`, `black`.
+
+```tsx
+<box backgroundColor="blue" borderColor="white">
+    <text color="yellow">Warning</text>
+    <br />
+    <text color="green">OK</text>
+</box>
+```
+
+- `color` styles text foreground.
+- `backgroundColor` fills the box padding and border area.
+- `borderColor` colors the border characters.
+
+> Only the named palette resolves to an ANSI code. Arbitrary strings or hex values such as `#666666` produce no color, so stick to the named set.
+
+## Drop shadow
+
+`dropShadow` adds a gray shadow on the right and bottom edges of a box:
+
+```tsx
+<box border="single" label="Card" dropShadow={true}>
+    <text>This box casts a shadow.</text>
+</box>
+```
+
+## Putting it together
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal } from '@sigx/terminal';
+
+const App = component(() => {
+    const status = signal<'ok' | 'warn'>('ok');
+
+    return () => (
+        <box border="rounded" label="Dashboard" borderColor="cyan" dropShadow={true}>
+            <box>
+                <text>Status: </text>
+                <text color={status.value === 'ok' ? 'green' : 'yellow'}>
+                    {status.value === 'ok' ? 'Healthy' : 'Degraded'}
+                </text>
+            </box>
+            <box backgroundColor="blue">
+                <text color="white">Background-filled row</text>
+            </box>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Next steps
+
+- [Input & Interactive Components](/terminal/docs/input-and-components) — focus and the built-in widgets.
+- [API Reference](/terminal/docs/api) — the full export list.

@@ -1,0 +1,304 @@
+---
+title: "API reference"
+description: "Maps — Native map view"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-maps` v0.4.9 — two components, their prop types, the geometry and event types, and the low-level JSX intrinsics.</p>
+
+The public surface is two components plus a set of type-only exports:
+
+```ts
+import { Map, MapMarker } from '@sigx/lynx-maps';
+import type {
+  MapProps,
+  MapMarkerProps,
+  MapRegion,
+  MapCoordinate,
+  MapType,
+  MapRegionChangeEvent,
+  MapRegionChangeEventDetail,
+  MapPressEvent,
+  MapPressEventDetail,
+  MapMarkerPressEvent,
+  MapMarkerPressEventDetail,
+  SigxMapAttributes,
+  SigxMapMarkerAttributes,
+} from '@sigx/lynx-maps';
+```
+
+Every export below works on both iOS and Android.
+
+## Components
+
+### `Map`
+
+Native map view component. Renders `MKMapView` on iOS (Apple Maps, no key) and `com.google.android.gms.maps.MapView` on Android (Google Maps, API key required). Accepts any number of [`MapMarker`](#mapmarker) children as pins.
+
+```ts
+export const Map: (props: MapProps) => /* sigx-lynx component */
+```
+
+- **`props`** — [`MapProps`](#mapprops). All props are optional.
+- **Returns** — a sigx-lynx component that maps to the intrinsic `<sigx-map>` element.
+
+Platform notes: serializes `region` to a JSON string; passes `showsUserLocation` → `shows-user-location` and `mapType` → `map-type`; and wires `onRegionChange` / `onPress` / `onMarkerPress` to the native `bindregionchange` / `bindpress` / `bindmarkerpress` bindings. The map snaps to `region` on **every** prop change — for initial-region-only semantics, pass it once and hold it in stable local state. The imperative methods `animateToRegion` and `fitToCoordinates` are **not** implemented in v1.
+
+### `MapMarker`
+
+Marker pin rendered inside a [`Map`](#map).
+
+```ts
+export const MapMarker: (props: MapMarkerProps) => /* sigx-lynx component */
+```
+
+- **`props`** — [`MapMarkerProps`](#mapmarkerprops). `coordinate` is required; the rest are optional.
+- **Returns** — a sigx-lynx component that maps to the intrinsic `<sigx-map-marker>` element.
+
+Platform notes: JSON-stringifies `coordinate`, passes `title` / `description` through, and forwards `id` → `marker-id` (surfaced as `event.detail.id` on the parent map's `onMarkerPress`). v1 markers are minimal — platform default pin only: no custom icons, no draggable pins, no custom callout views. Set `id` to disambiguate when multiple markers share a coordinate.
+
+## Prop types
+
+### `MapProps`
+
+Props for [`Map`](#map). All props are optional (each `Define.Prop`'s third type argument is `false`).
+
+```ts
+export type MapProps =
+    & Define.Prop<'region', MapRegion, false>
+    & Define.Prop<'showsUserLocation', boolean, false>
+    & Define.Prop<'mapType', MapType, false>
+    & Define.Prop<'class', string, false>
+    & Define.Prop<'style', string | Record<string, string | number>, false>
+    & Define.Prop<'onRegionChange', (e: MapRegionChangeEvent) => void, false>
+    & Define.Prop<'onPress', (e: MapPressEvent) => void, false>
+    & Define.Prop<'onMarkerPress', (e: MapMarkerPressEvent) => void, false>
+    & Define.Prop<'children', unknown, false>;
+```
+
+- **`region`** — a [`MapRegion`](#mapregion) object (not the JSON string; the component stringifies it). Re-applied on every change.
+- **`showsUserLocation`** — show the user-location dot. Requires location permission at runtime.
+- **`mapType`** — base map style, a [`MapType`](#maptype). Defaults to `'standard'`.
+- **`class`** — CSS class string.
+- **`style`** — a CSS string or a style object (`Record<string, string | number>`).
+- **`onRegionChange`** — handler receiving a [`MapRegionChangeEvent`](#mapregionchangeevent).
+- **`onPress`** — handler receiving a [`MapPressEvent`](#mappressevent).
+- **`onMarkerPress`** — handler receiving a [`MapMarkerPressEvent`](#mapmarkerpressevent).
+- **`children`** — the [`MapMarker`](#mapmarker) pins.
+
+Platform note: event handlers receive typed event objects whose payload is on `.detail`.
+
+### `MapMarkerProps`
+
+Props for [`MapMarker`](#mapmarker). Only `coordinate` is required (its `Define.Prop` third argument is `true`).
+
+```ts
+export type MapMarkerProps =
+    & Define.Prop<'coordinate', MapCoordinate, true>
+    & Define.Prop<'title', string, false>
+    & Define.Prop<'description', string, false>
+    & Define.Prop<'id', string, false>;
+```
+
+- **`coordinate`** — **required** [`MapCoordinate`](#mapcoordinate), the pin's location.
+- **`title`** — optional. Populates the callout shown when the marker is tapped.
+- **`description`** — optional. Secondary callout text.
+- **`id`** — optional. Surfaced as `event.detail.id` on the parent map's `onMarkerPress`; empty string when not set.
+
+## Geometry types
+
+### `MapRegion`
+
+Rectangular visible region. Matches the `react-native-maps` `Region` shape.
+
+```ts
+export interface MapRegion {
+    latitude: number;
+    longitude: number;
+    latitudeDelta: number;
+    longitudeDelta: number;
+}
+```
+
+- **`latitude`** / **`longitude`** — the center point of the viewport.
+- **`latitudeDelta`** / **`longitudeDelta`** — the span in degrees visible above/below and left/right of the center.
+
+### `MapCoordinate`
+
+A single geographic point. Used by [`MapMarker`](#mapmarker)'s `coordinate` and inside press / marker-press event details.
+
+```ts
+export interface MapCoordinate {
+    latitude: number;
+    longitude: number;
+}
+```
+
+- **`latitude`** / **`longitude`** — the point's coordinates.
+
+### `MapType`
+
+Base map style.
+
+```ts
+export type MapType = 'standard' | 'satellite' | 'hybrid';
+```
+
+- The default is `'standard'`.
+
+## Event types
+
+### `MapRegionChangeEvent`
+
+Event passed to `onRegionChange`. Fires after the user pans/zooms, or after a programmatic region change.
+
+```ts
+export interface MapRegionChangeEvent {
+    type: 'regionchange';
+    detail: MapRegionChangeEventDetail;
+}
+```
+
+- **`type`** — always `'regionchange'`.
+- **`detail`** — a [`MapRegionChangeEventDetail`](#mapregionchangeeventdetail).
+
+### `MapRegionChangeEventDetail`
+
+Detail payload for region-change events: the new visible region.
+
+```ts
+export interface MapRegionChangeEventDetail {
+    region: MapRegion;
+    [k: string]: unknown;
+}
+```
+
+- **`region`** — the new visible [`MapRegion`](#mapregion).
+- **`[k: string]`** — open index signature for forward-compat extra fields.
+
+### `MapPressEvent`
+
+Event passed to `onPress`. Fires when the user taps the map (not on a marker).
+
+```ts
+export interface MapPressEvent {
+    type: 'press';
+    detail: MapPressEventDetail;
+}
+```
+
+- **`type`** — always `'press'`.
+- **`detail`** — a [`MapPressEventDetail`](#mappresseventdetail).
+
+### `MapPressEventDetail`
+
+Detail payload for map-press events: the tapped coordinate.
+
+```ts
+export interface MapPressEventDetail {
+    coordinate: MapCoordinate;
+    [k: string]: unknown;
+}
+```
+
+- **`coordinate`** — the tapped [`MapCoordinate`](#mapcoordinate).
+- **`[k: string]`** — open index signature for extra fields.
+
+### `MapMarkerPressEvent`
+
+Event passed to `onMarkerPress`. Fires when the user taps a marker.
+
+```ts
+export interface MapMarkerPressEvent {
+    type: 'markerpress';
+    detail: MapMarkerPressEventDetail;
+}
+```
+
+- **`type`** — always `'markerpress'`.
+- **`detail`** — a [`MapMarkerPressEventDetail`](#mapmarkerpresseventdetail).
+
+### `MapMarkerPressEventDetail`
+
+Detail payload for marker-press events: the pressed marker's id and its coordinate.
+
+```ts
+export interface MapMarkerPressEventDetail {
+    /** Marker's `marker-id` prop, or empty string if none was set. */
+    id: string;
+    coordinate: MapCoordinate;
+    [k: string]: unknown;
+}
+```
+
+- **`id`** — the marker's `id` prop, or the empty string if none was set.
+- **`coordinate`** — the pressed marker's [`MapCoordinate`](#mapcoordinate).
+- **`[k: string]`** — open index signature for extra fields.
+
+## Low-level JSX intrinsics
+
+Importing `@sigx/lynx-maps` (which side-effect-imports its `jsx-augment` module) registers two intrinsic tags globally, so you do not need to import the augmentation yourself:
+
+```ts
+declare global {
+    namespace JSX {
+        interface IntrinsicElements {
+            'sigx-map': SigxMapAttributes;
+            'sigx-map-marker': SigxMapMarkerAttributes;
+        }
+    }
+}
+```
+
+These are the native-facing tags the [`Map`](#map) and [`MapMarker`](#mapmarker) components render to. Most code should use the components; the intrinsics and their attribute types are documented for completeness. Element availability at runtime requires `sigx prebuild` to have run after adding the dependency (the autolinker emits the iOS `LynxConfig` registration and Android `Behavior` attachment that bind the tags to native UI classes).
+
+### `SigxMapAttributes`
+
+JSX intrinsic attributes for the `<sigx-map>` element. Extends `LynxCommonAttributes` (shared Lynx element attrs like `class`, `style`).
+
+```ts
+export interface SigxMapAttributes extends LynxCommonAttributes {
+    region?: string;
+    'shows-user-location'?: boolean;
+    'map-type'?: MapType;
+    bindregionchange?: LynxEventHandler<MapRegionChangeEvent>;
+    bindpress?: LynxEventHandler<MapPressEvent>;
+    bindmarkerpress?: LynxEventHandler<MapMarkerPressEvent>;
+    children?: unknown;
+}
+```
+
+- **`region`** — the JSON-stringified [`MapRegion`](#mapregion). Object props are not supported on the Lynx wire, so JSON-on-the-wire is the sigx-lynx idiom.
+- **`shows-user-location`** — requires location permission.
+- **`map-type`** — a [`MapType`](#maptype).
+- **`bindregionchange`** / **`bindpress`** / **`bindmarkerpress`** — native event bindings, typed as `LynxEventHandler<TEvent>`.
+- **`children`** — the marker children.
+
+### `SigxMapMarkerAttributes`
+
+JSX intrinsic attributes for the `<sigx-map-marker>` element. Extends `LynxCommonAttributes`.
+
+```ts
+export interface SigxMapMarkerAttributes extends LynxCommonAttributes {
+    coordinate: string;
+    title?: string;
+    description?: string;
+    'marker-id'?: string;
+}
+```
+
+- **`coordinate`** — **required** JSON-stringified `{latitude, longitude}`.
+- **`title`** / **`description`** — callout text.
+- **`marker-id`** — surfaced as `event.detail.id` in `bindmarkerpress`.
+
+## Supporting types
+
+These types come from other packages and shape the surface above; they are not exported by `@sigx/lynx-maps`.
+
+- **`Define.Prop`** (from `@sigx/lynx`) — component props are declared via an intersection of `Define.Prop<'name', Type, Required>` entries. The third type argument is a boolean: `true` = required, `false` = optional. Used by [`MapProps`](#mapprops) and [`MapMarkerProps`](#mapmarkerprops).
+- **`LynxCommonAttributes`** (from `@sigx/lynx-runtime`) — shared Lynx element attributes (such as `class` / `style`) extended by [`SigxMapAttributes`](#sigxmapattributes) and [`SigxMapMarkerAttributes`](#sigxmapmarkerattributes).
+- **`LynxEventHandler<TEvent>`** (from `@sigx/lynx-runtime`) — the type of the native `bind*` event bindings.

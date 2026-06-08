@@ -1,0 +1,244 @@
+---
+title: "Usage"
+description: "Emoji Picker — Themable emoji picker"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Emoji Picker
+
+<p class="lede">A headless, categorized emoji grid with ranked search, sticky skin tones and persistent recents — the essentials.</p>
+
+## How it works
+
+`@sigx/lynx-emoji` is pure JS — there is no native module to link and no runtime permissions. iOS exposes no system emoji-picker component and Android's is frozen in alpha, so (like every major chat app) the picker renders in-framework, backed by a compact dataset generated from [emojibase](https://emojibase.dev) (MIT, Unicode 17). It runs identically on iOS and Android.
+
+The dataset ships separately from the components. The bundled English data is re-exported from the root as `enData`, but importing it costs ~240 KB of bundle. Apps that pass their own locale via `@sigx/lynx-emoji/data/<locale>` and never reference the `enData` binding tree-shake it away. Only `en` ships today.
+
+```bash
+pnpm add @sigx/lynx-emoji
+```
+
+The package has two hard dependencies — `@sigx/lynx-gestures` (the `Pressable` each cell is built on) and `@sigx/lynx-keyboard` (used by `KeyboardPanelPicker`). `@sigx/lynx-storage` is an optional peer used for recents and skin-tone persistence; it is loaded via a guarded dynamic import and every call is try/caught, so a missing storage module never breaks the picker — without it everything works, state just resets per session.
+
+## Basic usage
+
+`EmojiPicker` is the full surface: a search row, a category tab bar, a recycled glyph grid, a skin-tone long-press popover and a persistent recents tab. Give it a dataset and an `onPick` handler. The picker is a flex column, so it must live in a bounded-height container or it resolves to zero height.
+
+```tsx
+import { EmojiPicker, enData } from '@sigx/lynx-emoji';
+
+function ReactionPicker({ onInsert }: { onInsert: (glyph: string) => void }) {
+    return (
+        <view style={{ height: '360px' }}>
+            <EmojiPicker
+                data={enData}
+                onPick={({ glyph }) => onInsert(glyph)}
+            />
+        </view>
+    );
+}
+```
+
+The `onPick` payload is an `EmojiPickEvent` carrying the `datum`, the tone-resolved `glyph` to insert, and the active `tone`. The picker is headless — beyond neutral inline fallbacks it has no styling of its own. Theme it with the `classes` slot map, the three render props, or a themed wrapper (see [Theming](#theming) below).
+
+## Sharing recents across surfaces
+
+`EmojiPicker` works standalone — with no provider in scope it builds a private context from its `data` prop. But when more than one picker surface exists (a composer panel and a reaction sheet, say), wrap them in an `EmojiProvider` so they share one dataset, one search index, one recents list and one skin-tone preference. The provider wins over a local `data` prop and keeps everything in sync without each surface re-hydrating from storage.
+
+```tsx
+import { EmojiProvider, KeyboardPanelPicker, SheetPicker, enData } from '@sigx/lynx-emoji';
+import { signal } from '@sigx/reactivity';
+
+function Composer({ insert }: { insert: (glyph: string) => void }) {
+    const panelOpen = signal(false);
+    const sheetOpen = signal(false);
+
+    return (
+        <EmojiProvider data={enData} recentsCap={48}>
+            {/* picker surfaces below need no data prop — they read the provider */}
+            <KeyboardPanelPicker
+                open={panelOpen.value}
+                onPick={({ glyph }) => insert(glyph)}
+            />
+            <SheetPicker
+                open={sheetOpen.value}
+                onClose={() => { sheetOpen.value = false; }}
+                onPick={({ glyph }) => insert(glyph)}
+            />
+        </EmojiProvider>
+    );
+}
+```
+
+`recentsCap` sets the LRU cap (default 32). Recents persist as base glyphs under `@sigx/lynx-emoji:recents` (debounced 250ms) and the sticky skin-tone preference under `@sigx/lynx-emoji:skin-tone` — both via the optional storage peer.
+
+## A chat-composer keyboard panel
+
+For a chat input, prefer `KeyboardPanelPicker` over a sheet. It occupies exactly the soft keyboard's space, so toggling emoji and keyboard does not shift the composer. Place it as the last child of a `<KeyboardStickyView>`, under the input row; the keyboard height comes from `useKeyboard()`, which needs a `<SafeAreaProvider>` ancestor. The largest height seen is remembered, and the panel renders `display:none` when closed.
+
+```tsx
+import { KeyboardPanelPicker, enData } from '@sigx/lynx-emoji';
+import { KeyboardStickyView } from '@sigx/lynx-keyboard';
+import { signal } from '@sigx/reactivity';
+
+function ChatComposer({ insert }: { insert: (glyph: string) => void }) {
+    const emojiOpen = signal(false);
+
+    return (
+        <KeyboardStickyView>
+            <view style={{ flexDirection: 'row' }}>
+                {/* text input + a button that toggles emojiOpen.value */}
+            </view>
+            <KeyboardPanelPicker
+                open={emojiOpen.value}
+                data={enData}
+                fallbackHeight={300}
+                onPick={({ glyph }) => insert(glyph)}
+            />
+        </KeyboardStickyView>
+    );
+}
+```
+
+`fallbackHeight` (default 300) is used before the keyboard has ever opened, so the panel has a sensible size on first toggle. `KeyboardPanelPicker` accepts every `EmojiPickerProps` field except `style` and `onPick`.
+
+## A bottom-sheet picker
+
+For a one-off or reaction picker, `SheetPicker` presents the picker as a bottom sheet over a dimmed backdrop. Mount it near the screen root so its `position:absolute` covers the screen. A backdrop tap closes it; taps on the sheet itself do not propagate. Like the panel, it renders `display:none` when closed.
+
+```tsx
+import { SheetPicker, enData } from '@sigx/lynx-emoji';
+import { signal } from '@sigx/reactivity';
+
+function ReactionSheet({ react }: { react: (glyph: string) => void }) {
+    const open = signal(false);
+
+    return (
+        <SheetPicker
+            open={open.value}
+            height={420}
+            data={enData}
+            onClose={() => { open.value = false; }}
+            onPick={({ glyph }) => { react(glyph); open.value = false; }}
+        />
+    );
+}
+```
+
+`height` is the sheet height in px (default 420). Pass `sheetClass` for extra classes on the sheet surface.
+
+## Markdown editor integration
+
+The `@sigx/lynx-emoji/markdown` subpath integrates with `@sigx/lynx-markdown`'s editor — a separate entry so the core picker stays decoupled (the markdown peer is referenced only via `import type`, erased at runtime). `createEmojiPlugin()` adds a `:` trigger that opens a suggestion popup ranked the same way the picker's search is. Selecting inserts the glyph by default (`insert: 'shortcode'` keeps `:smile:` source). Pass `onPickerRequest` to add a 😊 toolbar button that asks your app to open a picker surface — the editor does not own that UI.
+
+```tsx
+import { createEmojiPlugin } from '@sigx/lynx-emoji/markdown';
+import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
+
+function Editor({ openSheet }: { openSheet: () => void }) {
+    const emoji = createEmojiPlugin({
+        insert: 'glyph',
+        limit: 8,
+        onPickerRequest: () => openSheet(),
+    });
+
+    return <MarkdownEditor plugins={[emoji]} toolbar />;
+}
+```
+
+To render `:shortcode:` source as glyphs in a read-only view, wire the syntax extension and component into `MarkdownView`. The syntax is streaming-safe — a partial tail like `:smi` or an unknown shortcode stays literal text.
+
+```tsx
+import { createEmojiSyntax, emojiExtensionComponent } from '@sigx/lynx-emoji/markdown';
+import { MarkdownView } from '@sigx/lynx-markdown';
+
+function Message({ source }: { source: string }) {
+    return (
+        <MarkdownView
+            value={source}
+            extensions={[createEmojiSyntax()]}
+            components={{ extension: { emoji: emojiExtensionComponent } }}
+        />
+    );
+}
+```
+
+Glyph-mode inserts are plain text and need neither extension; only shortcode mode and parsing messages that carry shortcodes do.
+
+## Headless search
+
+The search index is plain JS with no signals, so you can run ranked emoji search without mounting any component. Build the index once per dataset and query it per keystroke.
+
+```ts
+import { buildSearchIndex, enData } from '@sigx/lynx-emoji';
+
+const index = buildSearchIndex(enData);
+const hits = index.search('fire');   // EmojiDatum[], best match first
+```
+
+Ranking runs high to low: exact shortcode, shortcode prefix, name first-word prefix, name word prefix, keyword prefix, then name substring. Multi-token queries require every token to match; the default result limit is 60.
+
+## Composing the parts
+
+`EmojiPicker` is itself assembled from headless parts you can use directly — `EmojiGrid`, `SearchInput`, `CategoryTabBar` and `SkinTonePopover` — when you want a custom layout. Wire them up against a context built with `createEmojiContext` (or read one from an `EmojiProvider` via `useEmojiContext`). The stores expose reactive signals: `recents.recents` is a most-recent-first array and `skinTone.state.tone` is the sticky tone. Use `glyphForTone(datum, tone)` to resolve the glyph to render or insert.
+
+```tsx
+import { EmojiGrid, glyphForTone, createEmojiContext, enData } from '@sigx/lynx-emoji';
+
+function RecentStrip() {
+    const ctx = createEmojiContext(enData, { recentsCap: 16 });
+    const tone = ctx.skinTone.state.tone;
+
+    return (
+        <EmojiGrid
+            emojis={ctx.recents.recents}
+            tone={tone}
+            columns={8}
+            cellSize={26}
+            onPick={(datum) => ctx.recents.push(datum)}
+        />
+    );
+}
+```
+
+## Theming
+
+The components are headless with neutral inline-style fallbacks only. There are two theming surfaces: the `classes` slot map (`EmojiSlotClasses`, 13 slots — `root`, `search`, `grid`, `cell`, and so on) and the three render props (`renderCell`, `renderCategoryTab`, `renderSearchInput`). When a class is supplied for a slot its inline fallback style is dropped. `@sigx/lynx-daisyui` ships a ready-made skin.
+
+```tsx
+import { EmojiPicker, enData } from '@sigx/lynx-emoji';
+import { EmojiPickerSheet, emojiClasses } from '@sigx/lynx-daisyui';
+
+function Themed({ insert }: { insert: (glyph: string) => void }) {
+    return (
+        <view style={{ height: '360px' }}>
+            <EmojiPicker
+                data={enData}
+                classes={emojiClasses}
+                onPick={({ glyph }) => insert(glyph)}
+            />
+        </view>
+    );
+}
+```
+
+A theme package can also extend props onto `EmojiPickerProps` by augmenting the empty `EmojiPropsExtensions` interface (the `declare module '@sigx/lynx-emoji'` pattern).
+
+## Skin tones
+
+The model is sticky and grid-wide (WhatsApp / Telegram style): long-press a tonal emoji to open the `SkinTonePopover`, and the chosen tone applies to every tonal emoji and persists. `SkinTone` is `0` (base) or `1..5` (light to dark). Long-press only fires when an emoji actually has uniform tone variants (`datum.s`); `glyphForTone` falls back to the base glyph for non-tonal or mixed-tone-only emoji.
+
+## Gotchas
+
+- **The picker needs a bounded-height container.** It is a flex column; without a concrete height ceiling it resolves to zero height and nothing renders. Wrap it (or use a sheet/panel wrapper, which sizes itself).
+- **First paint is one frame after mount.** The grid uses a native `<list>` recycler that only lays out at a concrete px height, so a measuring wrapper pins it to the measured size after the first layout.
+- **`EmojiPicker` throws if no dataset is available** — pass a `data` prop, or render it inside an `EmojiProvider`.
+- **`useEmojiContext()` returns `null` outside a provider** — branch on it if you read the context directly.
+
+## See also
+
+- [API reference](/lynx/modules/emoji/api) — every export, typed.
+- [Gestures](/lynx/modules/gestures/overview) — the `Pressable` each emoji cell is built on.
+- [Keyboard](/lynx/modules/keyboard/overview) — `useKeyboard` / `KeyboardStickyView`, used by the composer panel.

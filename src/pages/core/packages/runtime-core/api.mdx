@@ -10,8 +10,859 @@ order: 40
 
 <p class="lede">Exports of `@sigx/runtime-core` v0.4.9.</p>
 
-## Exports
+All examples assume a named import from the package root:
 
-{/* TODO: document the public API of @sigx/runtime-core */}
+```ts
+import { component, defineApp } from '@sigx/runtime-core';
+```
 
-See the package source for the complete typed surface.
+The package also exposes `./jsx-runtime` and `./jsx-dev-runtime` subpaths (both aliasing the main build) for TSX transpilation via `jsxImportSource`, and a separate `./internals` entry for renderer authors.
+
+## Component system
+
+### component
+
+Define a component from a `setup` function that returns a render (view) function. `setup` runs once; the returned function is the reactive render. Setup may be sync or async — async setup is awaited during SSR and errors on the client (`SIGX102`).
+
+```ts
+function component<
+  TCombined extends Record<string, any> = {},
+  TRef = ExtractExposed<TCombined>,
+  TSlots = ExtractSlots<TCombined>
+>(
+  setup: (ctx: ComponentSetupContext<PlatformElement, StripInternalMarkers<TCombined>, TCombined, TRef, TSlots>) => ViewFn | Promise<ViewFn>,
+  options?: ComponentOptions
+): ComponentFactory<TCombined, TRef, TSlots>;
+```
+
+- `setup` — the setup function receiving a `ComponentSetupContext`; returns a `ViewFn` (or a promise of one).
+- `options` — optional `ComponentOptions` (currently `{ name? }`).
+- Returns a `ComponentFactory` usable as a JSX element.
+
+### getCurrentInstance
+
+Return the setup context of the currently executing component, or `null` outside setup. Used to build composables.
+
+```ts
+function getCurrentInstance(): ComponentSetupContext<any, any, any> | null;
+```
+
+- Returns the active `ComponentSetupContext`, or `null` if called outside a component's setup.
+
+### getComponentMeta
+
+Return the registered metadata (name and setup) for a component factory. Used by DevTools.
+
+```ts
+function getComponentMeta(factory: Function): { name?: string; setup: SetupFn<any, any, any, any> } | undefined;
+```
+
+- `factory` — a component factory.
+- Returns `{ name?, setup }`, or `undefined` if the factory is not registered.
+
+### isComponent
+
+Type guard that returns `true` for SignalX components (functions carrying a `__setup` property), and `false` for plain function components or strings.
+
+```ts
+function isComponent(type: unknown): type is ComponentLike;
+```
+
+- `type` — the value to test.
+- Returns `true` if it is a SignalX component factory.
+
+### compound
+
+Create a compound component by attaching sub-components as static properties. Enables the `Parent.Child` pattern (e.g. `Menu.Item`, `Card.Body`) while preserving full TypeScript inference for both the parent and its children.
+
+```ts
+function compound<
+  TMain extends AnyComponentFactory,
+  TSub extends Record<string, AnyComponentFactory>
+>(main: TMain, sub: TSub): TMain & TSub;
+```
+
+- `main` — the main/parent component factory.
+- `sub` — an object whose values are the sub-components to attach.
+- Returns the main component with the sub-components attached as static properties.
+
+## Lifecycle hooks
+
+Each hook must be called synchronously during `setup`. Called outside a component they warn and no-op (no throw).
+
+### onMounted
+
+Register a callback to run after the component mounts. Receives a `MountContext` with the root element.
+
+```ts
+function onMounted(fn: (ctx: MountContext) => void): void;
+```
+
+- `fn` — callback invoked post-mount with `{ el }`.
+
+### onUnmounted
+
+Register a cleanup callback to run when the component unmounts. The place to clear timers and unsubscribe.
+
+```ts
+function onUnmounted(fn: (ctx: MountContext) => void): void;
+```
+
+- `fn` — cleanup callback invoked on unmount with `{ el }`.
+
+### onCreated
+
+Register a callback that runs immediately after setup completes, before the first render.
+
+```ts
+function onCreated(fn: () => void): void;
+```
+
+- `fn` — callback invoked once after setup, before first render.
+
+### onUpdated
+
+Register a callback that runs after every reactive re-render of the component.
+
+```ts
+function onUpdated(fn: () => void): void;
+```
+
+- `fn` — callback invoked after each re-render.
+
+## Application
+
+### defineApp
+
+Create a renderer-agnostic application instance with a chainable `use` / `hook` / `directive` / `defineProvide` / `mount` / `unmount` API.
+
+```ts
+function defineApp<TContainer = any>(rootComponent: JSXElement): App<TContainer>;
+```
+
+- `rootComponent` — the root JSX element to render.
+- Returns an `App<TContainer>` instance.
+
+## JSX runtime
+
+### jsx
+
+The core JSX factory called by TSX transpilation. Builds VNodes, resolves components, and processes model bindings.
+
+```ts
+function jsx(type: string | Function | typeof Fragment, props: JSXProps | null, key?: string): JSXElement;
+```
+
+- `type` — an intrinsic tag, component factory, or `Fragment`.
+- `props` — element props, or `null`.
+- `key` — optional reconciliation key.
+- Returns a `JSXElement`. The fast path skips props cloning unless a `model` / `model:*` prop is present.
+
+### jsxs
+
+JSX factory variant for elements with multiple children; delegates to `jsx`.
+
+```ts
+function jsxs(type: string | typeof Fragment | Function, props?: Record<string, unknown>, key?: string): JSXElement;
+```
+
+- `type` — an intrinsic tag, component factory, or `Fragment`.
+- `props` — element props.
+- `key` — optional reconciliation key.
+- Returns a `JSXElement`.
+
+### jsxDEV
+
+Dev-mode JSX factory; an alias of `jsx`.
+
+```ts
+const jsxDEV: typeof jsx;
+```
+
+### Fragment
+
+VNode type marker for fragments — grouping children without a wrapper element.
+
+```ts
+const Fragment: unique symbol; // Symbol.for('sigx.Fragment')
+```
+
+### Text
+
+VNode type marker for text nodes.
+
+```ts
+const Text: unique symbol; // Symbol.for('sigx.Text')
+```
+
+### Comment
+
+VNode type marker for comment / placeholder nodes. Falsy children become Comment placeholders so positional diffing does not shift sibling indices when conditionals toggle.
+
+```ts
+const Comment: unique symbol; // Symbol.for('sigx.Comment')
+```
+
+## Lazy loading & async
+
+### lazy
+
+Wrap a dynamic-import loader into a lazy component loaded on first render. Adds `preload()` and `isLoaded()`. Use inside `Suspense`.
+
+```ts
+function lazy<T extends AnyComponentFactory>(loader: ComponentLoader<T>): LazyComponentFactory<T>;
+```
+
+- `loader` — a function returning a dynamic import of the component.
+- Returns a `LazyComponentFactory<T>` (the component plus `preload` / `isLoaded` / `__lazy`).
+
+### Suspense
+
+Boundary component that shows a fallback while lazy children load.
+
+```ts
+const Suspense: ComponentFactory<SuspenseProps, void, {}>;
+```
+
+- Accepts a `fallback` prop (a node or a function returning a node).
+
+### isLazyComponent
+
+Type guard for lazy-loaded components (checks the `__lazy` marker).
+
+```ts
+function isLazyComponent(component: any): component is LazyComponentFactory<any>;
+```
+
+- `component` — the value to test.
+- Returns `true` if it is a lazy component factory.
+
+### useAsync
+
+Composable that runs an async loader and returns a reactive `{ value, loading, error }` state; the render re-runs as the state changes.
+
+```ts
+function useAsync<T>(loader: () => Promise<T>): AsyncState<T>;
+```
+
+- `loader` — an async function producing the value.
+- Returns an `AsyncState<T>`.
+
+## Models & two-way binding
+
+### createModel
+
+Create a two-way binding `Model<T>` from a `[sourceObject, key]` tuple and an update handler.
+
+```ts
+function createModel<T>(tuple: [object, string], updateHandler: (value: T) => void): Model<T>;
+```
+
+- `tuple` — a `[sourceObject, key]` pair identifying the bound value.
+- `updateHandler` — called with the new value on write.
+- Returns a `Model<T>`.
+
+### createModelFromBinding
+
+Create a `Model<T>` from a full binding tuple `[obj, key, handler]` for forwarding scenarios.
+
+```ts
+function createModelFromBinding<T>(binding: ModelBindingTuple<T>): Model<T>;
+```
+
+- `binding` — a `[obj, key, handler]` tuple.
+- Returns a `Model<T>`.
+
+### isModel
+
+Type guard that detects `Model<T>` objects via the `sigx.model` symbol. Used by the JSX runtime.
+
+```ts
+function isModel(value: unknown): value is Model<unknown>;
+```
+
+- `value` — the value to test.
+- Returns `true` if it is a `Model`.
+
+## Error handling
+
+### ErrorBoundary
+
+Component that catches errors thrown during child rendering and shows a fallback, providing a `retry()` to reset. Works in SSR and on the client.
+
+```ts
+const ErrorBoundary: ComponentFactory<
+  Define.Prop<'fallback', JSXElement | ((error: Error, retry: () => void) => JSXElement)> & Define.Slot<'default'>,
+  /* ... */
+>;
+```
+
+- `fallback` prop — a node, or a function `(error, retry) => node`.
+
+### SigxError
+
+Base error class for all runtime errors; carries a stable `code` (`SIGX###`) and an optional `suggestion`.
+
+```ts
+class SigxError extends Error {
+  readonly code: string;
+  readonly suggestion?: string;
+  declare readonly cause?: Error;
+  constructor(message: string, options: { code: string; suggestion?: string; cause?: Error });
+}
+```
+
+- `code` — the stable error code.
+- `suggestion` — optional remediation hint.
+- `cause` — optional underlying error.
+
+### SigxErrorCode
+
+Frozen map of error code constants grouped by category (app / render / DI).
+
+```ts
+const SigxErrorCode: {
+  readonly NO_MOUNT_FUNCTION: 'SIGX001';
+  readonly RENDER_TARGET_NOT_FOUND: 'SIGX100';
+  readonly MOUNT_TARGET_NOT_FOUND: 'SIGX101';
+  readonly ASYNC_SETUP_CLIENT: 'SIGX102';
+  readonly PROVIDE_OUTSIDE_SETUP: 'SIGX200';
+  readonly PROVIDE_INVALID_INJECTABLE: 'SIGX201';
+};
+```
+
+### noMountFunctionError
+
+Construct the `SIGX001` error — no mount function provided and no platform default.
+
+```ts
+function noMountFunctionError(): SigxError;
+```
+
+- Returns the `SIGX001` `SigxError`.
+
+### renderTargetNotFoundError
+
+Construct the `SIGX100` error — render target selector not found.
+
+```ts
+function renderTargetNotFoundError(selector: string): SigxError;
+```
+
+- `selector` — the selector that could not be resolved.
+- Returns the `SIGX100` `SigxError`.
+
+### mountTargetNotFoundError
+
+Construct the `SIGX101` error — mount target selector not found.
+
+```ts
+function mountTargetNotFoundError(selector: string): SigxError;
+```
+
+- `selector` — the selector that could not be resolved.
+- Returns the `SIGX101` `SigxError`.
+
+### asyncSetupClientError
+
+Construct the `SIGX102` error — async setup attempted on the client (only supported during SSR).
+
+```ts
+function asyncSetupClientError(componentName: string): SigxError;
+```
+
+- `componentName` — the offending component's name.
+- Returns the `SIGX102` `SigxError`.
+
+### provideOutsideSetupError
+
+Construct the `SIGX200` error — `defineProvide` called outside component setup.
+
+```ts
+function provideOutsideSetupError(): SigxError;
+```
+
+- Returns the `SIGX200` `SigxError`.
+
+### provideInvalidInjectableError
+
+Construct the `SIGX201` error — `defineProvide` called with a non-injectable.
+
+```ts
+function provideInvalidInjectableError(): SigxError;
+```
+
+- Returns the `SIGX201` `SigxError`.
+
+## Dependency injection
+
+### defineInjectable
+
+Define an injectable service or value. The returned callable token resolves the nearest provided instance up the component tree, or lazily creates a global singleton if none was provided.
+
+```ts
+function defineInjectable<T>(factory: () => T): InjectableFunction<T>;
+```
+
+- `factory` — produces the value when an instance must be created.
+- Returns an `InjectableFunction<T>` (callable token).
+
+### defineProvide
+
+Provide a new injectable instance at the current component level, visible to descendants. Must run during setup; otherwise throws `SIGX200` / `SIGX201`.
+
+```ts
+function defineProvide<T>(useFn: InjectableFunction<T>, factory?: () => T): T;
+```
+
+- `useFn` — the injectable token to provide.
+- `factory` — optional override factory for the provided instance.
+- Returns the provided instance.
+
+### useAppContext
+
+Return the current `AppContext` from the component tree (provided at root during mount / hydrate / SSR), or `null`.
+
+```ts
+function useAppContext(): AppContext | null;
+```
+
+- Returns the active `AppContext`, or `null`.
+
+### defineFactory
+
+Create a factory with managed subscriptions and disposal. Parameterless factories become injectables; parameterized ones return plain creators. Auto-disposes via `onUnmounted` when used in a component (unless you call `overrideDispose`).
+
+```ts
+function defineFactory<R>(
+  setup: (ctx: SetupFactoryContext, ...args: unknown[]) => R,
+  lifetime: InstanceLifetimes,
+  typeIdentifier?: guid
+): InjectableFunction<R & { dispose?: () => void }>;
+function defineFactory<R, T1>(setup: (ctx: SetupFactoryContext, p1: T1) => R, lifetime: InstanceLifetimes, id?: guid): (p1: T1) => R;
+// ...overloads up to 5 parameters
+```
+
+- `setup` — receives a `SetupFactoryContext` and any creator arguments.
+- `lifetime` — an `InstanceLifetimes` value (currently informational).
+- `typeIdentifier` — optional `guid` identity.
+- Returns an `InjectableFunction` (parameterless) or a plain creator (parameterized).
+
+### SubscriptionHandler
+
+Collects unsubscribe callbacks and disposes them together. Used by `defineFactory` contexts.
+
+```ts
+class SubscriptionHandler {
+  add(unsub: () => void): void;
+  unsubscribe(): void;
+}
+```
+
+- `add(unsub)` — register an unsubscribe callback.
+- `unsubscribe()` — run and clear all registered callbacks.
+
+## Directives
+
+### defineDirective
+
+Identity function that marks a directive definition (with the `sigx.directive` symbol) for the `use:name` prop syntax.
+
+```ts
+function defineDirective<T = any, El = any>(definition: DirectiveDefinition<T, El>): DirectiveDefinition<T, El>;
+```
+
+- `definition` — the directive's lifecycle hooks (`created` / `mounted` / `updated` / `unmounted`).
+- Returns the same definition, branded.
+
+### isDirective
+
+Type guard for directive definitions created by `defineDirective`.
+
+```ts
+function isDirective(value: any): value is DirectiveDefinition;
+```
+
+- `value` — the value to test.
+- Returns `true` if it is a directive definition.
+
+## Messaging
+
+### createTopic
+
+Create a simple in-memory pub/sub `Topic<T>`. `subscribe()` auto-unsubscribes via `onUnmounted` when called inside a component.
+
+```ts
+function createTopic<T>(_options?: { namespace?: string; name?: string }): Topic<T>;
+```
+
+- `_options` — optional `{ namespace?, name? }` metadata.
+- Returns a `Topic<T>`.
+
+### toSubscriber
+
+Wrap a `Topic` as a subscribe-only view, hiding `publish` and `destroy`.
+
+```ts
+function toSubscriber<T>(topic: Topic<T>): { subscribe: (handler: (data: T) => void) => Subscription };
+```
+
+- `topic` — the topic to wrap.
+- Returns an object exposing only `subscribe`.
+
+## Utilities
+
+### signal
+
+Re-export of `signal()` from `@sigx/reactivity` for convenience. The `ComponentSetupContext` also exposes it as `ctx.signal`.
+
+```ts
+export { signal } from '@sigx/reactivity';
+```
+
+### Utils
+
+Static utility helpers; currently exposes `isPromise`.
+
+```ts
+class Utils {
+  static isPromise(value: any): boolean;
+}
+```
+
+- `isPromise(value)` — thenable detection; returns `true` for promise-like values.
+
+### guid
+
+Generate a v4-style GUID string. `guid` is also a string type alias of the same name (both exported from `models/index`).
+
+```ts
+const guid: () => string;
+type guid = string;
+```
+
+- Returns a new GUID string.
+
+## Constants
+
+### CLIENT_DIRECTIVE_PREFIX
+
+Prefix string for selective-hydration client directives.
+
+```ts
+const CLIENT_DIRECTIVE_PREFIX: 'client:';
+```
+
+### CLIENT_DIRECTIVES
+
+Tuple of valid client directive names for selective hydration.
+
+```ts
+const CLIENT_DIRECTIVES: readonly ['client:load', 'client:idle', 'client:visible', 'client:media', 'client:only'];
+```
+
+## Enums
+
+### InstanceLifetimes
+
+Lifetime options for `defineFactory`. Currently informational — passed but not enforced in the read implementation.
+
+```ts
+enum InstanceLifetimes {
+  Transient = 0,
+  Scoped = 1,
+  Singleton = 2,
+}
+```
+
+## Internal
+
+### __registerComponentPlugin
+
+Internal HMR hook (`registerComponentPlugin` re-exported under a `__`-prefixed name). **Not part of the stable public API** — listed for completeness only.
+
+```ts
+function __registerComponentPlugin(plugin: ComponentPlugin): void;
+```
+
+- `plugin` — a `ComponentPlugin` with an optional `onDefine` hook.
+
+## Types
+
+### Define (namespace)
+
+The preferred, discoverable API for typing component props, events, models, slots, and expose. Combine members with the `&` intersection.
+
+```ts
+namespace Define {
+  type Prop<TName extends string, TType, Required extends boolean = false> =
+    Required extends false ? { [K in TName]?: TType } : { [K in TName]: TType };
+  type Event<TName extends string, TDetail = void> = { [K in TName]?: EventDefinition<TDetail> };
+  type Model<TNameOrType, TType = void> = /* default: model + update:modelValue; named: model:name + update:name */;
+  type Slot<TName extends string, TProps = void> = {
+    __slots?: { [K in TName]: TProps extends void
+      ? () => JSXElement | JSXElement[] | null
+      : (props: TProps) => JSXElement | JSXElement[] | null };
+  };
+  type Expose<T> = { __exposed?: { __type: T } };
+}
+```
+
+### ComponentSetupContext
+
+The context object passed to a component's setup function. `renderFn` / `update()` are HMR escape hatches.
+
+```ts
+interface ComponentSetupContext<TElement = PlatformElement, TProps extends Record<string, any> = {}, TEvents extends Record<string, any> = {}, TRef = any, TSlots = {}> extends SetupContext {
+  el: TElement;
+  signal: typeof signal;
+  props: PropsAccessor<TProps>;
+  slots: SlotsObject<TSlots>;
+  emit: EmitFn<TEvents>;
+  parent: ComponentSetupContext | null;
+  onMounted(fn: (ctx: MountContext<TElement>) => void): void;
+  onUnmounted(fn: (ctx: MountContext<TElement>) => void): void;
+  onCreated(fn: () => void): void;
+  onUpdated(fn: () => void): void;
+  expose(exposed: TRef): void;
+  renderFn: ViewFn | null;
+  update(): void;
+}
+```
+
+### ComponentFactory
+
+Return type of `component()`. Callable as JSX, plus internal `__`-branded props used by the renderer.
+
+```ts
+type ComponentFactory<TCombined extends Record<string, any>, TRef, TSlots> =
+  ((props: StripForJSX<Omit<TCombined, EventNames<TCombined>>>
+    & EventHandlers<TCombined>
+    & SlotProps<TSlots>
+    & SyncProps<TCombined>
+    & ExternalModelProps<TCombined>
+    & JSX.IntrinsicAttributes
+    & ComponentAttributeExtensions
+    & { ref?: Ref<TRef>; children?: any }) => JSXElement)
+  & { __setup: SetupFn<any, any, any, any>; __name?: string; __islandId?: string; __props: any; __events: any; __ref: TRef; __slots: TSlots };
+```
+
+### AnyComponentFactory
+
+Structural constraint accepting any `ComponentFactory` (used by `lazy` / compound) without contravariance issues.
+
+```ts
+type AnyComponentFactory = {
+  (...args: any[]): any;
+  __setup: SetupFn<any, any, any, any>;
+  __props: any;
+  __events: any;
+  __ref: any;
+  __slots: any;
+};
+```
+
+### Model
+
+Two-way binding object: `.value` reads/writes, `.binding` forwards.
+
+```ts
+interface Model<T> {
+  value: T;
+  readonly binding: ModelBindingTuple<T>;
+  readonly [MODEL_SYMBOL]: true;
+}
+// ModelBindingTuple<T> = readonly [object, string, (value: T) => void]
+```
+
+### App
+
+Chainable app instance returned by `defineApp()`. The `_`-prefixed members are `@internal` for renderers.
+
+```ts
+interface App<TContainer = any> {
+  config: AppConfig;
+  use<Options>(plugin: Plugin<Options> | PluginInstallFn<Options>, options?: Options): App<TContainer>;
+  defineProvide<T>(useFn: InjectableFunction<T>, factory?: () => T): T;
+  hook(hooks: AppLifecycleHooks): App<TContainer>;
+  directive(name: string, definition: DirectiveDefinition): App<TContainer>;
+  directive(name: string): DirectiveDefinition | undefined;
+  mount(container: TContainer, mountFn?: MountFn<TContainer>): App<TContainer>;
+  unmount(): void;
+  _context: AppContext;
+  _isMounted: boolean;
+  _container: TContainer | null;
+  _rootComponent: JSXElement;
+}
+```
+
+### App / plugin type cluster
+
+The supporting types for the app and plugin system (from `app-types.ts`).
+
+```ts
+interface AppConfig {
+  errorHandler?(err: unknown, instance: ComponentInstance, info: string): boolean | void;
+  warnHandler?(...args: any[]): void;
+  performance?: boolean;
+}
+interface AppLifecycleHooks {
+  onComponentCreated?(instance: ComponentInstance): void;
+  onComponentMounted?(instance: ComponentInstance): void;
+  onComponentUnmounted?(instance: ComponentInstance): void;
+  onComponentUpdated?(instance: ComponentInstance): void;
+  onComponentError?(err: unknown, instance: ComponentInstance, info: string): boolean | void;
+}
+interface AppContext {
+  app: App;
+  provides: Map<symbol, unknown>;
+  config: AppConfig;
+  hooks: AppLifecycleHooks[];
+  directives: Map<string, DirectiveDefinition>;
+}
+interface Plugin<Options = any> { name?: string; install(app: App, options?: Options): void; }
+type PluginInstallFn<Options = any> = (app: App, options?: Options) => void;
+type MountFn<TContainer = any> = (element: JSXElement, container: TContainer, appContext: AppContext) => (() => void) | void;
+type UnmountFn<TContainer = any> = (container: TContainer) => void;
+interface ComponentInstance { name?: string; ctx: ComponentSetupContext; vnode: VNode; }
+```
+
+### VNode / JSXElement / JSXChild / JSXChildren
+
+Core virtual-node and JSX value types.
+
+```ts
+type VNode = {
+  type: string | typeof Fragment | typeof Text | typeof Comment | Function;
+  props: Record<string, any>;
+  key: string | number | null;
+  children: VNode[];
+  dom: any | null;
+  text?: string | number;
+  parent?: VNode | null;
+  cleanup?: () => void;
+};
+type JSXChild = VNode | string | number | boolean | null | undefined | JSXChild[];
+type JSXChildren = JSXChild;
+type JSXElement = VNode | string | number | boolean | null;
+```
+
+### Component-system helper types
+
+Helper types from `component-types.ts`. `SetupContext` and `MountContext` are augmentation points.
+
+```ts
+type ViewFn = () => JSXElement | JSXElement[] | undefined;
+type SetupFn<TProps, TEvents, TRef, TSlots> =
+  (ctx: ComponentSetupContext<PlatformElement, TProps, TEvents, TRef, TSlots>) => ViewFn | Promise<ViewFn>;
+interface ComponentOptions { name?: string; }
+type PropsAccessor<TProps> = { readonly [K in keyof TProps]: TProps[K] };
+type SlotsObject<TSlots = {}> = { default: () => JSXElement[] } & TSlots;
+type EmitFn<TEvents> = <TName extends keyof TEvents>(eventName: TName, ...args: any[]) => void;
+interface MountContext<TElement = PlatformElement> { el: TElement; }
+interface SetupContext {}
+type PropsWithDefaults<TProps, D> = { readonly [K in keyof TProps]-?: K extends keyof D ? NonNullable<TProps[K]> : TProps[K] };
+type Ref<T> = { current: T | null } | ((instance: T | null) => void);
+type Exposed<T extends { __ref: any }> = T['__ref'];
+type ComponentRef<T extends { __ref: any }> = Ref<T['__ref']>;
+```
+
+### Platform types
+
+Module-augmentation hooks: platforms set the element type; packages add global component attributes.
+
+```ts
+interface PlatformTypes {} // platforms declaration-merge `element: HTMLElement`
+type PlatformElement = PlatformTypes extends { element: infer E } ? E : any;
+interface ComponentAttributeExtensions {} // augmented by SSR to add 'client:load', etc.
+```
+
+### Directive types
+
+Directive lifecycle hook types. `DirectiveDefinitionExtensions` is an augmentation point (e.g. SSR `getSSRProps`).
+
+```ts
+interface DirectiveBinding<T = any> { value: T; oldValue?: T; }
+interface DirectiveDefinitionExtensions<T = any> {}
+interface DirectiveDefinition<T = any, El = any> extends DirectiveDefinitionExtensions<T> {
+  created?(el: El, binding: DirectiveBinding<T>): void;
+  mounted?(el: El, binding: DirectiveBinding<T>): void;
+  updated?(el: El, binding: DirectiveBinding<T>): void;
+  unmounted?(el: El, binding: DirectiveBinding<T>): void;
+}
+type ResolvedDirective<T = any, El = any> = [DirectiveDefinition<T, El>, T];
+```
+
+### AsyncState
+
+Reactive result of `useAsync`.
+
+```ts
+interface AsyncState<T> {
+  readonly value: T | null;
+  readonly loading: boolean;
+  readonly error: Error | null;
+}
+```
+
+### LazyComponentFactory / SuspenseProps
+
+Lazy-loading types.
+
+```ts
+type LazyComponentFactory<T extends AnyComponentFactory> = T & {
+  preload: () => Promise<T>;
+  isLoaded: () => boolean;
+  __lazy: true;
+};
+type SuspenseProps = { fallback?: JSXElement | (() => JSXElement) };
+```
+
+### InjectableFunction / SetupFactoryContext
+
+Dependency-injection types. `InjectableFunction` is what `defineInjectable` returns and what `defineProvide` / `app.defineProvide` accept.
+
+```ts
+interface InjectableFunction<T> {
+  (): T;
+  _factory: () => T;
+  _token: symbol;
+}
+interface SetupFactoryContext {
+  onDeactivated(fn: () => void): void;
+  subscriptions: SubscriptionHandler;
+  overrideDispose(onDispose: (fn: () => void) => void): void;
+}
+```
+
+### Subscription / Topic / ModelProcessor / ComponentPlugin / hydration types
+
+Messaging, plugin, and hydration types. `ModelProcessor` and `ComponentPlugin` are type-only public exports — their setters are internal.
+
+```ts
+interface Subscription { unsubscribe(): void; }
+interface Topic<T> {
+  publish(data: T): void;
+  subscribe(handler: (data: T) => void): Subscription;
+  destroy(): void;
+}
+type ModelProcessor = (type: string, props: Record<string, any>, modelBinding: [Record<string, any>, string], originalProps: Record<string, any>) => boolean;
+type ComponentPlugin = { onDefine?: (name: string | undefined, factory: Function, setup: Function) => void };
+type ClientDirective = 'client:load' | 'client:idle' | 'client:visible' | 'client:media' | 'client:only';
+type HydrationStrategy = 'load' | 'idle' | 'visible' | 'media' | 'only';
+interface HydrationDirective { strategy: HydrationStrategy; media?: string; }
+```
+
+### ModelBinding / EventDefinition / deprecated Define aliases
+
+```ts
+type ModelBinding<_T> = [object, string];
+type EventDefinition<T> = { __eventDetail: T };
+// DefineProp / DefineModel / DefineEvent / DefineSlot / DefineExpose are @deprecated
+// flat aliases of the corresponding Define.* members — prefer the Define namespace.
+```
+
+## See also
+
+- [Usage guide](/core/packages/runtime-core/usage) — practical patterns and examples.
+- [Overview](/core/packages/runtime-core/overview) — package summary and installation.

@@ -1,0 +1,149 @@
+---
+title: Radio
+description: "Radio — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 145
+---
+
+# Radio
+
+<p class="lede">A compound radio group for picking a single value from a set of options, with a headless group that drives selection, color, and size for its items.</p>
+
+## Import
+
+```tsx
+import { Radio } from '@sigx/lynx-heroui';
+```
+
+`Radio` is a compound component. The outer `Radio` is the group; render one `Radio.Item` per option inside it.
+
+## Binding the selected value
+
+The group is the source of truth. Set the group's `value` to the currently-selected option and update it in the group's `change` event handler. Each `Radio.Item` whose `value` matches the group's `value` renders as checked.
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Radio } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+  const state = signal({ plan: 'pro' });
+
+  return () => (
+    <Radio
+      value={state.plan}
+      onChange={(value) => (state.plan = value)}
+    >
+      <Radio.Item value="free" label="Free" />
+      <Radio.Item value="pro" label="Pro" />
+      <Radio.Item value="team" label="Team" />
+    </Radio>
+  );
+});
+
+render(<Demo />, '#root');
+```
+
+The group also propagates `color` and `size` to every item, so you set them once on the group instead of repeating them per option. A per-item `color`/`size` still wins over the group's value.
+
+## Props
+
+### `Radio` (group)
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `string` | - | The currently-selected option's `value`. Items matching this render checked. |
+| `color` | `RadioColor` | - | Default color for all items in the group. |
+| `size` | `RadioSize` | - | Default size for all items in the group. |
+| `class` | `string` | - | Additional CSS classes for the group container. |
+
+`RadioColor` is `'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error'` (the shared color scale excluding `neutral`). `RadioSize` is `'sm' | 'md' | 'lg'`.
+
+#### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onChange` | `(value: string) => void` | Fired with the selected item's `value` when an item is pressed. Use it to update your bound state. |
+
+#### Slot
+
+| Slot | Description |
+|------|-------------|
+| `default` | The `Radio.Item` children that make up the group. |
+
+### `Radio.Item`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `string` | - | This option's value. Reported to the group's `onChange` / item's `onSelect` when pressed. An item without a value is inert. |
+| `label` | `string` | - | Text shown next to the radio dot. |
+| `checked` | `boolean` | - | Explicit override. When set, it wins over the group's `value` (fully controlled use). |
+| `disabled` | `boolean` | `false` | Dims the item and blocks selection. |
+| `color` | `RadioColor` | group's `color` | Item color; overrides the group default. |
+| `size` | `RadioSize` | group's `size` | Item size; overrides the group default. |
+| `class` | `string` | - | Additional CSS classes for the item. |
+| `accessibility-element` | `boolean` | - | Marks the item as an accessibility element. |
+| `accessibility-label` | `string` | - | Accessibility label for screen readers. |
+| `accessibility-role` | `string` | - | Accessibility role. |
+| `accessibility-trait` | `string` | - | Accessibility trait. |
+| `accessibility-status` | `string` | - | Accessibility status. |
+
+#### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onSelect` | `(value: string) => void` | Fired with this item's `value` when it is pressed, in addition to the group's `onChange`. |
+
+## Sizes
+
+`Radio.Item` supports three sizes. Set `size` on the group to apply it to every item.
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Radio } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+  const state = signal({ density: 'md' });
+
+  return () => (
+    <Radio
+      value={state.density}
+      size="lg"
+      onChange={(value) => (state.density = value)}
+    >
+      <Radio.Item value="sm" label="Comfortable" />
+      <Radio.Item value="md" label="Cozy" />
+      <Radio.Item value="lg" label="Compact" />
+    </Radio>
+  );
+});
+
+render(<Demo />, '#root');
+```
+
+## Colors and disabled items
+
+Use the group's `color` for the default, override it per item with `color`, and mark options unavailable with `disabled`.
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Radio } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+  const state = signal({ tier: 'standard' });
+
+  return () => (
+    <Radio
+      value={state.tier}
+      color="primary"
+      onChange={(value) => (state.tier = value)}
+    >
+      <Radio.Item value="standard" label="Standard" />
+      <Radio.Item value="premium" label="Premium" color="success" />
+      <Radio.Item value="enterprise" label="Enterprise (contact sales)" disabled />
+    </Radio>
+  );
+});
+
+render(<Demo />, '#root');
+```

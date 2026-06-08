@@ -1,0 +1,160 @@
+---
+title: Modal
+description: "Modal — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Feedback"]
+order: 137
+---
+
+# Modal
+
+<p class="lede">Controlled overlay dialog with a tap-to-dismiss backdrop and composable Header, Body, and Actions sections.</p>
+
+## Import
+
+```tsx
+import { Modal } from '@sigx/lynx-heroui';
+```
+
+`Modal` is a compound component. The root controls visibility, and three sub-components structure its contents:
+
+```tsx
+Modal          // overlay + box, takes `open` / `onClose`
+Modal.Header   // title region
+Modal.Body     // main content region
+Modal.Actions  // footer for buttons
+```
+
+## Props
+
+### `Modal`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `open` | `boolean` | `false` | Controls visibility. When `false`, the contents are fully unmounted and only a zero-size placeholder is rendered. |
+| `onClose` | `() => void` | - | Called when the backdrop (overlay) is tapped. Use it to set your `open` signal back to `false`. |
+| `class` | `string` | - | Additional CSS classes applied to the modal box. |
+| `children` | slot | - | Default slot for the modal contents (typically `Modal.Header`, `Modal.Body`, `Modal.Actions`). |
+
+`Modal` is a controlled component: it has no internal open state. You own a boolean and pass it as `open`, then flip it in `onClose` (and from your own triggers). Taps inside the modal box are stopped from reaching the backdrop, so only backdrop taps trigger `onClose`.
+
+### `Modal.Header`, `Modal.Body`, `Modal.Actions`
+
+Each section accepts the same props:
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `class` | `string` | - | Additional CSS classes applied to the section. |
+| `children` | slot | - | Default slot for the section contents. |
+
+## Basic Usage
+
+Drive the modal with a boolean signal. Set it `true` to open, and reset it in `onClose`:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Modal, Button, Text, Heading } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ open: false });
+
+    return () => (
+        <Modal
+            open={state.open}
+            onClose={() => { state.open = false; }}
+        >
+            <Modal.Header>
+                <Heading level={3}>Confirm action</Heading>
+            </Modal.Header>
+            <Modal.Body>
+                <Text>Are you sure you want to continue?</Text>
+            </Modal.Body>
+            <Modal.Actions>
+                <Button variant="ghost" onPress={() => { state.open = false; }}>
+                    Cancel
+                </Button>
+                <Button color="primary" onPress={() => { state.open = false; }}>
+                    Confirm
+                </Button>
+            </Modal.Actions>
+        </Modal>
+    );
+});
+
+render(<Demo />, '#root');
+```
+
+## With a Trigger
+
+Pair the modal with a button that opens it. The backdrop tap and the Cancel button both close it:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Modal, Button, Text, Heading, Col } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ open: false });
+
+    return () => (
+        <Col gap="4">
+            <Button color="primary" onPress={() => { state.open = true; }}>
+                Open modal
+            </Button>
+
+            <Modal
+                open={state.open}
+                onClose={() => { state.open = false; }}
+            >
+                <Modal.Header>
+                    <Heading level={3}>Welcome</Heading>
+                </Modal.Header>
+                <Modal.Body>
+                    <Text>Tap the backdrop or Close to dismiss this dialog.</Text>
+                </Modal.Body>
+                <Modal.Actions>
+                    <Button onPress={() => { state.open = false; }}>
+                        Close
+                    </Button>
+                </Modal.Actions>
+            </Modal>
+        </Col>
+    );
+});
+
+render(<Demo />, '#root');
+```
+
+## Custom Styling
+
+Use `class` on the root box or any section to extend the default HeroUI styling:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Modal, Button, Text, Heading } from '@sigx/lynx-heroui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ open: true });
+
+    return () => (
+        <Modal
+            open={state.open}
+            onClose={() => { state.open = false; }}
+            class="hero-modal--wide"
+        >
+            <Modal.Header class="text-center">
+                <Heading level={3}>Styled dialog</Heading>
+            </Modal.Header>
+            <Modal.Body>
+                <Text>The box and each section accept a `class` prop.</Text>
+            </Modal.Body>
+            <Modal.Actions>
+                <Button color="primary" onPress={() => { state.open = false; }}>
+                    Done
+                </Button>
+            </Modal.Actions>
+        </Modal>
+    );
+});
+
+render(<Demo />, '#root');
+```

@@ -1,0 +1,280 @@
+---
+title: Theming
+description: "Theme @sigx/lynx-heroui with the Tailwind preset and theme engine."
+layout: module-docs
+category: Guides
+order: 28
+---
+
+# Theming
+
+<p class="lede">HeroUI's look comes from three cooperating pieces: a Tailwind preset that wires the semantic color tokens, a stylesheet that ships per-component CSS plus the first-paint theme classes, and a runtime theme engine (re-exported from <code>@sigx/lynx-zero</code>) that applies a palette and lets you switch it live. Importing anything from the package root also seeds the two built-in themes, <code>hero-light</code> and <code>hero-dark</code>.</p>
+
+## The three layers
+
+To theme a HeroUI app you set up three things, imported from different entry points:
+
+1. **The Tailwind preset** &mdash; `herouiPreset` from `@sigx/lynx-heroui/preset`. Maps utility classes like `bg-primary` / `text-base-content` onto the semantic `--color-*` variables.
+2. **The stylesheet** &mdash; `@sigx/lynx-heroui/styles`. A side-effect CSS import that bundles the per-component CSS and the per-theme first-paint classes.
+3. **The theme engine** &mdash; `ThemeProvider`, `useTheme`, `themeController` and friends from the package root. Applies the active palette as inheritable CSS variables and switches it at runtime.
+
+Importing **anything** from the `@sigx/lynx-heroui` JS root also seeds the two built-in themes into the shared `@sigx/lynx-zero` registry as a module-load side effect, so `ThemeProvider`'s follow-system defaults and `listThemes()` work out of the box. The CSS-only `./styles` subpath does not execute JS, so an app always imports **both** the JS root and the styles &mdash; the same pattern as `@sigx/lynx-daisyui`.
+
+## The Tailwind preset
+
+The preset is published only from the `./preset` subpath, not the package root. Add it to your Tailwind config:
+
+```ts
+// tailwind.config.ts
+import { herouiPreset } from '@sigx/lynx-heroui/preset';
+
+export default {
+    presets: [herouiPreset],
+};
+```
+
+`herouiPreset` is an alias of `HeroLynxPreset`; both name the same object, which is currently exactly `@sigx/lynx-zero/preset` (the `zeroPreset`). That preset brings:
+
+- **Semantic color tokens** &mdash; utilities like `bg-primary`, `text-base-content`, `border-accent` resolving to `var(--color-*)`, including the `*-soft` tint tokens.
+- **The `--text-*` font-size ramp** &mdash; the type scale the theme engine re-emits when you change `fontScale`.
+- **The Lynx-correct `flex-fill` utility** &mdash; the long-form flex-grow/shrink/basis declarations Lynx layout needs where a parent's height comes from flex rather than an explicit percentage.
+
+`HeroLynxPreset` is the composition point for any future hero-specific Tailwind extensions, but today it forwards the neutral preset unchanged.
+
+## The stylesheet
+
+Import the stylesheet once, as a side effect, at your app entry:
+
+```ts
+// app entry
+import '@sigx/lynx-heroui/styles';
+```
+
+This single entry (`@sigx/lynx-heroui/styles`) ships the component styles plus the build-time per-theme first-paint classes &mdash; one `.hero-light` / `.hero-dark { --color-*: ... }` class generated from `HERO_BUILTIN_THEMES` by the package's `scripts/gen-theme-css.mjs` at build time.
+
+Theme **colors** live in the registry and are applied by `ThemeProvider` as inheritable CSS variables at runtime; the stylesheet only ships the static first-paint classes so the first frame paints correctly before the runtime variable application runs. Because the `./styles` subpath is CSS-only and does not execute JS, it does **not** seed the registry &mdash; that is the JS root's job.
+
+## The theme engine
+
+`ThemeProvider` is the design-system-neutral theme engine, re-exported from `@sigx/lynx-zero` so a hero app keeps a single import source. Wrap your tree once at the root:
+
+```tsx
+import { ThemeProvider } from '@sigx/lynx-heroui';
+import '@sigx/lynx-heroui/styles';
+
+defineApp(() => () => (
+    <ThemeProvider>
+        <App />
+    </ThemeProvider>
+));
+```
+
+With no props, the provider follows the OS color scheme and live-flips with it. `hero-light` and `hero-dark` are the first registered theme of their variant, so they are the follow-system defaults when hero is the app's design system.
+
+The outermost provider binds the global theme singleton. Its host view defaults to flex-fill long-form so it doesn't collapse between a flex parent and a flex child; override with `class` / `style` if you need a different layout role.
+
+### ThemeProvider props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `initial` | `ThemeName` | Pins the theme and ignores system appearance until `controller.followSystem()` is called. |
+| `light` | `ThemeName` | Theme used while following the system scheme and the OS is light. Defaults to the first registered light theme (`hero-light`). |
+| `dark` | `ThemeName` | Theme used while following the system scheme and the OS is dark. Defaults to the first registered dark theme (`hero-dark`). |
+| `fontScale` | `number` | Initial global text-scale multiplier (`1` = default ramp). Change later via `controller.setFontScale()`. |
+| `class` | `string` | Extra classes appended to the theme class on the host view. |
+| `style` | `Record<string, string \| number>` | Extra inline style on the host view, merged after the flex-fill defaults. |
+
+Pass `initial` to pin a theme; pass `light` + `dark` to follow the OS scheme with a custom pair. The `light` / `dark` themes are only consulted while the provider is following the system scheme. With none of these set, the provider follows the OS scheme using the registered defaults.
+
+```tsx
+// Pin a theme, ignore system appearance.
+<ThemeProvider initial="hero-dark">
+    <App />
+</ThemeProvider>
+
+// Follow the OS scheme with an explicit light/dark pair.
+<ThemeProvider light="hero-light" dark="hero-dark">
+    <App />
+</ThemeProvider>
+```
+
+### Switching the theme at runtime
+
+`useTheme()` resolves to the nearest provider's controller, or the global controller at the app root / in headless code. It never throws. Use it inside components to read and mutate the active theme:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button, useTheme } from '@sigx/lynx-heroui';
+
+export const ThemeToggle = component(() => {
+    const theme = useTheme();
+    return () => (
+        <Button variant="ghost" onPress={() => theme.toggle()}>
+            Toggle theme
+        </Button>
+    );
+});
+```
+
+The controller (`ThemeController`) exposes reactive reads &mdash; `name`, `followingSystem`, `fontScale` &mdash; and the methods `set(name)`, `toggle()`, `followSystem()` and `setFontScale(scale)`. `set()` pins the choice, `toggle()` flips to the paired theme (`hero-light` &harr; `hero-dark`), `followSystem()` resumes OS-scheme following, and `setFontScale()` re-emits the `--text-*` ramp at the default size multiplied by `scale`.
+
+### Headless control
+
+The active theme lives in a module-level singleton, `themeController`, so you can read and set it from anywhere &mdash; a store, a service, app-boot logic, an effect &mdash; without a mounted provider. A mounted root `ThemeProvider` binds this singleton, so headless mutations render and the OS bars follow.
+
+```ts
+import { themeController } from '@sigx/lynx-heroui';
+
+themeController.set('hero-dark');
+themeController.toggle();
+themeController.followSystem();
+themeController.name;            // current selection
+```
+
+Use `themeController` directly when you must always target the app/OS theme regardless of scope; use `useTheme()` when you want the controller for the surrounding content scope.
+
+### System chrome
+
+`StatusBarSync` syncs the native status- and navigation-bar tint to the active theme variant. It is a side-effect-only component (renders nothing); mount it once inside the root provider:
+
+```tsx
+import { ThemeProvider, StatusBarSync } from '@sigx/lynx-heroui';
+
+<ThemeProvider>
+    <StatusBarSync />
+    <App />
+</ThemeProvider>
+```
+
+`StatusBarSync` binds to the **global** controller, so OS chrome always follows the global/screen theme. A nested `ThemeProvider` recolors only its own subtree's content &mdash; the system bars stay on the global theme.
+
+### Scoped sub-overrides
+
+To recolor a region without touching the OS bars, nest a `ThemeProvider`. Its subtree re-themes; the status bar stays on the global theme.
+
+```tsx
+<ThemeProvider initial="hero-light">
+    <App />
+    {/* this card renders the dark palette; the status bar stays light */}
+    <ThemeProvider initial="hero-dark">
+        <PreviewCard />
+    </ThemeProvider>
+</ThemeProvider>
+```
+
+## Built-in themes
+
+Two themes are registered at module load. The `HeroTheme` type gives them autocomplete while still accepting arbitrary strings for custom themes:
+
+| Theme | Variant | Toggle pair |
+|---|---|---|
+| `hero-light` | light | `hero-dark` |
+| `hero-dark` | dark | `hero-light` |
+
+Both ship as full `Theme` objects via `HERO_BUILTIN_THEMES` (palette completed, `*-soft` tints materialized), with `staticCss: true`, `softMix: 0.2`, and the same roundness overrides &mdash; `radius` of `{ selector: '12px', field: '12px', box: '14px' }`, larger than daisy's. `hero-light` and `hero-dark` are the first registered theme of each variant, which makes them the follow-system defaults. `toggle()` flips to a theme's registered pair.
+
+```ts
+import { HERO_BUILTIN_THEMES } from '@sigx/lynx-heroui';
+
+// The two completed Theme objects — useful for rendering a built-in picker.
+HERO_BUILTIN_THEMES.map((t) => t.name); // ['hero-light', 'hero-dark']
+```
+
+The hero palettes map upstream HeroUI semantics onto the shared `ColorToken` contract: `danger`&rarr;`error`, `default`&rarr;`neutral`, `background`/`content2`/`content3`&rarr;`base-100`/`base-200`/`base-300`, `foreground`&rarr;`base-content`. HeroUI's `accent` and `info` have no upstream equivalent, so hero ships its own cyan (`#06b7db`) and blue (`#338ef7`).
+
+## Registering custom themes
+
+Derive a brand theme from a built-in with `extendTheme`, then register it with `registerTheme`. Do this at **module load**, before mounting `ThemeProvider`, so the theme appears in `listThemes()` and `pickThemeFor()`:
+
+```ts
+import { registerTheme, extendTheme } from '@sigx/lynx-heroui';
+
+registerTheme(
+    extendTheme('hero-dark', {
+        name: 'acme-dark',
+        colors: { primary: '#fb7185' },
+    }),
+);
+// Now usable anywhere:
+// themeController.set('acme-dark')
+```
+
+`extendTheme(base, patch)` returns a full `Theme` derived from a registered base, overriding `colors`, `variant`, `pair`, `radius`, `sizes`, or `softMix`. It recomputes the `*-soft` tints the patch didn't set explicitly, and throws if `base` isn't registered. `registerTheme` accepts a theme input (or the `Theme` `extendTheme` returns), completes any omitted `*-soft` tints, and replaces any existing theme of the same name.
+
+You can also register a theme from scratch with a full `ThemeInput` &mdash; a `name`, a `variant`, and a `colors` palette (core tokens required, `*-soft` tints optional and computed from `softMix`, default `0.16`):
+
+```ts
+import { registerTheme } from '@sigx/lynx-heroui';
+
+registerTheme({
+    name: 'acme-light',
+    variant: 'light',
+    pair: 'acme-dark',
+    softMix: 0.2,
+    colors: {
+        'primary': '#006fee', 'primary-content': '#ffffff',
+        'secondary': '#7828c8', 'secondary-content': '#ffffff',
+        'accent': '#06b7db', 'accent-content': '#000000',
+        'neutral': '#d4d4d8', 'neutral-content': '#11181c',
+        'base-100': '#ffffff', 'base-200': '#f4f4f5', 'base-300': '#e4e4e7',
+        'base-content': '#11181c',
+        'info': '#338ef7', 'info-content': '#000000',
+        'success': '#17c964', 'success-content': '#000000',
+        'warning': '#f5a524', 'warning-content': '#000000',
+        'error': '#f31260', 'error-content': '#ffffff',
+    },
+});
+```
+
+Colors must be engine-safe strings &mdash; hex or `rgb()`. Lynx's CSS engine does not parse `oklch()`, so convert before registering.
+
+> For correct **first-paint** of a runtime-registered theme, a design-system build step that emits a `.theme-name { --color-* }` class is needed (the built-ins ship this via `staticCss: true`). Without it, a newly registered theme paints via the variant's static class first, then the runtime variable application swaps in its exact palette post-mount.
+
+### Inspecting the registry
+
+These helpers (all re-exported from the package root) read the registry without mutating it:
+
+```ts
+import {
+    listThemes,
+    pickThemeFor,
+    variantOf,
+    pairOf,
+    colorsOf,
+    radiusOf,
+    sizesOf,
+} from '@sigx/lynx-heroui';
+
+listThemes();              // every registered Theme, in insertion order
+pickThemeFor('dark');      // default theme name for a system scheme — 'hero-dark'
+variantOf('hero-light');   // 'light'
+pairOf('hero-light');      // 'hero-dark'
+colorsOf('hero-dark');     // completed palette (every token, incl. *-soft)
+```
+
+`listThemes()` returns full `Theme` objects (name, variant, completed palette), so a picker can render swatches. `pickThemeFor(scheme)` returns the first registered theme of that variant, falling back to the first registered theme of any variant.
+
+## Roundness and sizing
+
+A theme can override roundness and base sizing through `ThemeRadius` and `ThemeSizes` on the theme input (or via `extendTheme`'s `radius` / `sizes`):
+
+- `ThemeRadius` &mdash; `selector` (small controls: checkbox / toggle / badge), `field` (button / input / select / textarea), `box` (card / modal). Emitted as `--radius-selector` / `--radius-field` / `--radius-box`. Hero's built-ins use `{ selector: '12px', field: '12px', box: '14px' }`.
+- `ThemeSizes` &mdash; `selector` and `field` base size units; component dimensions are integer multiples of these. Emitted as `--size-selector` / `--size-field`.
+
+```ts
+import { registerTheme, extendTheme } from '@sigx/lynx-heroui';
+
+registerTheme(
+    extendTheme('hero-light', {
+        name: 'acme-light',
+        radius: { field: '8px', box: '10px' },
+        sizes: { field: '0.28rem' },
+    }),
+);
+```
+
+## See also
+
+- [Usage](/lynx/modules/heroui/usage) &mdash; wiring the preset, styles and provider together.
+- [API reference](/lynx/modules/heroui/api) &mdash; every export, typed.
+- [Styling on Lynx](/lynx/docs/styling) &mdash; how Tailwind and the CSS pipeline work here.

@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "HeroUI — HeroUI design system"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-heroui` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-heroui
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as HeroUI from '@sigx/lynx-heroui';
+
+console.log(Object.keys(HeroUI));
+```

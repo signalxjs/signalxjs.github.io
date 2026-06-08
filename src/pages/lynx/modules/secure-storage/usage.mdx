@@ -8,16 +8,132 @@ order: 30
 
 # Using Secure Storage
 
-<p class="lede">Encrypted KV storage — the essentials.</p>
+<p class="lede">Encrypted, at-rest key-value storage backed by the iOS Keychain and Android Keystore, with optional per-key biometric gating.</p>
 
 ## Basic usage
 
+`SecureStorage` is the single export — a frozen object of async methods, so you import it once and call its members directly. There is no manual native setup beyond `sigx prebuild`, which auto-links the module and (on Android) injects the `USE_BIOMETRIC` permission for you.
+
+Every operation except `isAvailable` returns a Promise. Values are encrypted before they touch disk, so this is where tokens, refresh secrets and other sensitive strings belong — for plaintext settings use [Storage](/lynx/modules/storage/overview) instead.
+
 ```tsx
-import * as SecureStorage from '@sigx/lynx-secure-storage';
+import { SecureStorage } from '@sigx/lynx-secure-storage';
+
+// Store an encrypted string (overwrites any existing value for the key)
+await SecureStorage.set('refresh_token', refreshToken);
+
+// Read it back — resolves to null when the key is absent
+const token = await SecureStorage.get('refresh_token'); // string | null
+
+// Remove a single key, or wipe everything this module owns
+await SecureStorage.delete('refresh_token');
+await SecureStorage.clear();
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-secure-storage */}
+Keys and values are both strings. `set` throws on an empty/non-string key or a non-string value, so serialize structured data with `JSON.stringify` before storing it. `clear` only deletes keys owned by this module's service identifier — it never touches other apps' Keychain items or other Lynx packages' preferences.
+
+## Gating a key behind biometrics
+
+Pass `requireBiometric: true` to `set` and the OS will demand a biometric check (Face ID / Touch ID / Android `BiometricPrompt`) on every subsequent `get` of that key. The `set` call itself never prompts — only reads do.
+
+When you read a biometric-gated key, supply a `biometricPrompt` so the OS prompt shows meaningful copy. `reason` is required (iOS prompt text and Android subtitle); `title` is Android-only and defaults to `"Authenticate"` (iOS ignores it — the Keychain prompt title is fixed).
+
+```tsx
+import { SecureStorage } from '@sigx/lynx-secure-storage';
+
+// Write — no prompt happens here
+await SecureStorage.set('access_token', accessToken, {
+  requireBiometric: true,
+});
+
+// Read — triggers Face ID / BiometricPrompt before resolving
+try {
+  const accessToken = await SecureStorage.get('access_token', {
+    biometricPrompt: {
+      reason: 'Unlock your account',
+      title: 'Acme Bank', // Android only
+    },
+  });
+  // use accessToken…
+} catch (err) {
+  // The user cancelled or authentication failed — see "Handling errors" below
+}
+```
+
+Reads reject when the user cancels or fails authentication, so always wrap a biometric `get` in `try/catch`. Native error codes are normalized to strings such as `userCancel`, `authenticationFailed` and `biometryLockout` (Android lockout only), and every message is prefixed `[@sigx/lynx-secure-storage]`.
+
+Android note: a biometric `get` needs a foreground activity to host the prompt and requires a strong (Class 3) biometric sensor enrolled. If no biometric hardware is available or none is enrolled, the read rejects with a clean error rather than silently downgrading.
+
+## Access + refresh token recipe
+
+A common pattern pairs a silently-readable refresh token with a biometric-gated access token. Store the long-lived refresh token without `requireBiometric` so you can read it on cold start, and gate the short-lived access token so each use is confirmed.
+
+```tsx
+import { SecureStorage } from '@sigx/lynx-secure-storage';
+
+async function persistSession(accessToken: string, refreshToken: string) {
+  await SecureStorage.set('refresh_token', refreshToken);
+  await SecureStorage.set('access_token', accessToken, {
+    requireBiometric: true,
+  });
+}
+
+async function logout() {
+  await SecureStorage.delete('access_token');
+  await SecureStorage.delete('refresh_token');
+}
+
+// On cold start, check presence without prompting
+async function hasSession(): Promise<boolean> {
+  return SecureStorage.hasKey('refresh_token');
+}
+```
+
+`hasKey` checks for a key without decrypting it, so it never triggers a biometric prompt and is safe to call on every render. It returns `false` for an empty key without calling native, and only rejects on infrastructure failure.
+
+## Handling errors and key invalidation
+
+Both platforms invalidate a biometric-gated key when the user adds or removes a biometric enrollment. The encrypted blob stays on disk but `get` rejects — the right response is to delete the key and route the user back to sign-in. On Android the error message matches `/may be invalidated|KeyPermanentlyInvalidated/i`; on iOS, treat a repeated `authenticationFailed` the same way (iOS cannot yet distinguish a genuine mismatch from a changed biometric set).
+
+```tsx
+import { SecureStorage } from '@sigx/lynx-secure-storage';
+
+async function readAccessToken(): Promise<string | null> {
+  try {
+    return await SecureStorage.get('access_token', {
+      biometricPrompt: { reason: 'Unlock your account' },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/may be invalidated|KeyPermanentlyInvalidated/i.test(message)) {
+      // Biometrics changed — the key is gone. Clean up and re-authenticate.
+      await SecureStorage.delete('access_token');
+      return null;
+    }
+    throw err; // userCancel, authenticationFailed, etc. — let the caller decide
+  }
+}
+```
+
+## Guarding for availability
+
+`isAvailable` reports whether the native module is wired into the current build. It is the only synchronous method (no Promise, no native round-trip), so use it to fail gracefully where the module was not linked.
+
+```tsx
+import { SecureStorage } from '@sigx/lynx-secure-storage';
+
+if (SecureStorage.isAvailable()) {
+  await SecureStorage.set('refresh_token', refreshToken);
+}
+```
 
 ## Notes
 
-Keychain / Keystore-backed KV with optional per-key biometric gating.
+- **Backups.** iOS items are stored with `ThisDeviceOnly` accessibility, so nothing appears in iCloud or encrypted iTunes backups. On Android the encrypted preference files are in Auto Backup by default, but the master key is device-bound — a restored blob is unreadable. Exclude `sigx_secure_storage_v1.xml` and `sigx_secure_storage_biometric_v1.xml` from backup via your data-extraction rules.
+- **Namespacing.** All items live under a per-app service identifier, so `clear` is scoped to this module alone.
+
+## See also
+
+- [API reference](/lynx/modules/secure-storage/api) — every method and type with its full signature.
+- [Storage](/lynx/modules/storage/overview) — plaintext settings that do not need encryption.
+- [Biometric](/lynx/modules/biometric/overview) — an app-wide unlock gate, versus the per-key gating here.

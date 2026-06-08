@@ -1,0 +1,94 @@
+---
+title: Badge
+description: "Badge — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Feedback"]
+order: 141
+---
+
+# Badge
+
+<p class="lede">Small inline label for counts, statuses, and tags, rendered as a native daisyUI badge view.</p>
+
+## Import
+
+```tsx
+import { Badge } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+Badge renders its children inside a `view` styled with the `badge` class. All props are optional; `color` and `variant` compose (for example `color="primary" variant="outline"` produces `badge-primary badge-outline`).
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'neutral' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Semantic color of the badge |
+| `variant` | `'outline' \| 'ghost'` | - | Fill style; composes with `color` |
+| `size` | `'xs' \| 'sm' \| 'md' \| 'lg'` | - | Badge size |
+| `class` | `string` | - | Additional CSS classes |
+| children (default slot) | `slot` | - | Badge content (text or nested elements) |
+
+`color` is the contract's shared `ColorVariant`, exported as the `BadgeColor` type. The `variant` and `size` unions are exported as `BadgeVariant` and `BadgeSize`.
+
+## Basic Usage
+
+A badge wraps any inline content. With no props it uses the base `badge` style:
+
+```tsx
+import { Badge, Row } from '@sigx/lynx-daisyui';
+
+export function Tags() {
+  return (
+    <Row gap="2">
+      <Badge>Default</Badge>
+      <Badge color="primary">New</Badge>
+      <Badge color="success">Active</Badge>
+      <Badge color="error">Error</Badge>
+    </Row>
+  );
+}
+```
+
+## Colors and Variants
+
+`color` sets the semantic palette, and `variant` switches between solid (default), `outline`, and `ghost` fills. They compose freely:
+
+```tsx
+import { Badge, Col, Row } from '@sigx/lynx-daisyui';
+
+export function Variants() {
+  return (
+    <Col gap="3">
+      <Row gap="2">
+        <Badge color="primary">Solid</Badge>
+        <Badge color="primary" variant="outline">Outline</Badge>
+        <Badge color="primary" variant="ghost">Ghost</Badge>
+      </Row>
+      <Row gap="2">
+        <Badge color="info">Info</Badge>
+        <Badge color="warning">Warning</Badge>
+        <Badge color="error" variant="outline">Error</Badge>
+      </Row>
+    </Col>
+  );
+}
+```
+
+## Sizes
+
+Use `size` to scale the badge from `xs` to `lg`:
+
+```tsx
+import { Badge, Row } from '@sigx/lynx-daisyui';
+
+export function Sizes() {
+  return (
+    <Row gap="2" align="center">
+      <Badge size="xs" color="primary">xs</Badge>
+      <Badge size="sm" color="primary">sm</Badge>
+      <Badge size="md" color="primary">md</Badge>
+      <Badge size="lg" color="primary">lg</Badge>
+    </Row>
+  );
+}
+```

@@ -8,10 +8,81 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-clipboard` v0.4.1.</p>
+<p class="lede">Exports of `@sigx/lynx-clipboard` v0.4.9.</p>
 
-## Exports
+The package has a single named export: the frozen `Clipboard` object. There is no default export and no exported types or interfaces. Every method works on both iOS and Android.
 
-{/* TODO: document the public API of @sigx/lynx-clipboard */}
+```ts
+import { Clipboard } from '@sigx/lynx-clipboard';
+```
 
-See the package source for the complete typed surface.
+## Objects
+
+### `Clipboard`
+
+A singleton object providing system clipboard access — `UIPasteboard` on iOS, `ClipboardManager` on Android. It is frozen (`as const`); its methods are documented individually below.
+
+```ts
+const Clipboard: {
+    readonly setString: (text: string) => void;
+    readonly getString: () => Promise<string>;
+    readonly hasString: () => Promise<boolean>;
+    readonly isAvailable: () => boolean;
+};
+```
+
+**Platform:** iOS, Android.
+
+## Functions
+
+### `Clipboard.setString`
+
+Synchronously writes a string to the system clipboard.
+
+```ts
+setString(text: string): void
+```
+
+**Parameters**
+
+- `text` — the string to place on the clipboard. `null` or `undefined` is coerced to an empty string natively.
+
+**Returns:** `void`. The call crosses the bridge synchronously (`callSync`) and returns immediately.
+
+**Platform:** iOS, Android. On Android the clip is labelled `sigx-lynx-go`.
+
+### `Clipboard.getString`
+
+Asynchronously reads the clipboard's current string.
+
+```ts
+getString(): Promise<string>
+```
+
+**Returns:** a promise resolving to the clipboard's string contents, or `""` when the clipboard is empty. It never rejects on an empty clipboard.
+
+**Platform:** iOS, Android. On iOS 14 and later, reading the clipboard triggers the system "Pasted from &lt;App&gt;" toast — call this only on explicit user intent, never on a poll.
+
+### `Clipboard.hasString`
+
+Asynchronously reports whether the clipboard currently contains a string.
+
+```ts
+hasString(): Promise<boolean>
+```
+
+**Returns:** a promise resolving to `true` if the clipboard holds a string, `false` otherwise. Reports presence without exposing the contents.
+
+**Platform:** iOS (`UIPasteboard.hasStrings`); Android (`hasPrimaryClip` plus a `text/*` MIME-type check).
+
+### `Clipboard.isAvailable`
+
+Synchronously reports whether the native Clipboard module is linked into the current build.
+
+```ts
+isAvailable(): boolean
+```
+
+**Returns:** `true` if the native module is registered and callable, `false` if it has not been linked (run `sigx prebuild` and rebuild). Delegates to `isModuleAvailable` from `@sigx/lynx-core`.
+
+**Platform:** iOS, Android.

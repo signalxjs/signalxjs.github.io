@@ -8,16 +8,70 @@ order: 30
 
 # Using Share
 
-<p class="lede">Native share sheet — the essentials.</p>
+<p class="lede">Open the OS share sheet to hand text and links off to other apps — one synchronous call, no permissions, native setup wired up for you.</p>
 
 ## Basic usage
 
+Import the `Share` object and call `share` with whatever you want to send. The call opens the native sheet immediately and returns right away.
+
 ```tsx
-import * as Share from '@sigx/lynx-share';
+import { Share } from '@sigx/lynx-share';
+
+Share.share({
+    title: 'Check this out',
+    message: 'Built with sigx-lynx!',
+    url: 'https://sigx.dev',
+});
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-share */}
+All three fields are optional. As long as `message` or `url` is set, the sheet appears; if both are empty the call does nothing.
+
+No permissions are required on either platform. After installing, run `sigx prebuild` once to auto-link the native module — see [Installation](/lynx/modules/share/installation).
+
+## Sharing a link
+
+Pass a `url` to share a web address. On iOS the URL is added as an activity item; on Android it is concatenated with any `message` into the share text.
+
+```tsx
+import { Share } from '@sigx/lynx-share';
+
+function shareLink(href: string) {
+    Share.share({
+        title: 'A link for you',
+        message: 'Thought you might like this',
+        url: href,
+    });
+}
+```
+
+`url` is treated as a plain web URL string. Local file URIs are not supported — `Share` shares text and links only.
+
+## Sharing plain text
+
+You do not need a URL. A `message` on its own is enough to invoke the sheet.
+
+```tsx
+import { Share } from '@sigx/lynx-share';
+
+Share.share({ message: 'Hello from my app!' });
+```
+
+`title` maps to the iOS subject and the Android `EXTRA_SUBJECT` (which also becomes the Android chooser title, defaulting to "Share"). On iOS the title alone is not shareable content — include `message` or `url` so there is something to send.
+
+## Guarding for availability
+
+`isAvailable` reports whether the native Share module is registered in the current build. Use it to gate the call when a build might not include the module.
+
+```tsx
+import { Share } from '@sigx/lynx-share';
+
+if (Share.isAvailable()) {
+    Share.share({ message: 'Hello!', url: 'https://sigx.dev' });
+}
+```
 
 ## Notes
 
-UIActivityViewController / Intent.ACTION_SEND share sheet.
+- `share` is synchronous and fire-and-forget. There is no completion callback, so you cannot tell whether the user actually shared or dismissed the sheet.
+- Works on both iOS (`UIActivityViewController`) and Android (`Intent.ACTION_SEND`). On iPad the popover is centered on screen.
+- See the full surface in the [API reference](/lynx/modules/share/api).

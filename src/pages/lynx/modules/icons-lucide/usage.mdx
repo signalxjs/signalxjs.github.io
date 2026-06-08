@@ -8,16 +8,93 @@ order: 30
 
 # Using Lucide Icons
 
-<p class="lede">Lucide adapter — the essentials.</p>
+<p class="lede">Render Lucide glyphs in your Lynx app — either through the generic <code>Icon</code> with <code>set="lucide"</code>, or the pinned <code>LucideIcon</code> component.</p>
+
+`@sigx/lynx-icons-lucide` is a pure-TypeScript adapter for [@sigx/lynx-icons](/lynx/modules/icons/overview). It ships no native code and needs no permissions. Lucide is distributed as SVG only, so this adapter renders in SVG mode — there is no font fallback.
+
+## Install
+
+Install the adapter alongside its peer dependencies. All three are required.
+
+```bash
+pnpm add @sigx/lynx-icons @sigx/lynx-icons-lucide lucide
+```
+
+## Register the icon set
+
+Register Lucide as an icon set in your project config (`signalx.config.ts`) so the build pipeline can resolve and bundle the glyphs you reference.
+
+```ts
+import { defineLynxConfig } from '@sigx/lynx-cli/config';
+
+export default defineLynxConfig({
+    iconSets: [
+        { id: 'lucide', source: '@sigx/lynx-icons-lucide' },
+    ],
+});
+```
 
 ## Basic usage
 
+With the set registered, render any Lucide glyph with the generic `Icon` component. Names are kebab-case (for example `chevron-right`, `a-arrow-down`).
+
 ```tsx
-import * as LucideIcons from '@sigx/lynx-icons-lucide';
+import { Icon } from '@sigx/lynx-icons';
+
+export function Toolbar() {
+    return (
+        <>
+            <Icon set="lucide" name="search" />
+            <Icon set="lucide" name="chevron-right" size={20} color="#0D9488" />
+            <Icon set="lucide" name="bell" size={24} />
+        </>
+    );
+}
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-icons-lucide */}
+## Pin the set with LucideIcon
+
+If you only ever use Lucide, import the pinned `LucideIcon` component from the `/components` subpath. It renders `<Icon set="lucide" .../>` for you, so callers supply just a `name` (plus optional `size`, `color`, `class`). The set cannot be overridden.
+
+```tsx
+import { LucideIcon } from '@sigx/lynx-icons-lucide/components';
+
+export function Toolbar() {
+    return (
+        <>
+            <LucideIcon name="search" />
+            <LucideIcon name="bell" size={24} color="#0D9488" />
+        </>
+    );
+}
+```
+
+`name` is required; `size`, `color`, and `class` are optional. Themes (such as DaisyUI) can augment the props via declaration merging — for example adding a `variant` prop — and `LucideIcon` accepts those extra props transparently.
+
+## Bundling JSON-driven icons
+
+The build normally bundles only the glyph names it can find by statically scanning your source. When icon names come from data at runtime (for example a JSON-driven menu) the scanner cannot see them. In that case set `include: ['*']` on the icon set to bundle the entire Lucide catalog (~1500 glyphs).
+
+```ts
+import { defineLynxConfig } from '@sigx/lynx-cli/config';
+
+export default defineLynxConfig({
+    iconSets: [
+        { id: 'lucide', source: '@sigx/lynx-icons-lucide', include: ['*'] },
+    ],
+});
+```
+
+Use the wildcard only when names are not statically scannable — bundling the full catalog adds significant size.
 
 ## Notes
 
-Lucide adapter for @sigx/lynx-icons (SVG-mode only).
+- SVG mode only. Lucide ships no font, so only SVG mode is emitted. Build-time validation that rejects `mode: 'font'` for this set arrives in v1.1.
+- Glyphs are stroked, not filled. The adapter renders each glyph with a `viewBox="0 0 24 24"`, `fill="none"`, and a stroke that the `@sigx/lynx-icons` pipeline colors — so `color` controls the stroke.
+- Unknown names. If a name is not in the Lucide catalog, the adapter resolves nothing for that glyph; double-check the kebab-case spelling against the [Lucide catalog](https://lucide.dev/icons).
+- No native setup. This is a pure-TS adapter — no iOS/Android project changes and no permissions required.
+
+## See also
+
+- [@sigx/lynx-icons](/lynx/modules/icons/overview) — the generic `Icon` component and adapter contract.
+- [API reference](/lynx/modules/icons-lucide/api) — every export of this package.

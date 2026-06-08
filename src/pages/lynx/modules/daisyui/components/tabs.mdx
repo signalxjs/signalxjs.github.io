@@ -1,0 +1,120 @@
+---
+title: Tabs
+description: "Tabs — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Navigation"]
+order: 139
+---
+
+# Tabs
+
+<p class="lede">A daisyUI-styled tab strip for native Lynx: a container drives which tab is active and reports presses through a single callback.</p>
+
+## Import
+
+```tsx
+import { Tabs } from '@sigx/lynx-daisyui';
+```
+
+`Tabs` is a compound component. The container is `Tabs` and each tab is `Tabs.Tab`.
+
+## Basic Usage
+
+The container takes the active value via `activeTab` and reports presses through `onChange`. Each `Tabs.Tab` declares its `value` and renders its text with the `label` prop. Wire `onChange` back to a signal for two-way selection.
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Tabs } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ tab: 'home' });
+
+    return () => (
+        <Tabs activeTab={state.tab} onChange={(value) => (state.tab = value)}>
+            <Tabs.Tab value="home" label="Home" />
+            <Tabs.Tab value="profile" label="Profile" />
+            <Tabs.Tab value="settings" label="Settings" />
+        </Tabs>
+    );
+});
+
+render(<Demo />);
+```
+
+## Custom Tab Content
+
+A tab can render arbitrary children instead of (or in addition to) `label`. The default slot is placed before the `label` text, so you can compose icons, badges, or styled markup inside a tab.
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Tabs, Badge } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ tab: 'inbox' });
+
+    return () => (
+        <Tabs activeTab={state.tab} onChange={(value) => (state.tab = value)}>
+            <Tabs.Tab value="inbox">
+                <text>Inbox</text>
+                <Badge color="primary">3</Badge>
+            </Tabs.Tab>
+            <Tabs.Tab value="archive" label="Archive" />
+        </Tabs>
+    );
+});
+
+render(<Demo />);
+```
+
+## Per-Tab Overrides
+
+A `Tabs.Tab` can opt out of container-driven selection. Setting `active` explicitly wins over the container's `activeTab`, and `onPress` fires in addition to the container's `onChange` (useful for side effects on a specific tab).
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Tabs } from '@sigx/lynx-daisyui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ tab: 'all' });
+
+    return () => (
+        <Tabs activeTab={state.tab} onChange={(value) => (state.tab = value)}>
+            <Tabs.Tab value="all" label="All" />
+            <Tabs.Tab value="unread" label="Unread" />
+            {/* Always rendered active, regardless of activeTab */}
+            <Tabs.Tab
+                value="pinned"
+                label="Pinned"
+                active
+                onPress={() => console.log('Pinned tab pressed')}
+            />
+        </Tabs>
+    );
+});
+
+render(<Demo />);
+```
+
+## Tabs Props
+
+The container provides selection to its tabs. It applies the daisyUI `tabs` class.
+
+| Prop | Type | Required | Description |
+|------|------|----------|-------------|
+| `activeTab` | `string` | No | The `value` of the currently selected tab. Tabs derive their active state from this. |
+| `onChange` | `(value: string) => void` | No | Fired with a tab's `value` when that tab is pressed. |
+| `class` | `string` | No | Additional CSS classes appended to the `tabs` container class. |
+| `children` (default slot) | — | No | The `Tabs.Tab` elements. |
+
+## Tabs.Tab Props
+
+Each tab renders as a pressable element with the daisyUI `tab` class, gaining `tab-active` when active.
+
+| Prop | Type | Required | Description |
+|------|------|----------|-------------|
+| `value` | `string` | Yes | The identifier reported to the container's `onChange` and matched against `activeTab`. |
+| `active` | `boolean` | No | Explicit active override. When set, it wins over the container's `activeTab`. |
+| `label` | `string` | No | Text rendered inside the tab. |
+| `onPress` | `() => void` | No | Fired when the tab is pressed, in addition to the container's `onChange`. |
+| `class` | `string` | No | Additional CSS classes appended to the `tab` class. |
+| `children` (default slot) | — | No | Custom tab content, rendered before the `label` text. |

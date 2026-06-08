@@ -8,16 +8,214 @@ order: 30
 
 # Using Navigation
 
-<p class="lede">Type-first native navigator — the essentials.</p>
+<p class="lede">Define typed routes once, then push, pop and deep-link with full param inference — Stack, Tabs, Drawer, modals and persistence on iOS and Android.</p>
 
 ## Basic usage
 
+Navigation is type-first: you describe your routes with `defineRoutes`, augment the package's `Register` interface so every hook and component infers route names and params globally, then mount a `NavigationRoot` with a `Stack` inside it.
+
+Params and search are validated with any [Standard Schema](https://standardschema.dev) validator (zod, valibot, arktype). Routes that declare a `params` schema require params at the call site; routes without one forbid them.
+
 ```tsx
-import * as Navigation from '@sigx/lynx-navigation';
+import { z } from 'zod';
+import {
+    defineRoutes,
+    NavigationRoot,
+    Stack,
+    Header,
+} from '@sigx/lynx-navigation';
+import { Home } from './screens/Home';
+import { Profile } from './screens/Profile';
+
+export const routes = defineRoutes({
+    home: { component: Home },
+    profile: {
+        component: Profile,
+        params: z.object({ id: z.string() }),
+        search: z.object({ tab: z.string().optional() }),
+        path: '/users/:id',
+    },
+});
+
+// Drives ALL global type inference for useNav / useParams / <Link>.
+declare module '@sigx/lynx-navigation' {
+    interface Register {
+        routes: typeof routes;
+    }
+}
+
+export const App = () => (
+    <NavigationRoot routes={routes} initialRoute="home">
+        <Stack>
+            <Header />
+        </Stack>
+    </NavigationRoot>
+);
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-navigation */}
+`NavigationRoot` creates an isolated navigator and provides it to the subtree. `initialRoute` defaults to the first route key and throws if it is not in `routes`. The `default` slot of `Stack` is chrome rendered inside the stack's nav scope — drop a `<Header />` there for the headless default header bar.
 
-## Notes
+## Navigating between screens
 
-Stack, Tabs, Drawer, modals, lazy routes and deep links.
+Read and mutate the navigator with `useNav`. Read getters (`current`, `stack`, `canGoBack`) are reactive; mutators (`push`, `replace`, `pop`, …) commit immediately. `useParams` and `useSearch` read the current screen's typed values — pass the route name as a compile-time discriminator (a wrong name is a TS error).
+
+```tsx
+import { useNav, useParams, useSearch } from '@sigx/lynx-navigation';
+
+export const Profile = () => {
+    const nav = useNav();
+    const { id } = useParams('profile');
+    const { tab } = useSearch('profile');
+
+    return (
+        <view>
+            <text>User {id} — tab {tab ?? 'overview'}</text>
+
+            {/* push requires params because `profile` declares a schema */}
+            <text bindtap={() => nav.push('profile', { id: 'bob' }, { tab: 'posts' })}>
+                Open Bob
+            </text>
+
+            {/* params are forbidden for routes without a schema */}
+            <text bindtap={() => nav.replace('home')}>Go home</text>
+
+            {nav.canGoBack ? <text bindtap={() => nav.pop()}>Back</text> : null}
+        </view>
+    );
+};
+```
+
+`useParams` / `useSearch` are snapshots taken at setup — screens remount on navigation, so there is no stale-value problem. For declarative navigation use `<Link>`, the JSX flavor of `nav.push`:
+
+```tsx
+import { Link } from '@sigx/lynx-navigation';
+
+<Link to="profile" params={{ id: 'alice' }} search={{ tab: 'about' }}>
+    Open Alice
+</Link>;
+
+<Link to="home" replace>Reset</Link>;
+```
+
+## Tabs with per-tab stacks
+
+`Tabs` keeps every tab body mounted (inactive ones are `display:none`), so per-tab state survives switching. Put a `<Stack initialRoute="…">` inside each `<Tabs.Screen>` to give that tab its own back-stack. `card` pushes stay inside the tab (the tab bar stays visible); `modal` / `fullScreen` / `transparent-modal` / `sheet` pushes escalate up to the root navigator and overlay everything. `nav.replace` is always local.
+
+```tsx
+import { Tabs, TabBar, Stack } from '@sigx/lynx-navigation';
+
+export const Main = () => (
+    <Tabs initialTab="trips">
+        <Tabs.Screen name="trips" label="Trips">
+            <Stack initialRoute="tripsHome">
+                <Header />
+            </Stack>
+        </Tabs.Screen>
+        <Tabs.Screen name="account" label="Account">
+            <Stack initialRoute="accountHome">
+                <Header />
+            </Stack>
+        </Tabs.Screen>
+        <TabBar />
+    </Tabs>
+);
+```
+
+Inside a tab, `nav.push('tripDetail', { tripId })` (a `card` route) stays in the trips stack, while `nav.push('newTrip', undefined, { presentation: 'modal' })` escalates to root and covers the tab bar. Read the active tab with `useTabs()` (`active`, `setActive(name)`, `tabs`); `setActive` ignores unknown names.
+
+`TabBar` is headless and unstyled with accessibility wiring built in — pass `renderTab` to override per-item rendering, or use `NavTabBar` from [DaisyUI](/lynx/modules/daisyui/overview) for a themed bar.
+
+## Per-screen options and custom headers
+
+Configure a screen declaratively with `<Screen>` and its compound sub-slots, or imperatively with `useScreenOptions`. `<Screen>` must mount inside a route component rendered by a `Stack`; it only patches the keys you pass.
+
+```tsx
+import { Screen, useScreenOptions } from '@sigx/lynx-navigation';
+
+export const EditPost = () => {
+    const { id } = useParams('editPost');
+
+    // Tracked: re-merges whenever a read signal changes.
+    useScreenOptions(() => ({ title: `Post ${id}` }));
+
+    return (
+        <Screen headerShown>
+            <Screen.HeaderRight>
+                <text bindtap={save}>Save</text>
+            </Screen.HeaderRight>
+            <view>{/* body */}</view>
+        </Screen>
+    );
+};
+```
+
+To build your own header bar, read `useScreenChrome()` — the same reactive data source the default `Header` uses (`title`, `headerShown`, `canGoBack`, `pop()`, plus the `header` / `headerLeft` / `headerRight` slot fills). Every property is a getter.
+
+`useIsFocused()` returns a reactive `Computed<boolean>` (read `.value`) that is true only while the screen is the visible top of its navigator and every ancestor is focused. Use `useFocusEffect` for work that should run while visible — its cleanup runs on blur or unmount, and it re-runs on each focus return:
+
+```tsx
+import { useFocusEffect } from '@sigx/lynx-navigation';
+
+useFocusEffect(() => {
+    const sub = analytics.startScreenTimer('profile');
+    return () => sub.stop();
+});
+```
+
+## Deep links and persistence
+
+Only routes with a `path` template are reachable from URLs. `hrefFor` builds a typed, validated `Href` (it throws on validation failure); `parseHref` resolves a URL string against your registered paths, returning `null` when nothing matches.
+
+```tsx
+import { hrefFor, parseHref } from '@sigx/lynx-navigation';
+
+hrefFor('profile', { id: 'alice' }, { tab: 'posts' }).url;
+// → '/users/alice?tab=posts'
+
+parseHref('/users/bob?tab=about');
+// → { route: 'profile', params: { id: 'bob' }, search: { tab: 'about' }, url: '/users/bob?tab=about' }
+```
+
+To wire real cold-start and runtime links into the navigator, call `useLinkingNav` once inside the `NavigationRoot` subtree. It bridges [`@sigx/lynx-linking`](/lynx/modules/linking/overview) URL events through `parseHref`:
+
+```tsx
+import { useLinkingNav } from '@sigx/lynx-navigation';
+
+useLinkingNav({
+    prefixes: ['myapp://', 'https://myapp.com'],
+    onUnmatched: (url) => console.warn('No route for', url),
+});
+```
+
+Persist the root stack across launches with `useNavSerializer` and a `NavStorageAdapter`. On mount it loads, validates (version, shape, unknown routes) and applies via `nav.reset()`; it then saves debounced (default 250 ms) on every stack change. Only the root navigator is persisted in v1.
+
+```tsx
+import { useNavSerializer } from '@sigx/lynx-navigation';
+
+useNavSerializer({
+    storage: {
+        async load() {
+            /* return a NavSnapshot | null */
+        },
+        async save(snapshot) {
+            /* persist snapshot */
+        },
+    },
+    onRestoreError: (reason) => console.warn('Restore failed:', reason),
+});
+```
+
+`onRestoreError` reports `'version'`, `'shape'`, `'unknown-route'` or `'load-threw'` so you can fall back to a clean initial stack.
+
+## Platform notes
+
+- **Android hardware back** — `NavigationRoot` auto-wires the system back button by default. Only call `useHardwareBack()` yourself if you set `hardwareBack={false}`. It is a no-op on iOS and in non-native runtimes (web / SSR / test).
+- **iOS edge-swipe** — surfaced via `NavigationRoot`'s `edgeSwipeEnabled` (default `true`).
+- **Peer dependencies** — `@sigx/lynx`, `@sigx/lynx-icons` and `@sigx/lynx-motion` are required. `@sigx/lynx-linking` is needed only for `useHardwareBack` / `useLinkingNav`.
+- **Testing** — pass `animated={false}` on `NavigationRoot` so navigations commit synchronously (test runtimes have no main-thread worklet runtime, so slide transitions never complete). Then `act(() => nav.push(...))` re-renders immediately.
+
+## See also
+
+- [Overview](/lynx/modules/navigation/overview) — what Navigation is and how it fits the family.
+- [API reference](/lynx/modules/navigation/api) — every export, signature and type.
+- [DaisyUI](/lynx/modules/daisyui/overview) — themed `NavHeader` / `NavTabBar` built on `useScreenChrome`.

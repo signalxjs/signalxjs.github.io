@@ -1,0 +1,147 @@
+---
+title: Language packs and IntelliSense
+description: "Register TS/JSX, HTML, CSS, and JSON language packs, themes, and extra type defs with configureMonaco"
+layout: docs
+category: Guides
+order: 30
+---
+
+# Language packs and IntelliSense
+
+A `LanguagePack` is a pluggable language registration: it declares a language id, optional file extensions, an optional worker mapping (`workerLabel` + `workerUrl`), and an optional `setup()` that runs once after Monaco loads. `@sigx/monaco-editor` ships four packs out of the box.
+
+## Registering packs
+
+Register the packs you need once at module load with `configureMonaco()`, before the first editor mounts. The registration accumulates across calls; if Monaco is already loaded, the new setup is applied to the live instance immediately.
+
+```tsx
+import {
+    configureMonaco,
+    typescriptLanguagePack,
+    htmlLanguagePack,
+    cssLanguagePack,
+    jsonLanguagePack,
+} from '@sigx/monaco-editor';
+
+configureMonaco({
+    languages: [
+        typescriptLanguagePack({ jsxImportSource: 'sigx' }),
+        htmlLanguagePack(),
+        cssLanguagePack(),
+        jsonLanguagePack(),
+    ],
+});
+```
+
+You can also import individual packs from their subpaths if you prefer narrower imports:
+
+```tsx
+import { typescriptLanguagePack } from '@sigx/monaco-editor/languages/typescript';
+import { htmlLanguagePack } from '@sigx/monaco-editor/languages/html';
+import { cssLanguagePack } from '@sigx/monaco-editor/languages/css';
+import { jsonLanguagePack } from '@sigx/monaco-editor/languages/json';
+```
+
+## TypeScript and JSX
+
+`typescriptLanguagePack()` registers four language ids — `typescript`, `javascript`, `tsx`, and `jsx` — and configures Monaco's TS/JS compiler and diagnostics defaults (ESNext target/module, ReactJSX, `allowJs`, `noEmit`, NodeJs resolution, and more). It also registers completion and hover providers for the `tsx`/`jsx` ids so IntelliSense keeps working even when Shiki provides highlighting.
+
+For SignalX apps, set `jsxImportSource` to `'sigx'` (it defaults to `'react'`):
+
+```tsx
+import { configureMonaco, typescriptLanguagePack } from '@sigx/monaco-editor';
+
+configureMonaco({
+    languages: [
+        typescriptLanguagePack({
+            jsxImportSource: 'sigx',
+            compilerOptions: { strict: true },
+            diagnosticsOptions: { noSemanticValidation: false },
+        }),
+    ],
+});
+```
+
+Pass `skipJsxProviders: true` if you do not want the tsx/jsx completion and hover providers (for example when another integration owns them).
+
+## HTML, CSS, and JSON
+
+`htmlLanguagePack()` and `cssLanguagePack()` take no options — Monaco ships the HTML language (handlebars/razor reuse the HTML worker) and a single CSS worker handles CSS/SCSS/LESS.
+
+`jsonLanguagePack()` accepts schema and validation options that are passed to Monaco's JSON service:
+
+```tsx
+import { configureMonaco, jsonLanguagePack } from '@sigx/monaco-editor';
+
+configureMonaco({
+    languages: [
+        jsonLanguagePack({
+            validate: true,
+            enableSchemaRequest: true,
+            schemas: [
+                {
+                    uri: 'https://example.com/config.schema.json',
+                    fileMatch: ['*'],
+                    schema: { type: 'object', properties: { name: { type: 'string' } } },
+                },
+            ],
+        }),
+    ],
+});
+```
+
+## Themes and extra type definitions
+
+`configureMonaco()` also accepts `themes` (defined via `monaco.editor.defineTheme`) and `extraLibs` (`.d.ts` content injected into the TS service). Like languages, they accumulate and apply to the live instance if Monaco is already loaded.
+
+```tsx
+import { configureMonaco } from '@sigx/monaco-editor';
+
+configureMonaco({
+    themes: [
+        {
+            name: 'my-theme',
+            data: {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [],
+                colors: { 'editor.background': '#0b0f17' },
+            },
+        },
+    ],
+    extraLibs: [
+        {
+            content: 'declare const APP_VERSION: string;',
+            filePath: 'file:///globals.d.ts',
+        },
+    ],
+});
+```
+
+Reference the theme by name through the `theme` prop on `<MonacoEditor />` (or the `theme` option on `createEditor()`). Note that the component applies the theme globally via `monaco.editor.setTheme`, so the theme affects every editor on the page.
+
+## Custom workers
+
+The prebundled loader installs a default worker map (typescript/javascript -> `ts.worker.min.js`, css/scss/less -> `css.worker.min.js`, html/handlebars/razor -> `html.worker.min.js`, json -> `json.worker.min.js`, fallback -> `editor.worker.min.js`). The plugin's `languages` option is informational only. To add a worker beyond the fixed prebundled set, register a `LanguagePack` with both `workerLabel` and `workerUrl`, which override entries in that map:
+
+```tsx
+import { configureMonaco } from '@sigx/monaco-editor';
+import type { LanguagePack } from '@sigx/monaco-editor';
+
+const myPack: LanguagePack = {
+    id: 'my-lang',
+    extensions: ['.mylang'],
+    workerLabel: 'my-lang',
+    workerUrl: '/workers/my-lang.worker.js',
+    setup(monaco) {
+        monaco.languages.register({ id: 'my-lang' });
+    },
+};
+
+configureMonaco({ languages: [myPack] });
+```
+
+## Next steps
+
+- [Imperative editors and Shiki highlighting](/monaco/docs/imperative-and-shiki)
+- [API Reference](/monaco/docs/api)

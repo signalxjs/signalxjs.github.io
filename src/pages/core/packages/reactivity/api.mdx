@@ -10,8 +10,355 @@ order: 40
 
 <p class="lede">Exports of `@sigx/reactivity` v0.4.9.</p>
 
-## Exports
+All examples assume a named import from the package root:
 
-{/* TODO: document the public API of @sigx/reactivity */}
+```ts
+import { signal, computed, effect } from '@sigx/reactivity';
+```
 
-See the package source for the complete typed surface.
+## Functions
+
+### signal
+
+Create a reactive signal. Primitives are wrapped in a `{ value }` box accessed via `.value`; objects and arrays become deeply reactive proxies you mutate directly, plus a `$set` method to replace the whole value.
+
+```ts
+export function signal<T extends Primitive>(target: T): PrimitiveSignal<T>;
+export function signal<T extends object>(target: T): Signal<T>;
+```
+
+- `target` — the initial value. A `Primitive` returns a `PrimitiveSignal<T>`; an `object` returns a `Signal<T>` (deep reactive proxy).
+- Returns a `PrimitiveSignal<T>` or `Signal<T>` depending on the input.
+
+`signal` is idempotent: passing an already-reactive proxy (or a raw object that already has a proxy) returns the existing proxy. Exotic built-ins such as `Date` and `RegExp` are returned unwrapped and are not reactive.
+
+### computed
+
+Create a lazy, cached, reactive derived value. Pass a getter for a read-only `Computed<T>`, or a `{ get, set }` options object for a `WritableComputed<T>`.
+
+```ts
+export function computed<T>(getter: ComputedGetter<T>): Computed<T>;
+export function computed<T>(options: WritableComputedOptions<T>): WritableComputed<T>;
+```
+
+- `getter` — a function returning the derived value; produces a read-only `Computed<T>`.
+- `options` — a `WritableComputedOptions<T>` (`{ get, set }`); produces a `WritableComputed<T>`.
+- Returns a computed signal read (and, when writable, written) via `.value`.
+
+Recomputes only on access after a dependency changed. Reads are tracked like any other signal.
+
+### effect
+
+Run a side-effect function immediately and re-run it whenever its tracked reactive dependencies change.
+
+```ts
+export function effect(fn: EffectFn): EffectRunner;
+```
+
+- `fn` — the effect body; runs once immediately and on every dependency change.
+- Returns an `EffectRunner` — a callable that re-runs the effect, with a `.stop()` method to dispose it.
+
+Effects have a re-entrancy guard: a synchronous self-trigger during a run is ignored rather than recursing.
+
+### batch
+
+Batch multiple reactive updates so dependent effects flush only once after the function completes.
+
+```ts
+export function batch(fn: () => void): void;
+```
+
+- `fn` — a function containing the writes to batch.
+- Returns nothing.
+
+Nestable via an internal depth counter; only the outermost batch flushes pending effects.
+
+### untrack
+
+Run `fn` while suppressing dependency tracking, so reactive reads inside it do not create subscriptions.
+
+```ts
+export function untrack<T>(fn: () => T): T;
+```
+
+- `fn` — a function to run without tracking its reactive reads.
+- Returns the result of `fn`.
+
+### effectScope
+
+Create a scope object to run reactive work and dispose it in bulk.
+
+```ts
+export function effectScope(_detached?: boolean): {
+  run<T>(fn: () => T): T | undefined;
+  stop(fromParent?: boolean): void;
+};
+```
+
+- `_detached` — currently unused.
+- Returns an object with `run(fn)` (executes `fn` within the scope, returning its result or `undefined` if the scope is stopped) and `stop()` (deactivates the scope).
+
+Note: in this version the scope does not auto-collect effects created inside `run()`, so `stop()` only flips the scope's active flag — it does not dispose inner effects. Stop effects and watches individually for now.
+
+### watch
+
+Watch a reactive source and invoke a callback when it changes.
+
+```ts
+export function watch<T>(
+  source: WatchSource<T>,
+  cb: WatchCallback<T>,
+  options?: WatchOptions
+): WatchHandle;
+```
+
+- `source` — a getter function or a value (`WatchSource<T>`).
+- `cb` — a `WatchCallback<T>` receiving `(newValue, oldValue, onCleanup)`.
+- `options` — optional `WatchOptions`: `immediate`, `deep` (boolean or depth number), and `once`.
+- Returns a `WatchHandle` that is itself callable to stop, plus `stop`, `pause`, and `resume` methods.
+
+`immediate` fires the callback once at setup with `oldValue` undefined. While paused, changes are buffered and the latest is delivered on resume if it differs from the old value (`Object.is`). `onCleanup` runs before each subsequent callback and on stop.
+
+### toRaw
+
+Return the original raw object underlying a reactive proxy.
+
+```ts
+export function toRaw<T>(observed: T): T;
+```
+
+- `observed` — a reactive proxy (or any value).
+- Returns the underlying raw object, recursively unwrapped; returns the value unchanged if it is not a proxy.
+
+### isReactive
+
+Check whether a value is a reactive proxy created by `signal()`.
+
+```ts
+export function isReactive(value: unknown): boolean;
+```
+
+- `value` — the value to test.
+- Returns `true` if it is a reactive proxy.
+
+### isComputed
+
+Type guard for computed signals.
+
+```ts
+export function isComputed(value: unknown): value is Computed<unknown>;
+```
+
+- `value` — the value to test.
+- Returns `true` if the value carries the internal `ComputedSymbol`, narrowing it to `Computed<unknown>`.
+
+### detectAccess
+
+Run a selector while observing property accesses and return the last `[target, key]` pair read.
+
+```ts
+export function detectAccess(selector: () => any): [any, string | symbol] | null;
+```
+
+- `selector` — a function whose property accesses are observed.
+- Returns the last `[target, key]` pair read, or `null` if none.
+
+Used internally by the model / two-way-binding system; computed getters suspend the observer to prevent leakage.
+
+## Constants
+
+### ComputedSymbol
+
+```ts
+export const ComputedSymbol: unique symbol = Symbol('computed');
+```
+
+Unique symbol used to brand computed signals. It is the key behind `isComputed` and the `Computed` / `WritableComputed` interfaces.
+
+## Types
+
+### Primitive
+
+```ts
+export type Primitive = string | number | boolean | symbol | bigint | null | undefined;
+```
+
+Union of primitive value types that `signal()` wraps in a `{ value: T }` box.
+
+### Widen
+
+```ts
+export type Widen<T> =
+  T extends boolean ? boolean :
+  T extends number ? number :
+  T extends string ? string :
+  T extends bigint ? bigint :
+  T extends symbol ? symbol :
+  T;
+```
+
+Widens literal types to their base primitive (e.g. `false` to `boolean`, `'hello'` to `string`). Applied to the `value` of a `PrimitiveSignal`.
+
+### PrimitiveSignal
+
+```ts
+export type PrimitiveSignal<T> = { value: Widen<T> };
+```
+
+Type of a primitive signal: a `{ value }` box whose value is widened to its base primitive type. No `$set`.
+
+### Signal
+
+```ts
+export type Signal<T> = T & {
+  $set: (newValue: T) => void;
+};
+```
+
+Type of an object/array signal: the original shape `T` plus a `$set(newValue)` method for replacing the whole object reactively.
+
+### EffectFn
+
+```ts
+export type EffectFn = () => void;
+```
+
+Signature of an effect body: a zero-argument function returning `void`.
+
+### EffectScope
+
+```ts
+export type EffectScope = {
+  run<T>(fn: () => T): T | undefined;
+  stop(fromParent?: boolean): void;
+};
+```
+
+Shape of an effect scope. Note that `effectScope()` returns a structurally-identical inline object literal rather than being annotated with this named type.
+
+### Widen, Signal, and PrimitiveSignal together
+
+`signal()` has two overloads. For `Primitive` inputs it returns `PrimitiveSignal<T>` — read/write through `.value`, no `$set`, with literal types widened. For object inputs it returns `Signal<T>` — a deep reactive proxy where you mutate properties directly and call `$set()` to replace the whole object.
+
+### WatchSource
+
+```ts
+export type WatchSource<T = any> = T | (() => T);
+```
+
+A watch source: either a raw value or a getter function that returns the watched value.
+
+### WatchCallback
+
+```ts
+export type WatchCallback<V = any, OV = any> =
+  (value: V, oldValue: OV, onCleanup: (fn: () => void) => void) => any;
+```
+
+Watch callback receiving the new value, the old value, and an `onCleanup` registrar invoked before the next run and on stop.
+
+## Interfaces
+
+### EffectRunner
+
+```ts
+export interface EffectRunner<T = void> {
+  (): T;
+  stop: () => void;
+}
+```
+
+Callable returned by `effect()`. Invoking it re-runs the effect; `.stop()` disposes it and cleans up its dependencies.
+
+### Subscriber
+
+```ts
+export interface Subscriber extends EffectFn {
+  deps: Set<Subscriber>[];
+}
+```
+
+Internal reactive subscriber: an effect function carrying its list of dependency sets. Exported as a type but primarily an implementation detail.
+
+### WatchOptions
+
+```ts
+export interface WatchOptions<Immediate = boolean> {
+  immediate?: Immediate;
+  deep?: boolean | number;
+  once?: boolean;
+}
+```
+
+Options for `watch()`. `immediate` fires the callback on setup; `deep` enables deep traversal (`true` for Infinity depth, a number for limited depth); `once` stops after the first callback.
+
+### WatchHandle
+
+```ts
+export interface WatchHandle {
+  (): void; // callable to stop
+  stop: () => void;
+  pause: () => void;
+  resume: () => void;
+}
+```
+
+Handle returned by `watch()`: callable to stop, plus `stop`/`pause`/`resume` methods. While paused, changes are buffered and the latest is delivered on resume if it differs from the old value.
+
+### Computed
+
+```ts
+export interface Computed<T> {
+  readonly value: T;
+  readonly [ComputedSymbol]: true;
+}
+```
+
+Read-only computed signal. Access the derived value via the readonly `.value` getter.
+
+### WritableComputed
+
+```ts
+export interface WritableComputed<T> {
+  value: T;
+  readonly [ComputedSymbol]: true;
+}
+```
+
+Writable computed signal. `.value` is both readable (computed) and assignable (routes to the provided setter).
+
+### ComputedGetter
+
+```ts
+export interface ComputedGetter<T> {
+  (): T;
+}
+```
+
+Getter function for a computed: returns the derived value of type `T`.
+
+### ComputedSetter
+
+```ts
+export interface ComputedSetter<T> {
+  (value: T): void;
+}
+```
+
+Setter function for a writable computed: receives the assigned value.
+
+### WritableComputedOptions
+
+```ts
+export interface WritableComputedOptions<T> {
+  get: ComputedGetter<T>;
+  set: ComputedSetter<T>;
+}
+```
+
+Options object passed to `computed()` to create a writable computed, supplying both `get` and `set`.
+
+## See also
+
+- [Usage guide](/core/packages/reactivity/usage) — practical patterns and examples.
+- [Overview](/core/packages/reactivity/overview) — package summary and installation.

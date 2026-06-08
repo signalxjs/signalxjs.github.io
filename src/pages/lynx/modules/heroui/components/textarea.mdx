@@ -1,0 +1,100 @@
+---
+title: Textarea
+description: "Textarea — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 143
+---
+
+# Textarea
+
+<p class="lede">Multiline text input for native Lynx apps, with flat or bordered variants, color accents, sizing, and two-way model binding.</p>
+
+## Import
+
+```tsx
+import { Textarea } from '@sigx/lynx-heroui';
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `() => signal.property` | - | Two-way binding to a `string` signal property. The textarea reads its value from the bound property and writes edits back to it. |
+| `placeholder` | `string` | - | Placeholder text shown while the field is empty. |
+| `rows` | `number` | `3` | Number of visible text rows. Drives the computed height of the field. |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | Field size. Adjusts typography and vertical padding. |
+| `variant` | `'flat' \| 'bordered'` | `'flat'` | Visual style. `flat` renders a filled surface; `bordered` renders an outlined field. |
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Accent color applied to the field. |
+| `disabled` | `boolean` | `false` | Disables the textarea. |
+| `class` | `string` | - | Additional CSS classes appended to the field. |
+
+The typed text and placeholder colors are resolved from the active theme palette and applied as literal values, since native text widgets cannot read CSS custom properties.
+
+## Variants
+
+Textarea defaults to the `flat` (filled) variant. Use `bordered` for an outlined field. Set `rows` to control the visible height.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Col, Textarea } from '@sigx/lynx-heroui';
+
+export const Variants = component(() => () => (
+    <Col gap={8}>
+        <Textarea placeholder="Flat (default)" rows={3} />
+        <Textarea placeholder="Bordered" variant="bordered" rows={3} />
+    </Col>
+));
+```
+
+## Sizes
+
+The `size` prop supports `sm`, `md` (default), and `lg`. Combine it with `rows` to size the field both ways.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Col, Textarea } from '@sigx/lynx-heroui';
+
+export const Sizes = component(() => () => (
+    <Col gap={8}>
+        <Textarea placeholder="sm, 2 rows" size="sm" rows={2} />
+        <Textarea placeholder="md, 3 rows" size="md" rows={3} />
+        <Textarea placeholder="lg, 4 rows" size="lg" rows={4} />
+    </Col>
+));
+```
+
+## Model binding
+
+Pass a getter to `model` for two-way binding against a `string` signal property. Edits flow back into the signal, so any derived UI updates automatically.
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Col, Textarea, Text } from '@sigx/lynx-heroui';
+
+export const Bound = component(() => {
+    const note = signal('');
+    return () => (
+        <Col gap={8}>
+            <Textarea
+                placeholder="Write a note…"
+                variant="bordered"
+                color="primary"
+                model={() => note.value}
+            />
+            <Text size="sm" class="opacity-60">{note.value.length} chars</Text>
+        </Col>
+    );
+});
+```
+
+## Disabled
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Textarea } from '@sigx/lynx-heroui';
+
+export const Disabled = component(() => () => (
+    <Textarea placeholder="Read only for now" rows={3} disabled />
+));
+```
