@@ -75,7 +75,10 @@ export default defineConfig({
         daisyuiDevTailwindSource(),
         tailwindcss(),
         sigxPlugin(),
-        ssgPlugin(),
+        // The Shiki transformer's options come from ssgPlugin() args (not
+        // ssg.config.ts's markdown.shiki, which only feeds the runtime).
+        // triggerLabel sets the live-code "Try Live" button to the v2 "⚡ Run".
+        ssgPlugin({ markdown: { shiki: { triggerLabel: '⚡ Run' } } }),
         monacoPrebundledPlugin({
             strategy: MONACO_STRATEGY,
             publicPath: `${BASE_PATH}monaco-bundle`,

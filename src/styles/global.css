@@ -415,6 +415,14 @@
     
     .code-window-preview-container {
         min-height: 40px;
+        /* Render previews on a neutral, theme-aware daisyUI surface rather than
+           the muted prose body color. `.prose` sets `color: var(--fg-1)`, which
+           the donut @scope below can't stop from *inheriting* into the preview
+           (it only blocks prose's element rules). Without this, component text
+           with no explicit color (e.g. daisyUI <Heading>) renders grey here but
+           bright in the full-screen playground. Matches --color-base-content
+           used by the form-element defaults below. */
+        color: var(--color-base-content);
     }
 
     /* ============================================
