@@ -7,13 +7,10 @@
  *   - ```tsx live fences (Shiki-transformer `.code-window-live` blocks and
  *     LivePreview islands) call the `openPlayground` callback.
  *   - the <CodeWindow live> component calls `openPlayground()` directly.
- * No more capture-phase click interception or source-decoding workarounds.
- *
- * The one remaining DOM touch is the label: `triggerLabel` relabels
- * runtime-rendered LivePreview islands, but the SSG Shiki transformer bakes
- * "⚡ Try Live" into static HTML at build time, so we still rewrite those to
- * the v2 "⚡ Run" here. (Follow-up: a `triggerLabel` option on live-code's
- * Shiki transformer would remove this too.)
+ * No more capture-phase click interception, source-decoding, or label
+ * rewriting. The "⚡ Run" label comes from `@sigx/ssg`'s `markdown.shiki.triggerLabel`
+ * (static buttons) and live-code's `configurePlayground({ triggerLabel })`
+ * (runtime LivePreview islands).
  *
  * Installed once from live-code-config.ts, before `@sigx/live-code/client`
  * auto-initializes (so the config is in place before islands hydrate).
@@ -71,15 +68,6 @@ const PlaygroundHost = component(() => {
     };
 });
 
-/** Rebrand the SSG transformer's static "⚡ Try Live" label to the v2 "⚡ Run". */
-function relabelStaticTriggers(root: Element | Document): void {
-    const relabel = (b: Element) => {
-        if (/try live/i.test(b.textContent ?? '')) b.textContent = '⚡ Run';
-    };
-    if (root instanceof Element && root.matches('.code-window-try-live')) relabel(root);
-    root.querySelectorAll('.code-window-try-live').forEach(relabel);
-}
-
 let installed = false;
 
 /**
@@ -97,20 +85,10 @@ export function installPlaygroundLauncher(): void {
     render(<PlaygroundHost />, host);
 
     configurePlayground({
-        // triggerLabel covers runtime LivePreview islands; relabelStaticTriggers
-        // below handles the SSG transformer's static buttons.
+        // Runtime label for LivePreview islands; the SSG static buttons get
+        // their label from markdown.shiki.triggerLabel in ssg.config.ts.
         triggerLabel: '⚡ Run',
         openPlayground: ({ code, language, filename }) =>
             void openPlayground({ code, language, filename }),
     });
-
-    // Relabel SSG-static buttons now + as SPA navigation swaps in new ones.
-    relabelStaticTriggers(document);
-    new MutationObserver((muts) => {
-        for (const m of muts) {
-            m.addedNodes.forEach((n) => {
-                if (n.nodeType === 1) relabelStaticTriggers(n as Element);
-            });
-        }
-    }).observe(document.body, { childList: true, subtree: true });
 }
