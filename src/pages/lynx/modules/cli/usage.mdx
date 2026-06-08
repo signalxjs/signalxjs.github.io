@@ -179,7 +179,13 @@ It serves three things over one cross-origin-isolated HTTP server: a generated `
 
 ```ts
 // lynx.config.ts
-export default { environments: { lynx: {}, web: {} } };
+import { defineConfig } from '@lynx-js/rspeedy';
+import { pluginSigxLynx } from '@sigx/lynx-plugin';
+
+export default defineConfig({
+    plugins: [pluginSigxLynx()],
+    environments: { lynx: {}, web: {} },
+});
 ```
 
 Two things to know about the web target:
