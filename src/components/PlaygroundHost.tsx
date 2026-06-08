@@ -8,9 +8,9 @@
  *     LivePreview islands) call the `openPlayground` callback.
  *   - the <CodeWindow live> component calls `openPlayground()` directly.
  * No more capture-phase click interception, source-decoding, or label
- * rewriting. The "⚡ Run" label comes from `@sigx/ssg`'s `markdown.shiki.triggerLabel`
- * (static buttons) and live-code's `configurePlayground({ triggerLabel })`
- * (runtime LivePreview islands).
+ * rewriting. The "⚡ Run" label comes from `@sigx/ssg`'s `triggerLabel`,
+ * passed to `ssgPlugin()` in vite.config.ts (static buttons), and live-code's
+ * `configurePlayground({ triggerLabel })` (runtime LivePreview islands).
  *
  * Installed once from live-code-config.ts, before `@sigx/live-code/client`
  * auto-initializes (so the config is in place before islands hydrate).
@@ -86,7 +86,8 @@ export function installPlaygroundLauncher(): void {
 
     configurePlayground({
         // Runtime label for LivePreview islands; the SSG static buttons get
-        // their label from markdown.shiki.triggerLabel in ssg.config.ts.
+        // their label from ssgPlugin({ markdown: { shiki: { triggerLabel } } })
+        // in vite.config.ts.
         triggerLabel: '⚡ Run',
         openPlayground: ({ code, language, filename }) =>
             void openPlayground({ code, language, filename }),
