@@ -48,7 +48,12 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props, sig
                 {/* Main content */}
                 <main class="content">
                     <div class="content-narrow">
-                        <article class="prose max-w-none">
+                        {/* key by route.path so the whole MDX subtree remounts on
+                            navigation. Without it the framework reuses code-window
+                            DOM across pages, and live-code (which renders previews
+                            into a separate root and dedupes by element identity)
+                            leaks a stale preview onto the next page's code block. */}
+                        <article class="prose max-w-none" key={route.path}>
                             {slots.default()}
                         </article>
                     </div>

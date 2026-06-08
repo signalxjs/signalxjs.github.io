@@ -8,6 +8,7 @@
 
 import { component, onMounted } from 'sigx';
 import type { LayoutProps, LayoutSlots } from '@sigx/ssg';
+import { useRoute } from '@sigx/router';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { TableOfContents } from '@/components/TableOfContents';
@@ -17,6 +18,7 @@ import { initializeTheme } from '@sigx/daisyui';
 
 export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props }) => {
     const cmd = useCommandPalette();
+    const route = useRoute();
 
     onMounted(() => {
         initializeTheme({ defaultTheme: 'dark' });
@@ -35,7 +37,10 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props }) =
                     <div class="flex justify-center">
                         {/* Main content */}
                         <main class={`flex-1 min-w-0 px-6 py-12 ${hasToc ? 'max-w-4xl' : 'max-w-4xl mx-auto'}`}>
-                            <article class="prose prose-lg max-w-none">
+                            {/* key by route.path so the MDX subtree remounts on
+                                navigation — prevents live-code preview islands from
+                                leaking stale previews across pages (see docs.tsx). */}
+                            <article class="prose prose-lg max-w-none" key={route.path}>
                                 {slots.default()}
                             </article>
                         </main>

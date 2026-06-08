@@ -86,7 +86,10 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props, sig
                                     )}
                                 </div>
                             )}
-                            <article class="prose max-w-none">
+                            {/* key by route.path so the MDX subtree remounts on
+                                navigation — prevents live-code preview islands from
+                                leaking stale previews across pages (see docs.tsx). */}
+                            <article class="prose max-w-none" key={route.path}>
                                 {mod && (
                                     <span class="eyebrow">
                                         {mod.npm} · {STATUS[mod.status].label}
