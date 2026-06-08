@@ -75,20 +75,21 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
         const hasActiveChild = item.items ? item.items.some(isItemActive) : false;
 
         if (item.items && item.items.length > 0) {
-            // Group with nested items
+            // Group with nested items. Both callers already wrap the result of
+            // renderNavItem in an <li>, so this branch must NOT add its own —
+            // <li><li> is invalid HTML and the browser reparses the inner <li>
+            // into a sibling, breaking hydration (duplicated groups).
             return (
-                <li>
-                    <details class="side-group" open={depth === 0 || hasActiveChild}>
-                        <summary class="side-subhead">{item.title}</summary>
-                        <ul class="side-group-list">
-                            {item.items.map((child, idx) => (
-                                <li key={idx}>
-                                    {renderNavItem(child, depth + 1)}
-                                </li>
-                            ))}
-                        </ul>
-                    </details>
-                </li>
+                <details class="side-group" open={depth === 0 || hasActiveChild}>
+                    <summary class="side-subhead">{item.title}</summary>
+                    <ul class="side-group-list">
+                        {item.items.map((child, idx) => (
+                            <li key={idx}>
+                                {renderNavItem(child, depth + 1)}
+                            </li>
+                        ))}
+                    </ul>
+                </details>
             );
         }
 
