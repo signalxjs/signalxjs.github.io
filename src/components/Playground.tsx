@@ -5,24 +5,24 @@
  * and an interactive Preview / Console pane executed by the live-code
  * runtime (modules registered in live-code-config).
  *
- * The console is read from live-code's per-container capture global —
- * a first-class headless console API is requested upstream
- * (signalxjs/live-code#16).
+ * Console output streams from live-code's first-class headless API
+ * (`onConsole`, signalxjs/live-code#16) — no more reading the
+ * `window.__LIVE_CODE_CONSOLE__` capture global directly.
  */
 
 import { component, onMounted, onUnmounted, type Define } from 'sigx';
 import {
     clearPreview,
     createEditor,
+    onConsole,
     runCode,
     SIGX_DARK_THEME,
     SIGX_LIGHT_THEME,
+    type ConsoleEntry,
     type MonacoEditor,
 } from '@sigx/live-code';
 import { Icon } from '@/components/ui/Icon';
 import { Kbd } from '@/components/ui/Kbd';
-
-type ConsoleEntry = { type: 'log' | 'info' | 'warn' | 'error'; args: string[] };
 
 type PlaygroundProps =
     & Define.Prop<'code', string, true>
@@ -48,17 +48,15 @@ export const Playground = component<PlaygroundProps>(({ props, signal, emit }) =
 
     let editor: MonacoEditor | null = null;
     let editorHost: HTMLElement | null = null;
-
-    const readLogs = (): ConsoleEntry[] =>
-        [...(window.__LIVE_CODE_CONSOLE__?.logs?.[containerId] ?? [])] as ConsoleEntry[];
+    let offConsole: (() => void) | null = null;
 
     const run = async () => {
         if (state.running) return;
         state.running = true;
         state.error = '';
         state.tab = 'preview';
-        const store = window.__LIVE_CODE_CONSOLE__;
-        if (store?.logs) store.logs[containerId] = [];
+        // runCode clears this container's console at the start; the onConsole
+        // subscription streams the resulting logs into state.logs.
         try {
             const code = editor?.getValue() ?? props.code;
             const result = await runCode(code, containerId);
@@ -66,7 +64,6 @@ export const Playground = component<PlaygroundProps>(({ props, signal, emit }) =
         } catch (err) {
             state.error = err instanceof Error ? err.message : String(err);
         } finally {
-            state.logs = readLogs();
             state.running = false;
         }
     };
@@ -88,6 +85,11 @@ export const Playground = component<PlaygroundProps>(({ props, signal, emit }) =
 
     onMounted(() => {
         window.addEventListener('keydown', onKey);
+        // Stream console output live (fires immediately, then on every captured
+        // log — including from effects/async — and on clear).
+        offConsole = onConsole(containerId, (logs) => {
+            state.logs = [...logs] as ConsoleEntry[];
+        });
         void (async () => {
             if (editorHost) {
                 const dark = document.documentElement.getAttribute('data-theme') !== 'light';
@@ -107,6 +109,8 @@ export const Playground = component<PlaygroundProps>(({ props, signal, emit }) =
 
     onUnmounted(() => {
         window.removeEventListener('keydown', onKey);
+        offConsole?.();
+        offConsole = null;
         editor?.dispose();
         editor = null;
         clearPreview(document.getElementById(containerId));

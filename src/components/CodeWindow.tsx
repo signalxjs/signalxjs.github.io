@@ -10,9 +10,8 @@
  * from the slot content automatically.
  */
 
-import { component, signal, type Define } from 'sigx';
-import { initRuntime, initRegisteredModules, isRuntimeInitialized } from '@sigx/live-code';
-import { Playground } from '@/components/Playground';
+import { component, type Define } from 'sigx';
+import { openPlayground } from '@/components/PlaygroundHost';
 
 type CodeWindowProps = 
     & Define.Prop<'filename', string, false>
@@ -48,10 +47,8 @@ function getLanguageLabel(lang?: string): string {
 }
 
 export const CodeWindow = component<CodeWindowProps>(({ props, slots }) => {
-    const isModalOpen = signal(false);
-    const extractedCode = signal('');
     let contentRef: HTMLElement | null = null;
-    
+
     function extractCodeFromSlot() {
         if (!contentRef) return '';
         // Find the code element inside the slot (Shiki renders pre > code)
@@ -66,34 +63,23 @@ export const CodeWindow = component<CodeWindowProps>(({ props, slots }) => {
         }
         return '';
     }
-    
-    async function openPlayground() {
-        // Extract code from the rendered slot
-        extractedCode.value = extractCodeFromSlot();
 
-        // Ensure runtime is initialized (includes DaisyUI for component examples)
-        if (!isRuntimeInitialized()) {
-            initRuntime();
-        }
-        // Expose the modules registered in live-code-config (DaisyUI, router,
-        // store) on `window.__SIGX_*__`. We use the registered loaders (static
-        // bundled imports) rather than initDaisyUIRuntime()'s runtime dynamic
-        // import, which silently fails to resolve the package.
-        await initRegisteredModules();
-        isModalOpen.value = true;
+    // Route into the shared Live Playground host (runtime init + accent hue
+    // handled there). stopPropagation keeps live-code's client click handler
+    // from also firing on this non-island button.
+    function handleRun(e: MouseEvent) {
+        e.stopPropagation();
+        const code = extractCodeFromSlot();
+        if (!code.trim()) return;
+        void openPlayground({ code, language: props.language ?? 'tsx', filename: props.filename });
     }
-    
-    function closePlayground() {
-        isModalOpen.value = false;
-    }
-    
+
     return () => {
         const filename = props.filename;
         const langLabel = getLanguageLabel(props.language);
         const hasLiveCode = !!props.live;
         
         return (
-            <>
                 <div class="code-window">
                     {/* Window header with traffic lights */}
                     <div class="code-window-header">
@@ -117,7 +103,7 @@ export const CodeWindow = component<CodeWindowProps>(({ props, slots }) => {
                         {hasLiveCode && (
                             <button
                                 class="code-window-try-live"
-                                onClick={openPlayground}
+                                onClick={handleRun}
                                 title="Open in Live Playground"
                             >
                                 ⚡ Run
@@ -126,24 +112,13 @@ export const CodeWindow = component<CodeWindowProps>(({ props, slots }) => {
                     </div>
                     
                     {/* Code content */}
-                    <div 
+                    <div
                         class="code-window-content"
                         ref={(el: HTMLElement) => { contentRef = el; }}
                     >
                         {slots.default?.()}
                     </div>
                 </div>
-                
-                {/* Live Playground - only rendered when live mode and open */}
-                {hasLiveCode && isModalOpen.value && (
-                    <Playground
-                        code={extractedCode.value}
-                        language={props.language ?? 'tsx'}
-                        filename={filename}
-                        onClose={closePlayground}
-                    />
-                )}
-            </>
         );
     };
 });
