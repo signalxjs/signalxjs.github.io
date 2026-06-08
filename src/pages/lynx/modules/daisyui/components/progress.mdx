@@ -1,0 +1,99 @@
+---
+title: Progress
+description: "Progress — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Feedback"]
+order: 144
+---
+
+# Progress
+
+<p class="lede">A horizontal progress bar that fills from 0 to a configurable maximum, with optional semantic coloring.</p>
+
+## Import
+
+```tsx
+import { Progress } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+Progress is a display-only component: it has no model binding. Drive it by passing a `value` (a plain number or a signal-backed value computed in your render).
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `number` | `0` | Current progress amount. Clamped to the `0`-to-`max` range when rendered. |
+| `max` | `number` | `100` | The value that represents a full (100%) bar. |
+| `color` | `ProgressColor` | - | Semantic fill color. One of `'primary'`, `'secondary'`, `'accent'`, `'info'`, `'success'`, `'warning'`, `'error'`. |
+| `class` | `string` | - | Additional CSS classes applied to the outer bar. |
+
+The fill percentage is computed as `value / max`, clamped between 0% and 100%, so values outside the range never overflow the bar.
+
+## Basic Usage
+
+Set `value` and `max` to show a determinate bar. With the default `max` of `100`, `value` reads directly as a percentage.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Progress, Col } from '@sigx/lynx-daisyui';
+
+export const BasicProgress = component(() => {
+    return () => (
+        <Col gap="4">
+            <Progress value={20} />
+            <Progress value={50} />
+            <Progress value={80} />
+            <Progress value={100} />
+        </Col>
+    );
+});
+```
+
+## Colors
+
+Use `color` to apply a semantic fill.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Progress, Col } from '@sigx/lynx-daisyui';
+
+export const ProgressColors = component(() => {
+    return () => (
+        <Col gap="4">
+            <Progress value={60} color="primary" />
+            <Progress value={60} color="secondary" />
+            <Progress value={60} color="accent" />
+            <Progress value={60} color="info" />
+            <Progress value={60} color="success" />
+            <Progress value={60} color="warning" />
+            <Progress value={60} color="error" />
+        </Col>
+    );
+});
+```
+
+## Custom Maximum
+
+When your data is not already a percentage, pass a `max` and let Progress compute the fill.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Progress, Col, Text } from '@sigx/lynx-daisyui';
+
+export const DownloadProgress = component(({ signal }) => {
+    const state = signal({ downloaded: 36, total: 48 });
+
+    return () => (
+        <Col gap="2">
+            <Progress
+                value={state.downloaded}
+                max={state.total}
+                color="success"
+            />
+            <Text size="sm" class="opacity-70">
+                {state.downloaded} / {state.total} files
+            </Text>
+        </Col>
+    );
+});
+```

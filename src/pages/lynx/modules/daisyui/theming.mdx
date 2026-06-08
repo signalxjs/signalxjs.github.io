@@ -1,0 +1,260 @@
+---
+title: Theming
+description: "Theme @sigx/lynx-daisyui with the Tailwind preset and theme engine."
+layout: module-docs
+category: Guides
+order: 28
+---
+
+# Theming
+
+<p class="lede">DaisyUI's look comes from three cooperating pieces: a Tailwind preset that wires the semantic color tokens, a stylesheet that ships per-component CSS, and a runtime theme engine (re-exported from <code>@sigx/lynx-zero</code>) that applies a palette and lets you switch it live.</p>
+
+## The three layers
+
+To theme a DaisyUI app you set up three things, imported from different entry points:
+
+1. **The Tailwind preset** &mdash; `daisyuiPreset` from `@sigx/lynx-daisyui/preset`. Maps utility classes like `bg-primary` / `text-base-content` onto the semantic `--color-*` variables.
+2. **The stylesheet** &mdash; `@sigx/lynx-daisyui/styles`. A side-effect CSS import that bundles the base reset, the per-theme first-paint classes, and every component's CSS.
+3. **The theme engine** &mdash; `ThemeProvider`, `useTheme`, `themeController` and friends from the package root. Applies the active palette as inline CSS variables and switches it at runtime.
+
+Importing **anything** from `@sigx/lynx-daisyui` also seeds the six built-in themes into the shared registry, so `ThemeProvider`'s `followSystem` defaults and `listThemes()` work out of the box.
+
+## The Tailwind preset
+
+The preset is published only from the `./preset` subpath, not the package root. Add it to your Tailwind config:
+
+```ts
+// tailwind.config.ts
+import { daisyuiPreset } from '@sigx/lynx-daisyui/preset';
+
+export default {
+    presets: [daisyuiPreset],
+};
+```
+
+`daisyuiPreset` is an alias of `DaisyLynxPreset`; both name the same object, which is exactly `@sigx/lynx-zero/preset` (the `zeroPreset`). That preset brings:
+
+- **Semantic color tokens** &mdash; utilities like `bg-primary`, `text-base-content`, `border-accent` resolving to `var(--color-*)`, including the `*-soft` tint tokens.
+- **The `--text-*` font-size ramp** &mdash; the type scale the theme engine re-emits when you change `fontScale`.
+- **The Lynx-correct `.flex-fill` utility** &mdash; long-form `flex-grow/shrink/basis: 0` plus `display: flex; flexDirection: column`. Use it where a Lynx parent's height comes from flex rather than an explicit percentage; the shorthand `flex-1` expands to `flex: 1 1 auto`, which sizes to content and collapses the chain.
+
+`DaisyLynxPreset` is the composition point for any future daisy-specific Tailwind extensions, but today it forwards the neutral preset unchanged.
+
+## The stylesheet
+
+Import the stylesheet once, as a side effect, at your app entry:
+
+```ts
+// app entry
+import '@sigx/lynx-daisyui/styles';
+```
+
+This single entry (`@sigx/lynx-daisyui/styles`) pulls in, in order:
+
+- the structural tokens from `@sigx/lynx-zero/styles/tokens.css`;
+- composable shape modifiers (`daisy-rounded`, `daisy-flat`);
+- the generated per-theme first-paint `--color-*` classes (one `.daisy-<name> { ... }` class per built-in theme);
+- the Lynx element reset (`base.css` &mdash; transparent and zero-width borders on `page` / `view` / `text` and friends), which is an internal `@import`, not a separate export;
+- the per-component CSS (button, card, badge, alert, checkbox, toggle, radio, input, textarea, select, form-field, progress, loading, modal, tabs, steps, avatar, skeleton, divider, typography).
+
+Theme **colors** live in the registry and are applied by `ThemeProvider` as inline CSS variables; the stylesheet only ships the static first-paint classes so the first frame paints correctly before the runtime variable application runs.
+
+## The theme engine
+
+`ThemeProvider` wraps `@sigx/lynx-zero`'s theme engine and adds the daisy seams: it seeds the built-in palettes and feeds an icon color resolver into `@sigx/lynx-icons` so `<Icon variant="primary">` resolves to the active theme's hex. Wrap your tree once at the root:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { ThemeProvider, StatusBarSync } from '@sigx/lynx-daisyui';
+
+export const App = component(() => {
+    return () => (
+        <ThemeProvider light="daisy-light" dark="daisy-dark">
+            <StatusBarSync />
+            <Screens />
+        </ThemeProvider>
+    );
+});
+```
+
+The outermost provider binds the global theme singleton. Its host view defaults to flex-fill long-form so it doesn't collapse between a flex parent and a flex child; override with `class` / `style` if you need a different layout role.
+
+### ThemeProvider props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `initial` | `DaisyTheme` | Pins the theme and ignores system appearance until `controller.followSystem()` is called. |
+| `light` | `DaisyTheme` | Theme used while following the system scheme and the OS is light. Defaults to the first registered light theme (`daisy-light`). |
+| `dark` | `DaisyTheme` | Theme used while following the system scheme and the OS is dark. Defaults to the first registered dark theme (`daisy-dark`). |
+| `fontScale` | `number` | Initial global text-scale multiplier (`1` = default ramp). Change later via `controller.setFontScale()`. |
+| `class` | `string` | Extra classes appended to the theme class on the host view. |
+| `style` | `Record<string, string \| number>` | Extra inline style on the host view, merged after the flex-fill defaults. |
+
+Pass `initial` to pin a theme; pass `light` + `dark` to follow the OS scheme. The two are mutually distinct modes &mdash; `light` / `dark` are only consulted while `followingSystem` is true. With none of them set, the provider follows the OS scheme using the registered defaults.
+
+```tsx
+// Pin a theme, ignore system appearance.
+<ThemeProvider initial="daisy-dark">
+    <App />
+</ThemeProvider>
+
+// Follow the OS scheme with a custom light/dark pair.
+<ThemeProvider light="daisy-cupcake" dark="daisy-synthwave">
+    <App />
+</ThemeProvider>
+```
+
+### Switching the theme at runtime
+
+`useTheme()` resolves to the nearest provider's controller, or the global controller at the app root / in headless code. It never throws. Use it inside components to read and mutate the active theme:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button, useTheme } from '@sigx/lynx-daisyui';
+
+export const ThemeToggle = component(() => {
+    const theme = useTheme();
+    return () => (
+        <Button variant="ghost" onPress={() => theme.toggle()}>
+            Toggle theme
+        </Button>
+    );
+});
+```
+
+The controller (`ThemeController`) exposes reactive reads &mdash; `name`, `followingSystem`, `fontScale` &mdash; and the methods `set(name)`, `toggle()`, `followSystem()` and `setFontScale(scale)`. `set()` pins the choice, `toggle()` flips to the paired theme, `followSystem()` resumes OS-scheme following, and `setFontScale()` re-emits the `--text-*` ramp at the default size multiplied by `scale`.
+
+### Headless control
+
+The active theme lives in a module-level singleton, `themeController`, so you can read and set it from anywhere &mdash; a store, a service, app-boot logic, an effect &mdash; without a mounted provider. A mounted root `ThemeProvider` binds this singleton, so headless mutations render and the OS bars follow.
+
+```ts
+import { themeController } from '@sigx/lynx-daisyui';
+
+themeController.set('daisy-dark');
+themeController.toggle();
+themeController.followSystem();
+themeController.name;            // current selection
+```
+
+Use `themeController` directly when you must always target the app/OS theme regardless of scope; use `useTheme()` when you want the controller for the surrounding content scope.
+
+### Two layers: content vs. OS chrome
+
+A theme drives two things that scope differently. In-app content &mdash; the `--color-*` and radius variables plus icon tints &mdash; lives on a host view and inherits down a subtree, so it is genuinely scopable. OS chrome &mdash; the status- and navigation-bar tint pushed by `StatusBarSync` &mdash; is a global OS singleton and can only reflect one theme at a time.
+
+> `useTheme()` and **nested** `ThemeProvider`s scope the content you render. **System chrome always follows the global theme.** `StatusBarSync` binds to the global controller, so a nested provider cannot retint the system bars.
+
+`StatusBarSync` is a side-effect-only component (renders nothing): light theme produces dark bar icons, dark theme produces light bar icons. Mount it once inside the root provider. Its `matchBackground` prop is currently a reserved no-op.
+
+### Scoped sub-overrides
+
+To recolor a region without touching the OS bars, nest a `ThemeProvider`. Its subtree re-themes; the status bar stays on the global theme.
+
+```tsx
+<ThemeProvider initial="daisy-light">
+    <App />
+    {/* this card renders synthwave; the status bar stays light */}
+    <ThemeProvider initial="daisy-synthwave">
+        <PreviewCard />
+    </ThemeProvider>
+</ThemeProvider>
+```
+
+## Built-in themes
+
+Six themes are registered at module load. The `DaisyTheme` type gives them autocomplete while still accepting arbitrary strings for custom themes:
+
+| Theme | Variant | Toggle pair |
+|---|---|---|
+| `daisy-light` | light | `daisy-dark` |
+| `daisy-dark` | dark | `daisy-light` |
+| `daisy-cupcake` | light | `daisy-synthwave` |
+| `daisy-synthwave` | dark | `daisy-cupcake` |
+| `daisy-emerald` | light | `daisy-dracula` |
+| `daisy-dracula` | dark | `daisy-emerald` |
+
+`daisy-light` and `daisy-dark` are the first registered theme of each variant, which makes them the `followSystem` defaults. `toggle()` flips to a theme's registered pair.
+
+### Shape modifiers
+
+`daisy-rounded` and `daisy-flat` are composable shape-modifier classes from the stylesheet (not members of the `DaisyTheme` union). Combine them with a color theme as a space-separated multi-class string &mdash; the string is applied verbatim to the host view:
+
+```ts
+import { themeController } from '@sigx/lynx-daisyui';
+
+themeController.set('daisy-light daisy-rounded');
+```
+
+## Registering custom themes
+
+Derive a brand theme from a built-in with `extendTheme`, then register it with `registerTheme`. Do this at **module load**, before mounting `ThemeProvider`, so the theme appears in `listThemes()` and `pickThemeFor()`:
+
+```ts
+import { registerTheme, extendTheme } from '@sigx/lynx-daisyui';
+
+registerTheme(
+    extendTheme('daisy-dark', {
+        name: 'acme-dark',
+        colors: { primary: '#fb7185' },
+    }),
+);
+// Now usable anywhere:
+// themeController.set('acme-dark')
+```
+
+`extendTheme(base, patch)` returns a full `Theme` derived from a registered base, overriding `colors`, `variant`, `pair`, `radius`, `sizes`, or `softMix`. It recomputes the `*-soft` tints the patch didn't set explicitly, and throws if `base` isn't registered. `registerTheme` accepts a full theme input (or the `Theme` `extendTheme` returns), completes any omitted `*-soft` tints, and replaces any existing theme of the same name.
+
+Colors must be engine-safe strings &mdash; hex or `rgb()`. Lynx's CSS engine does not parse `oklch()`, so convert before registering.
+
+> For correct **first-paint** of a runtime-registered theme, a design-system build step that emits a `.theme-name { --color-* }` class is needed (the built-ins ship this via `staticCss: true`). Without it, a newly registered theme paints via the variant's static class first, then the runtime `setProperty` applies its exact colors.
+
+### Inspecting the registry
+
+These helpers (all re-exported from the package root) read the registry without mutating it:
+
+```ts
+import {
+    listThemes,
+    pickThemeFor,
+    variantOf,
+    pairOf,
+    colorsOf,
+    radiusOf,
+    sizesOf,
+} from '@sigx/lynx-daisyui';
+
+listThemes();                 // every registered Theme, in insertion order
+pickThemeFor('dark');         // default theme name for a system scheme
+variantOf('daisy-cupcake');   // 'light'
+pairOf('daisy-light');        // 'daisy-dark'
+colorsOf('daisy-dark');       // completed palette (every token, incl. *-soft)
+```
+
+`listThemes()` returns full `Theme` objects (name, variant, completed palette), so a picker can render swatches. `pickThemeFor(scheme)` returns the first registered theme of that variant, falling back to the first registered theme of any variant.
+
+## Roundness and sizing
+
+A theme can override roundness and base sizing through `ThemeRadius` and `ThemeSizes` on the theme input (or via `extendTheme`'s `radius` / `sizes`):
+
+- `ThemeRadius` &mdash; `selector` (small controls: checkbox / toggle / badge), `field` (button / input / select / textarea), `box` (card / modal / alert). Emitted as `--radius-selector` / `--radius-field` / `--radius-box`.
+- `ThemeSizes` &mdash; `selector` and `field` base size units; component dimensions are integer multiples of these. Emitted as `--size-selector` / `--size-field`.
+
+```ts
+import { registerTheme, extendTheme } from '@sigx/lynx-daisyui';
+
+registerTheme(
+    extendTheme('daisy-light', {
+        name: 'acme-light',
+        radius: { field: '0.25rem', box: '0.5rem' },
+        sizes: { field: '0.28rem' },
+    }),
+);
+```
+
+## See also
+
+- [Usage](/lynx/modules/daisyui/usage) &mdash; wiring the preset, styles and provider together.
+- [API reference](/lynx/modules/daisyui/api) &mdash; every export, typed.
+- [Styling on Lynx](/lynx/docs/styling) &mdash; how Tailwind and the CSS pipeline work here.

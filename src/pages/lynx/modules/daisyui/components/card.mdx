@@ -1,0 +1,120 @@
+---
+title: Card
+description: "Card — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Layout"]
+order: 167
+---
+
+# Card
+
+<p class="lede">Daisy-styled container that groups related native content, with composable Body, Title, and Actions sub-components.</p>
+
+## Import
+
+```tsx
+import { Card } from '@sigx/lynx-daisyui';
+```
+
+`Card` is a compound component. The sub-components are accessed as `Card.Body`, `Card.Title`, and `Card.Actions` — no separate imports are needed.
+
+## Props
+
+`Card` itself renders a `&lt;view&gt;` with the `card` class. Its props control the surface chrome.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `bordered` | `boolean` | `false` | Adds `card-bordered` for a visible outline. |
+| `shadow` | `boolean \| 'sm' \| 'md' \| 'lg'` | `'md'` | Drop shadow. `true` / `'md'` give a medium shadow, `'sm'` and `'lg'` adjust the depth, `false` removes it. When omitted, a medium shadow is applied. |
+| `compact` | `boolean` | `false` | Adds `card-compact` for reduced internal padding. |
+| `class` | `string` | - | Additional CSS classes merged onto the card. |
+| `default` slot | children | - | Card content — typically a `Card.Body`. |
+
+### Sub-components
+
+Each sub-component accepts a `class` prop plus its default slot.
+
+| Component | Renders | Purpose |
+|-----------|---------|---------|
+| `Card.Body` | `&lt;view class="card-body"&gt;` | Padded content region for the card. |
+| `Card.Title` | `&lt;text class="card-title"&gt;` | Emphasized heading row inside the body. |
+| `Card.Actions` | `&lt;view class="card-actions"&gt;` | Footer row for buttons and other actions. |
+
+## Basic Usage
+
+Wrap content in a `Card.Body`, with an optional `Card.Title`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Card, Text } from '@sigx/lynx-daisyui';
+
+const ProfileCard = component(() => {
+    return () => (
+        <Card>
+            <Card.Body>
+                <Card.Title>Ada Lovelace</Card.Title>
+                <Text>First computer programmer.</Text>
+            </Card.Body>
+        </Card>
+    );
+});
+```
+
+## Shadow and Border Variants
+
+The `shadow` prop accepts a depth keyword, and `bordered` adds an outline. Use `shadow={false}` for a flat card:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Card, Text, Col } from '@sigx/lynx-daisyui';
+
+const Variants = component(() => {
+    return () => (
+        <Col gap="4">
+            <Card shadow="lg">
+                <Card.Body>
+                    <Card.Title>Elevated</Card.Title>
+                    <Text>Large drop shadow.</Text>
+                </Card.Body>
+            </Card>
+
+            <Card bordered shadow={false}>
+                <Card.Body>
+                    <Card.Title>Outlined</Card.Title>
+                    <Text>Bordered, flat surface.</Text>
+                </Card.Body>
+            </Card>
+
+            <Card compact>
+                <Card.Body>
+                    <Card.Title>Compact</Card.Title>
+                    <Text>Reduced internal padding.</Text>
+                </Card.Body>
+            </Card>
+        </Col>
+    );
+});
+```
+
+## Card with Actions
+
+Use `Card.Actions` for a footer row of buttons:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Card, Button, Text } from '@sigx/lynx-daisyui';
+
+const PlanCard = component(() => {
+    return () => (
+        <Card bordered>
+            <Card.Body>
+                <Card.Title>Pro Plan</Card.Title>
+                <Text>Everything you need to ship.</Text>
+                <Card.Actions class="justify-end">
+                    <Button color="primary">Upgrade</Button>
+                </Card.Actions>
+            </Card.Body>
+        </Card>
+    );
+});
+```

@@ -1,0 +1,175 @@
+---
+title: NavDrawer
+description: "NavDrawer — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Navigation"]
+order: 142
+---
+
+# NavDrawer
+
+<p class="lede">A daisy-themed off-canvas drawer that slides a sidebar panel in from the left or right over your main content, with an animated dismiss-on-tap backdrop.</p>
+
+## Import
+
+```tsx
+import { NavDrawer } from '@sigx/lynx-daisyui';
+```
+
+## Overview
+
+`NavDrawer` wraps the primitive `Drawer` from `@sigx/lynx-navigation` as its state provider and drives its own slide + fade transition. You mount it inside a `NavigationRoot` and pass your menu UI through the `sidebar` slot; the main app content (usually a `Stack` or `Tabs`) goes in the default slot.
+
+The drawer panel translates from off-screen on the configured `side` to fully visible on open (and back on close), while a backdrop scrim fades in alongside it. The chrome unmounts after the exit animation finishes, so a closed drawer never intercepts taps to the content beneath it.
+
+To open, close, or toggle the drawer from anywhere inside it, call `useDrawer()` from `@sigx/lynx-navigation`, which returns `{ isOpen, open, close, toggle }`. The backdrop closes the drawer when tapped.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `side` | `'left' \| 'right'` | `'left'` | Which edge the panel slides in from. |
+| `background` | `BackgroundValue` | `'base-100'` | Panel surface color. Accepts daisy tokens (`'base-100'`, `'primary'`, …), applied as a `bg-<token>` class, or raw CSS color strings (`'#facc15'`, `'rgb(...)'`), applied as an inline `backgroundColor`. |
+| `bordered` | `boolean` | `true` | Show a separator hairline on the panel's inner edge (the edge facing the main content). |
+| `backdrop` | `boolean` | `true` | Render a dismiss-on-tap scrim over the main content while the drawer is open. |
+| `width` | `number` | `280` | Panel width in pixels. |
+| `initialOpen` | `boolean` | `false` | Open the drawer at mount. Passed through to the primitive `Drawer`. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `sidebar` | Drawer panel contents — your menu UI. |
+| `default` (children) | Main content — usually a `Stack` or `Tabs`. |
+
+`NavDrawerSide` (`'left' | 'right'`) is exported as a type alongside `NavDrawerProps`.
+
+## Basic usage
+
+Place `NavDrawer` inside `NavigationRoot`, render your menu in the `sidebar` slot, and put the app content as children. A control inside the content calls `useDrawer().open()` to reveal the panel.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { NavDrawer, Button, Col, Text } from '@sigx/lynx-daisyui';
+import { NavigationRoot, Stack, useDrawer } from '@sigx/lynx-navigation';
+
+const Menu = component(() => {
+    const drawer = useDrawer();
+    return () => (
+        <Col gap="2" style={{ padding: 16 }}>
+            <Text size="lg">Menu</Text>
+            <Button variant="ghost" onPress={() => drawer.close()}>Home</Button>
+            <Button variant="ghost" onPress={() => drawer.close()}>Settings</Button>
+        </Col>
+    );
+});
+
+const HomeScreen = component(() => {
+    const drawer = useDrawer();
+    return () => (
+        <Col gap="4" style={{ padding: 16 }}>
+            <Button onPress={() => drawer.open()}>Open menu</Button>
+            <Text>Home content</Text>
+        </Col>
+    );
+});
+
+export const App = component(() => {
+    const routes = { home: HomeScreen };
+    return () => (
+        <NavigationRoot routes={routes}>
+            <NavDrawer slots={{ sidebar: () => <Menu /> }}>
+                <Stack />
+            </NavDrawer>
+        </NavigationRoot>
+    );
+});
+```
+
+## Right side, custom width and color
+
+Slide the panel in from the right, widen it, and paint it with a daisy surface token. Set `bordered` to `false` to drop the inner-edge hairline.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { NavDrawer, Col, Text } from '@sigx/lynx-daisyui';
+import { NavigationRoot, Stack } from '@sigx/lynx-navigation';
+
+const Sidebar = component(() => () => (
+    <Col gap="2" style={{ padding: 16 }}>
+        <Text size="lg">Filters</Text>
+        <Text>Newest</Text>
+        <Text>Popular</Text>
+    </Col>
+));
+
+export const App = component(() => {
+    const routes = { home: HomeScreen };
+    return () => (
+        <NavigationRoot routes={routes}>
+            <NavDrawer
+                side="right"
+                width={320}
+                background="base-200"
+                bordered={false}
+                slots={{ sidebar: () => <Sidebar /> }}
+            >
+                <Stack />
+            </NavDrawer>
+        </NavigationRoot>
+    );
+});
+```
+
+## Open at mount, no backdrop
+
+Use `initialOpen` to render the drawer already open (handy for split-view layouts where the sidebar is always present), and disable the scrim so taps fall through to the main content.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { NavDrawer, Col, Text } from '@sigx/lynx-daisyui';
+import { NavigationRoot, Stack } from '@sigx/lynx-navigation';
+
+const Sidebar = component(() => () => (
+    <Col gap="2" style={{ padding: 16 }}>
+        <Text size="lg">Navigation</Text>
+        <Text>Dashboard</Text>
+        <Text>Reports</Text>
+    </Col>
+));
+
+export const App = component(() => {
+    const routes = { home: HomeScreen };
+    return () => (
+        <NavigationRoot routes={routes}>
+            <NavDrawer
+                initialOpen
+                backdrop={false}
+                width={240}
+                slots={{ sidebar: () => <Sidebar /> }}
+            >
+                <Stack />
+            </NavDrawer>
+        </NavigationRoot>
+    );
+});
+```
+
+## Controlling the drawer
+
+`NavDrawer` exposes no imperative open/close props of its own — the open state lives on the primitive `Drawer` and is read and mutated through `useDrawer()`. Call it from any descendant of `NavDrawer`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button } from '@sigx/lynx-daisyui';
+import { useDrawer } from '@sigx/lynx-navigation';
+
+export const MenuButton = component(() => {
+    const drawer = useDrawer();
+    return () => (
+        <Button variant="ghost" onPress={() => drawer.toggle()}>
+            {drawer.isOpen ? 'Close' : 'Menu'}
+        </Button>
+    );
+});
+```

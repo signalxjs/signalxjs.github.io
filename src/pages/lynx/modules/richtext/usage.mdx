@@ -1,0 +1,250 @@
+---
+title: "Usage"
+description: "Rich Text — Native rich-text input"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Rich Text
+
+<p class="lede">Render a native attributed-text field, decode its edits into a typed document, and drive formatting with fire-and-forget commands — on both iOS and Android.</p>
+
+## Basic usage
+
+The package gives you one component, `RichTextInput`, plus a command surface, `RichTextMethods`. The component renders the native `sigx-richtext` element and decodes its events into typed shapes; the commands mutate the field over the background bridge. Capture the element handle through the `onElement` prop and pass it to every command:
+
+```tsx
+import { RichTextInput, RichTextMethods, type RichTextHandle } from '@sigx/lynx-richtext';
+
+function Composer() {
+  let el: RichTextHandle = null;
+
+  return (
+    <RichTextInput
+      placeholder="Write something…"
+      minHeight={40}
+      maxHeight={160}
+      onElement={(handle) => { el = handle; }}
+      onChange={(doc, isComposing) => {
+        // doc is a decoded RichDoc; do not echo writes while isComposing is true.
+      }}
+      onSelection={(sel) => {
+        // sel.activeFormats drives toolbar active state.
+      }}
+      onHeightChange={(height) => {
+        // auto-grow: apply height to the surrounding layout.
+      }}
+    />
+  );
+}
+```
+
+Commands are issued separately. They ride the background-to-main bridge and return nothing — state flows back through the field's own `onChange` and `onSelection` events, which are the editor's single source of truth:
+
+```tsx
+RichTextMethods.toggleFormat(el, 'bold');
+RichTextMethods.setBlockType(el, 'heading', 2);
+RichTextMethods.insertText(el, '🎉');
+```
+
+A `null` or `undefined` handle makes every command a silent no-op, so it is safe to fire commands before the field has reported its handle.
+
+## Installing and linking
+
+Install the package, then let the CLI wire up the native module:
+
+```bash
+pnpm add @sigx/lynx-richtext
+sigx prebuild
+```
+
+`@sigx/lynx-richtext` is iOS + Android only and is backed by a native element (`UITextView` on iOS, `EditText` on Android). It requires **no runtime permissions** and **no** `Info.plist` / `AndroidManifest` entries — it is a plain in-app text field.
+
+`sigx prebuild` auto-discovers the package and registers the native element from its `signalx-module.json` (the iOS UI component and the Android behavior for the `sigx-richtext` tag). After adding the package you must run a native rebuild before the element will render. The only peer dependency is `@sigx/lynx`.
+
+The element renders nothing meaningful under pure web/SSR — it is a native view. Develop against a simulator or device.
+
+## Building a formatting toolbar
+
+`onSelection` delivers a `SelectionState` whose `activeFormats` and `activeBlock` reflect what currently covers the caret (or the typing attributes when the selection is collapsed). Mirror that into your toolbar's active state, and call back into `RichTextMethods` to toggle formats. Because the field is the source of truth, you do not track formatting yourself — you read it from the last selection event:
+
+```tsx
+import { RichTextInput, RichTextMethods, type RichTextHandle, type SelectionState } from '@sigx/lynx-richtext';
+
+function ToolbarComposer() {
+  let el: RichTextHandle = null;
+  let active: SelectionState['activeFormats'] = [];
+
+  function isActive(fmt: 'bold' | 'italic') {
+    return active.includes(fmt);
+  }
+
+  return (
+    <view>
+      <RichTextInput
+        accentColor="#2563eb"
+        minHeight={48}
+        onElement={(handle) => { el = handle; }}
+        onSelection={(sel) => { active = sel.activeFormats; }}
+      />
+      <view bindtap={() => RichTextMethods.toggleFormat(el, 'bold')}>
+        <text>{isActive('bold') ? 'Bold (on)' : 'Bold'}</text>
+      </view>
+      <view bindtap={() => RichTextMethods.setBlockType(el, 'heading', 2)}>
+        <text>Heading 2</text>
+      </view>
+      <view bindtap={() => RichTextMethods.setBlockType(el, 'bullet')}>
+        <text>Bullet list</text>
+      </view>
+    </view>
+  );
+}
+```
+
+A few formatting rules are load-bearing: the `code` inline format is terminal — turning it on excludes bold/italic/strike, and those cannot be enabled inside a code run. `setBlockType` takes an optional `level` (the heading level, 1–6) and an optional `checked` (to seed a task checkbox).
+
+## Inserting links and mention chips
+
+A link is a payload-carrying inline format, so it goes through `applyFormat` over an explicit character range rather than through `toggleFormat`. Only the `'link'` type is supported; a non-empty `attrs.href` links the range, and an empty or missing `href` unlinks it. Links are refused inside a `codeBlock`.
+
+A mention is an atomic chip — one `U+FFFC` code unit carrying the mention attributes. Insert it with `insertChip`, which requires a non-empty `id` and `label`. The visible text lives only in `attrs.label`; the chip's covered text is the single object-replacement character:
+
+```tsx
+import { RichTextInput, RichTextMethods, type RichTextHandle } from '@sigx/lynx-richtext';
+
+function MentionComposer() {
+  let el: RichTextHandle = null;
+
+  // Link the characters in [start, end) (UTF-16 code units).
+  function linkSelection(start: number, end: number) {
+    RichTextMethods.applyFormat(el, 'link', start, end, { href: 'https://sigx.dev' });
+  }
+
+  // Replace the user's "@" trigger range with a mention chip.
+  function pickMention(from: number, to: number) {
+    RichTextMethods.insertChip(
+      el,
+      { id: 'user-42', label: '@ada', kind: 'user' },
+      { from, to },
+    );
+  }
+
+  return (
+    <RichTextInput
+      placeholder="Mention with @…"
+      onElement={(handle) => { el = handle; }}
+      onSelection={(sel) => {
+        // sel.caretRect is in the field's own coordinate space — anchor your
+        // mention/link popup to it.
+        void sel.caretRect;
+      }}
+    />
+  );
+}
+```
+
+When you omit the `replace` range, `insertChip` replaces the live selection instead. Offsets everywhere are UTF-16 code units — never split a surrogate pair (an emoji counts as two units).
+
+## Programmatic content: load, replace, clear
+
+The `value` prop sets the initial document only. Once the user has edited (or after any applied `setDocument`), `value` is ignored — later programmatic replacement must go through `RichTextMethods.setDocument`. `RichTextInput` will `JSON.stringify` a `RichDoc` passed to `value` for you.
+
+Treat the field as the source of truth for live text and push `setDocument` only for genuine programmatic mutations — loading a draft, clearing after send, or applying an external change. Do **not** echo every keystroke back, and never write during composition. The IME/echo contract protects you: `setDocument` is dropped when the content is structurally identical, when its version is stale (older than the field's current version), or while an IME composition is active. Mid-composition, `onChange` reports `isComposing: true` so you can skip your own writes.
+
+```tsx
+import {
+  RichTextInput,
+  RichTextMethods,
+  emptyDoc,
+  type RichDoc,
+  type RichTextHandle,
+} from '@sigx/lynx-richtext';
+
+function DraftComposer(props: { initial: RichDoc }) {
+  let el: RichTextHandle = null;
+  let latest: RichDoc = props.initial;
+
+  function send() {
+    // Hand `latest` to your transport, then clear the field.
+    RichTextMethods.setDocument(el, emptyDoc());
+  }
+
+  return (
+    <view>
+      <RichTextInput
+        value={props.initial}
+        editable={true}
+        onElement={(handle) => { el = handle; }}
+        onChange={(doc, isComposing) => {
+          if (isComposing) return; // do not snapshot mid-composition
+          latest = doc;
+        }}
+      />
+      <view bindtap={send}>
+        <text>Send</text>
+      </view>
+    </view>
+  );
+}
+```
+
+Pass an explicit `editable` boolean. There is no separate "get document" command — read the current state from the `onChange` event, never by polling.
+
+## Building a document by hand
+
+`RichDoc` is a flat model: a single `text` string (paragraphs separated by `\n`), an array of inline `spans` (character ranges), and an array of `blocks` (paragraph ranges). The package does not impose any serialization meaning — what the spans and blocks mean is the consumer's choice. The helpers let you construct, compare, and normalize documents without touching the wire format:
+
+```tsx
+import {
+  RichTextMethods,
+  encodeDoc,
+  decodeDoc,
+  docEquals,
+  normalizeDoc,
+  emptyDoc,
+  type RichDoc,
+  type RichTextHandle,
+} from '@sigx/lynx-richtext';
+
+const greeting: RichDoc = {
+  text: 'Hello world',
+  spans: [{ start: 0, end: 5, type: 'bold' }], // "Hello" is bold
+  blocks: [{ start: 0, end: 11, type: 'heading', level: 1 }],
+  v: 0,
+};
+
+// Serialize / parse the JSON wire form.
+const json = encodeDoc(greeting);
+const parsed = decodeDoc(json); // malformed input degrades to emptyDoc(), never throws
+
+// Compare two docs ignoring version. Normalize first if span/block ordering may differ.
+const changed = !docEquals(normalizeDoc(parsed), normalizeDoc(greeting));
+
+function load(el: RichTextHandle) {
+  RichTextMethods.setDocument(el, greeting);
+}
+
+void changed;
+```
+
+`decodeDoc` is defensive: it clamps offsets into range, drops unknown types and empty/inverted ranges, clamps heading levels to 1–6, and falls back to `emptyDoc()` on bad input. `docEquals` ignores the version field `v` (the echo-suppression comparison) and is order-sensitive, so `normalizeDoc` both sides if your producers may emit spans in different orders.
+
+## Notes
+
+- **Commands are fire-and-forget.** Every `RichTextMethods` call returns `void`; it does not report success. State reconciles through the next `onChange` / `onSelection`. A `null`/`undefined` handle no-ops silently.
+- **The `value` prop is initial-only.** After the first user edit (or any applied `setDocument`), `value` is locked out — use `setDocument` for later replacement. A `RichDoc` value is stringified automatically.
+- **Version `v` is monotonic.** Native bumps it on every user edit and carries it on each `onChange`. `setDocument` uses it for stale-write protection — a write older than the field's current version is dropped.
+- **Pass an explicit `editable` boolean.** `editable` defaults to `true`, but passing `editable={undefined}` historically coerced to `false` on Android (a permanently unfocusable field). A literal `true`/`false` is safe.
+- **UTF-16 offsets everywhere.** All `start`/`end` values, selection ranges, and chip-replace bounds are UTF-16 code units. An emoji is two units — never split a surrogate pair.
+- **`code` is terminal.** Enabling the `code` inline format excludes bold/italic/strike; they cannot be turned on inside a code run.
+- **`applyFormat` is link-only.** Only `type: 'link'` is supported; an empty/missing `href` unlinks, and links are refused inside a `codeBlock`.
+- **Mention chips need `id` + `label`.** Both must be non-empty. The visible label lives in `attrs.label`, not in the covered text — a copied chip degrades to a bare object-replacement character in plain text.
+- **Colors are hex strings.** `textColor`, `accentColor`, and `placeholderColor` accept `#RGB`, `#RRGGBB`, or `#RRGGBBAA` (leading `#` optional). `accentColor` is the caret tint and the link color.
+- **Auto-grow.** `minHeight` / `maxHeight` clamp the frame in px; content past `maxHeight` scrolls internally. `onHeightChange` fires only when the clamped height moves by at least 0.5px.
+- **No serialization format of its own.** `RichDoc` is plain text + spans + blocks; the meaning is yours to define. `@sigx/lynx-markdown`'s editor layers markdown semantics on top of this same field, and a chat input can store the doc JSON directly.
+
+## See also
+
+- [Overview](/lynx/modules/richtext/overview) — what the package is and how it fits the family.
+- [API reference](/lynx/modules/richtext/api) — every export with signatures.

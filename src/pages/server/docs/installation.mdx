@@ -1,0 +1,75 @@
+---
+title: Installation
+description: "Install @sigx/server-renderer, its dependency, and the subpath import map"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+## Install
+
+```bash
+npm install @sigx/server-renderer
+```
+
+## Dependency
+
+The only runtime dependency is **`sigx`**, the host framework. It is declared as a
+regular dependency, so installing `@sigx/server-renderer` pulls `sigx` in
+automatically — there is no separate install step and no peer dependency to add.
+
+The package is **ESM-only** (`"type": "module"`, no CommonJS build). Use it from
+an ESM project or bundler.
+
+## Subpath imports
+
+`@sigx/server-renderer` ships three tree-shakeable entry points (all with
+`sideEffects: false`). Import from the right one so a browser bundle never pulls
+in Node code:
+
+| Import path | Use it for | Notes |
+|---|---|---|
+| `@sigx/server-renderer` | `useHead`, `createSSR`, shared types | Universal — re-exports everything plus head + plugin system |
+| `@sigx/server-renderer/server` | `renderToString`, `renderToStream`, `renderToNodeStream` | Node-only render APIs |
+| `@sigx/server-renderer/client` | `hydrate`, `ssrClientPlugin`, plugin hooks | Browser-only hydration |
+
+A typical app uses all three across its entry files:
+
+```tsx
+// entry-server.tsx
+import { renderToNodeStream } from '@sigx/server-renderer/server';
+
+// entry-client.tsx
+import { ssrClientPlugin } from '@sigx/server-renderer/client';
+
+// any component
+import { useHead } from '@sigx/server-renderer';
+```
+
+`renderToNodeStream` and `renderToStreamWithCallbacks` are exported **only** from
+`/server`, not from the main entry. Hydration internals (`hydrate`, `hydrateNode`,
+`registerClientPlugin`, …) are exported **only** from `/client`.
+
+## Import side effects
+
+Importing the package runs one-time setup automatically: it augments the SSR
+directive types and calls `initDirectivesForSSR()`, which patches `getSSRProps`
+onto built-in directives such as `show` so they serialize correctly during SSR.
+You do not need to call anything to enable this.
+
+## Build / Vite wiring
+
+No special Vite config is required to **consume** the package — the standard
+SignalX JSX/Vite setup for your host app applies. The package's own build/dev
+tooling uses `@sigx/vite` and `vite`, but those are declared as dev dependencies
+and are not needed by consumers.
+
+There is **no CLI or `bin`** — the package is a library you import.
+
+## Next steps
+
+- [Streaming SSR with an HTTP server](/server/docs/streaming-ssr)
+- [Hydration and island strategies](/server/docs/hydration)
+- [API Reference](/server/docs/api)

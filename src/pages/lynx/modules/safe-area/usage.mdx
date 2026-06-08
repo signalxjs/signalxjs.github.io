@@ -8,16 +8,121 @@ order: 30
 
 # Using Safe Area
 
-<p class="lede">Safe-area insets — the essentials.</p>
+<p class="lede">Keep your UI clear of the notch, home indicator, status bar and software keyboard — with inset-aware first paint and live updates on iOS and Android.</p>
 
 ## Basic usage
 
+Wrap your app root in a `SafeAreaProvider`, then drop a `SafeAreaView` around any content that should be padded away from the system edges. The provider seeds insets synchronously before first paint, so there is no flash of unsafe content.
+
 ```tsx
-import * as SafeArea from '@sigx/lynx-safe-area';
+import { defineApp } from '@sigx/lynx';
+import { SafeAreaProvider, SafeAreaView } from '@sigx/lynx-safe-area';
+
+export default defineApp(() => () => (
+  <SafeAreaProvider>
+    <SafeAreaView edges={['top', 'bottom']} class="bg-base-100">
+      <PageContent />
+    </SafeAreaView>
+  </SafeAreaProvider>
+));
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-safe-area */}
+By default `SafeAreaView` pads all four edges and stretches to fill its parent (a flex-fill base style). Pass `edges` to limit which sides receive insets, and `mode="margin"` if you want spacing applied as margin instead of padding.
+
+No manual native wiring is required. The native publishers ship for iOS and Android inside the package, and `sigx prebuild` auto-discovers them, copies the source into your `ios/` and `android/` trees, and registers them so insets are populated before the first render. No runtime permissions are needed on either platform.
+
+```bash
+pnpm add @sigx/lynx-safe-area
+sigx prebuild
+```
+
+## Reading inset values directly
+
+When you need the raw numbers — to position a custom element or size something by hand — call `useSafeAreaInsets`. It returns a reactive signal; reading `.value` in your render subscribes you to live changes (orientation, keyboard, etc.).
+
+```tsx
+import { useSafeAreaInsets } from '@sigx/lynx-safe-area';
+
+const Header = () => {
+  const insets = useSafeAreaInsets();
+  return () => (
+    <view style={{ paddingTop: `${insets.value.top}px` }}>
+      <text>Title</text>
+    </view>
+  );
+};
+```
+
+Inset values are in dp/pt (logical pixels), and follow CSS shorthand order for the four edges. The `EdgeInsets` object also carries `keyboard`, `statusBar`, and `navigationBar` extras for finer control.
+
+If you call `useSafeAreaInsets` outside a `SafeAreaProvider`, it degrades gracefully: it returns a zero-filled signal and warns once in development, so test and storybook fragments keep working.
+
+## Styling with CSS variables
+
+The provider publishes inheritable CSS custom properties on its host view, so you can apply insets straight from utility classes anywhere in the tree — no hook needed. This works uniformly on both platforms.
+
+```tsx
+import { SafeAreaProvider } from '@sigx/lynx-safe-area';
+
+export default () => () => (
+  <SafeAreaProvider>
+    <view class="pt-[var(--sat)] pb-[var(--sab)]">
+      <PageContent />
+    </view>
+  </SafeAreaProvider>
+);
+```
+
+The available variables are `--sat` (top), `--sar` (right), `--sab` (bottom), `--sal` (left), and `--safe-area-keyboard` (keyboard height) — all in px. Prefer these over upstream `env(safe-area-inset-*)`, which only works on iOS.
+
+## Positioning inside the safe frame
+
+For absolutely-positioned overlays, compute the inner safe rectangle with `useSafeAreaFrame`. You supply the viewport dimensions — the module deliberately does not depend on a device-info package — and it returns a reactive frame clamped to non-negative values (and subtracting the keyboard height from the available height).
+
+```tsx
+import { useSafeAreaFrame } from '@sigx/lynx-safe-area';
+import { DeviceInfo } from '@sigx/lynx-device-info';
+
+const Overlay = async () => {
+  const { screenWidth, screenHeight } = await DeviceInfo.getInfo();
+  const frame = useSafeAreaFrame(screenWidth, screenHeight);
+  return () => (
+    <view
+      style={{
+        position: 'absolute',
+        top: `${frame.value.y}px`,
+        left: `${frame.value.x}px`,
+        width: `${frame.value.width}px`,
+        height: `${frame.value.height}px`,
+      }}
+    />
+  );
+};
+```
+
+See [Device Info](/lynx/modules/device-info/overview) for obtaining the viewport size.
+
+## Animating insets on the main thread
+
+The four edges are backed by per-edge `SharedValue`s, so you can drive layout from a worklet without a round-trip to the background thread. Use `useSafeAreaSharedValues` to read them inside a `useAnimatedStyle` body (for example to slide content as the keyboard appears).
+
+```tsx
+import { useSafeAreaSharedValues } from '@sigx/lynx-safe-area';
+
+const sv = useSafeAreaSharedValues();
+// sv is null outside a <SafeAreaProvider>; guard before reading.
+// sv.top / sv.right / sv.bottom / sv.left are SharedValue<number>.
+```
+
+For a synchronous read of the current insets from inside a `'main thread'`-marked worklet body — with no signal subscription — use `useSafeAreaInsetsMT`, which re-reads on each invocation.
 
 ## Notes
 
-Notch, home indicator, status bar and keyboard insets.
+- All inset values are dp/pt logical pixels, not raw device pixels.
+- The keyboard, status-bar and navigation-bar extras may be `0` when unknown or not applicable (for example, iOS reports `navigationBar` as `0`).
+- `SafeAreaView` applies insets via an inline background-signal style rather than `useAnimatedStyle` so they land in the first layout pass — important for children like `scroll-view` that capture their frame eagerly.
+
+## See also
+
+- [API reference](/lynx/modules/safe-area/api) — every export with signatures.
+- [Motion](/lynx/modules/motion/overview) — `useAnimatedStyle` and worklets.

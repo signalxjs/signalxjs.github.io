@@ -8,16 +8,110 @@ order: 30
 
 # Using File System
 
-<p class="lede">Sandboxed file access — the essentials.</p>
+<p class="lede">Read, write, and delete files inside your app's sandbox — no storage permissions required.</p>
 
 ## Basic usage
 
+Every operation lives on the `FileSystem` namespace. Resolve a directory first, then build paths under it — always prefix paths with `getDocumentDirectory()` or `getCacheDirectory()` so they resolve consistently on both platforms.
+
 ```tsx
-import * as FileSystem from '@sigx/lynx-file-system';
+import { FileSystem } from '@sigx/lynx-file-system';
+
+const docs = FileSystem.getDocumentDirectory();
+const path = `${docs}/data.json`;
+
+await FileSystem.writeFile(path, JSON.stringify({ key: 'value' }));
+
+const content = await FileSystem.readFile(path);
+const data = JSON.parse(content);
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-file-system */}
+No native setup is needed. The module is scoped to the per-app sandbox, so there are no `Info.plist` or `AndroidManifest` entries and no runtime grants — `sigx prebuild` discovers and links it automatically.
+
+`getDocumentDirectory()` and `getCacheDirectory()` are synchronous and return a path immediately. Every other operation returns a Promise.
+
+## Persisting JSON data
+
+The document directory survives app updates and is included in iCloud / Android backups — use it for data that must outlive the session. Check for a file with `getInfo` before reading so a missing file does not throw.
+
+```tsx
+import { FileSystem } from '@sigx/lynx-file-system';
+
+const path = `${FileSystem.getDocumentDirectory()}/settings.json`;
+
+async function loadSettings() {
+  const info = await FileSystem.getInfo(path);
+  if (!info.exists) return null;
+
+  const text = await FileSystem.readFile(path);
+  return JSON.parse(text);
+}
+
+async function saveSettings(settings: Record<string, unknown>) {
+  await FileSystem.writeFile(path, JSON.stringify(settings));
+}
+```
+
+`writeFile` creates parent directories as needed (and writes atomically on iOS). It is UTF-8 text only — there is no binary write API.
+
+## Caching downloaded text
+
+Use the cache directory for data you can regenerate. The OS may purge it under disk pressure, so never store anything there you cannot rebuild.
+
+```tsx
+import { FileSystem } from '@sigx/lynx-file-system';
+
+const cachePath = `${FileSystem.getCacheDirectory()}/feed.json`;
+
+async function readCachedFeed() {
+  const info = await FileSystem.getInfo(cachePath);
+  if (!info.exists) return null;
+  return FileSystem.readFile(cachePath);
+}
+
+async function writeCachedFeed(json: string) {
+  await FileSystem.writeFile(cachePath, json);
+}
+```
+
+## Reading binary files
+
+To read non-text files, use `readFileBase64` (base64 string) or `readFileAsArrayBuffer` (decoded bytes). On Android, `readFileBase64` also accepts `content://` URIs returned by pickers. Both materialize the whole file in memory — and base64 is about 33% larger crossing the bridge — so they are fine for small and medium files only.
+
+```tsx
+import { FileSystem } from '@sigx/lynx-file-system';
+
+const path = `${FileSystem.getDocumentDirectory()}/thumbnail.png`;
+
+const base64 = await FileSystem.readFileBase64(path);
+const buffer = await FileSystem.readFileAsArrayBuffer(path);
+```
+
+For large media or uploads, do not read the bytes into JS. Pass the file URI from a picker directly to the network layer, or stream it from disk — see the [Camera](/lynx/modules/camera/overview) and [Image Picker](/lynx/modules/image-picker/overview) modules for picker URIs.
+
+## Deleting files and handling errors
+
+`deleteFile` removes a file. Behavior for a missing file differs across platforms — iOS rejects, Android resolves — so guard with `getInfo` first if you do not want a rejection, and wrap calls that touch user files in `try` / `catch`.
+
+```tsx
+import { FileSystem } from '@sigx/lynx-file-system';
+
+const path = `${FileSystem.getDocumentDirectory()}/draft.txt`;
+
+try {
+  const info = await FileSystem.getInfo(path);
+  if (info.exists) {
+    await FileSystem.deleteFile(path);
+  }
+} catch (err) {
+  console.error('Could not delete draft:', err);
+}
+```
+
+Native read failures surface as rejected Promises. `readFileBase64` normalizes the native error into a thrown `Error` prefixed with `[@sigx/lynx-file-system]`; the other async methods reject with the underlying native error.
 
 ## Notes
 
-Read / write / delete and list files in the app documents directory.
+- Guard against missing modules in a build with `FileSystem.isAvailable()` before calling.
+- All operations run synchronously on the bridge thread, so keep reads and writes small to avoid blocking.
+- Continue to the [API reference](/lynx/modules/file-system/api) for the full typed surface.

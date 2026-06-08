@@ -1,0 +1,91 @@
+---
+title: Input
+description: "Input — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 142
+---
+
+# Input
+
+<p class="lede">Single-line text field with HeroUI's flat and bordered variants, semantic color accents, a three-step size ramp, and two-way model binding.</p>
+
+## Import
+
+```tsx
+import { Input } from '@sigx/lynx-heroui';
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `() => state.value` | - | Two-way binding to a string signal property. Pass a getter so edits flow back into your state. |
+| `placeholder` | `string` | - | Placeholder text shown when the field is empty. |
+| `type` | `'text' \| 'number' \| 'password'` | `'text'` | Native input type for the field. |
+| `variant` | `'flat' \| 'bordered'` | `'flat'` | Surface style. `flat` is the filled HeroUI default; `bordered` opts into an outline. |
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Semantic accent color. |
+| `size` | `'sm' \| 'md' \| 'lg'` | `'md'` | Field size. |
+| `disabled` | `boolean` | `false` | Disable the field. |
+| `class` | `string` | - | Additional CSS classes. |
+
+## Model binding
+
+Use `model` for two-way binding. Pass a getter pointing at a signal property so typed text flows back into your state:
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Col, Input, Row, Text } from '@sigx/lynx-heroui';
+
+const NameField = component(() => {
+    const name = signal('');
+    return () => (
+        <Col gap={8}>
+            <Input placeholder="Type your name…" model={() => name.value} />
+            <Row gap={4}>
+                <Text size="sm" class="opacity-60">value:</Text>
+                <Text size="sm" weight="semibold">{name.value || '(empty)'}</Text>
+            </Row>
+        </Col>
+    );
+});
+```
+
+## Variants and colors
+
+`flat` is the filled HeroUI default; `bordered` switches to an outline. Pair `bordered` with a semantic `color` for accented fields:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Col, Input } from '@sigx/lynx-heroui';
+
+const Variants = component(() => () => (
+    <Col gap={8}>
+        <Input placeholder="Flat (default)" />
+        <Input placeholder="Bordered" variant="bordered" />
+        <Input placeholder="Primary" color="primary" variant="bordered" />
+        <Input placeholder="Success" color="success" variant="bordered" />
+        <Input placeholder="Error" color="error" variant="bordered" />
+    </Col>
+));
+```
+
+## Sizes, types, and disabled
+
+The size ramp is `sm`, `md` (default), and `lg`. Set `type` for numeric or masked entry, and `disabled` to lock the field:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Col, Input } from '@sigx/lynx-heroui';
+
+const StatesAndTypes = component(() => () => (
+    <Col gap={8}>
+        <Input placeholder="sm" size="sm" />
+        <Input placeholder="md (default)" />
+        <Input placeholder="lg" size="lg" />
+        <Input placeholder="Password" type="password" />
+        <Input placeholder="Number" type="number" />
+        <Input placeholder="Disabled" disabled />
+    </Col>
+));
+```

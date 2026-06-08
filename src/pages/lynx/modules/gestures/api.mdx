@@ -8,10 +8,538 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-gestures` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-gestures`. Components and the `Swiper` dot hooks run on the main thread; `usePinch` / `useRotation` are background-thread fallbacks.</p>
 
-## Exports
+All exports work on both iOS and Android unless noted. The package is named-exports only — there is no default export.
 
-{/* TODO: document the public API of @sigx/lynx-gestures */}
+## Components
 
-See the package source for the complete typed surface.
+### Pressable
+
+A tap and long-press recognizer with built-in pressed-state visual feedback (opacity and scale). Composes `Gesture.Tap` and `Gesture.LongPress` simultaneously; emits `press` and `longPress` to the background thread via `runOnBackground`.
+
+```ts
+export const Pressable: (props: PressableProps) => unknown;
+```
+
+Defaults: `pressedOpacity` `0.6`, `pressedScale` `1`, `longPressDuration` `500`ms (`0` disables long-press while keeping pressed-state reset), `maxDistance` `10`px (the slop past which the press cancels). `accessibility-*` props are forwarded onto the inner interactive view. Platform: both.
+
+### Draggable
+
+A draggable container built on `Gesture.Pan()`. Drives the element transform via two `useAnimatedStyle` bindings on the main thread; supports axis lock, bounds clamping, snap-back, external `SharedValue` position exposure, and automatic `ScrollView` coordination plus edge-scroll.
+
+```ts
+export const Draggable: (props: DraggableProps) => unknown;
+```
+
+Defaults: `axis` `'both'`, `threshold` `0` (minimum pan distance), `snapBack` `false`. Emits `dragStart` and `dragEnd`. Platform: both.
+
+### Swipeable
+
+A horizontal swipe-to-reveal container built on `Gesture.Pan().axis('x')`. Snaps to closed / open-left / open-right on release; emits `swipeOpen` and `swipeClose`.
+
+```ts
+export const Swipeable: (props: SwipeableProps) => unknown;
+```
+
+Defaults: `leftActionsWidth` `100`, `rightActionsWidth` `100`, `snapThreshold` `60`, `snapDuration` `200`ms. `leftActions` / `rightActions` are render-prop functions for the reveal panels. Platform: both.
+
+### ScrollView
+
+A `scroll-view` wrapper that mirrors scroll position into `SharedValue`s (`offsetX` / `offsetY`) and provides a `ScrollContext` so descendant `Draggable` / `Swipeable` auto-coordinate — they yield the native pan during a child gesture.
+
+```ts
+export const ScrollView: (props: ScrollViewProps) => unknown;
+```
+
+`scroll-orientation` defaults to `'vertical'`; `enable-scroll` defaults to `true` and is AND-combined with the descendant-driven dragging flag (children can lock scroll mid-drag). `offsetX` / `offsetY` are written each scroll frame on the main thread. Platform: both.
+
+### Swiper
+
+A paged horizontal carousel built on a native paging `scroll-view`. Renders items into page-sized wrappers, writes the live pixel offset into a `SharedValue` each main-thread frame, supports a controlled `index` (`PrimitiveSignal`) with native `scrollTo` glide, and emits `pageChange`.
+
+```ts
+export const Swiper: <T>(props: SwiperProps<T>) => unknown;
+```
+
+`items` and `renderItem` are required. `width` defaults to the measured container width, then `lynx.SystemInfo.pixelWidth / pixelRatio` (fallback `400`); `height` falls back to the measured height then `800`. `keyExtractor` defaults to the array index. Platform: both.
+
+## Hooks — Swiper indicators
+
+These headless hooks each return a `MainThreadRef<MainThread.Element | null>` to spread onto a dot element. They drive one transform channel from the Swiper's live `offset`. All share the `SwiperDotHookInputs` (`offset`, `pageWidth`, `index`). Platform: both.
+
+### useSwiperDotProgress
+
+Drives the `opacity` channel — a triangular crossfade (default `outputRange` `[0, 1, 0]`).
+
+```ts
+export function useSwiperDotProgress(
+  opts: UseSwiperDotProgressOptions,
+): MainThreadRef<MainThread.Element | null>;
+```
+
+### useSwiperDotScale
+
+Drives uniform `scale` (both axes); the active dot scales up. Defaults: `inactive` `1`, `active` `1.4`.
+
+```ts
+export function useSwiperDotScale(opts: SwiperDotHookInputs & {
+  inactive?: number;
+  active?: number;
+  window?: number;
+}): MainThreadRef<MainThread.Element | null>;
+```
+
+### useSwiperDotGrowX
+
+Drives the `scaleX` transform channel (pill stretch, no layout pass); the active dot widens. Defaults: `inactive` `1`, `active` `3`.
+
+```ts
+export function useSwiperDotGrowX(opts: SwiperDotHookInputs & {
+  inactive?: number;
+  active?: number;
+  window?: number;
+}): MainThreadRef<MainThread.Element | null>;
+```
+
+### useSwiperDotWidth
+
+Animates the layout `width` style in CSS pixels (reflows siblings; slower than `useSwiperDotGrowX`). Defaults: `inactive` `8`px, `active` `24`px.
+
+```ts
+export function useSwiperDotWidth(opts: SwiperDotHookInputs & {
+  inactive?: number;
+  active?: number;
+  window?: number;
+}): MainThreadRef<MainThread.Element | null>;
+```
+
+### useSwiperDotTranslate
+
+Translates a single thumb across the track (`translateX`), proportional to scroll progress — for the "bar" indicator variant.
+
+```ts
+export function useSwiperDotTranslate(
+  opts: UseSwiperDotTranslateOptions,
+): MainThreadRef<MainThread.Element | null>;
+```
+
+## Hooks — multi-touch
+
+### usePinch
+
+A two-finger pinch/zoom gesture. JS-only background-thread fallback that parses `bindtouch*` events (proximity-based finger matching, since Lynx touch identifiers are unstable across events). Returns a reactive `PinchState` signal, a handler bag, and `reset()`.
+
+```ts
+export function usePinch(options?: UsePinchOptions): UsePinchReturn;
+```
+
+Spread `handlers` onto the element's `bindtouch*` attributes. Platform: both, but requires multi-touch to the same element — may not work on Lynx Explorer / emulators; test on a device.
+
+### useRotation
+
+A two-finger rotation gesture. JS-only background-thread fallback parsing `bindtouch*` events. Returns a reactive `RotationState` signal (cumulative signed radians plus angular velocity), a handler bag, and `reset()`.
+
+```ts
+export function useRotation(options?: UseRotationOptions): UseRotationReturn;
+```
+
+Same device caveat as `usePinch`. Platform: both.
+
+### useScrollContext
+
+Injectable accessor for the `ScrollContext` provided by `ScrollView`; returns `null` when no parent `ScrollView` is in scope. Public so custom gesture components can opt into the same auto-yield coordination as `Draggable` / `Swipeable`.
+
+```ts
+export const useScrollContext: () => ScrollContext | null;
+```
+
+Branch on `null` when there is no parent `ScrollView`. Platform: both.
+
+## Re-exports from `@sigx/lynx`
+
+These are re-exported for convenience and back-compat. Prefer importing them from `@sigx/lynx` directly.
+
+### useSharedValue
+
+Allocates a thread-aware value — writeable on the main thread, reactively observable on the background thread.
+
+```ts
+export { useSharedValue } from '@sigx/lynx';
+```
+
+### useAnimatedStyle
+
+Binds an element's style to a `SharedValue` via a named mapper (`translateX` / `translateY`, `scale`, `opacity`, …); the mapper runs on the main thread every flush the value changes.
+
+```ts
+export { useAnimatedStyle } from '@sigx/lynx';
+// useAnimatedStyle(elRef, sharedValue, mapperName, params?)
+```
+
+### useAnimatedValue
+
+Alias for `useSharedValue`, kept for back-compat. **Deprecated.**
+
+```ts
+export { useAnimatedValue } from '@sigx/lynx';
+```
+
+### resetAnimatedStyleBindingIds
+
+Resets the internal `useAnimatedStyle` binding-id counter. Test / SSR helper.
+
+```ts
+export { resetAnimatedStyleBindingIds } from '@sigx/lynx';
+```
+
+### SharedValue
+
+Cross-thread value primitive (extends `MainThreadRef`). **Deprecated since 0.3.0** — import from `@sigx/lynx` directly.
+
+```ts
+export { SharedValue } from '@sigx/lynx';
+```
+
+### AnimatedValue
+
+Alias for `SharedValue`. **Deprecated.**
+
+```ts
+export { AnimatedValue } from '@sigx/lynx';
+```
+
+### SharedValueState / AnimatedValueState
+
+Re-exported types. `AnimatedValueState` is **deprecated** — use `SharedValueState`.
+
+```ts
+export type { SharedValueState } from '@sigx/lynx';
+export type { AnimatedValueState } from '@sigx/lynx';
+```
+
+### BuiltinMapperName
+
+Union of built-in `useAnimatedStyle` mapper names.
+
+```ts
+export type { BuiltinMapperName } from '@sigx/lynx';
+```
+
+### MapperParams
+
+Per-channel parameter shapes for `useAnimatedStyle` mappers — linear `{ factor, offset }` or range `{ inputRange, outputRange, extrapolate }`.
+
+```ts
+export type { MapperParams } from '@sigx/lynx';
+```
+
+## Types — component props
+
+### PressableProps
+
+```ts
+export type PressableProps =
+  & Define.Prop<'pressedOpacity', number, false>
+  & Define.Prop<'pressedScale', number, false>
+  & Define.Prop<'longPressDuration', number, false>
+  & Define.Prop<'maxDistance', number, false>
+  & Define.Prop<'disabled', boolean, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Prop<'accessibility-element', boolean, false>
+  & Define.Prop<'accessibility-label', string, false>
+  & Define.Prop<'accessibility-role', string, false>
+  & Define.Prop<'accessibility-trait', string, false>
+  & Define.Prop<'accessibility-status', string, false>
+  & Define.Slot<'default'>
+  & Define.Event<'press', void>
+  & Define.Event<'longPress', void>;
+```
+
+### DraggableProps
+
+```ts
+export type DraggableProps =
+  & Define.Prop<'axis', 'x' | 'y' | 'both', false>
+  & Define.Prop<'threshold', number, false>
+  & Define.Prop<'snapBack', boolean, false>
+  & Define.Prop<'minX', number, false>
+  & Define.Prop<'maxX', number, false>
+  & Define.Prop<'minY', number, false>
+  & Define.Prop<'maxY', number, false>
+  & Define.Prop<'translateX', SharedValue<number>, false>
+  & Define.Prop<'translateY', SharedValue<number>, false>
+  & Define.Prop<'edgeScroll', EdgeScrollConfig, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>
+  & Define.Event<'dragStart', { x: number; y: number }>
+  & Define.Event<'dragEnd', DragEndDetail>;
+```
+
+`translateX` / `translateY` are optional external `SharedValue`s the worklet writes each frame. `edgeScroll` auto-scrolls a parent `ScrollView` near its edge.
+
+### SwipeableProps
+
+```ts
+export type SwipeableProps =
+  & Define.Prop<'leftActionsWidth', number, false>
+  & Define.Prop<'rightActionsWidth', number, false>
+  & Define.Prop<'snapThreshold', number, false>
+  & Define.Prop<'snapDuration', number, false>
+  & Define.Prop<'leftActions', () => unknown, false>
+  & Define.Prop<'rightActions', () => unknown, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Prop<'foregroundStyle', Record<string, string | number>, false>
+  & Define.Slot<'default'>
+  & Define.Event<'swipeOpen', { side: SwipeSide }>
+  & Define.Event<'swipeClose', void>;
+```
+
+### ScrollViewProps
+
+```ts
+export type ScrollViewProps =
+  & Define.Prop<'offsetX', SharedValue<number>, false>
+  & Define.Prop<'offsetY', SharedValue<number>, false>
+  & Define.Prop<'scroll-orientation', 'vertical' | 'horizontal', false>
+  & Define.Prop<'enable-scroll', boolean, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Slot<'default'>;
+```
+
+### SwiperProps
+
+```ts
+export type SwiperProps<T = unknown> =
+  & Define.Prop<'items', readonly T[], true>
+  & Define.Prop<'renderItem', (item: T, index: number) => unknown, true>
+  & Define.Prop<'keyExtractor', (item: T, index: number) => string | number, false>
+  & Define.Prop<'width', number, false>
+  & Define.Prop<'height', number | string, false>
+  & Define.Prop<'index', PrimitiveSignal<number>, false>
+  & Define.Prop<'initialIndex', number, false>
+  & Define.Prop<'offset', SharedValue<number>, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Event<'pageChange', { index: number }>;
+```
+
+`items` and `renderItem` are required. `index` is a controlled `PrimitiveSignal`; `offset` is the live main-thread pixel offset.
+
+## Types — payloads and config
+
+### DragEndDetail
+
+Payload of the `Draggable` `dragEnd` event: terminal position and terminal velocity (page px per ms).
+
+```ts
+export interface DragEndDetail {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+}
+```
+
+### EdgeScrollConfig
+
+Edge-scroll config for `Draggable`'s `edgeScroll` prop. Defaults: `threshold` `50`pt, `maxSpeed` `800`pt/sec. Note: this type is **not** re-exported from the package entry — it is reachable only structurally through the `edgeScroll` prop, not as a named import.
+
+```ts
+export type EdgeScrollConfig = boolean | {
+  /** Distance from viewport edge in pt where auto-scroll engages. Default 50. */
+  threshold?: number;
+  /** Maximum scroll velocity in pt/sec at the edge. Default 800. */
+  maxSpeed?: number;
+};
+```
+
+### SwipeSide
+
+Which side a `Swipeable` opened toward; the payload field of the `swipeOpen` event.
+
+```ts
+export type SwipeSide = 'left' | 'right';
+```
+
+### GesturePhase
+
+Lifecycle phase reported in `PinchState` / `RotationState`.
+
+```ts
+export type GesturePhase = 'idle' | 'began' | 'active' | 'ended' | 'cancelled';
+```
+
+## Types — touch and multi-touch state
+
+### TouchPoint
+
+A single touch point (Lynx-shaped); used by `usePinch` / `useRotation` touch parsing.
+
+```ts
+export interface TouchPoint {
+  identifier: number;
+  x: number;
+  y: number;
+  pageX: number;
+  pageY: number;
+  clientX: number;
+  clientY: number;
+}
+```
+
+### TouchEvent
+
+Touch event shape consumed by the `GestureHandlers` `bind*` callbacks.
+
+```ts
+export interface TouchEvent {
+  touches: TouchPoint[];
+  changedTouches: TouchPoint[];
+}
+```
+
+### GestureHandlers
+
+The handler bag returned by `usePinch` / `useRotation`; spread onto an element's `bindtouch*` attributes.
+
+```ts
+export interface GestureHandlers {
+  bindtouchstart?: (e: TouchEvent) => void;
+  bindtouchmove?: (e: TouchEvent) => void;
+  bindtouchend?: (e: TouchEvent) => void;
+  bindtouchcancel?: (e: TouchEvent) => void;
+}
+```
+
+### PinchState
+
+Reactive state of `usePinch`: `phase`, `scale` (relative to gesture start, `1` = unchanged), and focal point.
+
+```ts
+export interface PinchState {
+  phase: GesturePhase;
+  scale: number;
+  focalX: number;
+  focalY: number;
+}
+```
+
+### UsePinchOptions
+
+```ts
+export interface UsePinchOptions {
+  onPinch?: (state: PinchState) => void;
+}
+```
+
+The `onPinch` callback fires on the active / ended / cancelled phases.
+
+### UsePinchReturn
+
+```ts
+export interface UsePinchReturn {
+  state: Signal<PinchState>;
+  handlers: GestureHandlers;
+  reset: () => void;
+}
+```
+
+### RotationState
+
+Reactive state of `useRotation`: `phase`, cumulative signed `rotation` (radians), angular `velocity` (radians/ms), and focal point.
+
+```ts
+export interface RotationState {
+  phase: GesturePhase;
+  /** Cumulative rotation in radians since gesture start (signed). */
+  rotation: number;
+  /** Angular velocity in radians/ms. */
+  velocity: number;
+  focalX: number;
+  focalY: number;
+}
+```
+
+### UseRotationOptions
+
+```ts
+export interface UseRotationOptions {
+  onRotation?: (state: RotationState) => void;
+}
+```
+
+### UseRotationReturn
+
+```ts
+export interface UseRotationReturn {
+  state: Signal<RotationState>;
+  handlers: GestureHandlers;
+  reset: () => void;
+}
+```
+
+## Types — Swiper dot hooks
+
+### SwiperDotHookInputs
+
+Common per-dot inputs shared by every `useSwiperDot*` hook.
+
+```ts
+export interface SwiperDotHookInputs {
+  /** Live MT-thread pixel offset from the Swiper's `offset` prop. */
+  offset: SharedValue<number>;
+  /** Page width in CSS pixels. Must match the Swiper's effective page width. */
+  pageWidth: number;
+  /** Zero-based page index this dot represents. */
+  index: number;
+}
+```
+
+### UseSwiperDotProgressOptions
+
+```ts
+export interface UseSwiperDotProgressOptions extends SwiperDotHookInputs {
+  /** Half-width of the input window in `pageWidth` units. Default `1`. */
+  window?: number;
+  /** Output values at [centre−window·pageWidth, centre, centre+window·pageWidth]. Default `[0, 1, 0]`. */
+  outputRange?: readonly [number, number, number];
+}
+```
+
+### UseSwiperDotTranslateOptions
+
+```ts
+export interface UseSwiperDotTranslateOptions {
+  offset: SharedValue<number>;
+  /** Page width in CSS pixels. */
+  pageWidth: number;
+  /** Distance in CSS pixels one full page of scroll moves the thumb — typically dotWidth + spacing. */
+  step: number;
+}
+```
+
+## Types — scroll coordination
+
+### ScrollContext
+
+Scroll-arena coordination context provided by `ScrollView` and consumed by descendant gesture components via `useScrollContext()`.
+
+```ts
+export interface ScrollContext {
+  /** BG-side flag the parent `<ScrollView>` reads as `enable-scroll={!dragging.value}`. */
+  dragging: PrimitiveSignal<boolean>;
+  /** MT element ref to the underlying `<scroll-view>`. Null until mounted. */
+  scrollViewRef: MainThreadRef<MainThread.Element | null>;
+  /** Live horizontal scroll position SharedValue. */
+  offsetX: SharedValue<number>;
+  /** Live vertical scroll position SharedValue. */
+  offsetY: SharedValue<number>;
+  /** Scroll axis as configured on the <scroll-view>. */
+  scrollOrientation: 'vertical' | 'horizontal';
+}
+```

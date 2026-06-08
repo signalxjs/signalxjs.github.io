@@ -1,0 +1,125 @@
+---
+title: Getting Started
+description: "@sigx/server-renderer — streaming SSR and island hydration"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PrereqCallout } from '@/components/PrereqCallout';
+
+# Getting Started with Server
+
+<PrereqCallout items={[
+    { name: 'SignalX Core basics', path: '/core/docs/getting-started' },
+    { name: 'Components', path: '/core/docs/components' },
+]} />
+
+`@sigx/server-renderer` adds server-side rendering (SSR) and client hydration to
+SignalX. It renders your component tree to HTML on the server — as a string or a
+stream — then re-attaches reactivity in the browser by hydrating the existing
+DOM instead of re-creating it.
+
+The package is **strategy-agnostic**: the core renderer and hydrator know nothing
+about islands, selective hydration, or resumability. Those strategies are layered
+on as plugins, so you only ship what you use.
+
+## What you get
+
+- **Render APIs** — `renderToString`, `renderToStream` (web `ReadableStream`),
+  `renderToNodeStream` (Node `Readable`), and a callback-based variant for fine
+  control.
+- **Streaming with async data** — components fetch on the server via `ssr.load()`,
+  and async subtrees stream in as placeholders that get swapped client-side.
+- **Hydration** — `defineApp(<App/>).use(ssrClientPlugin).hydrate('#root')`
+  re-attaches handlers and effects to server-rendered DOM.
+- **Head management** — `useHead()` collects title/meta/link/script from inside
+  components and the renderer appends them to the document head.
+- **A plugin system** — `createSSR().use(plugin)` plus `registerClientPlugin()`
+  for islands, selective, and resumable hydration.
+
+## Install
+
+```bash
+npm install @sigx/server-renderer
+```
+
+`sigx` is the host framework and is pulled in automatically as a regular
+dependency. See [Installation](/server/docs/installation) for the dependency,
+subpath imports, and wiring details.
+
+## A minimal end-to-end example
+
+The package exposes three tree-shakeable subpaths. Import **server** code from
+`@sigx/server-renderer/server`, **client** hydration from
+`@sigx/server-renderer/client`, and shared helpers (head, plugin system) from the
+main entry — so a browser bundle never pulls in Node code.
+
+### 1. A shared component
+
+```tsx
+// src/App.tsx
+import { component } from 'sigx';
+
+export const App = component(({ signal }) => {
+    // The context `signal` accepts an optional name so server and client
+    // hydration keys can match under a tracking/islands plugin.
+    const count = signal(0, 'count');
+    return () => (
+        <div id="root">
+            <h1>Hello from SignalX SSR</h1>
+            <button onClick={() => count(count() + 1)}>
+                Count: {count()}
+            </button>
+        </div>
+    );
+});
+```
+
+### 2. Render on the server
+
+```tsx
+// src/entry-server.tsx
+import { renderToString } from '@sigx/server-renderer/server';
+import { App } from './App';
+
+export async function render() {
+    const appHtml = await renderToString(<App />);
+    return `<!DOCTYPE html>
+<html>
+  <head><meta charset="utf-8" /></head>
+  <body>
+    <div id="root">${appHtml}</div>
+    <script type="module" src="/src/entry-client.tsx"></script>
+  </body>
+</html>`;
+}
+```
+
+### 3. Hydrate on the client
+
+```tsx
+// src/entry-client.tsx
+import { defineApp } from 'sigx';
+import { ssrClientPlugin } from '@sigx/server-renderer/client';
+import { App } from './App';
+
+defineApp(<App />)
+    .use(ssrClientPlugin)
+    .hydrate('#root');
+```
+
+`hydrate()` walks the existing server DOM and attaches the click handler and
+reactive effects — no DOM is re-created. If the container has no SSR content,
+`hydrate()` falls back to a fresh client render.
+
+## Next steps
+
+- [Installation](/server/docs/installation) — install command, the `sigx`
+  dependency, and the subpath import map.
+- [Streaming SSR with an HTTP server](/server/docs/streaming-ssr) — wire
+  `renderToNodeStream` / `renderToStream` into Express, Fastify, or H3, plus async
+  data with `ssr.load()`.
+- [Hydration and island strategies](/server/docs/hydration) — hydration entry,
+  head management, and selective/island hydration via plugins.
+- [API Reference](/server/docs/api) — every export with signatures.

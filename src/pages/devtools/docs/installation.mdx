@@ -1,0 +1,107 @@
+---
+title: Installation
+description: "Install @sigx/devtools, satisfy its peer dependencies, and wire the plugin into your app"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+## Package
+
+`@sigx/devtools` is ESM-only and ships a single entry point (`@sigx/devtools`). Add it
+as a dev dependency — you should not ship it in production builds.
+
+```bash
+pnpm add -D @sigx/devtools
+```
+
+The package version is `0.0.1`. The wire `PROTOCOL_VERSION` is `1`, and the agent
+version reported in the `hello` event is `0.0.3`.
+
+## Engines
+
+Node `^20.19.0 || >=22.12.0`.
+
+## Peer dependencies
+
+Both of these are required — they provide the global devtools hook the plugin attaches
+to:
+
+```bash
+pnpm add @sigx/reactivity@^0.4.4 @sigx/runtime-core@^0.4.4
+```
+
+`@sigx/reactivity` supplies the shared reactivity hook (the plugin calls
+`ensureDevtoolsHook()` to attach), and `@sigx/runtime-core` emits the component
+lifecycle events. If you already build SignalX apps you almost certainly have both.
+
+## No build configuration required
+
+There is no Vite plugin and no special build step needed to *use* the package. You
+install it the same way as any other SignalX plugin:
+
+```tsx
+import { defineApp } from 'sigx';
+import { devtools } from '@sigx/devtools';
+import { App } from './App';
+
+defineApp(<App />)
+    .use(devtools())
+    .mount('#app');
+```
+
+The plugin's `install()` resolves a transport, attaches to the hook, bridges component
+and reactivity events to the panel, and sends a `hello` event once the wire is up. In
+SSR or Node, with no `window` and no custom transport, it returns early and does
+nothing — so it is safe to leave in shared entry code.
+
+## Keeping it out of production
+
+Because the package has `sideEffects: false`, a dynamic import behind a dev flag lets
+your bundler drop it from release builds entirely:
+
+```tsx
+import { defineApp } from 'sigx';
+import { App } from './App';
+
+const app = defineApp(<App />);
+
+if (import.meta.env.DEV) {
+    const { devtools } = await import('@sigx/devtools');
+    app.use(devtools());
+}
+
+app.mount('#app');
+```
+
+## Wiring stores and the router
+
+To populate the panel's store and router timelines, pass your store instances and
+router to the plugin. Stores are duck-typed (each must expose `actions` and `events`
+topics) and the router must expose a reactive `currentRoute`; any `@sigx/store` result
+and `@sigx/router` instance satisfy these shapes.
+
+```tsx
+import { defineApp } from 'sigx';
+import { devtools } from '@sigx/devtools';
+import { createRouter } from '@sigx/router';
+import { App } from './App';
+import { cartStore } from './stores/cart';
+import { userStore } from './stores/user';
+
+const router = createRouter({ routes: [/* ... */] });
+
+defineApp(<App />)
+    .use(router)
+    .use(devtools({
+        appName: 'shop',
+        stores: [cartStore, userStore],
+        router,
+    }))
+    .mount('#app');
+```
+
+See [Connecting an inspector](/devtools/docs/connecting-an-inspector) for how to choose
+a transport and attach a panel.

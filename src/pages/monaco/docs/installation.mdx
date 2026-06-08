@@ -1,0 +1,98 @@
+---
+title: Installation
+description: "Install @sigx/monaco-editor, peer deps, and the required Vite wiring"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+## Install
+
+```bash
+pnpm add @sigx/monaco-editor monaco-editor
+```
+
+## Peer dependencies
+
+| Package | Version | Required |
+| --- | --- | --- |
+| `monaco-editor` | `>=0.50.0` | Optional in the package metadata, but install it — the loader fetches Monaco at runtime |
+| `sigx` | `>=0.4.0` | Required |
+| `vite` | `>=5.0.0` | Optional (needed to use the Vite plugin) |
+
+If you use the Shiki subpath (`@sigx/monaco-editor/shiki`), also install its optional peers:
+
+```bash
+pnpm add @shikijs/monaco shiki
+```
+
+## Vite wiring (required)
+
+The Vite plugin is mandatory for normal usage. It intercepts every `monaco-editor` import and replaces it with a stub that throws at runtime, then excludes `monaco-editor` from `optimizeDeps` so the bundler never touches Monaco. As a result you must load Monaco through `loadMonaco()` (or the `<MonacoEditor />` component / `createEditor()`, which call it for you). Importing `'monaco-editor'` directly in client code will throw.
+
+Add `monacoPrebundledPlugin()` to your Vite config. For SignalX apps, also include the SignalX Vite plugin and set the JSX import source to `sigx`:
+
+```tsx
+// vite.config.ts
+import { defineConfig } from 'vite';
+import { sigxPlugin } from '@sigx/vite';
+import { monacoPrebundledPlugin } from '@sigx/monaco-editor/vite';
+
+export default defineConfig({
+    plugins: [
+        sigxPlugin(),
+        monacoPrebundledPlugin({ strategy: 'prebundled', publicPath: '/monaco-bundle' }),
+    ],
+    oxc: { jsx: { runtime: 'automatic', importSource: 'sigx' } },
+});
+```
+
+The plugin runs with `enforce: 'pre'` and also injects a `window.__MONACO_LOADER_CONFIG__` snippet into your `index.html` head so the runtime loader picks up the same strategy and paths without a separate `define` step.
+
+## Choosing an asset strategy
+
+The plugin (and loader) support two strategies, selected via the `strategy` option:
+
+### `prebundled` (default)
+
+Monaco's runtime, CSS, and workers are committed to the package under `public/monaco-bundle/` (built with esbuild from `scripts/bundle-monaco.ts`). In dev, the plugin serves them through a middleware (with a path-traversal guard and immutable cache headers); in a production build it emits the bundle files (read from `manifest.json`) into your output. At runtime the loader loads `<basePath>/monaco.min.js` via a `<script>` tag (reading `window.monaco`) and injects `monaco.min.css` via a `<link>`. Vite never bundles Monaco, giving a fast cold start.
+
+```tsx
+monacoPrebundledPlugin({ strategy: 'prebundled', publicPath: '/monaco-bundle' });
+```
+
+The bundle is committed for Monaco `v0.55.1` and ships: `monaco.min.js`, `monaco.min.css`, `editor.worker.min.js`, `ts.worker.min.js`, `css.worker.min.js`, `html.worker.min.js`, `json.worker.min.js`, plus `codicon.ttf` and source maps.
+
+### `cdn`
+
+Monaco is loaded from a CDN (unpkg by default) at a pinned version using Monaco's AMD loader. Nothing Monaco-related ships in your build; the plugin marks `monaco-editor` as a Rollup external.
+
+```tsx
+monacoPrebundledPlugin({ strategy: 'cdn', version: '0.55.1' });
+```
+
+You can override the CDN host with the `cdnUrl` option. The `version` option defaults to `'0.55.1'` and is only used in `cdn` mode.
+
+## Regenerating the prebundled assets
+
+The prebundled assets are committed to the package. If you upgrade Monaco, regenerate them inside the package with the internal `bundle:monaco` npm script (it runs `scripts/bundle-monaco.ts` via `tsx`; there is no installed CLI binary):
+
+```bash
+pnpm bundle:monaco
+```
+
+To limit the worker set, pass `--workers` with a comma list (`editor.worker` is always included). Worker aliases: `ts`/`typescript`, `js`/`javascript`, `css`/`scss`/`less`, `html`/`handlebars`/`razor`, `json`:
+
+```bash
+pnpm bundle:monaco --workers ts,json
+```
+
+Configuration may also live in a `monaco.bundle.config.json` next to the package `package.json`.
+
+## Next steps
+
+- [Language packs and IntelliSense](/monaco/docs/language-packs)
+- [Imperative editors and Shiki highlighting](/monaco/docs/imperative-and-shiki)
+- [API Reference](/monaco/docs/api)

@@ -1,0 +1,422 @@
+---
+title: API Reference
+description: "@sigx/devtools — inspect signals and the reactive graph at runtime — API reference"
+layout: docs
+category: API Reference
+order: 10
+---
+
+# API Reference
+
+Everything exported from `@sigx/devtools`. Import from the single package entry:
+
+```ts
+import {
+    devtools,
+    createPostMessageTransport,
+    createWebSocketTransport,
+    PROTOCOL_VERSION,
+} from '@sigx/devtools';
+import type {
+    DevtoolsOptions,
+    WebSocketTransportOptions,
+    Transport,
+    PageEvent,
+    PanelRequest,
+    PanelRequestInput,
+    PanelResponse,
+    ComponentNode,
+    ReactivePrimitive,
+    ReactivePrimitiveKind,
+    StoreActionEvent,
+    StoreMutationEvent,
+    RouterNavEvent,
+    SerializedValue,
+    AppId,
+    ComponentId,
+    ValueRef,
+} from '@sigx/devtools';
+```
+
+## Functions
+
+### devtools
+
+```ts
+export function devtools(options: DevtoolsOptions = {}): Plugin<void>;
+```
+
+The page-side plugin factory. Install it with `app.use(devtools())`. It returns a
+SignalX `Plugin` (name `'sigx-devtools'`) whose `install()`:
+
+- resolves a `Transport` — defaults to `createPostMessageTransport()` in the browser,
+  and a no-op in SSR/Node so it never crashes;
+- attaches to the shared global devtools hook from `@sigx/reactivity` via
+  `ensureDevtoolsHook()`;
+- bridges component lifecycle events (from runtime-core: `app:init`/`app:unmount`,
+  `component:created`/`mounted`/`updated`/`unmounted`/`error`) and reactivity primitives
+  (signal/computed/effect create/update/dispose) to the panel;
+- wires panel request handling (`get:apps`, `get:tree`, `get:value`,
+  `get:reactive-value`, `get:reactives`, `highlight`, `unhighlight`);
+- optionally attaches store and router observers when `stores`/`router` are supplied;
+- emits a `hello` event with `PROTOCOL_VERSION` and the agent version (`'0.0.3'`) once
+  the wire is up.
+
+**Parameters**
+
+- `options` — a `DevtoolsOptions` bag (all fields optional). An empty object gives the
+  postMessage transport, `appName` `'sigx-app'`, reactivity on, and `throttleMs` 16.
+
+**Returns** — a SignalX `Plugin<void>` to pass to `app.use()`.
+
+### createPostMessageTransport
+
+```ts
+export function createPostMessageTransport(target: Window = window): Transport;
+```
+
+The default browser transport. Communicates via `window.postMessage` using the envelope
+`{ __sigx: 'SIGX_DEVTOOLS', dir: 'to-panel' | 'to-page', msg }`. `send()` posts
+`to-panel` envelopes to `target` (with `targetOrigin` `'*'`); it listens for `to-page`
+envelopes and forwards their `msg` (a `PanelRequest`) to registered listeners. `close()`
+removes the message listener and clears listeners.
+
+Designed so a Chrome MV3 content script can ferry messages between the page world and
+`chrome.runtime`; an in-page panel can listen on the same window.
+
+**Parameters**
+
+- `target` — the window to post to. Defaults to the global `window`.
+
+**Returns** — a `Transport`.
+
+### createWebSocketTransport
+
+```ts
+export function createWebSocketTransport(options: WebSocketTransportOptions = {}): Transport;
+```
+
+WebSocket page-side transport for non-browser hosts (native renderers, terminals).
+Connects to a `ws://` URL (default `ws://localhost:8098/page`). Queues outgoing messages
+up to `maxQueue` (default 1000, dropping the oldest on overflow) while disconnected and
+flushes on (re)connect. Auto-reconnects with exponential backoff (`250ms * 2^n`) capped
+at `maxBackoffMs` (default 30000). Wraps messages in the same
+`{ __sigx: 'SIGX_DEVTOOLS' }` envelope. If no `WebSocket` constructor is available it
+returns a no-op stub.
+
+Pair it with `sigx-devtools-inspector` (a localhost relay) or a custom WS server.
+
+**Parameters**
+
+- `options` — a `WebSocketTransportOptions` bag (all fields optional).
+
+**Returns** — a `Transport`.
+
+## Constants
+
+### PROTOCOL_VERSION
+
+```ts
+export const PROTOCOL_VERSION = 1;
+```
+
+The wire protocol version. Sent in the `hello` event payload. Bump when message shapes
+change incompatibly.
+
+## Configuration interfaces
+
+### DevtoolsOptions
+
+```ts
+export interface DevtoolsOptions {
+    /** Custom transport. Defaults to createPostMessageTransport() in the browser; otherwise the plugin is a no-op so SSR doesn't crash. */
+    transport?: Transport;
+    /** App name shown in the panel. Defaults to 'sigx-app'. */
+    appName?: string;
+    /** Stores to observe for action and mutation events. */
+    stores?: DevtoolsObservableStore[];
+    /** Router instance to observe for navigation events. */
+    router?: DevtoolsObservableRouter;
+    /** Whether to subscribe to reactivity (signal/effect/computed) events at all. Default true. */
+    includeReactivity?: boolean;
+    /** Coalesce reactive:updated events per-id within this millisecond window. Default 16ms (~one frame). Set 0 to disable. */
+    throttleMs?: number;
+}
+```
+
+The options bag for `devtools()`. All fields are optional.
+
+The `stores` and `router` element types (`DevtoolsObservableStore` and
+`DevtoolsObservableRouter`) are private internal interfaces and are not exported, but
+they define the runtime shape your values must satisfy: a store must expose `name?`,
+`actions?`, and `events?` topics, and a router must expose a reactive `currentRoute`
+getter with `{ path; params?; query? }`. Any `@sigx/store` result and `@sigx/router`
+instance already satisfy these shapes.
+
+### WebSocketTransportOptions
+
+```ts
+export interface WebSocketTransportOptions {
+    /** Full ws:// or wss:// URL to connect to. Defaults to ws://localhost:8098/page. */
+    url?: string;
+    /** Max queued outgoing messages while disconnected. Oldest are dropped past this. Default 1000. */
+    maxQueue?: number;
+    /** Max reconnect backoff in milliseconds. Default 30 seconds. */
+    maxBackoffMs?: number;
+    /** Override the WebSocket constructor — useful for tests. Defaults to the global WebSocket. */
+    WebSocketImpl?: typeof WebSocket;
+}
+```
+
+Configuration for `createWebSocketTransport`. All fields are optional.
+
+## Transport interface
+
+### Transport
+
+```ts
+export interface Transport {
+    /** Send a message to the panel side. */
+    send(msg: OutgoingMessage): void;
+    /** Subscribe to messages from the panel. Returns an unsubscribe. */
+    onMessage(listener: (msg: IncomingMessage) => void): () => void;
+    /** Best-effort teardown. */
+    close(): void;
+}
+```
+
+The transport-agnostic interface the plugin talks through. Implement it for custom
+channels (for example `BroadcastChannel`). `OutgoingMessage` is `PageEvent | PanelResponse`
+and `IncomingMessage` is `PanelRequest`; those two aliases are internal and not exported
+from the package — only `Transport` itself is public.
+
+## Protocol types
+
+### PageEvent
+
+```ts
+export type PageEvent =
+    | { t: 'hello';              payload: { protocol: number; agentVersion: string } }
+    | { t: 'app:init';           payload: { appId: AppId; name: string } }
+    | { t: 'app:unmount';        payload: { appId: AppId } }
+    | { t: 'component:mounted';  payload: ComponentNode }
+    | { t: 'component:updated';  payload: { id: ComponentId; propsRef: ValueRef | null } }
+    | { t: 'component:unmounted'; payload: { id: ComponentId } }
+    | { t: 'component:error';    payload: { id: ComponentId | null; message: string; stack?: string; info: string } }
+    | { t: 'reactive:created';   payload: ReactivePrimitive }
+    | { t: 'reactive:updated';   payload: { id: number; lastUpdatedAt: number; updateCount: number } }
+    | { t: 'reactive:disposed';  payload: { id: number } }
+    | { t: 'store:action';       payload: StoreActionEvent }
+    | { t: 'store:mutation';     payload: StoreMutationEvent }
+    | { t: 'router:nav';         payload: RouterNavEvent }
+    | { t: 'value:resolved';     payload: { ref: ValueRef; value: SerializedValue } };
+```
+
+Discriminated union (on `t`) of all page-to-panel events the plugin emits. Every variant
+is JSON-serializable with no DOM or runtime references on the wire.
+
+### PanelRequest
+
+```ts
+export type PanelRequest =
+    | { t: 'get:apps';            id: number }
+    | { t: 'get:tree';            id: number; payload: { appId: AppId } }
+    | { t: 'get:value';           id: number; payload: { ref: ValueRef } }
+    | { t: 'get:reactive-value';  id: number; payload: { reactiveId: number } }
+    | { t: 'get:reactives';       id: number; payload: { componentId: ComponentId } }
+    | { t: 'highlight';           id: number; payload: { componentId: ComponentId } }
+    | { t: 'unhighlight';         id: number; payload: {} };
+```
+
+Panel-to-page requests. Each carries a numeric `id` for response correlation. The plugin
+handles: `get:apps` (list apps), `get:tree` (component nodes for an app id), `get:value`
+(resolve a `ValueRef`), `get:reactive-value` (serialize a reactive's raw value via
+`toRaw`), `get:reactives` (primitives owned by a component), and `highlight`/`unhighlight`
+(currently respond `{ ok: true }` — no DOM highlight implementation on the page side).
+
+### PanelRequestInput
+
+```ts
+export type PanelRequestInput =
+    | { t: 'get:apps' }
+    | { t: 'get:tree';            payload: { appId: AppId } }
+    | { t: 'get:value';           payload: { ref: ValueRef } }
+    | { t: 'get:reactive-value';  payload: { reactiveId: number } }
+    | { t: 'get:reactives';       payload: { componentId: ComponentId } }
+    | { t: 'highlight';           payload: { componentId: ComponentId } }
+    | { t: 'unhighlight';         payload: {} };
+```
+
+`PanelRequest` minus the `id` field — what a caller passes into a connection's request
+helper on the panel/inspector side; the `id` is added by the caller. It is kept as an
+explicit union (not `Omit`) so discriminant narrowing on `t` survives at call sites.
+
+### PanelResponse
+
+```ts
+export type PanelResponse =
+    | { t: 'response'; id: number; payload: unknown }
+    | { t: 'error';    id: number; message: string };
+```
+
+Page-to-panel reply to a `PanelRequest`, correlated by the echoed `id`. Either a
+successful `response` with a payload or an `error` with a message string.
+
+### ComponentNode
+
+```ts
+export interface ComponentNode {
+    id: ComponentId;
+    parentId: ComponentId | null;
+    appId: AppId;
+    name: string;
+    /** ValueRef to the props record. Null when the component has no props. */
+    propsRef: ValueRef | null;
+}
+```
+
+Snapshot of a component for the tree view. Component ids share the same id space as
+reactivity ids (minted via the hook), which lets the panel join a component to the
+signals it owns. `name` defaults to `'(anonymous)'`.
+
+### ReactivePrimitive
+
+```ts
+export interface ReactivePrimitive {
+    id: number;
+    kind: ReactivePrimitiveKind;
+    /** Component id this was created under, or null for module-level primitives. */
+    ownerComponentId: ComponentId | null;
+    /** Most recent update wall-clock time (ms since epoch). null if never updated. */
+    lastUpdatedAt: number | null;
+    /** Number of updates observed since creation. For effects, the number of times the effect body has run. */
+    updateCount: number;
+}
+```
+
+A reactive primitive (signal/computed/effect) tracked by the plugin. Sent in
+`reactive:created` and returned by `get:reactives`.
+
+### ReactivePrimitiveKind
+
+```ts
+export type ReactivePrimitiveKind = 'signal' | 'computed' | 'effect';
+```
+
+Discriminant for the kind of reactive primitive — drives the panel's icon and grouping.
+
+### StoreActionEvent
+
+```ts
+export interface StoreActionEvent {
+    /** Monotonic id linking the three phases of a single dispatch. */
+    actionId: number;
+    storeName: string;
+    actionName: string;
+    phase: 'dispatching' | 'dispatched' | 'failed';
+    /** Serialized args. Present on every phase. */
+    args: SerializedValue;
+    /** Serialized result. Present on `dispatched` (or undefined). */
+    result?: SerializedValue;
+    /** Serialized error reason. Present on `failed`. */
+    error?: SerializedValue;
+    /** Milliseconds from dispatching to dispatched/failed. Set on later phases. */
+    durationMs?: number;
+    /** Wall-clock ms since epoch when this phase fired. */
+    at: number;
+}
+```
+
+Wire shape for a store action dispatch, emitted in three phases (`dispatching` →
+`dispatched` | `failed`) that all share one `actionId`. Produced by the store observer.
+
+### StoreMutationEvent
+
+```ts
+export interface StoreMutationEvent {
+    storeName: string;
+    key: string;
+    /** Serialized new value. Inline because mutations are usually small. */
+    value: SerializedValue;
+    at: number;
+}
+```
+
+Wire shape for a store state mutation. The store names its mutation topics
+`onMutated${Key}`; the observer strips the prefix and lowercases the first character to
+recover `key`. The value is serialized inline.
+
+### RouterNavEvent
+
+```ts
+export interface RouterNavEvent {
+    fromPath: string | null;
+    toPath: string;
+    params: SerializedValue;
+    query: SerializedValue;
+    at: number;
+}
+```
+
+Wire shape for a router navigation. Emitted by the router observer (which wraps
+`router.currentRoute` in an effect). The initial route at mount is skipped — only
+subsequent navigations fire.
+
+### SerializedValue
+
+```ts
+export type SerializedValue =
+    | { kind: 'primitive'; value: string | number | boolean | null }
+    | { kind: 'undefined' }
+    | { kind: 'bigint';    value: string }
+    | { kind: 'symbol';    description: string }
+    | { kind: 'function';  name: string }
+    | { kind: 'array';     length: number; entries: Array<[number, SerializedValue]> }
+    | { kind: 'object';    typeName: string; entries: Array<[string, SerializedValue]> }
+    | { kind: 'circular' }
+    | { kind: 'truncated'; reason: 'depth' | 'size' };
+```
+
+Wire format for any inspected value. Reactive proxies are unwrapped first; cycles become
+`{ kind: 'circular' }`; functions become `{ kind: 'function', name }`; recursion is
+bounded by an internal max depth of 4 (emitting `{ kind: 'truncated', reason: 'depth' }`),
+and object/array entries are capped at 100 — extra entries past the cap are silently
+omitted with no `truncated` marker (an array's `length` still reports its true length).
+Object `typeName` uses the constructor name. Only own
+enumerable string keys are included; symbol keys (framework internals) are skipped.
+
+### AppId
+
+```ts
+export type AppId = number;
+```
+
+Stable per-app id minted by the plugin (sequential, starting at 1).
+
+### ComponentId
+
+```ts
+export type ComponentId = number;
+```
+
+Stable component instance id. Comes from the event's `instanceId`, minted by runtime-core
+via the hook — the same id space as reactivity ids.
+
+### ValueRef
+
+```ts
+export type ValueRef = number;
+```
+
+Indirection handle for a value the panel may inspect on demand. The plugin keeps a value
+reference table (object values held via `WeakRef` so unmounted components can be
+garbage-collected; primitives and functions held strongly) and resolves a ref on
+`get:value`. Large or reactive values are never sent inline.
+
+## Behavior constants (not exported)
+
+These govern the serializer's bounds. They are defined in the package but not re-exported
+from the entry point — treat them as behavior, not public API.
+
+- **Max serialization depth: 4** — recursion past this emits `{ kind: 'truncated', reason: 'depth' }`.
+- **Max entries per object/array: 100** — entries past the cap are silently omitted; no marker is emitted. (The `reason: 'size'` variant is declared in the protocol type but is currently unused.)

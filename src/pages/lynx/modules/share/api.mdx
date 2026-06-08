@@ -10,8 +10,62 @@ order: 40
 
 <p class="lede">Exports of `@sigx/lynx-share` v0.4.1.</p>
 
-## Exports
+## Objects
 
-{/* TODO: document the public API of @sigx/lynx-share */}
+### Share
 
-See the package source for the complete typed surface.
+The share API. `share` opens the OS share sheet; `isAvailable` reports whether the native module is present in the current build.
+
+```ts
+export const Share: {
+    share(options: ShareOptions): void;
+    isAvailable(): boolean;
+} as const;
+```
+
+Available on iOS and Android.
+
+#### Share.share
+
+```ts
+share(options: ShareOptions): void
+```
+
+Opens the native share sheet. Synchronous and fire-and-forget — it returns immediately and there is no completion callback, so the result (shared vs. cancelled) is not reported.
+
+- `options` — a [`ShareOptions`](#shareoptions) object. If both `message` and `url` are empty, the call returns without presenting a sheet.
+- Returns `void`.
+
+Platform notes: iOS presents a `UIActivityViewController` on the root view controller's main thread, with `title` as the subject; on iPad the popover is centered. Android dispatches an `Intent.ACTION_SEND` of type `text/plain` wrapped in a chooser, joining `message` and `url` with a newline into `EXTRA_TEXT` and using `title` as `EXTRA_SUBJECT` / chooser title.
+
+#### Share.isAvailable
+
+```ts
+isAvailable(): boolean
+```
+
+Returns `true` when the native Share module is registered in the current build, otherwise `false`. Useful as a guard before calling `share`.
+
+- Returns `boolean`.
+
+Available on iOS and Android.
+
+## Types
+
+### ShareOptions
+
+Options passed to [`Share.share`](#shareshare). Every field is optional, but at least one of `message` or `url` should be set for the sheet to present meaningful content.
+
+```ts
+export interface ShareOptions {
+    title?: string;
+    message?: string;
+    url?: string;
+}
+```
+
+- `title` — optional. The iOS subject and the Android `EXTRA_SUBJECT`; on Android it also becomes the chooser title (defaults to "Share").
+- `message` — optional. The text body to share.
+- `url` — optional. A web URL string to share. Local file URIs are not supported.
+
+Available on iOS and Android.

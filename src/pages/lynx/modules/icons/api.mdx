@@ -8,10 +8,194 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-icons` v0.4.1.</p>
+<p class="lede">Every value and type exported from <code>@sigx/lynx-icons</code>.</p>
 
-## Exports
+The package entry re-exports three values — `Icon`, `useIconColorResolver`, `defineIconSet` — and a set of supporting types. All exports work on both iOS and Android.
 
-{/* TODO: document the public API of @sigx/lynx-icons */}
+## Components
 
-See the package source for the complete typed surface.
+### Icon
+
+Renders a glyph from a registered icon set, addressed by `set` plus `name`. It resolves the glyph as SVG first, then by codepoint (font mode, reserved for v1.1), then falls back to an empty `<view>` of the same `size` so missing glyphs do not shift layout.
+
+```tsx
+export const Icon = component<IconProps>(({ props }) => {
+    // ...resolve color, look up glyph, render <svg>/<text>/<view>
+});
+```
+
+Props are described under [`IconProps`](#iconprops). Color is substituted into the SVG `fill` via a `__COLOR__` placeholder, not via CSS inheritance. Resolution order for the color is: explicit `props.color`, then the active theme resolver's return (see [`useIconColorResolver`](#useiconcolorresolver)), then `'currentColor'`.
+
+Platform: both.
+
+## Hooks
+
+### useIconColorResolver
+
+An injectable holding the active theme's color resolver, or `null`. Themes provide one with `defineProvide(useIconColorResolver, …)` so `<Icon>` can map theme-augmented props (such as DaisyUI's `variant`) to a CSS color. The default resolver returns `null`.
+
+```ts
+export const useIconColorResolver = defineInjectable<IconColorResolver | null>(() => null)
+```
+
+The held value is an [`IconColorResolver`](#iconcolorresolver) or `null`.
+
+Platform: both.
+
+## Functions
+
+### defineIconSet
+
+Registers a custom icon set at module-load time. This is the runtime escape hatch for ad-hoc or app-local sets that are not declared in `signalx.config.ts`. It returns the same def it was given; as a side effect it registers the set internally.
+
+```ts
+export function defineIconSet(def: IconSetDef): IconSetDef
+```
+
+Parameters:
+- `def` — an [`IconSetDef`](#iconsetdef) describing the set's `id`, `glyphs`, and optional `fontFamily`.
+
+Returns: the same `IconSetDef`.
+
+Runtime-registered sets are checked after the build-time maps, so they will not shadow glyphs produced by the build pipeline.
+
+Platform: both.
+
+## Types
+
+### IconProps
+
+The prop type for [`Icon`](#icon). `set` and `name` are required; `size`, `color`, and `class` are optional. It is intersected with [`IconPropsExtensions`](#iconpropsextensions) so themes can add typed props.
+
+```ts
+export type IconProps =
+    & Define.Prop<'set', string, true>
+    & Define.Prop<'name', string, true>
+    & Define.Prop<'size', number, false>
+    & Define.Prop<'color', string, false>
+    & Define.Prop<'class', string, false>
+    & IconPropsExtensions;
+```
+
+- `set` (required) — the icon set id, the value declared in `signalx.config.ts` or passed to `defineIconSet`.
+- `name` (required) — the glyph name in the set's canonical kebab-case.
+- `size` (optional) — pixel size, default `16`.
+- `color` (optional) — CSS color, default `'currentColor'`; runs through an allow-list before substitution.
+- `class` (optional) — class string applied to the host.
+
+### IconColorResolver
+
+The function form held by [`useIconColorResolver`](#useiconcolorresolver). It receives the full `<Icon>` props (including any theme-augmented fields) and returns a CSS color to substitute into the SVG `fill`, or `undefined` to fall through to `props.color` / `currentColor`.
+
+```ts
+export type IconColorResolver = (
+    props: Readonly<Record<string, unknown>>,
+) => string | undefined;
+```
+
+### IconPropsExtensions
+
+An empty declaration-merge augmentation point. Theme packages module-augment it to add typed `<Icon>` props. Without a theme there are no extra props, and `<Icon variant=…>` will not typecheck.
+
+```ts
+export interface IconPropsExtensions {}
+```
+
+Augment it from a theme like so:
+
+```ts
+declare module '@sigx/lynx-icons' {
+  interface IconPropsExtensions {
+    variant?: 'primary' | 'secondary' | 'accent';
+  }
+}
+```
+
+### IconSpec
+
+A lightweight `{ set, name }` data reference to an icon, passed to UI primitives that accept an icon (for example a tab screen icon). The receiver composes an `<Icon>` from it.
+
+```ts
+export interface IconSpec {
+    readonly set: string;
+    readonly name: string;
+}
+```
+
+Example usage by a consuming primitive:
+
+```tsx
+<Tabs.Screen icon={{ set: 'lucide', name: 'map' }}>
+```
+
+### IconSetDef
+
+A runtime-registered icon set, the argument to [`defineIconSet`](#defineiconset).
+
+```ts
+export interface IconSetDef {
+    id: string;
+    glyphs: Record<string, { codepoint?: number; svg?: GlyphSvg }>;
+    fontFamily?: string;
+}
+```
+
+- `id` — the value of `<Icon set=>`.
+- `glyphs` — map of glyph name to `{ codepoint?, svg? }`.
+- `fontFamily` (optional) — font family for font-mode rendering.
+
+### GlyphSvg
+
+Per-glyph vector data for SVG-mode rendering. `svg` is a complete `<svg>…</svg>` string with `__COLOR__` placeholders where the user's color is substituted at render time.
+
+```ts
+export interface GlyphSvg {
+    svg: string;
+}
+```
+
+### GlyphData
+
+The glyph data an adapter returns at build time: an optional `codepoint` (which enables font-mode subsetting) plus the required `svg` string with `__COLOR__` placeholders.
+
+```ts
+export interface GlyphData {
+    codepoint?: number;
+    svg: string;
+}
+```
+
+### IconAdapter
+
+The build-time adapter contract implemented by packages such as `@sigx/lynx-icons-fa-free` and `@sigx/lynx-icons-lucide`, consumed by the plugin's icons slice via a default export.
+
+```ts
+export interface IconAdapter {
+    styles: string[];
+    getGlyph(style: string, name: string): GlyphData | null;
+    getFontPath(style: string): string | null;
+    listGlyphs(style: string): string[];
+}
+```
+
+- `styles` — the supported style variants.
+- `getGlyph(style, name)` — resolves a glyph by style and name; returns [`GlyphData`](#glyphdata) or `null` if unknown.
+- `getFontPath(style)` — returns the absolute TTF path for a style, or `null` for SVG-only adapters.
+- `listGlyphs(style)` — enumerates every glyph name in a style, used for `include: ['*']`.
+
+Platform: build-time (Node), not runtime.
+
+## Internal subpath modules
+
+Apps do not import these from the public TS API; the plugin aliases them at build time and populates them with only the glyphs your app references. They are listed here for completeness.
+
+- `@sigx/lynx-icons/__codepoints` — `{ codepoints: CodepointMap }`, where `CodepointMap` is `Record<string, Record<string, number>>` (set id to glyph name to unicode codepoint). Empty stub by default.
+- `@sigx/lynx-icons/__svgs` — `{ svgs: SvgMap }`, where `SvgMap` is `Record<string, Record<string, GlyphSvg>>` (set id to glyph name to [`GlyphSvg`](#glyphsvg)). Empty stub by default.
+- `@sigx/lynx-icons/__font-face.css` — an empty CSS stub, no-op in v1.
+
+`CodepointMap` and `SvgMap` are not re-exported from the package entry; they live in the package's internal `./types`.
+
+## See also
+
+- [Usage guide](/lynx/modules/icons/usage) for practical recipes.
+- [Installation](/lynx/modules/icons/installation) for native setup.

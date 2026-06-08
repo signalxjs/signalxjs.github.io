@@ -1,0 +1,118 @@
+---
+title: Getting Started
+description: "@sigx/vite — Vite plugin with HMR for SignalX components"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PrereqCallout } from '@/components/PrereqCallout';
+
+# Getting Started with Vite
+
+<PrereqCallout items={[
+    { name: 'SignalX Core basics', path: '/core/docs/getting-started' },
+    { name: 'Components', path: '/core/docs/components' },
+]} />
+
+`@sigx/vite` is the official Vite plugin for SignalX. It wires SignalX into
+Vite's dev server and production build so you get:
+
+- **Component-level HMR** — edit a `component(...)` and see it update in place,
+  with per-instance signal state preserved across reloads.
+- **Singleton reactivity** — the plugin guarantees a single physical copy of
+  the SignalX runtime in both dev and build, so signal mutations always
+  re-render after hydration.
+- **Optimized production builds** — runtime packages are deduped and forced into
+  a single chunk to keep that singleton guarantee.
+
+The plugin is the heart of the package. A separate `@sigx/vite/lib` subpath
+provides a helper for building `@sigx/*` libraries, and a `sigx-types` CLI
+generates type definitions for tag-named components.
+
+## Install
+
+```bash
+npm install -D @sigx/vite
+```
+
+`@sigx/vite` has two required peer dependencies: `vite` (>= 8.0.0) and `sigx`.
+See [Installation](/vite/docs/installation) for peer deps, versions, and the
+full config wiring.
+
+## Minimal Setup
+
+Add the plugin to your Vite config. The default export is the plugin factory:
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+
+export default defineConfig({
+    plugins: [sigx()],
+});
+```
+
+That single line enables HMR injection and the dev/build singleton handling. A
+named import works identically:
+
+```ts
+import { sigxPlugin } from '@sigx/vite';
+
+export default defineConfig({
+    plugins: [sigxPlugin()],
+});
+```
+
+## End-to-End Example
+
+A typical app needs the plugin plus TypeScript JSX settings pointed at SignalX.
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+
+export default defineConfig({
+    plugins: [sigx()],
+});
+```
+
+```json
+// tsconfig.json
+{
+    "compilerOptions": {
+        "jsx": "react-jsx",
+        "jsxImportSource": "sigx"
+    }
+}
+```
+
+```tsx
+// src/main.tsx
+import { component, signal, defineApp } from 'sigx';
+
+const Counter = component(() => {
+    const count = signal(0);
+    return () => (
+        <button onClick={() => count.value++}>
+            Count: {count.value}
+        </button>
+    );
+});
+
+defineApp(<Counter />).mount('#app');
+```
+
+Run `vite` and edit `Counter` — the button re-renders in place while its
+`count` value survives the reload. Because the file contains a `component(`
+usage in serve mode, the plugin automatically injects the HMR runtime; you do
+not import anything HMR-related yourself.
+
+## Next Steps
+
+- [Installation](/vite/docs/installation) — peer deps, versions, and config wiring
+- [HMR for Components](/vite/docs/hmr) — how component hot-reload works
+- [Library Builds](/vite/docs/library-builds) — build `@sigx/*` packages with `defineLibConfig`
+- [API Reference](/vite/docs/api) — every export and option

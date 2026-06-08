@@ -1,0 +1,195 @@
+---
+title: Hydration & Head Management
+description: "Hydrate server-rendered DOM, manage the document head, and add island/selective hydration via plugins"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Hydration & Head Management
+
+After the server sends HTML, the client must re-attach reactivity to that existing
+DOM. This guide covers the hydration entry point, head management, and how
+selective/island/resumable hydration are implemented as plugins.
+
+## The client hydration entry
+
+The high-level entry is the `ssrClientPlugin`. It adds `hydrate()` to your `App`:
+
+```tsx
+import { defineApp } from 'sigx';
+import { ssrClientPlugin } from '@sigx/server-renderer/client';
+import { App } from './App';
+
+defineApp(<App />)
+    .use(ssrClientPlugin)
+    .hydrate('#root');
+```
+
+`hydrate()` accepts a CSS selector string or an `Element`. It finds the root
+component plus `AppContext`, then hydrates the existing SSR DOM. If the container
+has **no** SSR content, it falls back to a fresh client render — so the same entry
+works for both pre-rendered and client-only pages.
+
+### Low-level hydration
+
+For custom setups you can call the core `hydrate` function directly. It normalizes
+the element to a VNode, sets the current `AppContext` for DI, runs client plugin
+`beforeHydrate` hooks, walks the DOM via `hydrateNode`, then runs `afterHydrate`:
+
+```tsx
+import { hydrate } from '@sigx/server-renderer/client';
+import { App } from './App';
+
+const container = document.getElementById('root')!;
+hydrate(<App />, container);
+```
+
+`hydrateNode` does the per-VNode work: in the happy path it creates no DOM, just
+attaches events/props/directives/refs, skips SSR comment markers
+(`<!--t-->`, `<!--$c:N-->`), recovers from minor SSR drift by scanning forward
+(with a dev warning), and returns the next sibling.
+
+## Head management
+
+Call `useHead()` inside any component to manage `<head>` elements. During SSR the
+configs are collected into the active context; on the client `useHead()` mutates
+the DOM directly and registers cleanup on unmount:
+
+```tsx
+import { component } from 'sigx';
+import { useHead } from '@sigx/server-renderer';
+
+export const ArticlePage = component((props) => {
+    useHead({
+        title: props.title,
+        titleTemplate: '%s — My Site',
+        meta: [
+            { name: 'description', content: props.summary },
+            { property: 'og:title', content: props.title },
+        ],
+        link: [{ rel: 'canonical', href: props.url }],
+        htmlAttrs: { lang: 'en' },
+    });
+
+    return () => <article>{props.body}</article>;
+});
+```
+
+The renderer auto-collects head configs during render and appends the head HTML to
+the context (read it via `ctx.getHead()`). `titleTemplate` uses `%s` as the title
+placeholder, and `renderHeadToString()` dedupes meta by
+`name`/`property`/`http-equiv`/`charset`.
+
+### Manual head rendering
+
+If you manage the document yourself, the lifecycle is explicit:
+
+```tsx
+import {
+    enableSSRHead,
+    collectSSRHead,
+    renderHeadToString,
+} from '@sigx/server-renderer';
+import { renderToString } from '@sigx/server-renderer/server';
+import { App } from './App';
+
+enableSSRHead();                       // switch useHead() into collection mode
+const body = await renderToString(<App />);
+const configs = collectSSRHead();      // disable + return collected configs
+const headHtml = renderHeadToString(configs);
+
+const doc = `<!DOCTYPE html><html><head>${headHtml}</head><body><div id="root">${body}</div></body></html>`;
+```
+
+The render APIs already enable head collection for you; reach for these functions
+only when driving the lifecycle by hand.
+
+## Selective, island & resumable hydration
+
+The core renderer and hydrator are strategy-agnostic. Every advanced hydration
+strategy is an `SSRPlugin` with optional `server` and `client` hook sets.
+
+- Register **server** hooks with `createSSR().use(plugin)`.
+- Register **client** hooks with `registerClientPlugin(plugin)`.
+
+```tsx
+// server entry
+import { createSSR, type SSRPlugin } from '@sigx/server-renderer';
+
+const islandsPlugin: SSRPlugin = {
+    name: 'my-islands',
+    server: {
+        // choose block | stream | skip for async components, inject HTML, etc.
+        handleAsyncSetup(id, ssrLoads, renderFn, ctx) {
+            return { mode: 'stream' };
+        },
+    },
+    client: {
+        // return false to skip the default DOM walk (resumable SSR)
+        beforeHydrate(container) {
+            return; // run normal hydration
+        },
+        // return a Node to "claim" a component (islands intercept client:* props)
+        hydrateComponent(vnode, dom, parent) {
+            return undefined; // let core hydrate it
+        },
+    },
+};
+
+const ssr = createSSR().use(islandsPlugin);
+const html = await ssr.render(<App />);
+```
+
+```tsx
+// client entry
+import { registerClientPlugin } from '@sigx/server-renderer/client';
+import { defineApp } from 'sigx';
+import { ssrClientPlugin } from '@sigx/server-renderer/client';
+import { App } from './App';
+import { islandsPlugin } from './islands';
+
+registerClientPlugin(islandsPlugin);
+
+defineApp(<App />)
+    .use(ssrClientPlugin)
+    .hydrate('#root');
+```
+
+Key hook semantics:
+
+- `client.beforeHydrate` returning `false` **skips** the default DOM walk — the
+  basis for resumable SSR.
+- `client.hydrateComponent` returning a `Node` **claims** that component; island
+  strategies use this to intercept `client:*` props and schedule deferred
+  hydration (e.g. on idle or on visible).
+- `server.handleAsyncSetup` chooses `block`, `stream`, or `skip` per async
+  component; `getInjectedHTML` and `getStreamingChunks` let a plugin emit extra
+  markup or streamed chunks.
+
+For lower-level plugin work, `hydrateComponent` (from `/client`) hydrates a single
+component against its trailing `<!--$c:N-->` marker — useful when a plugin needs to
+hydrate one island on demand.
+
+## Restoring signal state without re-fetching
+
+When a plugin defers hydration, use `createRestoringSignal()` to build a `signal()`
+replacement that restores values from server-captured state by key instead of
+re-running `ssr.load()`:
+
+```tsx
+import { createRestoringSignal } from '@sigx/server-renderer/client';
+
+const serverState = { count: 5 };
+const signal = createRestoringSignal(serverState);
+const count = signal(0, 'count'); // restores 5 from server state
+```
+
+Name your signals — `createRestoringSignal` dev-warns once when it restores an
+unnamed (positional-key) signal, because order drift between builds can silently
+mismatch state.
+
+## Next steps
+
+- [Streaming SSR with an HTTP server](/server/docs/streaming-ssr)
+- [API Reference](/server/docs/api)

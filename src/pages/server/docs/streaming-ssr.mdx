@@ -1,0 +1,196 @@
+---
+title: Streaming SSR with an HTTP Server
+description: "Wire renderToNodeStream/renderToStream into Express, Fastify, or H3, and stream async data with ssr.load()"
+layout: docs
+category: Guides
+order: 30
+---
+
+# Streaming SSR with an HTTP Server
+
+This guide wires the render APIs into a real HTTP server and shows how async data
+streams to the client. Every example uses inventoried exports only.
+
+## Picking a render API
+
+| API | Returns | Best for |
+|---|---|---|
+| `renderToString` | `Promise<string>` | Buffer the full document, then send it once |
+| `renderToStream` | web `ReadableStream<string>` | Web-standard runtimes (Workers, Deno, edge) |
+| `renderToNodeStream` | Node `Readable` | Node servers — Express, Fastify, H3 — pipe directly to the response |
+| `renderToStreamWithCallbacks` | `Promise<void>` | Fine-grained control over shell / async chunks |
+
+Streaming is the recommended default: the renderer sends the synchronous shell
+first, then interleaves replacement scripts for async components as they resolve,
+and finishes with a completion script.
+
+## Passing an App vs a raw element
+
+All render APIs accept either a raw JSX element **or** an `App` from `defineApp()`.
+Prefer the `App` form on the server — it preserves the `AppContext` so dependency
+injection (`inject()`) and plugins (like a router) work during render:
+
+```tsx
+import { defineApp } from 'sigx';
+import { renderToNodeStream } from '@sigx/server-renderer/server';
+import { App } from './App';
+
+// Raw element — simplest, no DI/plugins:
+const a = renderToNodeStream(<App />);
+
+// App form — preserves AppContext for inject() and plugins:
+const app = defineApp(<App />);
+const b = renderToNodeStream(app);
+```
+
+## Express (Node)
+
+On Node, `renderToNodeStream` avoids web-stream overhead. Pipe it straight to the
+response:
+
+```tsx
+import express from 'express';
+import { renderToNodeStream } from '@sigx/server-renderer/server';
+import { App } from './App';
+
+const server = express();
+
+server.get('*', (req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.write(`<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body><div id="root">`);
+
+    const stream = renderToNodeStream(<App />);
+    stream.pipe(res, { end: false });
+    stream.on('end', () => {
+        res.end(`</div><script type="module" src="/entry-client.js"></script></body></html>`);
+    });
+});
+
+server.listen(3000);
+```
+
+## Fastify / H3
+
+The same `Readable` works with any Node HTTP framework. With Fastify, hand the
+stream to `reply.send()`:
+
+```tsx
+import Fastify from 'fastify';
+import { renderToNodeStream } from '@sigx/server-renderer/server';
+import { App } from './App';
+
+const fastify = Fastify();
+
+fastify.get('*', async (req, reply) => {
+    reply.type('text/html');
+    return renderToNodeStream(<App />);
+});
+
+await fastify.listen({ port: 3000 });
+```
+
+## Web ReadableStream (edge / Workers)
+
+For web-standard runtimes, `renderToStream` returns a `ReadableStream<string>`
+(pull-based, batched at 4KB with natural backpressure). Wrap it in a `Response`:
+
+```tsx
+import { renderToStream } from '@sigx/server-renderer/server';
+import { App } from './App';
+
+export default {
+    fetch() {
+        const stream = renderToStream(<App />);
+        return new Response(stream, {
+            headers: { 'Content-Type': 'text/html' },
+        });
+    },
+};
+```
+
+## Async data with ssr.load()
+
+To fetch data during SSR, call `ssr.load()` from inside `setup`. With the bare
+render APIs the callback runs on the **server** and its resolved HTML is streamed
+to the client, but the signal state itself is not transferred — see the note below:
+
+```tsx
+import { component } from 'sigx';
+
+export const UserCard = component(({ signal, props, ssr }) => {
+    const user = signal<{ name: string } | null>(null, 'user');
+
+    ssr.load(async () => {
+        const res = await fetch(`https://api.example.com/users/${props.id}`);
+        user(await res.json());
+    });
+
+    return () => <div>{user()?.name ?? 'Loading…'}</div>;
+});
+```
+
+Default behavior by render mode:
+
+- **String mode** (`renderToString`) — async components default to `block`: the
+  renderer awaits `ssr.load()` and emits the resolved HTML inline.
+- **Streaming mode** (`renderToStream` / `renderToNodeStream`) — async components
+  default to `stream`: a placeholder is emitted immediately, then a
+  `$SIGX_REPLACE` script swaps in the real HTML once `ssr.load()` resolves.
+
+### State transfer requires a tracking/islands plugin
+
+The bare render APIs (`renderToString` / `renderToStream` / `renderToNodeStream`)
+produce correct HTML, but they do **not** serialize signal state. In the core
+render path `ctx.signal` is the plain, non-tracking signal, so no
+`_serverState` is sent to the client. On hydration of a core-rendered async
+component there is nothing to restore, and `ssr.load()` runs again on the client.
+
+Automatic skip-on-hydration and state restoration — so `ssr.load()` does **not**
+re-run and you avoid a duplicate fetch — require an islands/tracking SSR plugin.
+Such a plugin swaps `ctx.signal` for a tracking signal during render (via
+`transformComponentContext`) and a restoring signal during hydration
+(`createRestoringSignal`), keyed by `generateSignalKey`.
+
+## Naming signals for hydration parity
+
+When a tracking/islands plugin is in use, hydration matches server-captured state
+to client signals by key. Name the context `signal` that holds server-loaded
+state — `signal(value, 'name')`, using the `signal` destructured from the
+component context — so the keys line up. Unnamed signals fall back to positional
+keys (`$0`, `$1`, …); the dev build warns once because declaration-order drift
+between server and client builds can silently mismatch state.
+
+The module-level `signal` exported from `sigx` takes only a value and ignores a
+name; the name parameter exists on the context `signal` (typed `SSRSignalFn`).
+
+## Handling component errors
+
+Pass `onComponentError` so a single failing component yields fallback HTML instead
+of failing the whole render. Return a string of fallback HTML, or `null` for the
+default error placeholder:
+
+```tsx
+import { createSSRContext } from '@sigx/server-renderer/server';
+import { renderToString } from '@sigx/server-renderer/server';
+import { App } from './App';
+
+const ctx = createSSRContext({
+    onComponentError: (error, name) => `<!-- ${name} failed: ${error.message} -->`,
+});
+
+const html = await renderToString(<App />, ctx);
+```
+
+## Completion signal
+
+The streaming render forms (`renderToStream`, `renderToNodeStream`, and
+`renderToStreamWithCallbacks`) emit a trailing `<script>` that sets
+`window.__SIGX_STREAMING_COMPLETE__ = true` and dispatches a `sigx:ready` event,
+so client code can wait for the full document before running deferred logic.
+`renderToString` does **not** emit this script — it returns the complete document
+as a string, so there is nothing to wait for.
+
+## Next steps
+
+- [Hydration and island strategies](/server/docs/hydration)
+- [API Reference](/server/docs/api)

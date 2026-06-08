@@ -8,16 +8,126 @@ order: 30
 
 # Using Clipboard
 
-<p class="lede">System clipboard — the essentials.</p>
+<p class="lede">Read from and write to the system clipboard — copy, paste and detect, with the platform quirks handled for you.</p>
+
+The package exports a single frozen `Clipboard` object. There is nothing to instantiate and no permissions to request — `sigx prebuild` auto-discovers and links the native module.
 
 ## Basic usage
 
-```tsx
-import * as Clipboard from '@sigx/lynx-clipboard';
+Import the named `Clipboard` export and call its methods directly.
+
+```ts
+import { Clipboard } from '@sigx/lynx-clipboard';
+
+// Write — synchronous, returns immediately
+Clipboard.setString('Hello, world!');
+
+// Read — asynchronous, resolves to "" when empty
+const text = await Clipboard.getString();
+
+// Detect — asynchronous boolean
+const isPopulated = await Clipboard.hasString();
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-clipboard */}
+`setString` is synchronous; `getString` and `hasString` cross the native bridge asynchronously and return promises. Neither read rejects on an empty clipboard — `getString` resolves to `""` and `hasString` resolves to `false`.
+
+## Copy on tap
+
+The common case: copy a value when the user taps a button. `setString` is fire-and-forget, so no `await` is needed.
+
+```tsx
+import { Clipboard } from '@sigx/lynx-clipboard';
+import { signal } from '@sigx/lynx';
+
+function CopyButton({ value }: { value: string }) {
+  const copied = signal(false);
+
+  const onTap = () => {
+    Clipboard.setString(value);
+    copied.set(true);
+  };
+
+  return (
+    <view bindtap={onTap}>
+      <text>{() => (copied() ? 'Copied!' : 'Copy')}</text>
+    </view>
+  );
+}
+```
+
+Passing `null` or `undefined` is coerced to an empty string natively, so a missing value clears the clipboard rather than throwing.
+
+## Paste on explicit user intent
+
+Read the clipboard only in response to a deliberate action such as a Paste button.
+
+```tsx
+import { Clipboard } from '@sigx/lynx-clipboard';
+import { signal } from '@sigx/lynx';
+
+function PasteField() {
+  const draft = signal('');
+
+  const onPaste = async () => {
+    const text = await Clipboard.getString();
+    if (text) draft.set(text);
+  };
+
+  return (
+    <view>
+      <text>{draft}</text>
+      <view bindtap={onPaste}>
+        <text>Paste</text>
+      </view>
+    </view>
+  );
+}
+```
+
+On iOS 14 and later, any clipboard read surfaces a system "Pasted from &lt;App&gt;" toast. Do not poll `getString` on a timer or read on mount — call it only on explicit user intent, or the toast will fire repeatedly and feel like a privacy leak.
+
+## Enable a paste button only when content exists
+
+Use `hasString` to gate UI without triggering the iOS paste toast — `hasString` reports presence without reading the contents.
+
+```tsx
+import { Clipboard } from '@sigx/lynx-clipboard';
+import { signal } from '@sigx/lynx';
+
+function SmartPaste() {
+  const canPaste = signal(false);
+
+  // Check once, on a deliberate event (e.g. when a menu opens).
+  const refresh = async () => {
+    canPaste.set(await Clipboard.hasString());
+  };
+
+  return (
+    <view bindtap={refresh}>
+      <text>{() => (canPaste() ? 'Paste available' : 'Nothing to paste')}</text>
+    </view>
+  );
+}
+```
+
+## Guarding against a missing native module
+
+If the native module is not linked into the current build, `isAvailable` returns `false`. Check it before exposing clipboard UI so the rest of your app degrades gracefully.
+
+```ts
+import { Clipboard } from '@sigx/lynx-clipboard';
+
+if (Clipboard.isAvailable()) {
+  Clipboard.setString('ready');
+} else {
+  // Module not linked — run `sigx prebuild` and rebuild the app.
+}
+```
+
+`isAvailable` is synchronous and safe to call at any time; the read and write methods assume the module is present.
 
 ## Notes
 
-Read from and write to the system clipboard.
+- No permissions are required. The module declares no Android permissions and no iOS `Info.plist` keys.
+- On Android the copied clip is labelled `sigx-lynx-go`; `hasString` requires a primary clip with a `text/*` MIME type.
+- See the [API reference](/lynx/modules/clipboard/api) for full signatures, and [Installation](/lynx/modules/clipboard/installation) for project setup.

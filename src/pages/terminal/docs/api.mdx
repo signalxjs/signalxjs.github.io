@@ -1,0 +1,325 @@
+---
+title: API Reference
+description: "@sigx/terminal — build TUIs with TSX — API reference"
+layout: docs
+category: API Reference
+order: 10
+---
+
+# API Reference
+
+Every export of `@sigx/terminal`, grouped by kind. Import all of these from the `@sigx/terminal` entry.
+
+`@sigx/terminal` is an aggregator that re-exports the entire `@sigx/reactivity` and `@sigx/runtime-core` surfaces (`signal`, `computed`, `effect`, `component`, `defineApp`, `onMounted`, `onUnmounted`, `Define`, `VNode`, etc.). Those belong to their own units and are documented there. The exports below are the terminal-specific additions.
+
+## Render & mount
+
+### render
+
+```ts
+// const { render } = createRenderer<TerminalNode, TerminalNode>(nodeOps)
+render(vnode: JSXElement, container: TerminalNode, appContext?: AppContext): void
+```
+
+Low-level renderer bound to the terminal node-ops. Renders or patches a tree into a `TerminalNode` container. Normally you use `terminalMount` / `renderTerminal` instead of calling this directly. Destructured from `createRenderer`. Its type is `@sigx/runtime-core`'s `RootRenderFunction`; pass `null` to unmount.
+
+- **vnode** — the element tree to render, or `null` to unmount.
+- **container** — the `TerminalNode` to render into.
+- **appContext** — optional app context.
+
+### renderTerminal
+
+```ts
+function renderTerminal(
+    app: any,
+    options?: RenderTerminalOptions,
+): { unmount: () => void }
+```
+
+Standalone mount entry. Sets stdin to raw mode, hides the cursor, optionally clears the console, renders the app VNode into a fresh root node, and wires keyboard input. Use it directly in simple scripts.
+
+- **app** — the app VNode (e.g. `<App />`).
+- **options** — `RenderTerminalOptions`; defaults to `{}`.
+- **Returns** — an object with `unmount()` that tears down stdin handling and restores the cursor.
+
+```ts
+const { unmount } = renderTerminal(<App />, { clearConsole: true });
+```
+
+### terminalMount
+
+```ts
+const terminalMount: (
+    component: any,
+    options: RenderTerminalOptions,
+    appContext?: any,
+) => (() => void)
+```
+
+The platform mount function passed to `defineApp().mount()`. Same setup as `renderTerminal` (raw mode, hide cursor, optional `clearConsole`, stdin wiring) but accepts an app context and returns the unmount function directly. It is registered as the platform default via `setDefaultMount(terminalMount)`, so `defineApp(<App />).mount({ clearConsole: true })` works without explicitly passing it.
+
+- **component** — the app to mount.
+- **options** — `RenderTerminalOptions`.
+- **appContext** — optional app context.
+- **Returns** — the `unmount` function.
+
+### mountTerminal
+
+```ts
+function mountTerminal(options?: RenderTerminalOptions): {
+    mount: typeof terminalMount;
+    options: RenderTerminalOptions;
+    onMount: (unmount: () => void) => void;
+}
+```
+
+Helper that returns a mount target object suitable for `defineApp(MyApp).mount(mountTerminal())`. Captures the unmount callback into a module-level variable so `exitTerminal()` can later tear it down.
+
+- **options** — `RenderTerminalOptions`; defaults to `{ clearConsole: true }`.
+- **Returns** — a mount target with `mount`, `options` and `onMount`.
+
+### exitTerminal
+
+```ts
+function exitTerminal(): void
+```
+
+Cleanly exits the terminal app: invokes the unmount function captured by `mountTerminal()`, shows the cursor, and clears the screen. Use it to quit a TUI app gracefully.
+
+### renderNodeToLines
+
+```ts
+function renderNodeToLines(node: TerminalNode): string[]
+```
+
+The core cell/line renderer. Recursively walks a `TerminalNode` tree into an array of ANSI-styled output lines, handling text nodes, `<br>` line breaks, inline vs block layout (a `box`, or any node containing a `box` child, is treated as block), color codes, and box border drawing. Exported but primarily internal.
+
+- **node** — the root `TerminalNode` to render.
+- **Returns** — an array of output line strings.
+
+## Input & focus
+
+### onKey
+
+```ts
+function onKey(handler: (key: string) => void): () => void
+```
+
+Subscribes a handler to raw keyboard input. Each keypress arrives as a string (for example `'\r'` for Enter, or `'\x1B[A'` for the up arrow). Ctrl+C, Tab (focus next) and Shift+Tab (focus previous) are intercepted by the runtime before handlers fire.
+
+- **handler** — called with each raw key string.
+- **Returns** — an unsubscribe function.
+
+### focusState
+
+```ts
+const focusState: Signal<{ activeId: string | null }>
+```
+
+Reactive signal holding the currently focused element id. Created with the object overload of `signal`, so it is a deeply reactive proxy: components read `focusState.activeId` (property access, not a call) to know if they are focused, and the value updates reactively, driving a re-render.
+
+### registerFocusable
+
+```ts
+function registerFocusable(id: string): void
+```
+
+Registers an id as focusable. If nothing is focused yet, the first registered id becomes active. Called by interactive components in `onMounted`.
+
+### unregisterFocusable
+
+```ts
+function unregisterFocusable(id: string): void
+```
+
+Removes an id from the focusable set; if it was active, focus moves to another remaining focusable (or `null`). Called in `onUnmounted`.
+
+### focus
+
+```ts
+function focus(id: string): void
+```
+
+Programmatically focuses the given id if it is registered as focusable. Used internally by components with the `autofocus` prop.
+
+### focusNext
+
+```ts
+function focusNext(): void
+```
+
+Moves focus to the next registered focusable (wraps around). Bound to Tab by the input handler.
+
+### focusPrev
+
+```ts
+function focusPrev(): void
+```
+
+Moves focus to the previous registered focusable (wraps around). Bound to Shift+Tab.
+
+## Components
+
+### Input
+
+```ts
+const Input: Component<
+    Define.Model<string> &
+    Define.Prop<"placeholder", string, false> &
+    Define.Prop<"autofocus", boolean, false> &
+    Define.Prop<"label", string, false> &
+    Define.Event<"input", string> &
+    Define.Event<"submit", string>
+>
+```
+
+Focusable single-line text input with two-way model binding. Renders as a single-bordered box (green border when focused) with a blinking-style cursor. Backspace deletes; Enter emits `submit`; printable characters emit `input`.
+
+- **Props** — `model` (string), `placeholder`, `autofocus`, `label`.
+- **Events** — `input(value)`, `submit(value)`.
+
+A 50ms ready delay prevents a stray Enter from the previous focus triggering submit.
+
+### Button
+
+```ts
+const Button: Component<
+    Define.Prop<"label", string, false> &
+    Define.Prop<"dropShadow", boolean, false> &
+    Define.Event<"click">
+>
+```
+
+Focusable clickable button rendered as a single-bordered box. Enter or Space triggers a brief (120ms) press visual (yellow border / red background) and emits `click`. Shows a green border with a blue background when focused.
+
+- **Props** — `label` (default `'Button'`), `dropShadow`.
+- **Event** — `click`.
+
+A 50ms ready delay guards against stray activation on mount.
+
+### Checkbox
+
+```ts
+const Checkbox: Component<
+    Define.Model<boolean> &
+    Define.Prop<"label", string, false> &
+    Define.Prop<"autofocus", boolean, false> &
+    Define.Prop<"disabled", boolean, false> &
+    Define.Event<"change", boolean>
+>
+```
+
+Focusable toggle checkbox with two-way model binding. Renders as `> [x] Label` / `  [ ] Label` with a focus indicator and color cues. Enter or Space toggles, updating the model and emitting `change`. Also exported as `default`.
+
+- **Props** — `model` (boolean), `label`, `autofocus`, `disabled`.
+- **Event** — `change(value)`.
+
+### Select
+
+```ts
+const Select: Component<
+    Define.Model<string> &
+    Define.Prop<"options", SelectOption[], true> &
+    Define.Prop<"label", string, false> &
+    Define.Prop<"autofocus", boolean, false> &
+    Define.Prop<"showDescription", boolean, false> &
+    Define.Event<"change", string> &
+    Define.Event<"submit", string>
+>
+```
+
+Focusable option list with keyboard navigation. Up / `k` and Down / `j` move the selection (wrapping), updating the model and emitting `change`; Enter emits `submit`. The selected option is marked with `❯` in cyan. Optionally renders the selected option's description below when `showDescription` is set. Also exported as `default`.
+
+- **Props** — `options` (required `SelectOption[]`), `model` (string value), `label`, `autofocus`, `showDescription`.
+- **Events** — `change(value)`, `submit(value)`.
+
+### ProgressBar
+
+```ts
+const ProgressBar: Component<
+    Define.Prop<"value", number, false> &
+    Define.Prop<"max", number, false> &
+    Define.Prop<"width", number, false> &
+    Define.Prop<"char", string, false> &
+    Define.Prop<"emptyChar", string, false> &
+    Define.Prop<"color", string, false>
+>
+```
+
+Read-only visual progress indicator. Renders a bar of filled characters (default `█`) and empty characters (default `░`) plus a percentage label. No events.
+
+- **Props** — `value` (default `0`), `max` (default `100`), `width` (default `20`), `char`, `emptyChar`, `color` (named color applied via ANSI).
+
+## Types & interfaces
+
+### SelectOption
+
+```ts
+interface SelectOption<T = string> {
+    label: string;
+    value: T;
+    description?: string;
+}
+```
+
+The option shape consumed by the `Select` component's `options` prop.
+
+### TerminalNode
+
+```ts
+interface TerminalNode {
+    type: 'root' | 'element' | 'text' | 'comment';
+    tag?: string;
+    text?: string;
+    props: Record<string, any>;
+    children: TerminalNode[];
+    parentNode?: TerminalNode | null;
+}
+```
+
+The host node type for the terminal renderer — the equivalent of a DOM element. Created and mutated by the node-ops, and consumed by `renderNodeToLines`. It also augments `@sigx/runtime-core`'s `PlatformTypes` so `element` resolves to `TerminalNode`.
+
+### RenderTerminalOptions
+
+```ts
+interface RenderTerminalOptions {
+    clearConsole?: boolean;
+}
+```
+
+Options accepted by `renderTerminal`, `terminalMount` and `mountTerminal`. Only `clearConsole` is supported (clears the screen on mount).
+
+## JSX intrinsic elements
+
+The terminal runtime declares three intrinsic elements that share the `TerminalAttributes` shape:
+
+```ts
+namespace JSX {
+    interface IntrinsicElements {
+        box: TerminalAttributes;
+        text: TerminalAttributes;
+        br: TerminalAttributes;
+    }
+
+    interface TerminalAttributes {
+        color?: 'red' | 'green' | 'blue' | 'yellow' | 'cyan' | 'white' | 'black' | string;
+        backgroundColor?: 'red' | 'green' | 'blue' | 'yellow' | 'cyan' | 'white' | 'black' | string;
+        border?: 'single' | 'double' | 'rounded' | 'none';
+        borderColor?: 'red' | 'green' | 'blue' | 'yellow' | 'cyan' | 'white' | 'black' | string;
+        dropShadow?: boolean;
+        label?: string;
+        children?: any;
+    }
+}
+```
+
+Although `color`, `backgroundColor` and `borderColor` accept arbitrary strings in the types, only the named palette resolves to an ANSI code at render time — hex values produce no color.
+
+## Re-exports
+
+`@sigx/terminal` also re-exports two full surfaces:
+
+- **`@sigx/reactivity`** — `signal`, `computed`, `effect`, `untrack`, and the rest of the reactivity primitives.
+- **`@sigx/runtime-core`** — `component`, `defineApp`, `onMounted`, `onUnmounted`, `Define`, `VNode`, and the rest of the core runtime (including `defineApp`, used throughout these docs).
+
+These belong to the reactivity and runtime-core units and are documented there.

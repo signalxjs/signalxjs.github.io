@@ -1,0 +1,107 @@
+---
+title: Avatar
+description: "Avatar — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data display"]
+order: 112
+---
+
+# Avatar
+
+<p class="lede">Displays a user image or a text/initials placeholder at a fixed size, with optional rounding and online/offline presence indicators.</p>
+
+## Import
+
+```tsx
+import { Avatar } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `src` | `string` | - | Image source URI. When set, the image is rendered; otherwise the `placeholder` is shown. |
+| `size` | `'xs' \| 'sm' \| 'md' \| 'lg' \| 'xl'` | `'md'` | Avatar dimension. Maps to 24 / 32 / 48 / 64 / 96 px (square). |
+| `rounded` | `boolean \| 'full'` | - | `true` or `'full'` renders a circle; any other value uses an 8px corner radius. |
+| `placeholder` | `string` | `'?'` | Text shown when no `src` is provided (e.g. initials). Falls back to `?`. |
+| `online` | `boolean` | `false` | Adds the `online` presence indicator class. |
+| `offline` | `boolean` | `false` | Adds the `offline` presence indicator class. |
+| `class` | `string` | - | Additional CSS classes appended to the avatar element. |
+
+Avatar is a pure display component: it has no model binding and emits no events. When `src` is set it renders the image; when `src` is absent it renders the `placeholder` text (and applies the `placeholder` class).
+
+## Basic Usage
+
+Provide an image with `src`. Use `rounded="full"` for a circular avatar:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Avatar, Row } from '@sigx/lynx-daisyui';
+
+export const Demo = component(() => {
+    return () => (
+        <Row gap="4" align="center">
+            <Avatar src="https://i.pravatar.cc/96?img=1" rounded="full" />
+            <Avatar src="https://i.pravatar.cc/96?img=2" />
+        </Row>
+    );
+});
+```
+
+## Placeholder
+
+When no `src` is given, the `placeholder` text is rendered (commonly initials):
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Avatar, Row } from '@sigx/lynx-daisyui';
+
+export const Demo = component(() => {
+    return () => (
+        <Row gap="4" align="center">
+            <Avatar placeholder="AE" rounded="full" />
+            <Avatar placeholder="JD" />
+            <Avatar />
+        </Row>
+    );
+});
+```
+
+## Sizes
+
+`size` accepts `xs`, `sm`, `md`, `lg`, and `xl`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Avatar, Row } from '@sigx/lynx-daisyui';
+
+export const Demo = component(() => {
+    return () => (
+        <Row gap="4" align="center">
+            <Avatar src="https://i.pravatar.cc/96?img=3" size="xs" rounded="full" />
+            <Avatar src="https://i.pravatar.cc/96?img=3" size="sm" rounded="full" />
+            <Avatar src="https://i.pravatar.cc/96?img=3" size="md" rounded="full" />
+            <Avatar src="https://i.pravatar.cc/96?img=3" size="lg" rounded="full" />
+            <Avatar src="https://i.pravatar.cc/96?img=3" size="xl" rounded="full" />
+        </Row>
+    );
+});
+```
+
+## Presence Indicators
+
+Use `online` or `offline` to show a presence dot:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Avatar, Row } from '@sigx/lynx-daisyui';
+
+export const Demo = component(() => {
+    return () => (
+        <Row gap="4" align="center">
+            <Avatar src="https://i.pravatar.cc/96?img=4" rounded="full" online />
+            <Avatar src="https://i.pravatar.cc/96?img=5" rounded="full" offline />
+        </Row>
+    );
+});
+```

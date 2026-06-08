@@ -10,8 +10,113 @@ order: 40
 
 <p class="lede">Exports of `@sigx/lynx-haptics` v0.4.1.</p>
 
-## Exports
+The package has a single runtime export, `Haptics`, plus the types that describe its arguments and return values. Every method works on both iOS and Android.
 
-{/* TODO: document the public API of @sigx/lynx-haptics */}
+## Haptics
 
-See the package source for the complete typed surface.
+The singleton object that exposes all haptic APIs — the package's only runtime export. It wraps the native `Haptics` module through the `@sigx/lynx-core` call helpers and is declared `as const`.
+
+```ts
+import { Haptics } from '@sigx/lynx-haptics';
+
+const Haptics: {
+  impact(style?: ImpactStyle): void;
+  notification(type?: NotificationType): void;
+  selection(): void;
+  isAvailable(): boolean;
+  diagnose(): Promise<HapticsDiagnostics>;
+};
+```
+
+### Haptics.impact
+
+A one-shot impact haptic. Synchronous and fire-and-forget.
+
+```ts
+impact(style: ImpactStyle = 'medium'): void
+```
+
+- **`style`** — intensity, one of [`ImpactStyle`](#impactstyle). Defaults to `'medium'`.
+- **Returns** `void`.
+- **Platform** — iOS and Android. On Android (API 29+) `light` maps to a tick, `medium` to a click, `heavy` to a heavy click; older devices fall back to fixed-duration vibrations.
+
+### Haptics.notification
+
+A multi-step notification pattern that conveys a semantic result. Synchronous and fire-and-forget.
+
+```ts
+notification(type: NotificationType = 'success'): void
+```
+
+- **`type`** — semantic outcome, one of [`NotificationType`](#notificationtype). Defaults to `'success'`.
+- **Returns** `void`.
+- **Platform** — iOS and Android.
+
+### Haptics.selection
+
+The lightest tick, intended for selection changes — picker scrolls, toggles, steppers. Synchronous and fire-and-forget.
+
+```ts
+selection(): void
+```
+
+- **Returns** `void`.
+- **Platform** — iOS and Android.
+
+### Haptics.isAvailable
+
+Reports whether the native `Haptics` module is registered in the current build. Delegates to `isModuleAvailable` from `@sigx/lynx-core`.
+
+```ts
+isAvailable(): boolean
+```
+
+- **Returns** `boolean` — `true` when the native module is present.
+- **Platform** — iOS and Android.
+
+### Haptics.diagnose
+
+Async vibrator and permission diagnostics, useful for figuring out why a device isn't buzzing.
+
+```ts
+diagnose(): Promise<HapticsDiagnostics>
+```
+
+- **Returns** `Promise<`[`HapticsDiagnostics`](#hapticsdiagnostics)`>`.
+- **Platform** — iOS and Android. Only Android returns meaningful data; iOS resolves to a fixed `{ hasVibrator: true }` placeholder because there is no public API to introspect system-haptics state.
+
+## Types
+
+### ImpactStyle
+
+Impact intensity union for [`Haptics.impact`](#hapticsimpact).
+
+```ts
+export type ImpactStyle = 'light' | 'medium' | 'heavy';
+```
+
+### NotificationType
+
+Notification semantic union for [`Haptics.notification`](#hapticsnotification).
+
+```ts
+export type NotificationType = 'success' | 'warning' | 'error';
+```
+
+### HapticsDiagnostics
+
+The shape resolved by [`Haptics.diagnose`](#hapticsdiagnose). Every field except `hasVibrator` is Android-only; iOS populates only `hasVibrator`.
+
+```ts
+export interface HapticsDiagnostics {
+  hasVibrator: boolean;
+  sdk?: number;                  // Android SDK_INT
+  hasVibratePermission?: boolean;
+  hasAmplitudeControl?: boolean;
+}
+```
+
+- **`hasVibrator`** — whether the device exposes a vibrator.
+- **`sdk`** — Android API level. Android only.
+- **`hasVibratePermission`** — whether the `VIBRATE` permission is held. Android only.
+- **`hasAmplitudeControl`** — whether the vibrator supports amplitude control. Android only.

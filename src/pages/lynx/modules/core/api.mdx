@@ -10,8 +10,149 @@ order: 40
 
 <p class="lede">Exports of `@sigx/lynx-core` v0.4.1.</p>
 
-## Exports
+The package has a single public entry point. Everything below is imported from `@sigx/lynx-core`. All exports work on both iOS and Android.
 
-{/* TODO: document the public API of @sigx/lynx-core */}
+```ts
+import {
+  getModule,
+  callSync,
+  callAsync,
+  isModuleAvailable,
+  guardModule,
+  base64ToArrayBuffer,
+  arrayBufferToBase64,
+} from '@sigx/lynx-core';
+import type { PermissionStatus, PermissionResponse } from '@sigx/lynx-core';
+```
 
-See the package source for the complete typed surface.
+These helpers read from a global `NativeModules` object that the Lynx runtime injects — a `Record` whose properties are the registered native modules. It is not itself an export; it is the surface `getModule` and `isModuleAvailable` inspect.
+
+## Functions
+
+### getModule
+
+```ts
+export function getModule(name: string): Record<string, (...args: any[]) => any>
+```
+
+Returns the native module proxy injected by the Lynx runtime as `NativeModules[name]`. Throws a descriptive, actionable error if the module is unavailable — the message names the package to install (mapping known module names through an internal table, e.g. `Haptics` to `@sigx/lynx-haptics`) and points at `sigx prebuild`.
+
+- **`name`** — the registered native module name (for example `'Haptics'`, `'Camera'`).
+- **Returns** — the module proxy, an object whose properties are its native methods. Never returns `undefined`; it throws when the module is missing.
+- **Platform** — iOS and Android.
+
+### callSync
+
+```ts
+export function callSync<T = void>(module: string, method: string, ...args: any[]): T
+```
+
+Invokes a synchronous bridge method on the named module and returns its result directly, cast to `T`.
+
+- **`module`** — the native module name.
+- **`method`** — the method to invoke on that module.
+- **`...args`** — arguments forwarded to the native method.
+- **Returns** — the native method's return value, typed as `T` (defaults to `void`).
+- **Platform** — iOS and Android.
+
+### callAsync
+
+```ts
+export function callAsync<T = any>(module: string, method: string, ...args: any[]): Promise<T>
+```
+
+Invokes an async bridge method that takes a result callback as its **last** argument, wrapping it in a Promise that resolves with the callback's value.
+
+The native method is expected to call a node-style callback that receives only a success value, not `(err, res)`. There is no native-side error channel in this signature, so the returned Promise only rejects if the synchronous invocation itself throws.
+
+- **`module`** — the native module name.
+- **`method`** — the async method to invoke.
+- **`...args`** — arguments forwarded to the native method (the result callback is appended automatically).
+- **Returns** — a `Promise<T>` that resolves with the callback's value.
+- **Platform** — iOS and Android.
+
+### isModuleAvailable
+
+```ts
+export function isModuleAvailable(name: string): boolean
+```
+
+Feature-detects whether a native module is registered in the current runtime, without throwing. Use this when you want to degrade gracefully rather than fail.
+
+- **`name`** — the native module name.
+- **Returns** — `true` if the module is registered, otherwise `false`.
+- **Platform** — iOS and Android.
+
+### guardModule
+
+```ts
+export function guardModule(name: string): void
+```
+
+Throws the descriptive "module not available" error if the module is not linked; meant for early failure at module-package entry points. Call it at the top of each public wrapper function so missing native linkage fails loudly and early.
+
+- **`name`** — the native module name to assert.
+- **Returns** — nothing. Throws if the module is missing.
+- **Platform** — iOS and Android.
+
+### base64ToArrayBuffer
+
+```ts
+export function base64ToArrayBuffer(b64: string): ArrayBuffer
+```
+
+Decodes a base64 string into an `ArrayBuffer`. Uses `atob` when available, otherwise a pure-JS fallback decoder that tolerates whitespace and newlines, strips trailing padding, and sizes the output exactly (no trailing zero padding).
+
+- **`b64`** — the base64-encoded string.
+- **Returns** — the decoded bytes as an `ArrayBuffer`.
+- **Platform** — iOS and Android.
+
+### arrayBufferToBase64
+
+```ts
+export function arrayBufferToBase64(buf: ArrayBuffer | ArrayBufferView): string
+```
+
+Encodes an `ArrayBuffer` or typed-array view to base64 for native transport. Honors a view's `byteOffset`/`byteLength` — it encodes only the view's window, not the whole backing buffer — and chunks the encode (at `0x8000` bytes) to avoid call-stack limits on large payloads. Falls back to a pure-JS encoder that produces output identical to the native path when `btoa` is unavailable.
+
+- **`buf`** — an `ArrayBuffer`, `Uint8Array`, or any `ArrayBufferView`.
+- **Returns** — the base64-encoded string.
+- **Platform** — iOS and Android.
+
+## Types
+
+### PermissionStatus
+
+```ts
+export type PermissionStatus = 'granted' | 'denied' | 'undetermined' | 'blocked'
+```
+
+Permission status string union returned by permission-using native modules. Type-only export.
+
+- **Platform** — iOS and Android.
+
+### PermissionResponse
+
+```ts
+export interface PermissionResponse {
+  /** Current permission status. */
+  status: PermissionStatus;
+  /**
+   * Whether the app can show the OS permission dialog again.
+   * `false` when the user selected "Don't ask again" (Android) or
+   * after the first denial (iOS — user must go to Settings).
+   */
+  canAskAgain: boolean;
+}
+```
+
+The shape returned by `requestPermission()` / `getPermissionStatus()` across permission-using modules. Combines a `status` with whether the OS dialog can be shown again. Type-only export.
+
+- **`status`** — the current `PermissionStatus`.
+- **`canAskAgain`** — `false` once the user picked "Don't ask again" on Android, or after the first denial on iOS.
+- **Platform** — iOS and Android.
+
+## See also
+
+- [Usage](/lynx/modules/core/usage) — practical patterns for wrapping native modules.
+- [Overview](/lynx/modules/core/overview) — what the package is and where it fits.

@@ -8,10 +8,1457 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-daisyui` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-daisyui`. Components render real native views on iOS and Android.</p>
 
-## Exports
+All components and types in this reference come from the main barrel unless noted. The Tailwind preset and the stylesheet are **subpath-only** exports — import them from `@sigx/lynx-daisyui/preset` and `@sigx/lynx-daisyui/styles`, not the barrel.
 
-{/* TODO: document the public API of @sigx/lynx-daisyui */}
+Importing anything from this package seeds the six built-in themes and declaration-merges a `variant` prop onto `@sigx/lynx-icons`' `Icon`.
 
-See the package source for the complete typed surface.
+## Entry points
+
+```ts
+import { /* components, types, theme API */ } from '@sigx/lynx-daisyui';
+import { daisyuiPreset } from '@sigx/lynx-daisyui/preset';
+import '@sigx/lynx-daisyui/styles';
+```
+
+## Components
+
+### Button
+
+```ts
+const Button: Component<ButtonProps>;
+```
+
+DaisyUI button built on `Pressable`. Composes a semantic `color` with a fill `variant` (e.g. `btn-primary btn-outline`), supports `loading`, `disabled`, `wide`, `block`, `circle`, `square`, `active` and the shared size scale. Emits a `press` event. While `loading` or `disabled` the button is inerted and shows an inline `Loading` spinner — no `press` is emitted. `accessibility-*` props are forwarded to the host. Platform: iOS and Android.
+
+### Card
+
+```ts
+const Card: Compound<Component<CardProps>, {
+    Body: Component<CardBodyProps>;
+    Title: Component<CardTitleProps>;
+    Actions: Component<CardActionsProps>;
+}>;
+```
+
+Card surface. Compound with `Card.Body`, `Card.Title` and `Card.Actions` subcomponents (each takes `class` plus a default slot). `shadow` defaults to `md` (`shadow={true}` is also `md`). Platform: iOS and Android.
+
+### Divider
+
+```ts
+const Divider: Component<DividerProps>;
+```
+
+Horizontal or vertical rule. With default-slot content it renders the line·label·line composition; otherwise a plain line. `color` is a raw CSS color (applied as `backgroundColor`); `margin` applies to the cross-axis edges. Platform: iOS and Android.
+
+### Input
+
+```ts
+const Input: Component<InputProps>;
+```
+
+Text input with two-way model binding via `model`. `type` defaults to `text`. Resolves base-content text and a 45%-alpha placeholder color to literal hex at runtime, because native text widgets cannot read CSS variables. Platform: iOS and Android.
+
+### Toggle
+
+```ts
+const Toggle: Component<ToggleProps>;
+```
+
+Switch toggle (animated thumb). Controlled via `checked`; emits `change` with the next boolean. `size` defaults to `md`. Platform: iOS and Android.
+
+### Checkbox
+
+```ts
+const Checkbox: Component<CheckboxProps>;
+```
+
+Checkbox that renders a checkmark when checked. Controlled via `checked`; emits `change` with the next boolean. `size` defaults to `md`. Platform: iOS and Android.
+
+### Select
+
+```ts
+const Select: Component<SelectProps>;
+```
+
+Dropdown select. Renders an options list on press and emits `change` with the chosen option value. Controlled via `value`; `placeholder` (default `Select...`) shows when no value matches. Platform: iOS and Android.
+
+### Radio
+
+```ts
+const Radio: Compound<Component<RadioGroupProps>, {
+    Item: Component<RadioItemProps>;
+}>;
+```
+
+Radio group container, compound with `Radio.Item`. The group lays out children and exposes `value`/`color`/`size` plus a `change` event; items are controlled via `checked` and emit `select(value)` on press. Note: the container only lays out children — wiring item selection to the group's `change` is the caller's responsibility. Platform: iOS and Android.
+
+### Textarea
+
+```ts
+const Textarea: Component<TextareaProps>;
+```
+
+Multi-line text input with model binding. `rows` defaults to `3` (height = `rows * 20 + 16` px). Like `Input`, text and placeholder colors are resolved to literal hex. Platform: iOS and Android.
+
+### FormField
+
+```ts
+const FormField: Component<FormFieldProps>;
+```
+
+Labeled form-control wrapper. Renders an optional `label` (with `*` when `required`), the default slot, and an optional `error` line. Platform: iOS and Android.
+
+### Badge
+
+```ts
+const Badge: Component<BadgeProps>;
+```
+
+Badge / pill. Composes a semantic `color` with a fill `variant`. Platform: iOS and Android.
+
+### Alert
+
+```ts
+const Alert: Component<AlertProps>;
+```
+
+Alert banner. Only status colors (`info`, `success`, `warning`, `error`) are supported. Platform: iOS and Android.
+
+### Loading
+
+```ts
+const Loading: Component<LoadingProps>;
+```
+
+Loading indicator. `type` defaults to `spinner`; `color` is emitted as `text-<color>`. Platform: iOS and Android.
+
+### Progress
+
+```ts
+const Progress: Component<ProgressProps>;
+```
+
+Determinate progress bar; width = `clamp(value / max) * 100%`. `max` defaults to `100`, `value` to `0`. Platform: iOS and Android.
+
+### Modal
+
+```ts
+const Modal: Compound<Component<ModalProps>, {
+    Header: Component<ModalHeaderProps>;
+    Body: Component<ModalBodyProps>;
+    Actions: Component<ModalActionsProps>;
+}>;
+```
+
+Modal overlay. Compound with `Modal.Header`, `Modal.Body` and `Modal.Actions`. Closed state unmounts content; a tap on the overlay calls `onClose`, while the inner box stops bubbling. `onClose` is a callback prop, not an emitted event. Platform: iOS and Android.
+
+### Skeleton
+
+```ts
+const Skeleton: Component<SkeletonProps>;
+```
+
+Skeleton placeholder. When `circle`, the diameter is `width || height || 48`. Platform: iOS and Android.
+
+### Steps
+
+```ts
+const Steps: Compound<Component<StepsProps>, {
+    Step: Component<StepProps>;
+}>;
+```
+
+Steps / stepper, compound with `Steps.Step`. Horizontal by default; pass `vertical`. `Steps.Step` renders `content` inside the indicator and the default slot as the step label. Platform: iOS and Android.
+
+### Tabs
+
+```ts
+const Tabs: Compound<Component<TabsProps>, {
+    Tab: Component<TabProps>;
+}>;
+```
+
+Generic tab strip (not navigation-driven), compound with `Tabs.Tab`. Container-driven selection via `activeTab` + `onChange` (a callback prop). `Tabs.Tab` requires `value`; `active` overrides the container's `activeTab`, and `onPress` fires in addition to `onChange`. Platform: iOS and Android.
+
+### NavTabBar
+
+```ts
+const NavTabBar: Component<NavTabBarProps>;
+```
+
+DaisyUI-themed bottom/top tab bar for `@sigx/lynx-navigation`. Reads the surrounding `<Tabs>` navigator, or runs standalone via explicit `items` + `activeId`. Mode (navigator vs standalone) is fixed at mount based on the presence of `items`; without `items` it requires a `<Tabs>` ancestor and throws otherwise. `position` defaults to `bottom`, `background` to `base-200`, `bordered` to `true`. Emits `select` with the tab name. Requires the optional `@sigx/lynx-navigation` peer. Platform: iOS and Android.
+
+### NavHeader
+
+```ts
+const NavHeader: Component<NavHeaderProps>;
+```
+
+DaisyUI-themed header bar for a `@sigx/lynx-navigation` `<Stack>`. Reads the screen chrome for title/back/slots and renders a centered title with a back button when navigation can go back. `background` defaults to `base-200`, `bordered` to `true`. `backIcon` renders the back chevron from an `IconSpec`; `renderBack` fully overrides it. Requires the optional `@sigx/lynx-navigation` peer. Platform: iOS and Android.
+
+### NavDrawer
+
+```ts
+const NavDrawer: Component<NavDrawerProps>;
+```
+
+DaisyUI-themed off-canvas drawer for `@sigx/lynx-navigation`. Wraps the primitive `<Drawer>` and drives a slide + fade transition via `@sigx/lynx-motion`. `side` defaults to `left`, `background` to `base-100`, `bordered`/`backdrop` to `true`, `width` to `280`. Daisy tokens are applied as `bg-<token>` classes; raw CSS colors are applied inline. The `sidebar` slot is the menu, the `default` slot is the main content. Requires the optional `@sigx/lynx-navigation` peer. Platform: iOS and Android.
+
+### SwiperIndicator
+
+```ts
+const SwiperIndicator: Component<SwiperIndicatorProps>;
+```
+
+Themed swiper page indicator with five variants, a thin shell over the headless swiper-dot hooks from `@sigx/lynx-gestures`. Supports scroll-linked mode (pass `offset`) or index-only mode (pass `index`), fixed at mount. `count` is required; `index` is required for the `numbered` variant and for index-only mode. `variant` defaults to `dots`, `color` to `primary`, `inactiveColor` to `base-content`, `size` to `md`. Platform: iOS and Android.
+
+### ThemeProvider
+
+```ts
+const ThemeProvider: Component<ThemeProviderProps>;
+```
+
+Wrapper over `@sigx/lynx-zero`'s `ThemeProvider`. Seeds the six built-in daisy themes (at module load) and provides the icon color resolver into `@sigx/lynx-icons`. `initial` pins a theme (ignoring the system); `light`/`dark` are used while following the system; `fontScale` seeds the text-scale multiplier. Platform: iOS and Android.
+
+### StatusBarSync
+
+```ts
+const StatusBarSync: Component<StatusBarSyncProps>;
+```
+
+Re-exported from `@sigx/lynx-zero`. Side-effect-only component that keeps the OS status/nav bar tint legible against the active **global** theme. Renders nothing; mount once inside `ThemeProvider`. Platform: iOS and Android.
+
+### Avatar
+
+```ts
+const Avatar: Component<AvatarProps>;
+```
+
+Avatar. Renders an image when `src` is set, otherwise a placeholder text (default `?`). Supports `online`/`offline` status dots; `rounded="full"` or `rounded={true}` gives a circle. `size` defaults to `md`. Platform: iOS and Android.
+
+### Text
+
+```ts
+const Text: Component<TextProps>;
+```
+
+Themed text. Default size is `base` unless a `size` prop or a `text-*` size in `class` is given. Supports `selectable`/`customSelection` (Lynx 3.7+) and `autoSize` (`-x-auto-font-size`). Platform: iOS and Android.
+
+### Heading
+
+```ts
+const Heading: Component<HeadingProps>;
+```
+
+Heading. `level` 1–6 maps to text-size/weight utilities and is always `text-base-content`. `level` defaults to `2`. Platform: iOS and Android.
+
+### EditorToolbar
+
+```ts
+const EditorToolbar: Component<EditorToolbarProps>;
+```
+
+DaisyUI-skinned markdown editor toolbar. Wraps `@sigx/lynx-markdown/editor`'s generic `EditorToolbar` with `daisyToolbarItem`. Use standalone or via `MarkdownEditor`. Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
+
+### EmojiPickerSheet
+
+```ts
+const EmojiPickerSheet: Component<EmojiPickerSheetProps>;
+```
+
+DaisyUI-themed bottom-sheet emoji picker. Wraps `@sigx/lynx-emoji`'s `SheetPicker` with `emojiClasses` and a `base-100` sheet surface. `open` is required; `data` is optional under an `<EmojiProvider>`; `classes` merge over the daisy skin. Emits `pick`. Requires the optional `@sigx/lynx-emoji` peer. Platform: iOS and Android.
+
+## Layout primitives (re-exported)
+
+These are re-exported unchanged from `@sigx/lynx-zero`.
+
+### Row
+
+```ts
+const Row: Component<RowProps>;
+```
+
+Flex-row layout primitive with `gap`/`align`/`justify`/`wrap`/`padding`/`margin`/`background`. Platform: iOS and Android.
+
+### Col
+
+```ts
+const Col: Component<ColProps>;
+```
+
+Flex-column layout primitive; same prop surface as `Row`. Platform: iOS and Android.
+
+### Center
+
+```ts
+const Center: Component<CenterProps>;
+```
+
+Centers its children on both axes. Platform: iOS and Android.
+
+### Spacer
+
+```ts
+const Spacer: Component<SpacerProps>;
+```
+
+Fixed-size flex spacer (`size` prop). Platform: iOS and Android.
+
+### ScrollView
+
+```ts
+const ScrollView: Component<ScrollViewProps>;
+```
+
+Scrollable container with `direction`/`bounces`/`showScrollbar`. Platform: iOS and Android.
+
+## Functions
+
+### useTheme
+
+```ts
+function useTheme(): ThemeController;
+```
+
+Re-exported from `@sigx/lynx-zero`. Returns the active theme controller (the nearest `ThemeProvider`, or the global singleton). Never throws.
+
+### themeController
+
+```ts
+const themeController: ThemeController;
+```
+
+Re-exported from `@sigx/lynx-zero`. The module-level global theme singleton — read or set the theme headlessly without a mounted provider.
+
+### listThemes
+
+```ts
+function listThemes(): readonly Theme[];
+```
+
+Re-exported from `@sigx/lynx-zero`. All registered themes in insertion order (shallow copy).
+
+### registerTheme
+
+```ts
+function registerTheme(theme: ThemeInput): void;
+```
+
+Re-exported from `@sigx/lynx-zero`. Registers or replaces (by name) a theme; palette soft tints are completed on the way in.
+
+### extendTheme
+
+```ts
+function extendTheme(base: string, patch: {
+    name: string;
+    variant?: ThemeVariant;
+    pair?: string;
+    colors?: Partial<ThemePalette>;
+    radius?: ThemeRadius;
+    sizes?: ThemeSizes;
+    softMix?: number;
+}): Theme;
+```
+
+Re-exported from `@sigx/lynx-zero`. Derives a new full `Theme` from a registered `base` (throws if the base is unregistered). Pass the result to `registerTheme`.
+
+### pickThemeFor
+
+```ts
+function pickThemeFor(scheme: ThemeVariant): string;
+```
+
+Re-exported from `@sigx/lynx-zero`. The first registered theme name of the given variant (`light`/`dark`).
+
+### pairOf
+
+```ts
+function pairOf(name: string): string;
+```
+
+Re-exported from `@sigx/lynx-zero`. Resolves the paired theme of a name (for toggling); follows the declared `pair` or the first opposite-variant theme.
+
+### variantOf
+
+```ts
+function variantOf(name: string | undefined): ThemeVariant | undefined;
+```
+
+Re-exported from `@sigx/lynx-zero`. The variant of a registered theme.
+
+### colorsOf
+
+```ts
+function colorsOf(name: string | undefined): ThemePalette | undefined;
+```
+
+Re-exported from `@sigx/lynx-zero`. The completed color palette of a registered theme.
+
+### radiusOf
+
+```ts
+function radiusOf(name: string | undefined): ThemeRadius | undefined;
+```
+
+Re-exported from `@sigx/lynx-zero`. The roundness overrides of a registered theme, if any.
+
+### sizesOf
+
+```ts
+function sizesOf(name: string | undefined): ThemeSizes | undefined;
+```
+
+Re-exported from `@sigx/lynx-zero`. The base size-unit overrides of a registered theme, if any.
+
+### resolveColorToken
+
+```ts
+function resolveColorToken(value: string): string;
+```
+
+Re-exported from `@sigx/lynx-zero`. Maps a known semantic token to `var(--color-<token>)`; passes anything else through unchanged.
+
+### resolveDaisyColor
+
+```ts
+function resolveDaisyColor(value: string): string;
+```
+
+Historical alias for `resolveColorToken`.
+
+## Hooks
+
+### useMarkdownEditorTheme
+
+```ts
+function useMarkdownEditorTheme(): MarkdownEditorThemeColors;
+```
+
+Reactively resolves the active theme to concrete hex color props for `@sigx/lynx-markdown`'s `MarkdownEditor` (the native rich-text widget cannot read CSS vars or oklch). Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
+
+## Constants
+
+### markdownComponents
+
+```ts
+const markdownComponents: MarkdownComponents;
+```
+
+DaisyUI render mapping for `@sigx/lynx-markdown`'s `<MarkdownView components={...}>` (headings to `Heading`, text to `Text`, layout to `Col`/`Row`, themed surfaces). Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
+
+### daisyToolbarItem
+
+```ts
+const daisyToolbarItem: ToolbarRenderItem; // (item, active, run) => JSX
+```
+
+DaisyUI item renderer for `MarkdownEditor`'s `renderToolbarItem`; renders a square ghost/primary `Button` per toolbar item. Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
+
+### emojiClasses
+
+```ts
+const emojiClasses: EmojiSlotClasses;
+```
+
+DaisyUI slot-to-class mapping for `@sigx/lynx-emoji` pickers (pass to a picker's `classes` prop). Requires the optional `@sigx/lynx-emoji` peer. Platform: iOS and Android.
+
+### DaisyLynxPreset
+
+```ts
+// from '@sigx/lynx-daisyui/preset'
+const DaisyLynxPreset: Partial<Config>;
+```
+
+The DaisyUI Lynx Tailwind preset; a composition of `@sigx/lynx-zero/preset` (semantic color tokens, `--text-*` ramp, `.flex-fill` utility). Subpath export only — not in the main barrel.
+
+### daisyuiPreset
+
+```ts
+// from '@sigx/lynx-daisyui/preset'
+const daisyuiPreset: Partial<Config>;
+```
+
+The preferred consumer name for `DaisyLynxPreset`. Subpath export only.
+
+## Types
+
+### ButtonProps
+
+```ts
+type ButtonProps =
+    & Define.Prop<'color', ButtonColor, false>
+    & Define.Prop<'variant', ButtonVariant, false>
+    & Define.Prop<'size', ButtonSize, false>
+    & Define.Prop<'wide', boolean, false>
+    & Define.Prop<'disabled', boolean, false>
+    & Define.Prop<'loading', boolean, false>
+    & Define.Prop<'block', boolean, false>
+    & Define.Prop<'circle', boolean, false>
+    & Define.Prop<'square', boolean, false>
+    & Define.Prop<'active', boolean, false>
+    & Define.Prop<'class', string, false>
+    & WithAccessibility
+    & Define.Slot<'default'>
+    & Define.Event<'press', void>;
+```
+
+Button props. `loading` shows an inline `Loading` spinner and inerts the button; `accessibility-*` are forwarded to the host.
+
+### ButtonColor
+
+```ts
+type ButtonColor = ColorVariant;
+```
+
+Semantic color for `Button`.
+
+### ButtonVariant
+
+```ts
+type ButtonVariant = 'outline' | 'soft' | 'ghost' | 'link';
+```
+
+Fill style for `Button`; composes with `color`.
+
+### ButtonSize
+
+```ts
+type ButtonSize = SizeScale;
+```
+
+Button size on the shared scale.
+
+### CardProps
+
+```ts
+type CardProps =
+    & Define.Prop<'bordered', boolean, false>
+    & Define.Prop<'shadow', boolean | 'sm' | 'md' | 'lg', false>
+    & Define.Prop<'compact', boolean, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+Card props. `shadow` defaults to `md` when undefined.
+
+### DividerProps
+
+```ts
+type DividerProps =
+    & Define.Prop<'vertical', boolean, false>
+    & Define.Prop<'color', string, false>
+    & Define.Prop<'margin', number, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+Divider props. `color` is a raw CSS color; `margin` applies to the cross-axis edges.
+
+### InputProps
+
+```ts
+type InputProps =
+    & Define.Prop<'placeholder', string, false>
+    & Define.Prop<'size', InputSize, false>
+    & Define.Prop<'variant', InputVariant, false>
+    & Define.Prop<'color', InputColor, false>
+    & Define.Prop<'disabled', boolean, false>
+    & Define.Prop<'type', 'text' | 'number' | 'password', false>
+    & Define.Prop<'class', string, false>
+    & Define.Model<string>;
+```
+
+Input props. `Define.Model<string>` enables two-way binding via `model`; `type` defaults to `text`.
+
+### InputSize
+
+```ts
+type InputSize = 'xs' | 'sm' | 'md' | 'lg';
+```
+
+### InputVariant
+
+```ts
+type InputVariant = 'bordered' | 'ghost';
+```
+
+### InputColor
+
+```ts
+type InputColor = Exclude<ColorVariant, 'neutral'>;
+```
+
+### ToggleProps
+
+```ts
+type ToggleProps =
+    & Define.Prop<'checked', boolean, false>
+    & Define.Prop<'color', ToggleColor, false>
+    & Define.Prop<'size', ToggleSize, false>
+    & Define.Prop<'disabled', boolean, false>
+    & Define.Prop<'class', string, false>
+    & Define.Event<'change', boolean>;
+```
+
+Toggle props; emits `change(nextChecked)`.
+
+### ToggleColor
+
+```ts
+type ToggleColor = Exclude<ColorVariant, 'neutral'>;
+```
+
+### ToggleSize
+
+```ts
+type ToggleSize = 'xs' | 'sm' | 'md' | 'lg';
+```
+
+Toggle size (default `md`).
+
+### CheckboxProps
+
+```ts
+type CheckboxProps =
+    & Define.Prop<'checked', boolean, false>
+    & Define.Prop<'color', CheckboxColor, false>
+    & Define.Prop<'size', CheckboxSize, false>
+    & Define.Prop<'disabled', boolean, false>
+    & Define.Prop<'class', string, false>
+    & Define.Event<'change', boolean>;
+```
+
+Checkbox props; emits `change(nextChecked)`.
+
+### CheckboxColor
+
+```ts
+type CheckboxColor = Exclude<ColorVariant, 'neutral'>;
+```
+
+### CheckboxSize
+
+```ts
+type CheckboxSize = 'xs' | 'sm' | 'md' | 'lg';
+```
+
+Checkbox size (default `md`).
+
+### SelectProps
+
+```ts
+type SelectProps =
+    & Define.Prop<'options', SelectOption[], false>
+    & Define.Prop<'value', string, false>
+    & Define.Prop<'placeholder', string, false>
+    & Define.Prop<'size', SelectSize, false>
+    & Define.Prop<'variant', SelectVariant, false>
+    & Define.Prop<'color', SelectColor, false>
+    & Define.Prop<'disabled', boolean, false>
+    & Define.Prop<'class', string, false>
+    & Define.Event<'change', string>;
+```
+
+Select props. `placeholder` (default `Select...`) shows when no value matches.
+
+### SelectOption
+
+```ts
+interface SelectOption {
+    label: string;
+    value: string;
+}
+```
+
+A single option for `Select`.
+
+### SelectSize
+
+```ts
+type SelectSize = 'xs' | 'sm' | 'md' | 'lg';
+```
+
+### SelectVariant
+
+```ts
+type SelectVariant = 'bordered' | 'ghost';
+```
+
+### SelectColor
+
+```ts
+type SelectColor = Exclude<ColorVariant, 'neutral'>;
+```
+
+### RadioGroupProps
+
+```ts
+type RadioGroupProps =
+    & Define.Prop<'value', string, false>
+    & Define.Prop<'color', RadioColor, false>
+    & Define.Prop<'size', RadioSize, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>
+    & Define.Event<'change', string>;
+```
+
+Radio group props. The container only lays out children; wiring item selection to the group's `change` event is the caller's responsibility.
+
+### RadioItemProps
+
+```ts
+type RadioItemProps =
+    & Define.Prop<'value', string, false>
+    & Define.Prop<'label', string, false>
+    & Define.Prop<'disabled', boolean, false>
+    & Define.Prop<'checked', boolean, false>
+    & Define.Prop<'color', RadioColor, false>
+    & Define.Prop<'size', RadioSize, false>
+    & Define.Prop<'class', string, false>
+    & Define.Event<'select', string>;
+```
+
+`Radio.Item` props; controlled via `checked`, emits `select(value)` on press.
+
+### RadioColor
+
+```ts
+type RadioColor = Exclude<ColorVariant, 'neutral'>;
+```
+
+### RadioSize
+
+```ts
+type RadioSize = 'xs' | 'sm' | 'md' | 'lg';
+```
+
+### TextareaProps
+
+```ts
+type TextareaProps =
+    & Define.Prop<'placeholder', string, false>
+    & Define.Prop<'rows', number, false>
+    & Define.Prop<'size', TextareaSize, false>
+    & Define.Prop<'variant', TextareaVariant, false>
+    & Define.Prop<'color', TextareaColor, false>
+    & Define.Prop<'disabled', boolean, false>
+    & Define.Prop<'class', string, false>
+    & Define.Model<string>;
+```
+
+Textarea props. `rows` defaults to `3` (height = `rows * 20 + 16` px).
+
+### TextareaSize
+
+```ts
+type TextareaSize = 'xs' | 'sm' | 'md' | 'lg';
+```
+
+### TextareaVariant
+
+```ts
+type TextareaVariant = 'bordered' | 'ghost';
+```
+
+### TextareaColor
+
+```ts
+type TextareaColor = Exclude<ColorVariant, 'neutral'>;
+```
+
+### FormFieldProps
+
+```ts
+type FormFieldProps =
+    & Define.Prop<'label', string, false>
+    & Define.Prop<'error', string, false>
+    & Define.Prop<'required', boolean, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+FormField props.
+
+### BadgeProps
+
+```ts
+type BadgeProps =
+    & Define.Prop<'color', BadgeColor, false>
+    & Define.Prop<'variant', BadgeVariant, false>
+    & Define.Prop<'size', BadgeSize, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+Badge props.
+
+### BadgeColor
+
+```ts
+type BadgeColor = ColorVariant;
+```
+
+### BadgeVariant
+
+```ts
+type BadgeVariant = 'outline' | 'ghost';
+```
+
+### BadgeSize
+
+```ts
+type BadgeSize = 'xs' | 'sm' | 'md' | 'lg';
+```
+
+### AlertProps
+
+```ts
+type AlertProps =
+    & Define.Prop<'color', AlertColor, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+Alert props.
+
+### AlertColor
+
+```ts
+type AlertColor = Extract<ColorVariant, 'info' | 'success' | 'warning' | 'error'>;
+```
+
+Alert color, status colors only.
+
+### LoadingProps
+
+```ts
+type LoadingProps =
+    & Define.Prop<'type', LoadingType, false>
+    & Define.Prop<'size', LoadingSize, false>
+    & Define.Prop<'color', LoadingColor, false>
+    & Define.Prop<'class', string, false>;
+```
+
+Loading props.
+
+### LoadingType
+
+```ts
+type LoadingType = 'spinner' | 'dots' | 'ring' | 'ball' | 'bars' | 'infinity';
+```
+
+### LoadingSize
+
+```ts
+type LoadingSize = 'xs' | 'sm' | 'md' | 'lg';
+```
+
+### LoadingColor
+
+```ts
+type LoadingColor = Exclude<ColorVariant, 'neutral'>;
+```
+
+### ProgressProps
+
+```ts
+type ProgressProps =
+    & Define.Prop<'value', number, false>
+    & Define.Prop<'max', number, false>
+    & Define.Prop<'color', ProgressColor, false>
+    & Define.Prop<'class', string, false>;
+```
+
+Progress props. `max` defaults to `100`, `value` to `0`.
+
+### ProgressColor
+
+```ts
+type ProgressColor = Exclude<ColorVariant, 'neutral'>;
+```
+
+### ModalProps
+
+```ts
+type ModalProps =
+    & Define.Prop<'open', boolean, false>
+    & Define.Prop<'onClose', () => void, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+Modal props. `onClose` is a callback prop, not an emitted event.
+
+### SkeletonProps
+
+```ts
+type SkeletonProps =
+    & Define.Prop<'width', number | string, false>
+    & Define.Prop<'height', number | string, false>
+    & Define.Prop<'circle', boolean, false>
+    & Define.Prop<'class', string, false>;
+```
+
+Skeleton props.
+
+### StepsProps
+
+```ts
+type StepsProps =
+    & Define.Prop<'vertical', boolean, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+Steps container props.
+
+### StepProps
+
+```ts
+type StepProps =
+    & Define.Prop<'color', StepColor, false>
+    & Define.Prop<'content', string, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+`Steps.Step` props; `content` renders inside the indicator, the default slot is the label.
+
+### StepColor
+
+```ts
+type StepColor = ColorVariant;
+```
+
+### TabsProps
+
+```ts
+type TabsProps =
+    & Define.Prop<'activeTab', string, false>
+    & Define.Prop<'onChange', (value: string) => void, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+Tabs container props.
+
+### TabProps
+
+```ts
+type TabProps =
+    & Define.Prop<'value', string, true>
+    & Define.Prop<'active', boolean, false>
+    & Define.Prop<'label', string, false>
+    & Define.Prop<'onPress', () => void, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+`Tabs.Tab` props; `value` is required. `active` overrides the container's `activeTab`; `onPress` fires in addition to `onChange`.
+
+### NavTabBarProps
+
+```ts
+type NavTabBarProps =
+    & Define.Prop<'position', NavTabBarPosition, false>
+    & Define.Prop<'background', NavTabBarBackground, false>
+    & Define.Prop<'bordered', boolean, false>
+    & Define.Prop<'renderTab', (info: TabInfo, ctx: NavTabRenderContext) => JSXElement, false>
+    & Define.Prop<'items', ReadonlyArray<TabInfo>, false>
+    & Define.Prop<'activeId', string, false>
+    & Define.Event<'select', string>;
+```
+
+NavTabBar props. `position` default `bottom`, `background` default `base-200`, `bordered` default `true`. Mode is fixed at mount based on the presence of `items`.
+
+### NavTabBarPosition
+
+```ts
+type NavTabBarPosition = 'top' | 'bottom';
+```
+
+Which edge the bar sits on.
+
+### NavTabBarBackground
+
+```ts
+type NavTabBarBackground = 'base-100' | 'base-200' | 'base-300' | 'transparent';
+```
+
+NavTabBar surface color token.
+
+### NavTabRenderContext
+
+```ts
+interface NavTabRenderContext {
+    readonly active: boolean;
+    onPress(): void;
+}
+```
+
+Context passed to a `renderTab` consumer; `active` is reactive, `onPress` activates the tab.
+
+### NavHeaderProps
+
+```ts
+type NavHeaderProps =
+    & Define.Prop<'background', NavHeaderBackground, false>
+    & Define.Prop<'bordered', boolean, false>
+    & Define.Prop<'backIcon', IconSpec, false>
+    & Define.Prop<'renderBack', (ctx: { pop: () => void }) => JSXElement, false>;
+```
+
+NavHeader props. `background` default `base-200`, `bordered` default `true`. `backIcon` renders the back chevron from an `IconSpec`; `renderBack` fully overrides it.
+
+### NavHeaderBackground
+
+```ts
+type NavHeaderBackground = 'base-100' | 'base-200' | 'base-300' | 'transparent';
+```
+
+NavHeader surface color token.
+
+### NavDrawerProps
+
+```ts
+type NavDrawerProps =
+    & Define.Prop<'side', NavDrawerSide, false>
+    & Define.Prop<'background', BackgroundValue, false>
+    & Define.Prop<'bordered', boolean, false>
+    & Define.Prop<'backdrop', boolean, false>
+    & Define.Prop<'width', number, false>
+    & Define.Prop<'initialOpen', boolean, false>
+    & Define.Slot<'sidebar'>
+    & Define.Slot<'default'>;
+```
+
+NavDrawer props. `side` default `left`, `background` default `base-100`, `bordered`/`backdrop` default `true`, `width` default `280`. The `sidebar` slot is the menu, the `default` slot is the main content.
+
+### NavDrawerSide
+
+```ts
+type NavDrawerSide = 'left' | 'right';
+```
+
+Which edge the drawer panel slides from.
+
+### SwiperIndicatorProps
+
+```ts
+type SwiperIndicatorProps =
+    & Define.Prop<'variant', SwiperIndicatorVariant, false>
+    & Define.Prop<'offset', SharedValue<number>, false>
+    & Define.Prop<'pageWidth', number, false>
+    & Define.Prop<'count', number, true>
+    & Define.Prop<'index', PrimitiveSignal<number>, false>
+    & Define.Prop<'color', ColorToken, false>
+    & Define.Prop<'inactiveColor', ColorToken, false>
+    & Define.Prop<'size', SwiperIndicatorSize, false>
+    & Define.Prop<'onDotPress', (index: number) => void, false>
+    & Define.Prop<'class', string, false>
+    & Define.Prop<'style', Record<string, string | number>, false>;
+```
+
+SwiperIndicator props. `count` required; `index` required for the `numbered` variant and for index-only mode. `variant` default `dots`, `color` default `primary`, `inactiveColor` default `base-content`, `size` default `md`.
+
+### SwiperIndicatorVariant
+
+```ts
+type SwiperIndicatorVariant = 'dots' | 'bar' | 'pill' | 'numbered' | 'scale-pulse';
+```
+
+Indicator visual style: `dots` (opacity crossfade, default), `bar` (single sliding thumb), `pill` (scaleX + opacity), `numbered` (`n / total`), `scale-pulse` (uniform scale).
+
+### SwiperIndicatorSize
+
+```ts
+type SwiperIndicatorSize = 'xs' | 'sm' | 'md' | 'lg';
+```
+
+### ThemeProviderProps
+
+```ts
+type ThemeProviderProps =
+    & Define.Prop<'initial', DaisyTheme, false>
+    & Define.Prop<'light', DaisyTheme, false>
+    & Define.Prop<'dark', DaisyTheme, false>
+    & Define.Prop<'fontScale', number, false>
+    & Define.Prop<'class', string, false>
+    & Define.Prop<'style', Record<string, string | number>, false>
+    & Define.Slot<'default'>;
+```
+
+ThemeProvider props. `initial` pins a theme (ignores system); `light`/`dark` are used while following system; `fontScale` seeds the text-scale multiplier.
+
+### StatusBarSyncProps
+
+```ts
+type StatusBarSyncProps = Define.Prop<'matchBackground', boolean, false>;
+```
+
+Re-exported from `@sigx/lynx-zero`. `matchBackground` is reserved (currently a no-op).
+
+### DaisyTheme
+
+```ts
+type DaisyTheme =
+    | 'daisy-light' | 'daisy-dark' | 'daisy-cupcake'
+    | 'daisy-emerald' | 'daisy-synthwave' | 'daisy-dracula'
+    | (string & {});
+```
+
+Theme class applied to the provider host. The six built-ins autocomplete; arbitrary strings are accepted for custom themes or multi-class compositions (e.g. `daisy-light daisy-rounded`).
+
+### AvatarProps
+
+```ts
+type AvatarProps =
+    & Define.Prop<'src', string, false>
+    & Define.Prop<'size', AvatarSize, false>
+    & Define.Prop<'rounded', boolean | 'full', false>
+    & Define.Prop<'placeholder', string, false>
+    & Define.Prop<'online', boolean, false>
+    & Define.Prop<'offline', boolean, false>
+    & Define.Prop<'class', string, false>;
+```
+
+Avatar props. `size` default `md`.
+
+### AvatarSize
+
+```ts
+type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+```
+
+Avatar size (px map: xs 24, sm 32, md 48, lg 64, xl 96).
+
+### TextProps
+
+```ts
+type TextProps =
+    & Define.Prop<'size', TextSize, false>
+    & Define.Prop<'weight', TextWeight, false>
+    & Define.Prop<'color', TextColor, false>
+    & Define.Prop<'class', string, false>
+    & Define.Prop<'selectable', boolean, false>
+    & Define.Prop<'customSelection', boolean, false>
+    & Define.Prop<'autoSize', boolean | TextAutoSize, false>
+    & Define.Slot<'default'>;
+```
+
+Text props.
+
+### TextSize
+
+```ts
+type TextSize = 'xs' | 'sm' | 'base' | 'lg' | 'xl' | '2xl' | '3xl';
+```
+
+### TextWeight
+
+```ts
+type TextWeight = 'light' | 'normal' | 'medium' | 'semibold' | 'bold';
+```
+
+### TextColor
+
+```ts
+type TextColor = 'base-content' | Exclude<ColorVariant, 'neutral'>;
+```
+
+### TextAutoSize
+
+```ts
+interface TextAutoSize {
+    min?: string;
+    max?: string;
+    step?: string;
+    presets?: readonly string[];
+    lineRanges?: readonly TextAutoSizeLineRange[];
+}
+```
+
+Auto font-size tuning mapped to Lynx `-x-auto-font-size*` (`lineRanges` is Lynx 3.8+). Native precedence: `lineRanges` > `presets` > `min`/`max`/`step`.
+
+### TextAutoSizeLineRange
+
+```ts
+interface TextAutoSizeLineRange {
+    lines: number | readonly [number, 'infinity'];
+    min: string;
+    max?: string;
+}
+```
+
+One `line-range()` entry for `TextAutoSize.lineRanges` (Lynx 3.8+).
+
+### HeadingProps
+
+```ts
+type HeadingProps =
+    & Define.Prop<'level', HeadingLevel, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+Heading props.
+
+### HeadingLevel
+
+```ts
+type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
+```
+
+### EditorToolbarProps
+
+```ts
+type EditorToolbarProps =
+    & Define.Prop<'controller', MarkdownEditorController | null, false>
+    & Define.Prop<'selection', SelectionState | null, false>
+    & Define.Prop<'items', ToolbarItem[], false>
+    & Define.Prop<'class', string, false>;
+```
+
+EditorToolbar props (sub-types from `@sigx/lynx-markdown/editor`).
+
+### EmojiPickerSheetProps
+
+```ts
+type EmojiPickerSheetProps =
+    & Define.Prop<'open', boolean, true>
+    & Define.Prop<'onClose', () => void, false>
+    & Define.Prop<'data', EmojiData, false>
+    & Define.Prop<'height', number, false>
+    & Define.Prop<'columns', number, false>
+    & Define.Prop<'classes', EmojiSlotClasses, false>
+    & Define.Event<'pick', EmojiPickEvent>;
+```
+
+EmojiPickerSheet props. `open` required; `data` optional under an `<EmojiProvider>`; `classes` merge over the daisy skin. Sub-types from `@sigx/lynx-emoji`.
+
+### MarkdownEditorThemeColors
+
+```ts
+interface MarkdownEditorThemeColors {
+    readonly textColor: string;
+    readonly accentColor: string;
+    readonly placeholderColor: string;
+}
+```
+
+Resolved editor colors: `textColor` = base-content, `accentColor` = primary (caret/links), `placeholderColor` = base-content at 40% alpha. Getters are reactive.
+
+## Theme & contract types (re-exported)
+
+These are re-exported from `@sigx/lynx-zero`.
+
+### ThemeController
+
+```ts
+interface ThemeController {
+    readonly name: ThemeName;
+    readonly followingSystem: boolean;
+    set(name: ThemeName): void;
+    toggle(): void;
+    followSystem(): void;
+    readonly fontScale: number;
+    setFontScale(scale: number): void;
+}
+```
+
+Reactive controller for the active theme and font scale.
+
+### Theme
+
+```ts
+interface Theme extends Omit<ThemeInput, 'colors'> {
+    colors: ThemePalette;
+}
+```
+
+A registered theme (input shape with a completed palette).
+
+### ThemePalette
+
+```ts
+type ThemePalette = Record<ColorToken, string>;
+```
+
+Full registered palette (every token, no holes).
+
+### ThemeRadius
+
+```ts
+interface ThemeRadius {
+    selector?: string;
+    field?: string;
+    box?: string;
+}
+```
+
+Roundness token overrides (`--radius-selector`/`field`/`box`).
+
+### ThemeSizes
+
+```ts
+interface ThemeSizes {
+    selector?: string;
+    field?: string;
+}
+```
+
+Base size-unit overrides (`--size-selector`/`field`).
+
+### ThemeVariant
+
+```ts
+type ThemeVariant = 'light' | 'dark';
+```
+
+### ColorVariant
+
+```ts
+type ColorVariant =
+    | 'primary' | 'secondary' | 'accent' | 'neutral'
+    | 'info' | 'success' | 'warning' | 'error';
+```
+
+The shared semantic color vocabulary.
+
+### ColorToken
+
+```ts
+type ColorToken = CoreColorToken | SoftColorToken;
+// = ColorVariant | `${ColorVariant}-content`
+//   | 'base-100' | 'base-200' | 'base-300' | 'base-content'
+//   | `${ColorVariant}-soft`
+```
+
+Full semantic color token set (variants, `-content`, `-soft`, `base-*`).
+
+### DaisyColor
+
+```ts
+type DaisyColor = ColorToken;
+```
+
+Historical alias for `ColorToken` — the design-system color-token contract.
+
+### SizeScale
+
+```ts
+type SizeScale = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+```
+
+The shared component size scale.
+
+### BackgroundValue
+
+```ts
+type BackgroundValue = ColorToken | (string & {});
+```
+
+A semantic token (autocompleted) or any raw CSS color string.
+
+### SpacingValue
+
+```ts
+type SpacingValue =
+    | number
+    | { x?: number; y?: number; top?: number; right?: number; bottom?: number; left?: number };
+```
+
+Padding/margin value: a uniform number or a per-edge object.
+
+### BoxProps
+
+```ts
+interface BoxProps {
+    width?: number | string;
+    height?: number | string;
+    flex?: number;
+    background?: BackgroundValue;
+    borderRadius?: number;
+    padding?: SpacingValue;
+    margin?: SpacingValue;
+}
+```
+
+Box-model style fragment shared by layout primitives.
+
+### RowProps
+
+```ts
+type RowProps =
+    & Define.Prop<'gap', number, false>
+    & Define.Prop<'align', 'flex-start' | 'center' | 'flex-end' | 'stretch' | 'baseline', false>
+    & Define.Prop<'justify', 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly', false>
+    & Define.Prop<'wrap', boolean, false>
+    & Define.Prop<'padding', SpacingValue, false>
+    & Define.Prop<'margin', SpacingValue, false>
+    & Define.Prop<'width', number | string, false>
+    & Define.Prop<'height', number | string, false>
+    & Define.Prop<'flex', number, false>
+    & Define.Prop<'background', BackgroundValue, false>
+    & Define.Prop<'borderRadius', number, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+Row layout props.
+
+### ColProps
+
+```ts
+type ColProps = /* identical shape to RowProps */;
+```
+
+Same prop shape as `RowProps`.
+
+### CenterProps
+
+```ts
+type CenterProps =
+    & Define.Prop<'width', number | string, false>
+    & Define.Prop<'height', number | string, false>
+    & Define.Prop<'flex', number, false>
+    & Define.Prop<'background', BackgroundValue, false>
+    & Define.Prop<'borderRadius', number, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+Center props.
+
+### SpacerProps
+
+```ts
+type SpacerProps =
+    & Define.Prop<'size', number, false>
+    & Define.Prop<'class', string, false>;
+```
+
+Spacer props.
+
+### ScrollViewProps
+
+```ts
+type ScrollViewProps =
+    & Define.Prop<'direction', 'vertical' | 'horizontal', false>
+    & Define.Prop<'height', number | string, false>
+    & Define.Prop<'width', number | string, false>
+    & Define.Prop<'flex', number, false>
+    & Define.Prop<'showScrollbar', boolean, false>
+    & Define.Prop<'bounces', boolean, false>
+    & Define.Prop<'class', string, false>
+    & Define.Slot<'default'>;
+```
+
+ScrollView props.
+
+## See also
+
+- [Usage](/lynx/modules/daisyui/usage) — setup and task-based guides.
+- [Components](/lynx/modules/daisyui/components) — the visual component catalog.

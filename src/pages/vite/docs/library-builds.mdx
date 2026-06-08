@@ -1,0 +1,156 @@
+---
+title: Library Builds
+description: "Build @sigx/* libraries with defineLibConfig from @sigx/vite/lib"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Library Builds
+
+The `@sigx/vite/lib` subpath exports `defineLibConfig`, a helper that produces a
+Vite 8 / Rolldown library-build config for `@sigx/*` packages. It normalizes
+entries, externalizes the SignalX runtime, and applies sensible defaults so
+every package builds consistently.
+
+```ts
+import { defineLibConfig } from '@sigx/vite/lib';
+```
+
+A direct re-export of Vite's own `defineConfig` is also available from the same
+subpath, for composing custom configs alongside `defineLibConfig`:
+
+```ts
+import { defineLibConfig, defineConfig } from '@sigx/vite/lib';
+```
+
+## Single Entry
+
+The simplest config builds one entry to ES modules:
+
+```ts
+// vite.config.ts
+import { defineLibConfig } from '@sigx/vite/lib';
+
+export default defineLibConfig({
+    entry: 'src/index.ts',
+});
+```
+
+Output files use the format `${entryName}.js` (ES format only). Sourcemaps are
+on by default, and minification produces additional `.min.js` files (Oxc-based)
+unless you set `minify: false`.
+
+## Multiple Entries
+
+Pass a record (or an array of `LibEntry` objects) to build multiple entries —
+useful for packages with subpath exports:
+
+```ts
+// vite.config.ts
+import { defineLibConfig } from '@sigx/vite/lib';
+
+export default defineLibConfig({
+    entry: {
+        index: 'src/index.ts',
+        'server/index': 'src/server/index.ts',
+        'client/index': 'src/client/index.ts',
+    },
+    external: ['sigx', /@sigx\/.*/],
+});
+```
+
+The keys become output file names (without extension). The array form is
+equivalent:
+
+```ts
+import { defineLibConfig } from '@sigx/vite/lib';
+
+export default defineLibConfig({
+    entry: [
+        { name: 'index', entry: 'src/index.ts' },
+        { name: 'utils', entry: 'src/utils.ts' },
+    ],
+});
+```
+
+## Runtime Externals Are Always Added
+
+Whatever you pass as `external`, `defineLibConfig` always prepends the SignalX
+runtime tier — `sigx`, `@sigx/reactivity`, `@sigx/runtime-core`,
+`@sigx/runtime-dom`, `@sigx/server-renderer`, and their subpaths — and dedupes
+the result. This keeps the runtime out of your bundle and preserves singleton
+reactivity for consumers.
+
+## Bundling Sibling Packages with Aliases
+
+When you need to bundle sibling packages in a monorepo, use `alias` to map
+import paths to source files. Pass `root: import.meta.url` so those relative
+paths resolve against your package directory:
+
+```ts
+// vite.config.ts
+import { defineLibConfig } from '@sigx/vite/lib';
+
+export default defineLibConfig({
+    entry: {
+        sigx: 'src/index.ts',
+        hydration: 'src/hydration.ts',
+    },
+    alias: {
+        '@sigx/reactivity': '../reactivity/src/index.ts',
+        '@sigx/runtime-core': '../runtime-core/src/index.ts',
+        '@sigx/runtime-dom': '../runtime-dom/src/index.ts',
+    },
+    minify: true,
+    root: import.meta.url,
+});
+```
+
+`root` accepts a `file://` URL (such as `import.meta.url`) or a directory path.
+Always set it when you use `alias`.
+
+## JSX Libraries
+
+Set `jsx: true` to enable Oxc's automatic JSX transform with import source
+`sigx`:
+
+```ts
+import { defineLibConfig } from '@sigx/vite/lib';
+
+export default defineLibConfig({
+    entry: 'src/index.ts',
+    jsx: true,
+});
+```
+
+## Node and CLI Builds
+
+For a Node-targeted build, set `platform: 'node'` (targets `node18`). For a CLI
+that needs a shebang, use `banner`:
+
+```ts
+import { defineLibConfig } from '@sigx/vite/lib';
+
+export default defineLibConfig({
+    entry: 'src/cli.ts',
+    platform: 'node',
+    banner: '#!/usr/bin/env node',
+});
+```
+
+## Defaults Summary
+
+| Option | Default | Effect |
+|---|---|---|
+| `outDir` | `'dist'` | Output directory; `emptyOutDir` is always on. |
+| `sourcemap` | `true` | Emit sourcemaps. |
+| `external` | `[/@sigx\/.*/]` | Runtime tier is always added on top. |
+| `minify` | `true` | Emit extra `.min.js` files via Oxc (or `false`). |
+| `jsx` | `false` | Automatic JSX with import source `sigx` when `true`. |
+| `platform` | `'browser'` | `'node'` targets `node18`; `'neutral'` is also accepted. |
+
+## Next Steps
+
+- [API Reference](/vite/docs/api) — `defineLibConfig`, `LibBuildOptions`, and `LibEntry`
+- [HMR for Components](/vite/docs/hmr) — component hot-reload in app builds

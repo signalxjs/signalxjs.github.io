@@ -8,10 +8,135 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-plugin` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-plugin` — the Rspack / Rspeedy plugin for SignalX Lynx dual-thread rendering.</p>
 
-## Exports
+The package is ESM-only with a single entry point. Everything below is reachable from `@sigx/lynx-plugin`:
 
-{/* TODO: document the public API of @sigx/lynx-plugin */}
+```ts
+import { pluginSigxLynx, LAYERS, applyEntry } from '@sigx/lynx-plugin';
+import type { PluginSigxLynxOptions } from '@sigx/lynx-plugin';
+```
 
-See the package source for the complete typed surface.
+`pluginSigxLynx` is the default API. `LAYERS` and `applyEntry` are low-level escapes for custom build setups.
+
+## Functions
+
+### pluginSigxLynx
+
+Creates the Rspack / Rspeedy plugin that wires SignalX into Lynx's dual-thread (Background + Main Thread) build pipeline. This is the only export most projects use.
+
+```ts
+export function pluginSigxLynx(options?: PluginSigxLynxOptions): RsbuildPlugin
+```
+
+**Parameters**
+
+- `options` — optional. A [`PluginSigxLynxOptions`](#pluginsigxlynxoptions) object controlling CSS selector / inheritance behavior and debug-info placement. Omit it to use the defaults.
+
+**Returns**
+
+An `RsbuildPlugin` — the plugin object you place in your config's `plugins` array. The returned plugin is named `lynx:sigx` and declares `pre: ['lynx:rsbuild:plugin-api', 'lynx:config', 'lynx:rsbuild:dev']`, so it runs after Rspeedy's own config and dev plugins.
+
+**Platform**: build-time, both iOS and Android. This is not a native module; it produces the dual-thread bundles that the native runtime consumes.
+
+```ts
+// lynx.config.ts
+import { defineConfig } from '@lynx-js/rspeedy';
+import { pluginSigxLynx } from '@sigx/lynx-plugin';
+
+export default defineConfig({
+  plugins: [pluginSigxLynx()],
+});
+```
+
+### applyEntry
+
+Low-level helper that performs the dual-thread entry splitting directly. For each user entry it creates a `<name>__main-thread` entry in the main-thread layer and a `<name>` entry in the background layer, then registers the template-webpack-plugin to stitch them into one `.lynx` template. `pluginSigxLynx` calls this for you; reach for it only when building a custom plugin or bypassing the standard pipeline.
+
+```ts
+export declare function applyEntry(
+  api: RsbuildPluginAPI,
+  opts?: ApplyEntryOptions,
+): Promise<void>
+```
+
+**Parameters**
+
+- `api` — the `RsbuildPluginAPI` handed to a plugin's `setup` function.
+- `opts` — optional. An `ApplyEntryOptions` object with the same CSS / debug fields as [`PluginSigxLynxOptions`](#pluginsigxlynxoptions). Note that the `ApplyEntryOptions` type itself is not re-exported from the package root (see Types below).
+
+**Returns**
+
+A `Promise<void>` that resolves once the entries and template plugin are registered.
+
+**Platform**: build-time, both iOS and Android.
+
+## Constants
+
+### LAYERS
+
+Webpack module-layer name constants used to separate the dual-thread bundles — background JS versus main-thread Lepus. Use these when writing custom rules that need to target one layer.
+
+```ts
+export const LAYERS = {
+  BACKGROUND: 'sigx:background',
+  MAIN_THREAD: 'sigx:main-thread',
+} as const;
+```
+
+**Members**
+
+- `LAYERS.BACKGROUND` — `'sigx:background'`. The layer for the background-thread JS bundle.
+- `LAYERS.MAIN_THREAD` — `'sigx:main-thread'`. The layer for the main-thread (Lepus) bundle.
+
+**Platform**: build-time, both iOS and Android.
+
+## Types
+
+### PluginSigxLynxOptions
+
+Configuration options accepted by [`pluginSigxLynx`](#pluginsigxlynx). All fields are optional.
+
+```ts
+export interface PluginSigxLynxOptions {
+  /** Whether to enable CSS selector support in the Lynx template. @defaultValue true */
+  enableCSSSelector?: boolean;
+  /** Whether to enable CSS inheritance in the Lynx engine. @defaultValue false */
+  enableCSSInheritance?: boolean;
+  /** A list of additional CSS properties to inherit beyond the engine defaults. Only effective when enableCSSInheritance is true. */
+  customCSSInheritanceList?: string[];
+  /** Whether to place debug info outside the template bundle. @defaultValue true */
+  debugInfoOutside?: boolean;
+}
+```
+
+**Fields**
+
+- `enableCSSSelector?: boolean` — enable CSS selector support in the Lynx template. Default `true`.
+- `enableCSSInheritance?: boolean` — enable CSS inheritance in the Lynx engine. Default `false`.
+- `customCSSInheritanceList?: string[]` — additional CSS properties to inherit beyond the engine defaults. Only effective when `enableCSSInheritance` is `true`.
+- `debugInfoOutside?: boolean` — place debug info outside the template bundle. Default `true`.
+
+### ApplyEntryOptions
+
+Parameter type of [`applyEntry`](#applyentry). It carries the same fields as [`PluginSigxLynxOptions`](#pluginsigxlynxoptions).
+
+```ts
+export interface ApplyEntryOptions {
+  enableCSSSelector?: boolean;        // default true
+  enableCSSInheritance?: boolean;     // default false
+  customCSSInheritanceList?: string[];
+  debugInfoOutside?: boolean;         // default true
+}
+```
+
+Note: `ApplyEntryOptions` is declared in the plugin's internal `entry` module but is **not** re-exported through the package root — only the `applyEntry` function symbol is. Consumers importing from `@sigx/lynx-plugin` get `applyEntry` but cannot name `ApplyEntryOptions` via the public entry. Pass an inline object literal, or use [`PluginSigxLynxOptions`](#pluginsigxlynxoptions), which has the same shape.
+
+### RsbuildPlugin
+
+Return type of [`pluginSigxLynx`](#pluginsigxlynx). Imported as a type from `@rsbuild/core`. The returned object has `name: 'lynx:sigx'` and `pre: ['lynx:rsbuild:plugin-api', 'lynx:config', 'lynx:rsbuild:dev']`.
+
+## See also
+
+- [Usage](/lynx/modules/plugin/usage) — practical setup and worklet authoring.
+- [Overview](/lynx/modules/plugin/overview) — what the plugin does at build time.

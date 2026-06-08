@@ -8,10 +8,181 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-linking` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-linking`.</p>
 
-## Exports
+The main entry (`@sigx/lynx-linking`) exports `Linking`, `BackHandler`, `parse`, `createURL` and the supporting types. The `useLinkingRouter` composable and its options live on the `@sigx/lynx-linking/router` subpath and are not re-exported from the main entry.
 
-{/* TODO: document the public API of @sigx/lynx-linking */}
+## Facades
 
-See the package source for the complete typed surface.
+### Linking
+
+```ts
+const Linking: {
+  openURL(url: string): Promise<void>;
+  canOpenURL(url: string): Promise<boolean>;
+  getInitialURL(): string | null;
+  addEventListener(type: 'url', listener: URLListener): URLSubscription;
+  isAvailable(): boolean;
+};
+```
+
+Static facade for deep-link and URL-scheme handling: open outbound URLs, probe schemes, read the cold-start URL, and subscribe to warm URL events. Available on iOS and Android.
+
+#### Linking.openURL
+
+```ts
+openURL(url: string): Promise<void>
+```
+
+Opens `url` with the system handler (browser, mail client, dialer). On iOS this calls `UIApplication.open`; on Android it fires an `Intent.ACTION_VIEW` with `FLAG_ACTIVITY_NEW_TASK`. Rejects on an invalid URL or when the URL cannot be opened. Both platforms.
+
+#### Linking.canOpenURL
+
+```ts
+canOpenURL(url: string): Promise<boolean>
+```
+
+Resolves to whether the runtime can open a URL with the given scheme. On iOS this calls `UIApplication.canOpenURL` (gated by `LSApplicationQueriesSchemes` for non-`http` schemes — see usage notes). On Android it resolves against the `PackageManager`. Returns `false` for an invalid or empty URL. Both platforms.
+
+#### Linking.getInitialURL
+
+```ts
+getInitialURL(): string | null
+```
+
+Returns the URL the app was launched with, or `null`. Read synchronously from a native-populated global — no bridge round-trip — so it is safe to call during initial render. Returns `null` when the value is missing or empty. Both platforms.
+
+#### Linking.addEventListener
+
+```ts
+addEventListener(type: 'url', listener: URLListener): URLSubscription
+```
+
+Subscribes to incoming URL events delivered while the app runs (warm deep links). The only valid `type` is `'url'`; any other value throws. Returns a `URLSubscription` — call `remove()` to unsubscribe. Returns a no-op subscription when there is no native emitter (web, SSR, or tests). Both platforms.
+
+#### Linking.isAvailable
+
+```ts
+isAvailable(): boolean
+```
+
+Returns whether the native `Linking` bridge module is registered in the current build. Both platforms.
+
+### BackHandler
+
+```ts
+const BackHandler: {
+  addEventListener(listener: () => boolean | void): BackHandlerSubscription;
+  exitApp(): Promise<void>;
+};
+```
+
+Android hardware back-button handling plus app-level back-out. On iOS `addEventListener` never fires (there is no hardware back button) and `exitApp` resolves as a no-op.
+
+#### BackHandler.addEventListener
+
+```ts
+addEventListener(listener: () => boolean | void): BackHandlerSubscription
+```
+
+Subscribes to hardware-back-press events (Android). The listener returns `true` to mark the press as handled; the native side consumes the press whenever at least one subscriber is registered. Returns a `BackHandlerSubscription` — call `remove()` to unsubscribe. Errors thrown by the listener are caught and logged so they do not break sibling subscribers. Returns a no-op subscription on web, SSR, or tests. Android (no-op on iOS).
+
+#### BackHandler.exitApp
+
+```ts
+exitApp(): Promise<void>
+```
+
+On Android, sends the foreground task to the back of the activity stack (`moveTaskToBack(true)`), keeping the JS bundle warm. On iOS, resolves as a no-op with a value of shape `{ error: 'exitApp is not supported on iOS' }` rather than rejecting. Both platforms (effective on Android only).
+
+## Functions
+
+### parse
+
+```ts
+function parse(url: string): ParsedURL
+```
+
+Pure-JS URL parser into `{ scheme, hostname, path, queryParams }`. Lowercases the scheme, strips the fragment, and percent-decodes the query (treating `+` as a space). Supports custom schemes, `http(s)`, opaque schemes (`mailto:`, `tel:`), and bare paths. A bare path keeps its query in `path` and does not split it into `queryParams`. Throws `TypeError` on non-string input. No native bridge required. Both platforms.
+
+### createURL
+
+```ts
+function createURL(path: string, queryParams?: Record<string, string>): string
+```
+
+Pure-JS builder that appends a percent-encoded query string to `path`. Uses `&` as the separator if `path` already contains a `?`, skips `undefined`/`null` values, and returns `path` unchanged when no params are supplied. Typically used to build outgoing deep links (e.g. for a share sheet). No native bridge required. Both platforms.
+
+## Hooks
+
+### useLinkingRouter
+
+```ts
+function useLinkingRouter(opts?: UseLinkingRouterOptions): void
+```
+
+Composable from the `@sigx/lynx-linking/router` subpath that wires incoming deep links into `@sigx/router`. Handles cold-start (reads `getInitialURL` on mount) and warm-start (subscribes via `addEventListener`), then calls `router.push()` with the path and query. The listener is removed automatically on unmount. Call it once at your app root. Has optional peer dependencies on `@sigx/router` and `sigx`. Both platforms.
+
+## Types
+
+### URLEvent
+
+```ts
+interface URLEvent {
+  url: string;
+}
+```
+
+Payload delivered to a URL listener; carries the incoming URL string.
+
+### URLListener
+
+```ts
+type URLListener = (event: URLEvent) => void
+```
+
+Callback type for `Linking.addEventListener('url', …)`.
+
+### URLSubscription
+
+```ts
+interface URLSubscription {
+  remove(): void;
+}
+```
+
+Subscription handle returned by `Linking.addEventListener`. Call `remove()` to unsubscribe.
+
+### BackHandlerSubscription
+
+```ts
+interface BackHandlerSubscription {
+  remove(): void;
+}
+```
+
+Subscription handle returned by `BackHandler.addEventListener`. Call `remove()` to unsubscribe.
+
+### ParsedURL
+
+```ts
+interface ParsedURL {
+  scheme: string;
+  hostname: string;
+  path: string;
+  queryParams: Record<string, string>;
+}
+```
+
+Result shape from `parse`. `scheme` is lowercased (empty for bare paths) and `queryParams` is percent-decoded.
+
+### UseLinkingRouterOptions
+
+```ts
+interface UseLinkingRouterOptions {
+  onURL?: (url: string) => void;
+  prefixes?: string[];
+}
+```
+
+Options for `useLinkingRouter` (exported from the `/router` subpath). `onURL` is a custom handler — when provided, the URL is passed through verbatim and the default router-push is skipped. `prefixes` lists schemes/prefixes stripped before pushing to the router, matched in order with the first match winning (e.g. `['myapp://', 'https://myapp.com']`).

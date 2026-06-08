@@ -8,16 +8,134 @@ order: 30
 
 # Using Biometric
 
-<p class="lede">Face ID / Touch ID auth — the essentials.</p>
+<p class="lede">Check for usable biometric hardware, then prompt the user with Face ID, Touch ID or the Android BiometricPrompt — all from one cross-platform API.</p>
+
+The whole module is one frozen namespace, `Biometric`, with three methods. Import it once:
+
+```tsx
+import { Biometric } from '@sigx/lynx-biometric';
+```
 
 ## Basic usage
 
+Always gate on `isAvailable()` before you prompt — it tells you whether the device has enrolled biometric hardware and never shows UI. Then call `authenticate()` with a `reason`. The prompt resolves to a result object you branch on.
+
 ```tsx
-import * as Biometric from '@sigx/lynx-biometric';
+import { Biometric } from '@sigx/lynx-biometric';
+
+async function unlock() {
+  const { available, type } = await Biometric.isAvailable();
+  if (!available) {
+    // No enrolled biometrics — fall back to your own login flow.
+    return false;
+  }
+
+  const result = await Biometric.authenticate({
+    reason: 'Unlock your account',
+  });
+
+  return result.success;
+}
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-biometric */}
+`type` tells you which modality is enrolled (`'faceId'`, `'touchId'`, `'fingerprint'`, `'face'`, `'iris'` or `'none'`) so you can tailor copy or icons — for example showing a Face ID glyph on iPhone and a fingerprint glyph on most Android devices.
+
+## Handling the result
+
+`authenticate()` ALWAYS resolves and never rejects. Every failure — including the user cancelling — comes back as `success: false` with a human-readable `error` and a machine-readable `errorCode`. You never need a try/catch around it.
+
+```tsx
+import { Biometric } from '@sigx/lynx-biometric';
+import type { BiometricErrorCode } from '@sigx/lynx-biometric';
+
+async function unlock() {
+  const result = await Biometric.authenticate({
+    reason: 'Unlock your vault',
+  });
+
+  if (result.success) {
+    openVault();
+    return;
+  }
+
+  switch (result.errorCode as BiometricErrorCode) {
+    case 'userCancel':
+      // User dismissed the prompt — stay on the lock screen, no error toast.
+      break;
+    case 'biometryLockout':
+      // Too many failed attempts — ask for the device passcode instead.
+      showPasscodeFallback();
+      break;
+    case 'biometryNotEnrolled':
+    case 'biometryNotAvailable':
+      showPasswordLogin();
+      break;
+    default:
+      showError(result.error ?? 'Authentication failed');
+  }
+}
+```
+
+Note on Android: a single fingerprint/face mismatch does NOT end the prompt — the OS keeps it up so the user can retry, so you will not see `'authenticationFailed'` there. Only terminal outcomes (cancel, lockout, etc.) are reported. `'authenticationFailed'` and `'userFallback'` are iOS-only; `'noActivity'` is Android-only.
+
+## Allowing the device passcode as a fallback
+
+Set `allowDeviceCredential: true` to let the user fall back to the device PIN, passcode or pattern when biometrics fail or aren't enrolled. The platform-specific options let you customise the labels: `title` is the Android prompt title, `fallbackTitle` is the iOS fallback-button label.
+
+```tsx
+import { Biometric } from '@sigx/lynx-biometric';
+
+async function unlock() {
+  const result = await Biometric.authenticate({
+    reason: 'Unlock your account',
+    title: 'Acme Bank',          // Android only — the BiometricPrompt title
+    fallbackTitle: 'Use Passcode', // iOS only — the fallback button text
+    allowDeviceCredential: true,   // both platforms
+  });
+
+  if (result.success) proceed();
+}
+```
+
+Security note: `allowDeviceCredential: true` degrades the gate to passcode strength — anyone who knows the device PIN can pass it. Leave it off for high-value actions where you want biometrics only.
+
+## Detecting an unwired build
+
+If the native module wasn't linked into the build, the methods degrade gracefully instead of throwing. `isAvailable()` resolves to `{ available: false, type: 'none' }` (without touching the bridge) and `authenticate()` resolves to `{ success: false, errorCode: 'biometryNotAvailable' }`. You can also check explicitly:
+
+```tsx
+import { Biometric } from '@sigx/lynx-biometric';
+
+if (!Biometric.isModuleAvailable()) {
+  // Native module not in this build — hide the "Sign in with biometrics" button.
+}
+```
+
+## Native setup
+
+`sigx prebuild` discovers the package and wires the native module automatically: it links the module, adds the iOS `NSFaceIDUsageDescription` and, on Android, the `androidx.biometric` dependency plus the normal-protection `USE_BIOMETRIC` permission (auto-granted at install on API 28+, no runtime prompt).
+
+Apple rejects generic Face ID usage strings, so override the default in `signalx.config.ts`:
+
+```ts
+ios: {
+  usageDescriptions: {
+    NSFaceIDUsageDescription: 'Acme Bank uses Face ID to unlock your account.',
+  },
+}
+```
+
+See [Installation](/lynx/modules/biometric/installation) for the full setup walkthrough.
 
 ## Notes
 
-Biometric authentication — Face ID, Touch ID and BiometricPrompt.
+- `authenticate()` never rejects — branch on `result.success`, no try/catch needed.
+- A `reason` is required; passing an empty one resolves to a failure (`errorCode: 'unknown'`) without prompting.
+- On iOS, biometrics enter lockout after 5 failed attempts and require the device passcode to reset.
+- The iOS simulator ships with biometrics disabled — enrol via Features → Face ID → Enrolled before testing.
+- Optic ID on Vision Pro (iOS 17+) is reported as `'iris'` for cross-platform symmetry; the flow is otherwise unchanged.
+
+## See also
+
+- [Biometric API reference](/lynx/modules/biometric/api) — every export and error code.
+- [Secure Storage](/lynx/modules/secure-storage/overview) — pair with Biometric to encrypt the unlocked credential at rest.

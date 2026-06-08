@@ -1,0 +1,91 @@
+---
+title: Heading
+description: "Heading — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Typography"]
+order: 195
+---
+
+# Heading
+
+<p class="lede">Themed section heading that renders a native <code>&lt;text&gt;</code> with daisyUI typography scaled by semantic level (1&ndash;6).</p>
+
+## Import
+
+```tsx
+import { Heading } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `level` | `1 \| 2 \| 3 \| 4 \| 5 \| 6` | `2` | Semantic heading level. Controls the font size and weight: level 1 is the largest/boldest, level 6 the smallest. |
+| `class` | `string` | - | Additional CSS classes merged onto the rendered `text` element. |
+| children | slot | - | The heading text (default slot). |
+
+The `level` type is exported as `HeadingLevel`, and the props type as `HeadingProps`.
+
+Each level maps to a fixed daisyUI type scale applied on top of `text-base-content`:
+
+| Level | Classes |
+|-------|---------|
+| 1 | `text-3xl font-bold` |
+| 2 | `text-2xl font-bold` |
+| 3 | `text-xl font-semibold` |
+| 4 | `text-lg font-semibold` |
+| 5 | `text-base font-semibold` |
+| 6 | `text-sm font-semibold` |
+
+## Basic Usage
+
+The default `level` is `2`. Pass `level` to scale the heading up or down:
+
+```tsx
+import { Heading } from '@sigx/lynx-daisyui';
+
+export function Title() {
+    return <Heading level={1}>Welcome to sigx</Heading>;
+}
+```
+
+## Heading Levels
+
+Each level renders the same native `text` element with a different type scale, so you can build a consistent visual hierarchy:
+
+```tsx
+import { Heading, Col } from '@sigx/lynx-daisyui';
+
+export function Hierarchy() {
+    return (
+        <Col gap="2">
+            <Heading level={1}>Level 1 — page title</Heading>
+            <Heading level={2}>Level 2 — section</Heading>
+            <Heading level={3}>Level 3 — subsection</Heading>
+            <Heading level={4}>Level 4</Heading>
+            <Heading level={5}>Level 5</Heading>
+            <Heading level={6}>Level 6</Heading>
+        </Col>
+    );
+}
+```
+
+## Custom Classes
+
+Use `class` to add spacing, color, or alignment on top of the level scale. Extra classes are merged after the built-in ones:
+
+```tsx
+import { Heading, Card } from '@sigx/lynx-daisyui';
+
+export function CardHeading() {
+    return (
+        <Card>
+            <Card.Body>
+                <Heading level={3} class="text-primary mb-2">
+                    Settings
+                </Heading>
+            </Card.Body>
+        </Card>
+    );
+}
+```

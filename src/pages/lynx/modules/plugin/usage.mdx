@@ -8,16 +8,108 @@ order: 30
 
 # Using Build Plugin
 
-<p class="lede">Rspack / Rspeedy plugin — the essentials.</p>
+<p class="lede">Register one plugin and your Rspeedy build produces the dual-thread bundles Lynx needs — background JS, main-thread Lepus, and the worklet transform that stitches them together.</p>
 
 ## Basic usage
 
-```tsx
-import * as BuildPlugin from '@sigx/lynx-plugin';
+`@sigx/lynx-plugin` is a build-time plugin for Rspack / Rspeedy. Install it as a dev dependency and register `pluginSigxLynx()` in your Lynx config. That single call wires SignalX into Lynx's dual-thread (Background + Main Thread) build pipeline.
+
+```bash
+pnpm add -D @sigx/lynx-plugin
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-plugin */}
+```ts
+// lynx.config.ts (also works as rspeedy.config.ts / rspack.config.ts)
+import { defineConfig } from '@lynx-js/rspeedy';
+import { pluginSigxLynx } from '@sigx/lynx-plugin';
+
+export default defineConfig({
+  plugins: [pluginSigxLynx()],
+});
+```
+
+That's the whole setup for most apps. The plugin splits each entry into two bundles, transpiles to the ES2019 target the Lynx engine expects, configures the SignalX JSX runtime, and runs the main-thread worklet transform.
+
+Note: this is a build tool, not a native module — there are no iOS or Android sources to link. The device-side runtime behavior is provided by sibling `@sigx/lynx-*` packages. You only need to register the plugin here.
+
+## Configuring CSS and debug output
+
+`pluginSigxLynx()` accepts an options object that maps to the Lynx template's CSS behavior and debug-info placement. All fields are optional and have sensible defaults.
+
+```ts
+// lynx.config.ts
+import { defineConfig } from '@lynx-js/rspeedy';
+import { pluginSigxLynx } from '@sigx/lynx-plugin';
+
+export default defineConfig({
+  plugins: [
+    pluginSigxLynx({
+      // CSS selectors in the Lynx template (default: true)
+      enableCSSSelector: true,
+      // CSS inheritance in the Lynx engine (default: false)
+      enableCSSInheritance: true,
+      // extra properties to inherit — only used when enableCSSInheritance is true
+      customCSSInheritanceList: ['font-size', 'color'],
+      // keep debug info outside the template bundle (default: true)
+      debugInfoOutside: true,
+    }),
+  ],
+});
+```
+
+`customCSSInheritanceList` only takes effect when `enableCSSInheritance` is `true`; otherwise it is ignored. See the [API reference](/lynx/modules/plugin/api) for the full option table.
+
+## Authoring main-thread worklets
+
+The plugin moves marked event handlers onto the main thread so native touch events dispatch without a round trip to the background bundle. To opt a handler in, make `'main thread'` the first statement of the function body. There is no auto-detection from JSX — the directive is required.
+
+```tsx
+<view
+  main-thread-bindtap={(e) => {
+    'main thread';
+    elRef.current?.setStyleProperties({ opacity: '0.5' });
+  }}
+/>
+```
+
+At build time the plugin runs that body through the main-thread transform: the background bundle keeps a compact placeholder, the main-thread bundle gets the real handler, and Lynx native dispatches the touch event straight to the main thread.
+
+Worklet gotchas to keep in mind:
+
+- The `'main thread'` directive must be the first statement in the function — JSX alone does not mark a worklet.
+- Variables declared inside a worklet body are main-thread locals; they cannot cross to the background thread through `runOnBackground` closure capture. Pass them as arguments instead.
+- `useAnimatedStyle` custom mappers ship as main-thread code and must be registered on the main thread via `registerMapper(name, fn)` — the background bundle only carries the name.
+
+Cross-package worklets are picked up automatically: the transform runs over all JS/TS in the background and main-thread layers, including `node_modules` and prebuilt `dist`, so any package that ships `'main thread'` directives (for example `@sigx/lynx-motion`, `@sigx/lynx-navigation`, `@sigx/lynx-gestures`) works with no allowlist.
+
+## Dev server, ports, and devices
+
+In development (`NODE_ENV !== 'production'`) the plugin adds device-friendly behavior automatically — you do not need to call any extra API:
+
+- It boots a small WebSocket server on `devServerPort + 1` to receive batched device console logs and print them to your terminal. On Android the Lynx background runtime has no `fetch`/`XHR`, so WebSocket is the only log transport.
+- It rewrites wildcard hosts (`0.0.0.0`, `::`) in the dev server URLs to your real LAN IPv4 so phones and emulators can reach the dev server. Virtual adapters (Hyper-V, WSL, Docker, VPN) are skipped during detection; it falls back to the first external IPv4, then `127.0.0.1`.
+- It narrows the file watcher's ignore list and supports forced polling, a workaround for Rspack 1.7.x file-watch noise.
+
+Environment variables the plugin honors:
+
+```bash
+# Override the dev server port (set automatically by @sigx/lynx-cli)
+SIGX_LYNX_DEV_PORT=3000
+
+# Force file-watch polling (useful on network drives / some VMs)
+SIGX_LYNX_WATCH_POLL=1
+```
+
+`SIGX_LYNX_DEV_PORT` exists because the Rspeedy CLI has no `--port` flag; `@sigx/lynx-cli` sets it for you. You normally won't set these by hand.
 
 ## Notes
 
-Splits your source into the BG + MT bundles Lynx requires and runs the main-thread worklet transform.
+- `pluginSigxLynx()` is the only API most projects need. `LAYERS` and `applyEntry` are low-level escapes for custom build setups — see the [API reference](/lynx/modules/plugin/api).
+- The returned plugin is named `lynx:sigx` and declares `pre: ['lynx:rsbuild:plugin-api', 'lynx:config', 'lynx:rsbuild:dev']`, so it runs after Rspeedy's own config and dev plugins. That ordering is required for the dev-server URL fixes to apply.
+- The peer Lynx plugins (`@lynx-js/*` template / css-extract / runtime-wrapper / dev-transport) are declared as optional peers. Install the ones your build needs.
+
+## See also
+
+- [Overview](/lynx/modules/plugin/overview) — what the plugin does and why.
+- [Installation](/lynx/modules/plugin/installation) — project setup.
+- [API reference](/lynx/modules/plugin/api) — every export, typed.

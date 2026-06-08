@@ -8,16 +8,88 @@ order: 30
 
 # Using Storage
 
-<p class="lede">Persistent KV store — the essentials.</p>
+<p class="lede">A persistent, string-only key-value store backed by UserDefaults on iOS and SharedPreferences on Android — the same shape as localStorage.</p>
 
 ## Basic usage
 
+`Storage` is the single export. It is a frozen object of methods, so you import it once and call its members directly. There is no manual native setup — `sigx prebuild` auto-links the module, and no platform permissions are required.
+
 ```tsx
-import * as Storage from '@sigx/lynx-storage';
+import { Storage } from '@sigx/lynx-storage';
+
+// Write is synchronous (fire-and-forget)
+Storage.setItem('theme', 'dark');
+
+// Read is async — resolves to null when the key is unset
+const theme = await Storage.getItem('theme'); // 'dark' | null
+
+// Remove a single key, or wipe everything
+Storage.removeItem('theme');
+Storage.clear();
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-storage */}
+Keys and values are both strings. `setItem`, `removeItem` and `clear` return synchronously; `getItem` and `getAllKeys` return Promises because they round-trip to the native side.
+
+## Storing objects
+
+Storage only holds strings. Serialize structured data yourself with `JSON.stringify` on the way in and `JSON.parse` on the way out. For raw binary, use [File System](/lynx/modules/file-system/overview) instead.
+
+```tsx
+import { Storage } from '@sigx/lynx-storage';
+
+type User = { name: string; id: number };
+
+function saveUser(user: User): void {
+  Storage.setItem('user', JSON.stringify(user));
+}
+
+async function loadUser(): Promise<User | null> {
+  const raw = await Storage.getItem('user');
+  return raw ? (JSON.parse(raw) as User) : null;
+}
+
+saveUser({ name: 'Alice', id: 42 });
+const user = await loadUser();
+```
+
+`getItem` resolves to `null` for an unset key, so guard the parse — calling `JSON.parse(null)` would throw.
+
+## Listing and clearing keys
+
+`getAllKeys` returns every key currently set, and `clear` empties the store.
+
+```tsx
+import { Storage } from '@sigx/lynx-storage';
+
+const keys = await Storage.getAllKeys();
+for (const key of keys) {
+  Storage.removeItem(key);
+}
+
+// Or wipe the whole namespace at once
+Storage.clear();
+```
+
+Platform note: on Android, `getAllKeys` returns exactly the keys this app wrote (it reads the private `sigx_lynxgo_storage` preferences file). On iOS, `getAllKeys` reads the full UserDefaults dictionary, so it can include system and global default keys beyond the ones you set — filter the result if you only want your own keys. `clear` on iOS removes only keys in the app's own storage domain.
+
+## Guarding for availability
+
+`isAvailable` reports whether the native Storage module is registered in the current build. It is pure JS with no native round-trip, so it returns synchronously. Use it to fail gracefully in environments where the module was not linked.
+
+```tsx
+import { Storage } from '@sigx/lynx-storage';
+
+if (Storage.isAvailable()) {
+  Storage.setItem('lastOpened', String(Date.now()));
+}
+```
 
 ## Notes
 
-Persistent string key-value store (UserDefaults / SharedPreferences).
+- **Persistence.** Both stores survive app updates. iOS UserDefaults is included in device backups by default (and follows iCloud-backup rules); Android storage is excluded from app-data backup exports.
+- **Write timing.** `setItem` is synchronous fire-and-forget and both platforms use a write-behind buffer. Within the same process a value reads back correctly immediately; cross-process readers (such as an iOS app extension) see eventual consistency.
+
+## See also
+
+- [API reference](/lynx/modules/storage/api) — every method with its full signature.
+- [File System](/lynx/modules/file-system/overview) — for files and binary data.

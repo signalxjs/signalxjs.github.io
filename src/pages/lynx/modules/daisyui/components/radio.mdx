@@ -1,0 +1,166 @@
+---
+title: Radio
+description: "Radio — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 147
+---
+
+# Radio
+
+<p class="lede">A grouped single-choice control: a `Radio` group wraps one or more `Radio.Item` options where only one value is selected at a time.</p>
+
+## Import
+
+```tsx
+import { Radio } from '@sigx/lynx-daisyui';
+```
+
+`Radio` is a compound component. Render the `Radio` group as the container and place a `Radio.Item` inside it for each option.
+
+## Selection model
+
+Unlike the web Toggle/Checkbox components, `Radio.Item` does not bind to a signal automatically. Selection is explicit: keep the selected value in a signal, set each item's `checked` from it, and update the signal in the item's `onSelect` handler (which emits the item's `value`).
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Radio } from '@sigx/lynx-daisyui';
+
+const PlanPicker = component(({ signal }) => {
+  const state = signal({ plan: 'pro' });
+
+  return () => (
+    <Radio>
+      <Radio.Item
+        value="free"
+        label="Free"
+        checked={state.plan === 'free'}
+        onSelect={(value) => (state.plan = value)}
+      />
+      <Radio.Item
+        value="pro"
+        label="Pro"
+        checked={state.plan === 'pro'}
+        onSelect={(value) => (state.plan = value)}
+      />
+      <Radio.Item
+        value="team"
+        label="Team"
+        checked={state.plan === 'team'}
+        onSelect={(value) => (state.plan = value)}
+      />
+    </Radio>
+  );
+});
+```
+
+## Colors
+
+Both the group and each item accept a `color`. Set it on the group to apply one color to every option, or per item to override.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Radio } from '@sigx/lynx-daisyui';
+
+const ColorExample = component(({ signal }) => {
+  const state = signal({ choice: 'a' });
+
+  return () => (
+    <Radio color="primary">
+      <Radio.Item
+        value="a"
+        label="Primary (from group)"
+        checked={state.choice === 'a'}
+        onSelect={(value) => (state.choice = value)}
+      />
+      <Radio.Item
+        value="b"
+        label="Success (item override)"
+        color="success"
+        checked={state.choice === 'b'}
+        onSelect={(value) => (state.choice = value)}
+      />
+      <Radio.Item
+        value="c"
+        label="Warning (item override)"
+        color="warning"
+        checked={state.choice === 'c'}
+        onSelect={(value) => (state.choice = value)}
+      />
+    </Radio>
+  );
+});
+```
+
+## Sizes and disabled items
+
+`size` follows the same pattern: set once on the group, or override per item. Individual options can be disabled.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Radio } from '@sigx/lynx-daisyui';
+
+const SizeExample = component(({ signal }) => {
+  const state = signal({ shipping: 'standard' });
+
+  return () => (
+    <Radio size="lg">
+      <Radio.Item
+        value="standard"
+        label="Standard"
+        checked={state.shipping === 'standard'}
+        onSelect={(value) => (state.shipping = value)}
+      />
+      <Radio.Item
+        value="express"
+        label="Express"
+        checked={state.shipping === 'express'}
+        onSelect={(value) => (state.shipping = value)}
+      />
+      <Radio.Item
+        value="overnight"
+        label="Overnight (unavailable)"
+        disabled
+        checked={state.shipping === 'overnight'}
+        onSelect={(value) => (state.shipping = value)}
+      />
+    </Radio>
+  );
+});
+```
+
+## `Radio` props
+
+The group container. Its props apply to the wrapper; `color` and `size` are read as defaults by the items you supply.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `string` | - | Currently selected value for the group |
+| `color` | `RadioColor` | - | Default color for items in the group |
+| `size` | `RadioSize` | - | Default size for items in the group |
+| `class` | `string` | - | Additional CSS classes on the group wrapper |
+| `onChange` | `(value: string) => void` | - | Change event for the group's selected value |
+
+The default slot holds the `Radio.Item` children.
+
+## `Radio.Item` props
+
+One selectable option. Renders the radio circle, an optional label, and is pressable (with disabled handling).
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `string` | - | Value emitted by `onSelect` when this item is pressed |
+| `label` | `string` | - | Text shown next to the radio circle |
+| `checked` | `boolean` | `false` | Whether this item is the selected one (shows the inner mark) |
+| `disabled` | `boolean` | `false` | Disables the item (dims it and blocks selection) |
+| `color` | `RadioColor` | - | Color of the radio when checked; overrides the group color |
+| `size` | `RadioSize` | - | Size of the radio; overrides the group size |
+| `class` | `string` | - | Additional CSS classes on the radio circle |
+| `onSelect` | `(value: string) => void` | - | Fired with this item's `value` when pressed (skipped when `disabled`) |
+
+### Types
+
+```ts
+type RadioColor = 'primary' | 'secondary' | 'accent' | 'info' | 'success' | 'warning' | 'error';
+type RadioSize = 'xs' | 'sm' | 'md' | 'lg';
+```

@@ -1,0 +1,222 @@
+---
+title: API Reference
+description: "@sigx/store — centralized state on signals — API reference"
+layout: docs
+category: API Reference
+order: 10
+---
+
+# API Reference
+
+All exports come from the single entry point:
+
+```ts
+import { defineStore } from '@sigx/store';
+```
+
+`defineStore` is the only value export. The remaining entries below are TypeScript types and interfaces that describe the shapes `defineStore` works with.
+
+## Functions
+
+### defineStore
+
+Defines a store factory. Returns a factory function; calling it creates a store instance.
+
+```ts
+function defineStore<
+    TState extends object,
+    TGetters extends object,
+    TActions extends { [key: string]: any },
+    TEvents extends Record<string, ReturnType<typeof toSubscriber<any>>>,
+    InferReturnSetup extends IReturnSetupStore<TState, TGetters, TActions, TEvents>
+>(
+    name: string,
+    setup: (ctx: SetupStoreContext) => InferReturnSetup,
+    lifetime?: InstanceLifetimes
+): ReturnType<typeof defineFactory<InferReturnSetup>>;
+
+// Overloads add 1..5 extra setup params forwarded through the factory call:
+// defineStore<..., T1>(name, setup: (ctx, param1: T1) => InferReturnSetup, lifetime?)
+//   => ReturnType<typeof defineFactory<InferReturnSetup, T1>>
+```
+
+**Parameters**
+
+- `name` — a debug/instance-name prefix. If the setup return omits its own `name`, the instance name becomes `${name}_${guid}`.
+- `setup` — builds the store via the provided `SetupStoreContext`. May accept up to five extra parameters after `ctx`; those are forwarded when the returned factory is called. Must return an object matching `IReturnSetupStore` (`{ state?, get?, actions?, events?, name? }`).
+- `lifetime` — controls instance sharing. Defaults to `InstanceLifetimes.Scoped`.
+
+**Returns**
+
+A factory function (commonly assigned to a `useXxxStore` const). Calling it creates a store instance shaped like the setup return plus a `dispose` method (`{ ...setupReturn, dispose }`). Instances created inside a component auto-dispose on unmount (the effect scope is stopped and all event topics are destroyed). There is no `useStore` export — the factory is named by you.
+
+## Interfaces
+
+### SetupStoreContext
+
+The context object passed to the `defineStore` setup function. Extends runtime-core's `SetupFactoryContext`.
+
+```ts
+interface SetupStoreContext extends SetupFactoryContext {
+    defineState<
+        TState extends object,
+        TEvents extends Record<string, Topic<any>> = Record<string, Topic<any>>
+    >(state: TState): {
+        state: TState;
+        events: StoreEvents<TState, TEvents>;
+        mutate: {
+            [K in keyof TState]: MutateFn<TState[K]>;
+        };
+    };
+    defineActions<TActions extends { [key: string]: any }>(
+        actions: TActions
+    ): StoreReturnDefineAction<TActions>;
+}
+```
+
+- `defineState(state)` — creates reactive, signal-backed state and returns `{ state, events, mutate }`. Each state property gets an `onMutated{Key}` event and a `mutate.{key}` helper. Deep watching is on, so nested object changes also trigger events.
+- `defineActions(actions)` — wraps action functions with dispatch lifecycle events; see `StoreReturnDefineAction`.
+- Inherited from `SetupFactoryContext`: `onDeactivated(fn)`, `subscriptions: SubscriptionHandler`, `overrideDispose(fn)`.
+
+### IReturnSetupStore
+
+The shape the `defineStore` setup function must return. All fields are optional.
+
+```ts
+interface IReturnSetupStore<
+    TState,
+    TGetters,
+    TActions extends { [key: string]: Function },
+    TEvents
+> {
+    state?: TState;
+    get?: TGetters;
+    actions?: StoreReturnDefineAction<TActions>;
+    events?: TEvents;
+    name?: string;
+}
+```
+
+- `state` — the reactive state object (from `defineState`).
+- `get` — computed/getter object (build with `computed` from `sigx`).
+- `actions` — the wrapped actions returned by `defineActions`.
+- `events` — custom event topics.
+- `name` — overrides the auto-generated `${name}_${guid}` instance name.
+
+## Types
+
+### StoreEvents
+
+Maps each state key to an `onMutated{Key}` subscriber, intersected with any custom topic events.
+
+```ts
+type StoreEvents<TState extends object, TEvents extends Record<string, Topic<any>> = {}> = {
+    [K in keyof TState as `onMutated${Capitalize<string & K>}`]: ReturnType<typeof toSubscriber<TState[K]>>;
+} & TEvents;
+```
+
+For state `{ count: 0 }` you get `onMutatedCount`. Each entry is a subscriber `{ subscribe(handler: (value) => void): Subscription }` that fires with the new value whenever the property changes — on both direct assignment and via `mutate` (deep watch).
+
+### StoreReturnDefineAction
+
+The return type of `defineActions`. The original action functions stay callable (`& TAction`); calling them publishes lifecycle events.
+
+```ts
+type StoreReturnDefineAction<TAction extends { [key: string]: any }> = {
+    onDispatching: {
+        [k in keyof TAction]: {
+            subscribe(fn: MapActionOnDispatching<TAction[k]>): Subscription;
+        };
+    };
+    onDispatched: {
+        [k in keyof TAction]: {
+            subscribe(fn: MapActionOnDispatched<TAction[k]>): Subscription;
+        };
+    };
+    onFailure: {
+        [k in keyof TAction]: {
+            subscribe(fn: MapActionOnFailure<TAction[k]>): Subscription;
+        };
+    };
+} & TAction;
+```
+
+- `onDispatching.<action>.subscribe(fn)` — fires before the action body, with the original args.
+- `onDispatched.<action>.subscribe(fn)` — fires after the action, with `(result, ...args)` (after the promise resolves for async actions).
+- `onFailure.<action>.subscribe(fn)` — fires if the action throws, with `(failureReason, ...args)`. The error is caught, logged via `console.error`, and the call returns `undefined` (no re-throw).
+
+## Supporting types
+
+These types come from the dependencies `@sigx/store` is built on. They appear in the signatures above.
+
+### MutateFn
+
+Drives the `mutate` helpers returned by `defineState`.
+
+```ts
+type MutateFn<T> = (value: T | ((prev: T) => T)) => void;
+// mutate is typed as: { [K in keyof TState]: MutateFn<TState[K]> }
+```
+
+Call `mutate.count(42)` to set, or `mutate.count(prev => prev + 1)` to update from the previous value. Errors thrown in an updater are caught and logged; the state is left unchanged on error.
+
+### Action event mappers
+
+Internal mapped types used to type the action lifecycle subscribers.
+
+```ts
+type MapActionOnDispatching<T extends Function> =
+    T extends (...args: infer U) => any ? (...args: U) => void : never;
+
+type MapActionOnDispatched<T extends Function> =
+    T extends (...args: infer U) => Promise<infer Y> | infer Y ? (result: Y, ...args: U) => void : never;
+
+type MapActionOnFailure<T extends Function> =
+    T extends (...args: infer U) => any ? (failureReason: any, ...args: U) => void : never;
+```
+
+### InstanceLifetimes
+
+The `lifetime` argument to `defineStore` (from `@sigx/runtime-core`). Defaults to `Scoped`.
+
+```ts
+enum InstanceLifetimes {
+    Transient = 0,
+    Scoped = 1,
+    Singleton = 2,
+}
+```
+
+### Topic and Subscription
+
+Event primitives from `@sigx/runtime-core`. Every `subscribe()` returns a `Subscription`.
+
+```ts
+interface Subscription {
+    unsubscribe(): void;
+}
+
+interface Topic<T> {
+    publish(data: T): void;
+    subscribe(handler: (data: T) => void): Subscription;
+    destroy(): void;
+}
+```
+
+### SetupFactoryContext
+
+The base of `SetupStoreContext` (from `@sigx/runtime-core`).
+
+```ts
+interface SetupFactoryContext {
+    onDeactivated(fn: () => void): void;
+    subscriptions: SubscriptionHandler;
+    overrideDispose(onDispose: (fn: () => void) => void): void;
+}
+```
+
+## See also
+
+- [Getting Started](/store/docs/getting-started)
+- [Defining a Store](/store/docs/defining-a-store)
+- [Using Stores in Components](/store/docs/using-in-components)

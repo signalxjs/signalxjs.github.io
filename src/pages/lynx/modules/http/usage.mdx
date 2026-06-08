@@ -1,0 +1,193 @@
+---
+title: "Usage"
+description: "HTTP — WHATWG fetch transport"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using HTTP
+
+<p class="lede">A WHATWG-shaped fetch backed by the native Http module — URLSession on iOS, OkHttp on Android — with FormData uploads that never copy file bytes across the bridge and streaming response bodies you can read chunk by chunk.</p>
+
+## Basic usage
+
+You usually do not install `@sigx/lynx-http` directly. The umbrella `@sigx/lynx` package depends on it and imports it for its side effect, and `sigx prebuild` auto-discovers the native module. Importing the package installs `fetch`, `Headers`, `FormData`, `Response`, and a minimal UTF-8 `TextDecoder` on `globalThis`, so most code calls `fetch` with no import at all:
+
+```tsx
+const res = await fetch('https://api.example.com/items', {
+  headers: { Authorization: `Bearer ${token}` },
+});
+
+if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+const items = await res.json();
+```
+
+`fetch` accepts a URL string or an object with a `url` property, plus an optional init bag. It returns a `Response` whose `ok` getter is true for status 200-299. Call `res.text()`, `res.json()`, or `res.arrayBuffer()` to read the body — each consumes the body once and throws a `TypeError` if called a second time.
+
+When you want TypeScript clarity, or are writing a library, import the symbols explicitly:
+
+```tsx
+import { fetch, Headers, FormData, Response } from '@sigx/lynx-http';
+```
+
+On a real iOS or Android build the native stack replaces any engine-provided `fetch` (some Lynx runtimes ship a built-in `fetch` that lacks `FormData` and streaming, and mixing the two breaks uploads). On web, Node, and test environments the installs are guarded, the native stack is left untouched, and a request created without the native module never receives a response.
+
+### Native setup
+
+Run `sigx prebuild` once after the package is in your dependency tree. The CLI registers the native module name `Http` for iOS and Android and regenerates both projects. On Android the module declares the `android.permission.INTERNET` permission and pulls in OkHttp; iOS uses URLSession and needs no extra permission. To opt a build out of the native stack, list it in `excludeModules` in `signalx.config.ts`:
+
+```ts
+export default {
+  excludeModules: ['@sigx/lynx-http'],
+};
+```
+
+## Building requests with Headers
+
+`Headers` is the WHATWG header bag. Names are case-insensitive (stored lowercased) and validated against the HTTP token charset; values are trimmed and rejected if they contain CR, LF, or NUL, which guards against header injection. `append` combines repeated names with `', '`, and iteration yields names sorted ascending, just like a browser:
+
+```tsx
+import { Headers } from '@sigx/lynx-http';
+
+const headers = new Headers({ Accept: 'application/json' });
+headers.set('Authorization', `Bearer ${token}`);
+headers.append('X-Trace', 'a');
+headers.append('X-Trace', 'b'); // -> "a, b"
+
+const res = await fetch('https://api.example.com/me', { headers });
+```
+
+You can pass a `Headers` instance, a plain record, or an iterable of `[name, value]` pairs anywhere a header init is accepted — the `fetch` init bag takes the same shapes.
+
+## Sending a JSON body
+
+A request with a body but no explicit `method` defaults to `POST` (a deliberate deviation from the spec, which says GET-and-throw). A string body is sent as `text/plain;charset=UTF-8` unless you set a content-type yourself, so set `Content-Type` when sending JSON:
+
+```tsx
+const res = await fetch('https://api.example.com/items', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Widget', qty: 3 }),
+});
+
+const created = await res.json();
+```
+
+Accepted body types are `string`, `ArrayBuffer`, an `ArrayBufferView` (typed array), `FormData`, or `null`. Binary bodies are base64-encoded across the bridge; anything else throws a `TypeError`. A `GET` or `HEAD` with a body is rejected with a `TypeError`.
+
+## Uploading files with FormData
+
+`FormData` builds a multipart body. Its core invariant is that file bytes never cross the JS bridge: a file value serializes to a small descriptor carrying a `uri`, and native streams the bytes straight from that URI into the multipart body. Pair it with a picker such as `@sigx/lynx-file-picker` and report progress through the non-standard `onUploadProgress` callback, which fires from native upload-progress events:
+
+```tsx
+import { FormData } from '@sigx/lynx-http';
+import { FilePicker } from '@sigx/lynx-file-picker';
+
+async function uploadAttachment(token: string, updateBar: (pct: number) => void) {
+  const { cancelled, assets } = await FilePicker.pick();
+  if (cancelled || assets.length === 0) return;
+
+  const form = new FormData();
+  form.append('file', assets[0]); // a file handle: { uri, name?, mimeType?, ... }
+  form.append('purpose', 'chat-attachment');
+
+  const res = await fetch('https://api.example.com/uploads', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+    onUploadProgress: (loaded, total) => {
+      if (total > 0) updateBar(loaded / total); // total is -1 when unknown
+    },
+  });
+
+  return res.json();
+}
+```
+
+A `FormData` value is either a string field or a file handle. A file handle is any object with a non-empty string `uri`; both the picker-asset convention (`{ uri, name?, mimeType?, size? }`) and the React Native convention (`{ uri, name?, type? }`) are accepted. The filename falls back from an explicit argument to `handle.name` to `'file'`, and the content type from `handle.mimeType` to `handle.type` to `'application/octet-stream'`. When a `FormData` body is used, `fetch` forcibly sets the `Content-Type` header with the generated multipart boundary — do not set it yourself. Use `isFileHandle` to branch on whether a value is a file:
+
+```tsx
+import { isFileHandle } from '@sigx/lynx-http';
+
+if (isFileHandle(value)) {
+  form.append('file', value);
+} else {
+  form.append('note', String(value));
+}
+```
+
+## Streaming a response body
+
+Every `fetch` resolves on the native `response` event, before the body finishes arriving, so you can read `res.body` immediately. The body is a minimal `ReadableStream`-like queue: `getReader().read()` resolves once per network read, which makes it ideal for server-sent events where tokens should render as they arrive. Use the bundled UTF-8 `TextDecoder` with `{ stream: true }` so multi-byte characters split across chunks decode correctly:
+
+```tsx
+async function streamCompletion(sseUrl: string, signal: AbortSignal) {
+  const res = await fetch(sseUrl, {
+    headers: { Accept: 'text/event-stream' },
+    signal,
+  });
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) handleSseChunk(decoder.decode(value, { stream: true }));
+  }
+}
+```
+
+Two things to keep in mind. There is no backpressure — unread chunks queue in JS, so a large download you do not drain buffers in memory. And there is no inter-byte timeout (matching browser fetch); pass an `AbortSignal` to set a deadline. Calling `reader.cancel()`, or aborting the signal, cancels the native task mid-stream.
+
+## Cancelling with AbortSignal
+
+`fetch` accepts a duck-typed `AbortSignal` — any spec-shaped implementation works. If the signal is already aborted, `fetch` rejects immediately; otherwise an abort rejects the pending request (or fails the body stream) with an `Error` whose `name` is `'AbortError'` and cancels the native task:
+
+```tsx
+const controller = new AbortController();
+const timer = setTimeout(() => controller.abort(), 10_000);
+
+try {
+  const res = await fetch('https://api.example.com/slow', {
+    signal: controller.signal,
+  });
+  return await res.json();
+} catch (err) {
+  if (err instanceof Error && err.name === 'AbortError') {
+    // timed out or cancelled
+  }
+  throw err;
+} finally {
+  clearTimeout(timer);
+}
+```
+
+## Detecting availability
+
+The native `Http` module is only present in real iOS / Android builds. Use `isHttpAvailable` to branch — for example, to skip native-only behavior on web or in tests:
+
+```tsx
+import { isHttpAvailable } from '@sigx/lynx-http';
+
+if (isHttpAvailable()) {
+  const res = await fetch('https://api.example.com/ping');
+  // ...
+}
+```
+
+## Notes
+
+- Only `http` and `https` schemes are accepted; other schemes reject fast with a `TypeError`, and an empty or missing URL rejects with `TypeError('fetch: invalid URL')`.
+- Redirects are followed silently by URLSession / OkHttp, and `response.url` is the request URL, not the final redirected URL.
+- `Response` has no `clone()` and no `blob()` — there is no `Blob` in the runtime.
+- Network failures surface as `TypeError('fetch failed: ...')`; aborts surface as an `Error` named `'AbortError'`.
+- `FormData` part names, filenames, and content types are sanitized for the wire (CR / LF / quote characters become `_`).
+
+## See also
+
+- For real-time connections, see [WebSocket](/lynx/modules/websocket/overview).
+- For connectivity and online / offline state, see [Network](/lynx/modules/network/overview).
+- The complete typed surface is in the [API reference](/lynx/modules/http/api).

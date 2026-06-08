@@ -8,10 +8,188 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-dev-client` v0.4.1.</p>
+<p class="lede">The complete public surface of <code>@sigx/lynx-dev-client</code>. The JS API is intentionally small — it is the console log streamer plus its types.</p>
 
-## Exports
+## Functions
 
-{/* TODO: document the public API of @sigx/lynx-dev-client */}
+### installConsoleStreamer
 
-See the package source for the complete typed surface.
+```ts
+export function installConsoleStreamer(url: string, opts?: InstallOptions): Uninstall;
+```
+
+Patches `console.log` / `info` / `warn` / `error` / `debug` / `trace`, serializes their arguments, buffers them in a bounded queue, and ships batches to the dev server over a single persistent WebSocket. Returns an [`Uninstall`](#uninstall) function that restores the original methods and tears down the socket.
+
+The original console methods are still invoked, so the on-device logbox and Chrome inspector keep working. The call is idempotent — a second call returns the previous uninstall rather than patching again. It bails gracefully, returning a no-op uninstall, if `url` is falsy, `globalThis.console` is missing, or no WebSocket is available; it never throws at install time.
+
+**Parameters**
+
+- `url` — WebSocket endpoint for the dev server log channel, e.g. `ws://<host>:<devPort+1>/__sigx/logs`.
+- `opts` — optional [`InstallOptions`](#installoptions); every field has a documented default.
+
+**Returns** an [`Uninstall`](#uninstall) function.
+
+**Platform:** iOS and Android. Requires a WebSocket on `globalThis`; importing `@sigx/lynx-websocket` (side-effect) provides one on the Lynx background runtime.
+
+### serializeArg
+
+```ts
+export function serializeArg(value: unknown, seen?: WeakSet<object>): string;
+```
+
+Defensively serializes a single `console.log` argument to a string that never throws. Handles primitives, `BigInt` (suffixed with `n`), `Symbol`, functions (`[Function: name]`), `Error` (uses `.stack`), arrays, plain objects (a JSON fast path), and circular references (`[Circular]`); falls back to `[Unserialisable]` for anything else.
+
+**Parameters**
+
+- `value` — the value to serialize.
+- `seen` — internal cycle-tracking set; defaults to a fresh `WeakSet`. You normally omit this.
+
+**Returns** the serialized string.
+
+**Platform:** iOS and Android.
+
+## Types
+
+### DEV_CLIENT_VERSION
+
+```ts
+export declare const DEV_CLIENT_VERSION = "0.1.0";
+```
+
+Version string of the dev client. `@sigx/lynx-cli` reads it to warn if the dev client drifts from the CLI version it was bundled with.
+
+> Note: this constant is hardcoded to `"0.1.0"` in source even though the package version is higher. Treat it as a bundling marker, not the published package version.
+
+**Platform:** iOS and Android.
+
+### InstallOptions
+
+```ts
+export interface InstallOptions {
+  platform?: string;
+  maxQueueSize?: number;
+  flushBatchSize?: number;
+  flushIntervalMs?: number;
+  backoffInitialMs?: number;
+  backoffMaxMs?: number;
+  webSocketImpl?: WebSocketCtor;
+  setTimeoutImpl?: typeof setTimeout;
+  clearTimeoutImpl?: typeof clearTimeout;
+  nowImpl?: () => number;
+  extraTargets?: ConsoleLike[];
+  platformProbe?: () => Promise<string | undefined>;
+}
+```
+
+Options for [`installConsoleStreamer`](#installconsolestreamer). All fields are optional.
+
+- `platform` — override the platform tag. If omitted, the streamer sniffs `globalThis.lynx` / `navigator.userAgent` / `process` to make a best guess.
+- `maxQueueSize` — max entries kept in memory while disconnected. Default `500`.
+- `flushBatchSize` — max entries per WebSocket message. Default `50`.
+- `flushIntervalMs` — coalesce interval for non-error logs. Default `100`.
+- `backoffInitialMs` — initial reconnect/backoff delay in ms. Default `1000`.
+- `backoffMaxMs` — backoff cap in ms. Default `30000`.
+- `webSocketImpl` — WebSocket constructor. Defaults to `globalThis.WebSocket`, which is installed by `@sigx/lynx-websocket`'s side-effect import. Typed as `WebSocketCtor` (see note below).
+- `setTimeoutImpl` — override the timer. Defaults to `setTimeout`. (Test seam.)
+- `clearTimeoutImpl` — override the clearer. Defaults to `clearTimeout`. (Test seam.)
+- `nowImpl` — override `Date.now()`. (Test seam.)
+- `extraTargets` — additional `console`-like objects to patch beyond `globalThis.console`, e.g. the Lynx background factory-scope console.
+- `platformProbe` — async probe that upgrades an `'unknown'` platform tag to a real one shortly after install. Defaults to a `NativeModules.DevClient.getPlatform` bridge call. Must resolve, never reject — return `undefined` for unknown.
+
+> Note: the type of `extraTargets` (`ConsoleLike`) is an internal interface and is not exported from the package. `WebSocketCtor`, the type of `webSocketImpl`, is also not re-exported from the package entry (see [WebSocketCtor](#websocketctor)).
+
+**Platform:** iOS and Android.
+
+### LogEntry
+
+```ts
+export interface LogEntry {
+  /** Console method that was called. */
+  level: LogLevel;
+  /** Pre-formatted argument strings (one per `console.log` argument). */
+  args: string[];
+  /** Milliseconds since the unix epoch on the device. */
+  ts: number;
+  /** Platform hint — `'ios' | 'android' | 'unknown'`. */
+  platform: string;
+}
+```
+
+Wire-format record for one captured console call sent to the dev server.
+
+**Platform:** iOS and Android.
+
+### LogLevel
+
+```ts
+export type LogLevel = 'log' | 'info' | 'warn' | 'error' | 'debug' | 'trace';
+```
+
+Union of the six console methods patched by the streamer.
+
+**Platform:** iOS and Android.
+
+### Uninstall
+
+```ts
+export type Uninstall = () => void;
+```
+
+The function returned by [`installConsoleStreamer`](#installconsolestreamer). Restores the original `console.*` methods and tears down the WebSocket. Idempotent — calling it more than once is safe.
+
+**Platform:** iOS and Android.
+
+### MinimalWebSocket
+
+```ts
+export interface MinimalWebSocket {
+  readyState: number;
+  send(data: string): void;
+  close(code?: number, reason?: string): void;
+  onopen: ((ev: unknown) => void) | null;
+  onmessage: ((ev: unknown) => void) | null;
+  onerror: ((ev: unknown) => void) | null;
+  onclose: ((ev: unknown) => void) | null;
+}
+```
+
+The minimal WHATWG WebSocket shape the streamer relies on.
+
+> Note: this interface is declared in the streamer source but is not re-exported from the package entry, so it is not reachable from `@sigx/lynx-dev-client`. It is documented here for completeness.
+
+**Platform:** iOS and Android.
+
+### WebSocketCtor
+
+```ts
+export type WebSocketCtor = new (url: string, protocols?: string | string[]) => MinimalWebSocket;
+```
+
+Constructor type for a WebSocket implementation. This is the type of [`InstallOptions.webSocketImpl`](#installoptions).
+
+> Note: like [`MinimalWebSocket`](#minimalwebsocket), this type is declared in the streamer source but is not re-exported from the package entry, so it is not reachable from `@sigx/lynx-dev-client`.
+
+**Platform:** iOS and Android.
+
+## Native module bridge
+
+Beyond the JS exports above, the package registers a native module named `DevClient` that you can call through `@sigx/lynx-core`. It is not a JS export of this package, but it is callable from JS — the streamer's default platform probe and remote-reload handling use it.
+
+```ts
+import { callAsync } from '@sigx/lynx-core';
+
+const { platform } = await callAsync<{ platform: string }>('DevClient', 'getPlatform');
+```
+
+Available methods:
+
+- `getPlatform` — resolves with `{ platform: 'ios' | 'android' }`.
+- `reload` — triggers an in-place LynxView reload.
+
+**Platform:** iOS and Android. Debug-only, like the rest of the module.
+
+## See also
+
+- [Usage](/lynx/modules/dev-client/usage) for practical examples.
+- [Installation](/lynx/modules/dev-client/installation) for project setup.
+- [WebSocket](/lynx/modules/websocket/overview) — the transport the streamer relies on.

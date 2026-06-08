@@ -1,0 +1,130 @@
+---
+title: API Reference
+description: "@sigx/cli — project scaffolding, plugin discovery and platform commands — API reference"
+layout: docs
+category: API Reference
+order: 10
+---
+
+# API Reference
+
+`@sigx/cli` exposes three entry points:
+
+- `@sigx/cli` — `definePlugin` and the plugin types.
+- `@sigx/cli/plugin` — the same plugin API surface (preferred for plugin authors).
+- `@sigx/cli/create` — `runCreate`, the `create` command entry point.
+
+For the command-line surface (`sigx create`, `sigx info`, and plugin-provided commands), see [Commands](/cli/docs/commands).
+
+## Functions
+
+### definePlugin
+
+```ts
+export function definePlugin(plugin: SigxPlugin): SigxPlugin;
+```
+
+Identity helper for authoring a sigx CLI plugin with type safety. It returns the plugin object unchanged, but checks it against the `SigxPlugin` contract. Import it from `@sigx/cli/plugin` (also re-exported from `@sigx/cli`).
+
+- **`plugin`** — the plugin definition to validate and return.
+- **Returns** — the same `SigxPlugin` object, unchanged.
+
+As an alternative, you can use the `satisfies SigxPlugin` pattern instead of calling `definePlugin`.
+
+### runCreate
+
+```ts
+export function runCreate(): void;
+```
+
+Entry point of the `create` command, exported from `@sigx/cli/create`. In a TTY it runs the interactive `@sigx/terminal` wizard (and keeps the process alive); in non-interactive mode — no TTY, `--yes`/`-y`, or both `--type` and a positional name — it runs headless via `process.argv` flags and calls `process.exit()` with the result code.
+
+- **Parameters** — none. It reads CLI arguments directly from `process.argv`.
+- **Returns** — `void`.
+
+## Interfaces
+
+### SigxPlugin
+
+```ts
+export interface SigxPlugin {
+    /** Unique plugin name (e.g. 'ssg', 'lynx') */
+    name: string;
+    /** Return true if this plugin handles the current project */
+    detect: (cwd: string) => boolean;
+    /** Commands this plugin provides */
+    commands: Record<string, PluginCommand>;
+}
+```
+
+The plugin contract. A plugin package default-exports one of these (created via `definePlugin` or `satisfies SigxPlugin`).
+
+- **`name`** — unique plugin name.
+- **`detect`** — called during discovery with the current working directory; its commands are registered only when it returns `true`.
+- **`commands`** — a map of command name to `PluginCommand`.
+
+### PluginCommand
+
+```ts
+export interface PluginCommand {
+    description: string;
+    args?: Record<string, ArgDef>;
+    run: (ctx: CommandContext) => Promise<void>;
+}
+```
+
+Describes a single CLI command contributed by a plugin.
+
+- **`description`** — help text for the command.
+- **`args`** — optional map of named argument/flag definitions.
+- **`run`** — async handler receiving a `CommandContext`; resolves when the command finishes.
+
+### CommandContext
+
+```ts
+export interface CommandContext {
+    cwd: string;
+    args: Record<string, unknown>;
+    logger: Logger;
+}
+```
+
+Passed to a `PluginCommand.run` handler.
+
+- **`cwd`** — `process.cwd()`.
+- **`args`** — the parsed arguments object.
+- **`logger`** — a prefixed `Logger`.
+
+### ArgDef
+
+```ts
+export interface ArgDef {
+    type: 'string' | 'boolean';
+    description?: string;
+    default?: string | boolean;
+}
+```
+
+Definition of a single command argument/flag declared in `PluginCommand.args`.
+
+- **`type`** — `'string'` or `'boolean'`.
+- **`description`** — optional help text.
+- **`default`** — optional default value.
+
+### Logger
+
+```ts
+export interface Logger {
+    log: (msg: string) => void;
+    warn: (msg: string) => void;
+    error: (msg: string) => void;
+}
+```
+
+Minimal logging interface available on `CommandContext.logger`. The core implementation prefixes messages with `[sigx]` and uppercases `WARN` / `ERROR` output.
+
+- **`log`** — print an informational message.
+- **`warn`** — print a warning.
+- **`error`** — print an error.
+
+Only `log`, `warn`, and `error` exist — there is no `info` method.

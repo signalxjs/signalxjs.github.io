@@ -1,0 +1,117 @@
+---
+title: Card
+description: "Card — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Layout"]
+order: 158
+---
+
+# Card
+
+<p class="lede">A themed surface container that groups related content, with an optional border and a <code>Card.Body</code> slot for padded inner layout.</p>
+
+## Import
+
+```tsx
+import { Card } from '@sigx/lynx-heroui';
+```
+
+`Card` is a compound component: the inner `Card.Body` wrapper is attached as a static member, so a single import gives you both pieces.
+
+## Props
+
+`Card` renders a `view` with the `hero-card` class. It takes its content from the default slot (children).
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `bordered` | `boolean` | `false` | When `true`, adds the `hero-card-bordered` class for a visible outline. |
+| `class` | `string` | - | Additional CSS classes appended to the card container. |
+| children | slot | - | Card content (default slot). Typically a `Card.Body`. |
+
+### Card.Body
+
+`Card.Body` renders a `view` with the `hero-card-body` class and provides the standard inner padding for card content.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `class` | `string` | - | Additional CSS classes appended to the body container. |
+| children | slot | - | Body content (default slot). |
+
+## Basic Usage
+
+Wrap content in a `Card.Body` to get consistent padding:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Card, Heading, Text } from '@sigx/lynx-heroui';
+
+const Demo = component(() => {
+    return () => (
+        <Card>
+            <Card.Body>
+                <Heading level={3}>Welcome back</Heading>
+                <Text size="sm" color="base-content">
+                    Your dashboard is ready.
+                </Text>
+            </Card.Body>
+        </Card>
+    );
+});
+
+render(<Demo />, '#root');
+```
+
+## Bordered Card
+
+Set `bordered` to draw an outline around the surface:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Card, Heading, Text } from '@sigx/lynx-heroui';
+
+const Demo = component(() => {
+    return () => (
+        <Card bordered>
+            <Card.Body>
+                <Heading level={4}>Plan details</Heading>
+                <Text size="sm">
+                    Bordered cards read well against a matching background.
+                </Text>
+            </Card.Body>
+        </Card>
+    );
+});
+
+render(<Demo />, '#root');
+```
+
+## Custom Spacing and Layout
+
+Both `Card` and `Card.Body` accept a `class` for layout utilities. Use `Col` for vertical stacking inside the body:
+
+```tsx
+import { component, render } from '@sigx/lynx';
+import { Card, Heading, Text, Divider, Button, Col } from '@sigx/lynx-heroui';
+
+const Demo = component(() => {
+    return () => (
+        <Card bordered class="hero-w-full">
+            <Card.Body>
+                <Col gap="3">
+                    <Heading level={3}>Settings</Heading>
+
+                    <Text size="sm" color="base-content">
+                        Manage how the app behaves on this device.
+                    </Text>
+
+                    <Divider />
+
+                    <Button color="primary">Save changes</Button>
+                </Col>
+            </Card.Body>
+        </Card>
+    );
+});
+
+render(<Demo />, '#root');
+```

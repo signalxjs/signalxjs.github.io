@@ -8,10 +8,119 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-icons-lucide` v0.4.1.</p>
+<p class="lede">Every export of <code>@sigx/lynx-icons-lucide</code> — the default adapter and the pinned <code>LucideIcon</code> component.</p>
 
-## Exports
+The package exposes two entry points: the default export at `.` (the adapter) and `LucideIcon` at `./components`. Both work on iOS and Android. This is a pure-TypeScript adapter — no native code, no permissions.
 
-{/* TODO: document the public API of @sigx/lynx-icons-lucide */}
+## Components
 
-See the package source for the complete typed surface.
+### LucideIcon
+
+Pinned icon component exported from the `@sigx/lynx-icons-lucide/components` subpath. It renders `<Icon set="lucide" .../>` so callers only specify a glyph `name`; the `lucide` set is fixed and cannot be overridden.
+
+```ts
+import { LucideIcon } from '@sigx/lynx-icons-lucide/components';
+
+export const LucideIcon: ComponentFactory<LucideIconProps, void, {}>;
+
+type LucideIconProps =
+    & Define.Prop<'name', string, true>
+    & Define.Prop<'size', number, false>
+    & Define.Prop<'color', string, false>
+    & Define.Prop<'class', string, false>
+    & IconPropsExtensions;
+```
+
+Props:
+
+- `name` (string, required) — the kebab-case Lucide glyph name, for example `chevron-right`.
+- `size` (number, optional) — rendered size.
+- `color` (string, optional) — stroke color for the glyph.
+- `class` (string, optional) — class string passed through to the underlying view.
+- plus any props added to `IconPropsExtensions` by a theme (see below).
+
+Platform: both (iOS and Android).
+
+## Adapter
+
+### default export (adapter)
+
+The Lucide `IconAdapter` implementation, exported as the package default from `@sigx/lynx-icons-lucide`. This is the build-time, test, and tooling contract that the icon pipeline consumes; you typically register it via config rather than calling it directly.
+
+```ts
+import lucideAdapter from '@sigx/lynx-icons-lucide';
+
+declare const adapter: IconAdapter;
+export default adapter;
+```
+
+As implemented by this package:
+
+- `styles` is `['']` — Lucide is single-style (one empty-string style).
+- `getGlyph('', name)` returns `{ svg }` with `viewBox="0 0 24 24"`, `fill="none"`, and a stroke placeholder the pipeline substitutes; returns `null` for unknown names or when `lucide` is not installed.
+- `getFontPath('')` always returns `null`, forcing SVG mode (Lucide has no font).
+- `listGlyphs('')` enumerates the full Lucide catalog (1000+ kebab-case names), or `[]` when `lucide` is not installed.
+
+```ts
+import lucideAdapter from '@sigx/lynx-icons-lucide';
+
+lucideAdapter.styles;                 // ['']
+lucideAdapter.getGlyph('', 'user');   // { svg: '<svg viewBox="0 0 24 24" fill="none" stroke="…">…</svg>' }
+lucideAdapter.getFontPath('');        // null (always)
+lucideAdapter.listGlyphs('');         // ['a-arrow-down', …, 'bell', …, 'search', …, 'user', …]
+```
+
+Graceful degradation: `lucide` is loaded lazily and memoized. If it cannot be required, `getGlyph` returns `null` and `listGlyphs` returns `[]` rather than throwing.
+
+Platform: both (iOS and Android).
+
+## Types
+
+These types come from `@sigx/lynx-icons` and describe the adapter's contract. They are documented here because they shape the default export and `LucideIcon`'s props.
+
+### IconAdapter
+
+The shape of the default export.
+
+```ts
+export interface IconAdapter {
+    /** Style variants the adapter supports. Lucide uses [''] (a single empty style). */
+    styles: string[];
+    /** Resolve a glyph by style + name. Returns null when the glyph is unknown. */
+    getGlyph(style: string, name: string): GlyphData | null;
+    /** Absolute path to the source TTF for `style`, or null when the adapter is SVG-only. */
+    getFontPath(style: string): string | null;
+    /** Every glyph name resolvable for `style`, in the kebab-case form getGlyph accepts. */
+    listGlyphs(style: string): string[];
+}
+```
+
+For the Lucide adapter, `getFontPath` is always `null` and `styles` is always `['']`.
+
+### GlyphData
+
+The return value of `getGlyph`.
+
+```ts
+export interface GlyphData {
+    codepoint?: number;
+    svg: string;
+}
+```
+
+The Lucide adapter never sets `codepoint` (it is SVG-only) and always returns `{ svg }`.
+
+### IconPropsExtensions
+
+An extension point mixed into `LucideIconProps`.
+
+```ts
+export interface IconPropsExtensions {}
+```
+
+Empty by default. Themes augment it via declaration merging to add props (for example a `variant` color prop), which `LucideIcon` then accepts transparently.
+
+## See also
+
+- [Usage guide](/lynx/modules/icons-lucide/usage) — practical examples and config.
+- [@sigx/lynx-icons](/lynx/modules/icons/overview) — the generic `Icon` component and the adapter contract.

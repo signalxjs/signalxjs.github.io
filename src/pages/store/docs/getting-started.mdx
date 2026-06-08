@@ -1,0 +1,105 @@
+---
+title: Getting Started
+description: "@sigx/store — centralized state on signals"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PrereqCallout } from '@/components/PrereqCallout';
+
+# Getting Started with Store
+
+<PrereqCallout items={[
+    { name: 'SignalX Core basics', path: '/core/docs/getting-started' },
+    { name: 'Signals', path: '/core/docs/signals' },
+    { name: 'Components', path: '/core/docs/components' },
+]} />
+
+`@sigx/store` provides centralized, reactive state built on the same signal core that powers your components. You define a store once with `defineStore`, describe its `state`, `actions`, and derived getters inside a setup function, and then call the returned factory anywhere to get a live, reactive instance.
+
+Because the state is signal-backed, reading `store.state.x` inside a component's render function makes that component re-render automatically when the value changes. There is no boilerplate selector layer and no manual subscription required for rendering.
+
+## Why a store?
+
+- **Centralized state** shared across components instead of prop-drilling.
+- **Signal-backed reactivity** so reads in render functions update automatically.
+- **Actions** that wrap mutations and expose lifecycle events (`onDispatching`, `onDispatched`, `onFailure`).
+- **Per-property mutation events** (`onMutated{Key}`) for reacting to specific state changes.
+- **Automatic cleanup** when a store instance is created inside a component — it disposes on unmount.
+
+## Installation
+
+```bash
+npm install @sigx/store
+```
+
+See [Installation](/store/docs/installation) for peer dependencies and project wiring.
+
+## Your first store
+
+Define a store with `defineStore(name, setup)`. The `setup` function receives a context object that includes `defineState` and `defineActions`. Whatever you return becomes the shape of every instance.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { defineStore } from '@sigx/store';
+
+const useCounterStore = defineStore('counter', ({ defineState, defineActions }) => {
+    const { state, mutate } = defineState({ count: 0 });
+
+    const actions = defineActions({
+        increment() { mutate.count(prev => prev + 1); },
+        decrement() { mutate.count(prev => prev - 1); },
+        reset() { mutate.count(0); },
+    });
+
+    return { state, actions };
+});
+
+const Counter = component(() => {
+    const store = useCounterStore();
+
+    return () => (
+        <div class="flex items-center gap-3">
+            <button class="btn" onClick={store.actions.decrement}>-</button>
+            <span class="text-xl font-bold w-12 text-center">{store.state.count}</span>
+            <button class="btn" onClick={store.actions.increment}>+</button>
+            <button class="btn btn-ghost" onClick={store.actions.reset}>reset</button>
+        </div>
+    );
+});
+
+render(<Counter />, "#sandbox");
+```
+
+## How it fits together
+
+- `defineStore(name, setup)` returns a **factory function**. By convention it is assigned to a `useXxxStore` const, but it is an ordinary function — calling it creates an instance.
+- Inside `setup`, `defineState(obj)` returns `{ state, events, mutate }`. Read and write `state` directly, or use the typed `mutate` helpers.
+- `defineActions(obj)` returns your original callable actions plus `onDispatching`, `onDispatched`, and `onFailure` event namespaces.
+- Calling the factory inside a `component(...)` setup ties the instance to the component lifecycle: it auto-disposes on unmount.
+
+> Note: there is no `useStore` export. `useCounterStore` above is just the name we gave the factory returned by `defineStore`.
+
+## Reading and mutating state
+
+`state` is a reactive, signal-backed object. You can assign properties directly, or use `mutate` for value/updater ergonomics. Both paths fire the matching `onMutated{Key}` event.
+
+```ts
+const { state, mutate, events } = defineState({ count: 0 });
+
+state.count = 5;                  // direct assignment (fires onMutatedCount)
+mutate.count(42);                 // set via helper
+mutate.count(prev => prev + 1);   // functional update
+
+events.onMutatedCount.subscribe(value => {
+    console.log('count is now', value);
+});
+```
+
+## Next steps
+
+- [Installation](/store/docs/installation) — install command, peer deps, and project setup.
+- [Defining a Store](/store/docs/defining-a-store) — state, actions, derived getters, and events in depth.
+- [Using Stores in Components](/store/docs/using-in-components) — sharing state, lifetimes, and cleanup.
+- [API Reference](/store/docs/api) — every export with signatures.

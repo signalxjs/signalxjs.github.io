@@ -8,16 +8,110 @@ order: 30
 
 # Using Main Runtime
 
-<p class="lede">Main-thread (Lepus) runtime — the essentials.</p>
+<p class="lede">The main-thread (Lepus) runtime that applies the background-to-main op stream, runs worklets and drives main-thread refs. You rarely call it by hand — this guide is for when you do.</p>
 
 ## Basic usage
+
+Application code almost never imports `@sigx/lynx-runtime-main` directly. The `@sigx/lynx-plugin` build plugin wires it into the main-thread bundle for you, prepending the entry imports in the exact order the runtime needs. The barrel entry re-exports the named API and, as a side effect, installs the renderer hooks on `globalThis`.
 
 ```tsx
 import * as MainRuntime from '@sigx/lynx-runtime-main';
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-runtime-main */}
+The package ships three entry points, each with a distinct job:
+
+```ts
+// 1. Named API + entry-main side effect (installs renderer hooks).
+import { applyOps, MTElementWrapper } from '@sigx/lynx-runtime-main';
+
+// 2. Side-effect-only: installs the renderer hooks alone.
+import '@sigx/lynx-runtime-main/entry-main';
+
+// 3. Side-effect-only: registers the hybrid event dispatcher.
+import '@sigx/lynx-runtime-main/install-hybrid-worklet';
+```
+
+This is a pure-TypeScript Lepus runtime — there is no native iOS or Android module to link. It calls Lynx PAPI globals (`__CreateView`, `__SetInlineStyles`, `__AddEvent`, `__FlushElementTree`, and friends) that the Lynx host provides at run time. `@lynx-js/types` is an optional peer dependency if you want the ambient PAPI typings.
+
+## Bootstrap order
+
+When you assemble the main-thread bundle yourself, the three entry points must evaluate in this order:
+
+```ts
+// 1. Renderer hooks + SystemInfo (must run before the worklet runtime IIFE).
+import '@sigx/lynx-runtime-main/entry-main';
+// 2. Upstream worklet runtime: populates lynxWorkletImpl, runWorklet, etc.
+import '@lynx-js/react/worklet-runtime';
+// 3. Hybrid dispatcher: registers into the now-populated worklet map.
+import '@sigx/lynx-runtime-main/install-hybrid-worklet';
+```
+
+The hybrid dispatcher lives in its own side-effect module on purpose: a bare import would otherwise be hoisted above the worklet runtime it depends on. `@sigx/lynx-plugin` prepends these imports for you, so you only need this when hand-rolling the bundle.
+
+## Driving an element from a main-thread worklet
+
+The most common reason to reach into this runtime is a `MainThreadRef`. The runtime sets the ref's `.current` to an `MTElementWrapper`, giving a main-thread worklet a synchronous, zero-latency handle to read and write styles, attributes, run query selectors, invoke UI methods and start animations.
+
+```tsx
+// Inside a main-thread worklet body.
+function onScroll(ref: MainThreadRef, offset: number, ratio: number) {
+  'main thread';
+  ref.current?.setStyleProperties({
+    transform: `translateX(${offset}px)`,
+    opacity: `${1 - ratio}`,
+  });
+}
+```
+
+Writes are batched: every `setStyleProperties`, `setStyleProperty`, `setAttribute` and `invoke` call across all wrapper instances is microtask-debounced into a single `__FlushElementTree`, so a tick of updates costs one native flush.
+
+## Running keyframe animations
+
+`MTElementWrapper.animate` starts a native keyframe animation and returns a small controller you can `play`, `pause` or `cancel`.
+
+```tsx
+function fadeIn(ref: MainThreadRef) {
+  'main thread';
+  const anim = ref.current?.animate(
+    [{ opacity: 0 }, { opacity: 1 }],
+    { duration: 300, easing: 'ease-in-out', fill: 'forwards' },
+  );
+  anim?.play();
+}
+```
+
+`animate` returns `null` if the underlying element handle is unavailable, so guard the result before calling controller methods.
+
+## Reading state back from the element
+
+The wrapper also exposes synchronous read accessors and a promise-based UI-method bridge.
+
+```tsx
+function measure(ref: MainThreadRef) {
+  'main thread';
+  const el = ref.current;
+  if (!el) return;
+
+  const width = el.getComputedStyleProperty('width');
+  const tag = el.getAttribute('data-role');
+  const names = el.getAttributeNames();
+}
+
+async function scrollToTop(ref: MainThreadRef) {
+  'main thread';
+  await ref.current?.invoke('scrollTo', { offset: 0, smooth: true });
+}
+```
+
+`invoke` returns a `Promise`, so it can be awaited; the synchronous accessors return immediately from the live PAPI handle.
 
 ## Notes
 
-Applies the BG → MT op stream via Lynx PAPI, runs worklets and drives useAnimatedStyle.
+- Object-prototype rebuild (PrimJS): when a `runOnMainThread` call carries captured values, the runtime rebuilds the payload with real object prototypes before handing it to the upstream worklet runtime. PrimJS's `JSON.parse` yields null-prototype objects that its `WeakRef` rejects, which would otherwise make captured animations silently no-op. This is handled for you; it is the reason captured worklet payloads work at all.
+- Many internal helpers (animated-style mappers, the AV bridge, list ops, the run-on-background dispatcher) are not on the public export surface — they are wired up through the entry-main side effect rather than imported by name.
+
+## See also
+
+- [API reference](/lynx/modules/runtime-main/api)
+- [Installation](/lynx/modules/runtime-main/installation)
+- [SignalX on Lynx](/lynx/docs/overview)

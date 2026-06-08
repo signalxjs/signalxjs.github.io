@@ -1,0 +1,146 @@
+---
+title: SwiperIndicator
+description: "SwiperIndicator — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Navigation"]
+order: 143
+---
+
+# SwiperIndicator
+
+<p class="lede">Themed page indicator for a Swiper carousel, with five preset variants (dots, bar, pill, numbered, scale-pulse) and tap-to-jump.</p>
+
+## Import
+
+```tsx
+import { SwiperIndicator } from '@sigx/lynx-daisyui';
+```
+
+## Overview
+
+`SwiperIndicator` renders the small progress marker that sits below a paged carousel. Each variant is a thin shell over a headless main-thread hook from `@sigx/lynx-gestures`, so the animation stays scroll-linked at full fidelity without crossing the BG/MT bridge each frame.
+
+There are two ways to wire it up:
+
+- **Scroll-linked** — pass the live `offset` `SharedValue` from your `&lt;Swiper&gt;` plus the matching `pageWidth`. The indicator tracks the finger frame-for-frame.
+- **Index-only** — pass just `index` (a `PrimitiveSignal&lt;number&gt;`) and `count`. The indicator owns its own offset internally and glides between page positions with a timing curve on every index change. Mode is chosen once at mount.
+
+The `numbered` variant only needs `index` and `count`. The animated variants (`dots`, `bar`, `pill`, `scale-pulse`) render nothing until they have an offset source — either a live `offset` + `pageWidth`, or an `index` for the derived offset.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `count` | `number` | (required) | Total number of pages. |
+| `variant` | `'dots' \| 'bar' \| 'pill' \| 'numbered' \| 'scale-pulse'` | `'dots'` | Visual style of the indicator. |
+| `offset` | `SharedValue<number>` | - | Live main-thread pixel offset from the parent `&lt;Swiper&gt;`. Omit it (and pass `index`) to use the internally derived, index-only mode. |
+| `pageWidth` | `number` | - | Page width in CSS px. Must match the Swiper's effective page width. Required alongside a live `offset` for the animated variants. |
+| `index` | `PrimitiveSignal<number>` | - | Current page (whole units). Required for `numbered`, drives the derived offset in index-only mode, and is consumed by all variants for tap-to-jump. |
+| `color` | `ColorToken` | `'primary'` | Active dot / thumb / number color token. |
+| `inactiveColor` | `ColorToken` | `'base-content'` | Color token for inactive dots and the bar track (rendered at low alpha). |
+| `size` | `'xs' \| 'sm' \| 'md' \| 'lg'` | `'md'` | Indicator size (controls dot diameter, gap, bar height, and number font size). |
+| `onDotPress` | `(index: number) => void` | - | Tap-to-jump handler. Typically writes `index.value = i` to glide the swiper to that page. |
+| `class` | `string` | - | Additional CSS classes on the root element. |
+| `style` | `Record<string, string \| number>` | - | Inline style overrides merged onto the root element. |
+
+## Scroll-linked usage
+
+Wire the indicator to the same `offset` `SharedValue` and `index` signal that drive the `&lt;Swiper&gt;`. This gives full scroll-linked motion.
+
+```tsx
+import { component, render, signal, useSharedValue } from '@sigx/lynx';
+import { Swiper } from '@sigx/lynx-gestures';
+import { SwiperIndicator } from '@sigx/lynx-daisyui';
+
+const PHOTO_WIDTH = 320;
+
+const Gallery = component(() => {
+    const offset = useSharedValue(0);
+    const index = signal({ value: 0 });
+    const photos = ['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg'];
+
+    return () => (
+        <view style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <Swiper
+                items={photos}
+                offset={offset}
+                index={index}
+                width={PHOTO_WIDTH}
+                height={200}
+                renderItem={(src) => (
+                    <image src={src} mode="aspectFit" style={{ width: '100%', height: '100%' }} />
+                )}
+            />
+
+            <SwiperIndicator
+                variant="pill"
+                offset={offset}
+                pageWidth={PHOTO_WIDTH}
+                count={photos.length}
+                index={index}
+                color="primary"
+                onDotPress={(i) => { index.value = i; }}
+            />
+        </view>
+    );
+});
+
+render(<Gallery />, 'root');
+```
+
+## Index-only usage
+
+When you have no live `&lt;Swiper&gt;` offset to bind, pass just `index` and `count`. The indicator derives its own offset and glides between pages on each index change.
+
+```tsx
+import { component, render, signal } from '@sigx/lynx';
+import { SwiperIndicator } from '@sigx/lynx-daisyui';
+
+const Steps = component(() => {
+    const index = signal({ value: 0 });
+
+    return () => (
+        <SwiperIndicator
+            variant="dots"
+            count={5}
+            index={index}
+            color="primary"
+            onDotPress={(i) => { index.value = i; }}
+        />
+    );
+});
+
+render(<Steps />, 'root');
+```
+
+## Variants and sizes
+
+The `numbered` variant renders a plain `2 / 5` counter and needs only `index` and `count`. The other variants animate against the offset source. Use `size` to scale the markers from `xs` to `lg`.
+
+```tsx
+import { component, render, signal } from '@sigx/lynx';
+import { SwiperIndicator } from '@sigx/lynx-daisyui';
+
+const Showcase = component(() => {
+    const index = signal({ value: 1 });
+    const count = 4;
+
+    return () => (
+        <view style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <SwiperIndicator variant="dots" size="lg" count={count} index={index} />
+            <SwiperIndicator variant="bar" size="md" count={count} index={index} color="accent" />
+            <SwiperIndicator
+                variant="scale-pulse"
+                size="md"
+                count={count}
+                index={index}
+                color="secondary"
+                inactiveColor="base-content"
+            />
+            <SwiperIndicator variant="numbered" size="sm" count={count} index={index} color="primary" />
+        </view>
+    );
+});
+
+render(<Showcase />, 'root');
+```

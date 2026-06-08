@@ -1,0 +1,73 @@
+---
+title: Getting Started
+description: "@sigx/cli — project scaffolding, plugin discovery and platform commands"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+# Getting Started with the CLI
+
+`@sigx/cli` is the command-line tool for SignalX projects. It does three things:
+
+- **Scaffolds new projects** with `sigx create` — an interactive wizard (or headless flags) that copies a bundled template into a new directory.
+- **Reports environment & project info** with `sigx info`, including the Lynx native toolchain when a Lynx config is detected.
+- **Discovers plugins at runtime** so packages like `@sigx/vite`, `@sigx/ssg`, and `@sigx/lynx-cli` can contribute commands such as `dev`, `build`, `preview`, and the platform commands.
+
+The CLI ships a single binary, `sigx`, and is ESM-only.
+
+## Quick start
+
+The fastest way to a new project is the create wizard. You can run it without installing anything:
+
+```bash
+npx sigx create
+```
+
+This launches a 3-step terminal UI — pick a name, a project type, and a styling option — then writes the project into `./<name>`. To skip the wizard and scaffold headlessly, pass flags:
+
+```bash
+npx sigx create my-app --type ssr --styling tailwind
+```
+
+## Installing into a project
+
+Generated projects depend on `@sigx/cli` directly, so most commands are available via `npx sigx <command>`. To add it to an existing project:
+
+```bash
+npm i -D @sigx/cli
+```
+
+Then run any command through your package runner:
+
+```bash
+npx sigx info
+```
+
+See [Installation](/cli/docs/installation) for peer-dependency details and which plugin packages enable which commands.
+
+## A minimal end-to-end example
+
+Scaffold a basic web app, install dependencies, and start it:
+
+```bash
+npx sigx create my-app --type basic
+cd my-app
+npm install
+npm run dev
+```
+
+The `basic` web template uses Vite scripts directly (`vite`, `vite build`, `vite preview`). The other templates wire npm scripts differently:
+
+- **`ssg`** maps `dev`, `build`, and `preview` to `sigx dev` / `sigx build` / `sigx preview`.
+- **`lynx`** maps `dev` and `build` to `sigx dev` / `sigx build` (plus `sigx doctor` and `sigx prebuild`), but has no `preview` script.
+- **`ssr`** does not use `sigx` scripts at all: it runs a custom Express server via `node server.js` for `dev`, `start`, and `preview`, and builds with `vite build`.
+
+Where a template uses `sigx` commands, those resolve to commands contributed by the corresponding plugin packages.
+
+## Where to go next
+
+- [Installation](/cli/docs/installation) — install, peer dependencies, and the plugin packages behind each command.
+- [Commands](/cli/docs/commands) — every command with its usage and flags.
+- [Authoring Plugins](/cli/docs/plugins) — extend the CLI with your own commands.
+- [API Reference](/cli/docs/api) — `definePlugin`, `runCreate`, and the plugin type contract.

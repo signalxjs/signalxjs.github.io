@@ -8,16 +8,172 @@ order: 30
 
 # Using DaisyUI
 
-<p class="lede">Component library — the essentials.</p>
+<p class="lede">Wire up the preset and stylesheet, wrap your app in a theme, then build screens from native DaisyUI components.</p>
 
 ## Basic usage
 
-```tsx
-import * as DaisyUI from '@sigx/lynx-daisyui';
+DaisyUI ships three things you import from different entry points: the **components** (the main barrel), the **Tailwind preset**, and the **stylesheet**.
+
+First add the preset to your Tailwind config. It composes `@sigx/lynx-zero/preset`, so it brings the semantic color tokens, the `--text-*` ramp and the `.flex-fill` utility.
+
+```ts
+// tailwind.config.ts
+import { daisyuiPreset } from '@sigx/lynx-daisyui/preset';
+
+export default {
+    presets: [daisyuiPreset],
+};
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-daisyui */}
+Import the stylesheet once, as a side effect, at your app entry. It bundles the base reset, the light/dark theme tokens and per-component CSS.
 
-## Notes
+```ts
+// app entry
+import '@sigx/lynx-daisyui/styles';
+```
 
-DaisyUI-flavored component library, stylesheet and Tailwind preset for Lynx.
+Then compose components from the barrel:
+
+```tsx
+import { Card, Input, Button } from '@sigx/lynx-daisyui';
+
+export const SignIn = component(() => {
+    return () => (
+        <Card>
+            <Card.Body>
+                <Input placeholder="Email" />
+                <Input type="password" placeholder="Password" />
+                <Button color="primary">Sign in</Button>
+            </Card.Body>
+        </Card>
+    );
+});
+```
+
+Note: importing **anything** from `@sigx/lynx-daisyui` has two side effects. It seeds the six built-in themes (`daisy-light`, `daisy-dark`, `daisy-cupcake`, `daisy-emerald`, `daisy-synthwave`, `daisy-dracula`) into the theme registry, and it declaration-merges a typed `variant` prop onto `@sigx/lynx-icons`' `Icon` so `variant="primary"` resolves to the active theme's hex.
+
+## Theming the app
+
+Wrap your tree in `ThemeProvider` to apply a theme and enable runtime theme switching. The outermost provider binds the global theme controller.
+
+```tsx
+import { ThemeProvider, StatusBarSync } from '@sigx/lynx-daisyui';
+
+export const App = component(() => {
+    return () => (
+        <ThemeProvider light="daisy-light" dark="daisy-dark">
+            <StatusBarSync />
+            <Screens />
+        </ThemeProvider>
+    );
+});
+```
+
+`light` and `dark` are used while following the system scheme. To pin a theme and ignore the system, pass `initial` instead. `StatusBarSync` keeps the OS status/nav bar tint legible against the active global theme — mount it once inside the provider.
+
+Switch the theme at runtime with the controller from `useTheme()`:
+
+```tsx
+import { Button, useTheme } from '@sigx/lynx-daisyui';
+
+export const ThemeToggle = component(() => {
+    const theme = useTheme();
+    return () => (
+        <Button variant="ghost" onPress={() => theme.toggle()}>
+            Toggle theme
+        </Button>
+    );
+});
+```
+
+You can also drive the theme headlessly without a mounted provider, which is useful in app bootstrap or non-component code:
+
+```ts
+import { themeController } from '@sigx/lynx-daisyui';
+
+themeController.set('daisy-dark');
+themeController.followSystem();
+```
+
+Define a brand theme by extending a built-in, then register it. Pass the resulting name (or a space-separated multi-class string) to the provider or controller.
+
+```ts
+import { registerTheme, extendTheme } from '@sigx/lynx-daisyui';
+
+registerTheme(
+    extendTheme('daisy-dark', {
+        name: 'acme-dark',
+        colors: { primary: '#fb7185' },
+    }),
+);
+// themeController.set('acme-dark')
+```
+
+Two-layer rule: `useTheme()` and **nested** `ThemeProvider`s scope in-app content colors and icon tints down a subtree only. OS chrome (the status/nav bar via `StatusBarSync`) always follows the **global** theme — a nested provider cannot retint the system bars.
+
+## Forms
+
+Text inputs use two-way model binding via `model`. The Radio group lays out items but does not auto-wire selection — drive `value` and `change` yourself.
+
+```tsx
+import { signal } from '@sigx/lynx';
+import { FormField, Input, Toggle, Select } from '@sigx/lynx-daisyui';
+
+export const Settings = component(() => {
+    const email = signal('');
+    const state = signal({ notify: true, plan: 'free' });
+    return () => (
+        <Col gap={12}>
+            <FormField label="Email" required>
+                <Input model={email} placeholder="you@example.com" />
+            </FormField>
+            <FormField label="Notifications">
+                <Toggle
+                    checked={state.notify}
+                    color="primary"
+                    onChange={(next) => (state.notify = next)}
+                />
+            </FormField>
+            <FormField label="Plan">
+                <Select
+                    value={state.plan}
+                    options={[
+                        { label: 'Free', value: 'free' },
+                        { label: 'Pro', value: 'pro' },
+                    ]}
+                    onChange={(value) => (state.plan = value)}
+                />
+            </FormField>
+        </Col>
+    );
+});
+```
+
+`Input` and `Textarea` resolve their text and placeholder colors to literal hex at runtime, because native text widgets cannot read CSS variables. The other form controls (`Toggle`, `Checkbox`, `Select`, `Radio.Item`) are controlled — pass the current value and update it from the emitted `change`/`select` event.
+
+## Native navigation chrome
+
+The `Nav*` components theme the primitives from the optional `@sigx/lynx-navigation` peer. Install that package to use them.
+
+```tsx
+import { Tabs } from '@sigx/lynx-navigation';
+import { NavTabBar, NavHeader } from '@sigx/lynx-daisyui';
+
+// Bottom tab bar reads the surrounding <Tabs> navigator
+export const Shell = component(() => {
+    return () => (
+        <Tabs initialTab="home">
+            {/* <Tabs.Screen ... /> */}
+            <NavTabBar position="bottom" />
+        </Tabs>
+    );
+});
+```
+
+`NavTabBar` fixes its mode at mount: with no `items` prop it reads the surrounding `<Tabs>` navigator and **throws** if there is none; pass `items` + `activeId` to run it standalone. `NavHeader` reads the screen chrome from a `<Stack>` and renders a back button when navigation can go back. `NavDrawer` exposes a `sidebar` slot for the menu and the `default` slot for content, and animates via `@sigx/lynx-motion`.
+
+## See also
+
+- [Components](/lynx/modules/daisyui/components) — the full themed component catalog.
+- [API reference](/lynx/modules/daisyui/api) — every export, typed.
+- [Styling on Lynx](/lynx/docs/styling) — how Tailwind and the CSS pipeline work here.

@@ -1,0 +1,567 @@
+---
+title: "API reference"
+description: "Emoji Picker — Themable emoji picker"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Every export of `@sigx/lynx-emoji` v0.4.9. The package is pure JS — all exports work identically on iOS and Android, no native module or permissions.</p>
+
+The package is named-exports only; there is no default export at the root. Three subpaths exist: `.` (the full public API documented below), `./markdown` (the editor plugin — these four exports are NOT re-exported from root), and `./data/en` (the bundled English dataset). The dataset module exports the data as both a named `data` and a default export; the root re-exports it as `enData`.
+
+## Components
+
+### EmojiPicker
+
+The full headless picker: search row, category tab bar, recycled glyph grid, skin-tone long-press popover and a persistent recents tab. Unstyled beyond neutral inline fallbacks — theme via `classes` / render props or a themed wrapper. Must be given a bounded-height container (it is a flex column). Builds a private context from its `data` prop, or consumes an `<EmojiProvider>` if one is in scope (the provider wins). Throws if neither a `data` prop nor a provider is available. Platform: both.
+
+```ts
+export const EmojiPicker: Component<EmojiPickerProps>;
+```
+
+### EmojiGrid
+
+The headless grid: a native `<list>` recycler in flow layout, so only on-screen cells exist regardless of count. `class` / `style` land on a self-measuring wrapper that pins the list to a concrete px height (flex / percent on the native list resolve to zero). First paint is one frame after mount. Platform: both.
+
+```ts
+export const EmojiGrid: Component<EmojiGridProps>;
+```
+
+### EmojiCell
+
+One grid cell: a `Pressable` glyph, accessibility-labeled with `datum.n`. Tap picks; long-press emits `pickTone`, but only when the emoji has uniform tone variants (`datum.s`). Platform: both.
+
+```ts
+export const EmojiCell: Component<EmojiCellProps>;
+```
+
+### CategoryTabBar
+
+The headless category jump bar: a horizontal scroll-view row of glyph tabs. Selecting a tab switches which category the grid shows (filter-based — no scroll-position sync, to stay headless and cheap). Platform: both.
+
+```ts
+export const CategoryTabBar: Component<CategoryTabBarProps>;
+```
+
+### SearchInput
+
+The headless search field: a bare two-way-bound `<input>` (`confirm-type="search"`). A neutral border / padding fallback applies only when no `class` is given; the default placeholder is `Search emoji`. Platform: both.
+
+```ts
+export const SearchInput: Component<SearchInputProps>;
+```
+
+### SkinTonePopover
+
+The skin-tone chooser: a centered overlay row of the base glyph plus its five uniform variants, shown on cell long-press. Selecting one both inserts and sets the sticky preference. A backdrop tap dismisses. Rendered `position:absolute` within the picker root (no portal / caret math). Platform: both.
+
+```ts
+export const SkinTonePopover: Component<SkinTonePopoverProps>;
+```
+
+## Wrappers
+
+### KeyboardPanelPicker
+
+Chat-composer presentation: a panel occupying exactly the soft keyboard's space, so toggling emoji and keyboard does not shift the composer. Place it as the last child of a `<KeyboardStickyView>`; the keyboard height comes from `useKeyboard()` (needs a `<SafeAreaProvider>` ancestor) and the largest height seen is remembered. Renders `display:none` when closed. Accepts every `EmojiPickerProps` field except `style` and `onPick`. Platform: both.
+
+```ts
+export const KeyboardPanelPicker: Component<KeyboardPanelPickerProps>;
+```
+
+### SheetPicker
+
+Overlay presentation: a bottom sheet over a dimmed backdrop, for a reaction picker or one-off use (for a chat composer prefer `KeyboardPanelPicker`). A backdrop tap closes; sheet taps do not propagate. Mount it near the screen root so its `position:absolute` covers the screen. Renders `display:none` when closed. Platform: both.
+
+```ts
+export const SheetPicker: Component<SheetPickerProps>;
+```
+
+## State
+
+### EmojiProvider
+
+Optional app-level provider that shares one dataset, search index, recents list and skin-tone preference across every picker surface via DI. Renders no element of its own (only its default slot). Use it when more than one surface exists so recents stay in sync without each re-hydrating. Platform: both.
+
+```ts
+export const EmojiProvider: Component<EmojiProviderProps>;
+```
+
+### createEmojiContext
+
+Builds a standalone context — dataset + search index + recents store + skin-tone store. This is what `<EmojiProvider>` installs and what `<EmojiPicker data={…}>` creates for itself with no provider in scope.
+
+```ts
+export function createEmojiContext(
+  data: EmojiData,
+  options?: EmojiContextOptions,
+): EmojiContextValue;
+```
+
+`options.recentsCap` is the max recents kept and persisted (default 32). Platform: both.
+
+### useEmojiContext
+
+DI handle. `<EmojiProvider>` installs an instance via `defineProvide`; downstream `useEmojiContext()` returns it, or `null` outside a provider. Branch on `null` when reading it directly.
+
+```ts
+export const useEmojiContext: InjectableFunction<EmojiContextValue | null>;
+// defineInjectable<EmojiContextValue | null>(() => null)
+```
+
+Platform: both.
+
+## Search
+
+### buildSearchIndex
+
+Builds a reusable keyword search index over a dataset — pure JS, no signals. Build it once per dataset and query per keystroke. Ranking high to low: exact shortcode, shortcode prefix, name first-word prefix, name word prefix, keyword prefix, name substring. Multi-token queries require every token to match (score is the sum of per-token bests); ties resolve by CLDR order.
+
+```ts
+export function buildSearchIndex(data: EmojiData): EmojiSearchIndex;
+```
+
+Platform: both.
+
+### tokenize
+
+Lowercases and splits a query into terms on whitespace, underscore and hyphen, dropping empties — `'Red  HEART'` becomes `['red', 'heart']`.
+
+```ts
+export function tokenize(query: string): string[];
+```
+
+Platform: both.
+
+## Data helpers
+
+### glyphForTone
+
+Returns the glyph to render or insert for a datum under a skin tone: the tone variant when supported, the base glyph (`datum.e`) otherwise (objects, flags, mixed-tone-only emoji, or tone `0`).
+
+```ts
+export function glyphForTone(datum: EmojiDatum, tone: SkinTone): string;
+```
+
+Platform: both.
+
+### enData
+
+The bundled English dataset (`EmojiData`), re-exported from the root for zero-config use. Importing it costs ~240 KB of bundle; pass your own locale from `@sigx/lynx-emoji/data/<locale>` instead to tree-shake it away.
+
+```ts
+export { data as enData } from './data/en.gen.js';
+```
+
+Platform: both.
+
+## Markdown subpath (`@sigx/lynx-emoji/markdown`)
+
+These four exports integrate with `@sigx/lynx-markdown`'s editor and are NOT re-exported from the package root. The markdown peer is referenced only via `import type`, so importing this subpath does not load the markdown package at runtime.
+
+### createEmojiPlugin
+
+Builds the editor plugin: a `:` trigger whose suggestion popup is ranked like the picker's search (inserts the glyph by default; `insert: 'shortcode'` keeps `:smile:` source), plus an optional 😊 toolbar item when `onPickerRequest` is set. Shortcode mode degrades to the glyph when an emoji has no shortcode, never emitting invalid `:<glyph>:`.
+
+```ts
+export function createEmojiPlugin(options?: EmojiPluginOptions): MarkdownEditorPlugin;
+```
+
+Platform: both.
+
+### createEmojiSyntax
+
+The `:shortcode:` parser extension for `MarkdownView`. Streaming-safe: a partial tail (`:smi`) or an unknown shortcode stays literal text. The matched node carries the resolved glyph in `attrs.glyph`. Defaults to the bundled `en` dataset.
+
+```ts
+export function createEmojiSyntax(data?: EmojiData): ParserInlineExtension;
+```
+
+Platform: both.
+
+### emojiExtensionComponent
+
+The preview renderer for the `emoji` extension node — pass it to `MarkdownView`'s `components={{ extension: { emoji: emojiExtensionComponent } }}`. Returns the glyph, falling back to `:name:` when no glyph is present.
+
+```ts
+export function emojiExtensionComponent(props: ExtensionProps): string;
+```
+
+Platform: both.
+
+### EmojiPluginOptions
+
+Options for `createEmojiPlugin`.
+
+```ts
+export interface EmojiPluginOptions {
+  /** Locale dataset. Default: the bundled `en` data. */
+  data?: EmojiData;
+  /** What a suggestion inserts. `'glyph'` (default) is plain text; `'shortcode'` keeps `:smile:`. */
+  insert?: 'glyph' | 'shortcode';
+  /** Max suggestions per query. Default 8. */
+  limit?: number;
+  /** Debounce between queries in ms (TriggerSpec passthrough). */
+  debounce?: number;
+  /** Re-skin a suggestion row (the neutral popup renders `label`). */
+  renderItem?(item: TriggerItem, active: boolean): JSXElement;
+  /** When set, adds a 😊 toolbar item that calls this — the app's cue to open a picker surface. */
+  onPickerRequest?(): void;
+}
+```
+
+## Types — component props
+
+### EmojiPickerProps
+
+Props for `EmojiPicker`. Includes the `EmojiPropsExtensions` theme-augmentation merge and the `onPick` event. `data` is optional with an `<EmojiProvider>` in scope and required without; it is fixed at mount.
+
+```ts
+export type EmojiPickerProps =
+  & Define.Prop<'data', EmojiData, false>
+  & Define.Prop<'columns', number, false>
+  & Define.Prop<'showRecents', boolean, false>
+  & Define.Prop<'showSearch', boolean, false>
+  & Define.Prop<'searchPlaceholder', string, false>
+  & Define.Prop<'emptyLabel', string, false>
+  & Define.Prop<'cellSize', number, false>
+  & Define.Prop<'classes', EmojiSlotClasses, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Prop<'renderCell', EmojiRenderCell, false>
+  & Define.Prop<'renderCategoryTab', EmojiRenderCategoryTab, false>
+  & Define.Prop<'renderSearchInput', EmojiRenderSearchInput, false>
+  & EmojiPropsExtensions
+  & Define.Event<'pick', EmojiPickEvent>;
+```
+
+Defaults: `columns` `8`, `showRecents` `true`, `showSearch` `true`, `cellSize` `26`. `emptyLabel` shows when the current slice is empty.
+
+### EmojiGridProps
+
+Props for `EmojiGrid`. `onPick` fires on tap; `onPickTone` fires on long-press of a tonal emoji.
+
+```ts
+export type EmojiGridProps =
+  & Define.Prop<'emojis', EmojiDatum[], true>
+  & Define.Prop<'tone', SkinTone, false>
+  & Define.Prop<'columns', number, false>
+  & Define.Prop<'cellSize', number, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'cellClass', string, false>
+  & Define.Prop<'renderCell', EmojiRenderCell, false>
+  & Define.Prop<'style', Record<string, string | number>, false>
+  & Define.Event<'pick', EmojiDatum>
+  & Define.Event<'pickTone', EmojiDatum>;
+```
+
+Defaults: `tone` `0` (base), `columns` `8`, `cellSize` `26`.
+
+### EmojiCellProps
+
+Props for `EmojiCell`. `glyph` is the tone-resolved glyph to render. `onPickTone` (long-press) only fires when tone variants exist.
+
+```ts
+export type EmojiCellProps =
+  & Define.Prop<'datum', EmojiDatum, true>
+  & Define.Prop<'glyph', string, true>
+  & Define.Prop<'size', number, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'render', EmojiRenderCell, false>
+  & Define.Event<'pick', EmojiDatum>
+  & Define.Event<'pickTone', EmojiDatum>;
+```
+
+Default `size` `26`.
+
+### CategoryTabBarProps
+
+Props for `CategoryTabBar`. `active` is a category key, or `'recents'`.
+
+```ts
+export type CategoryTabBarProps =
+  & Define.Prop<'tabs', CategoryTabEntry[], true>
+  & Define.Prop<'active', string, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'tabClass', string, false>
+  & Define.Prop<'tabActiveClass', string, false>
+  & Define.Prop<'render', EmojiRenderCategoryTab, false>
+  & Define.Event<'select', EmojiTab>;
+```
+
+### SearchInputProps
+
+Props for `SearchInput`. Includes a two-way string model binding; default placeholder `Search emoji`.
+
+```ts
+export type SearchInputProps =
+  & Define.Prop<'placeholder', string, false>
+  & Define.Prop<'class', string, false>
+  & Define.Model<string>;
+```
+
+### SkinTonePopoverProps
+
+Props for `SkinTonePopover`. `datum` must have `s` variants; `toneLabels` is `data.skinTones`, indexed tone-1.
+
+```ts
+export type SkinTonePopoverProps =
+  & Define.Prop<'datum', EmojiDatum, true>
+  & Define.Prop<'toneLabels', string[], true>
+  & Define.Prop<'activeTone', SkinTone, false>
+  & Define.Prop<'backdropClass', string, false>
+  & Define.Prop<'class', string, false>
+  & Define.Prop<'cellClass', string, false>
+  & Define.Event<'select', SkinTone>
+  & Define.Event<'close', void>;
+```
+
+### KeyboardPanelPickerProps
+
+Props for `KeyboardPanelPicker` — `EmojiPickerProps` minus `style` / `onPick`, plus `open`, `fallbackHeight` and `onPick`. `fallbackHeight` (default 300) is used before the keyboard has ever opened.
+
+```ts
+export type KeyboardPanelPickerProps =
+  & Omit<EmojiPickerProps, 'style' | 'onPick'>
+  & Define.Prop<'open', boolean, true>
+  & Define.Prop<'fallbackHeight', number, false>
+  & Define.Event<'pick', EmojiPickEvent>;
+```
+
+### SheetPickerProps
+
+Props for `SheetPicker` — `EmojiPickerProps` minus `style` / `onPick`, plus `open`, `onClose`, `height`, `sheetClass` and `onPick`. `height` (default 420) is the sheet height in px.
+
+```ts
+export type SheetPickerProps =
+  & Omit<EmojiPickerProps, 'style' | 'onPick'>
+  & Define.Prop<'open', boolean, true>
+  & Define.Prop<'onClose', () => void, false>
+  & Define.Prop<'height', number, false>
+  & Define.Prop<'sheetClass', string, false>
+  & Define.Event<'pick', EmojiPickEvent>;
+```
+
+### EmojiProviderProps
+
+Props for `EmojiProvider`. `data` is the locale dataset, fixed at mount; `recentsCap` is the LRU cap (default 32).
+
+```ts
+export type EmojiProviderProps =
+  & Define.Prop<'data', EmojiData, true>
+  & Define.Prop<'recentsCap', number, false>
+  & Define.Slot<'default'>;
+```
+
+## Types — events, render props and theming
+
+### EmojiPickEvent
+
+What a pick surfaces: the entry, the tone-resolved glyph to insert, and the tone used.
+
+```ts
+export interface EmojiPickEvent {
+  datum: EmojiDatum;
+  /** The string to insert — `datum.e` or the active skin-tone variant. */
+  glyph: string;
+  tone: SkinTone;
+}
+```
+
+### EmojiRenderCell
+
+Replaces a grid cell's content (rendered inside the cell's `Pressable`).
+
+```ts
+export type EmojiRenderCell = (datum: EmojiDatum, glyph: string) => JSXElement;
+```
+
+### EmojiRenderCategoryTab
+
+Replaces a category tab's content (rendered inside the tab's `Pressable`).
+
+```ts
+export type EmojiRenderCategoryTab = (tab: EmojiTab, glyph: string, active: boolean) => JSXElement;
+```
+
+### EmojiRenderSearchInput
+
+Replaces the whole search row, driven by an `EmojiSearchApi`.
+
+```ts
+export type EmojiRenderSearchInput = (api: EmojiSearchApi) => JSXElement;
+```
+
+### EmojiSearchApi
+
+What a custom search field needs to drive the picker. `query()` is reactive — call it inside render to subscribe.
+
+```ts
+export interface EmojiSearchApi {
+  query(): string;
+  setQuery(query: string): void;
+}
+```
+
+### EmojiSlotClasses
+
+Per-slot class overrides — the theming surface (13 slots). When a class is given for a slot, that slot's inline fallback style is dropped.
+
+```ts
+export interface EmojiSlotClasses {
+  root?: string;
+  searchWrap?: string;
+  search?: string;
+  tabBar?: string;
+  tab?: string;
+  tabActive?: string;
+  grid?: string;
+  cell?: string;
+  empty?: string;
+  popoverBackdrop?: string;
+  popover?: string;
+  popoverCell?: string;
+}
+```
+
+### EmojiPropsExtensions
+
+Theme augmentation point (the `IconPropsExtensions` pattern). A theme package can `declare module '@sigx/lynx-emoji'` and extend this interface to add its own props onto `EmojiPickerProps`. Empty by default.
+
+```ts
+export interface EmojiPropsExtensions {}
+```
+
+### EmojiTab
+
+A category, or the synthetic recents tab (the literal `'recents'`).
+
+```ts
+export type EmojiTab = EmojiCategory | 'recents';
+```
+
+### CategoryTabEntry
+
+A tab plus its representative glyph (🕘 for recents, a category icon otherwise).
+
+```ts
+export interface CategoryTabEntry {
+  tab: EmojiTab;
+  glyph: string;
+}
+```
+
+## Types — context and stores
+
+### EmojiContextValue
+
+Everything the picker surfaces share.
+
+```ts
+export interface EmojiContextValue {
+  data: EmojiData;
+  index: EmojiSearchIndex;
+  recents: RecentsStore;
+  skinTone: SkinToneStore;
+}
+```
+
+### EmojiContextOptions
+
+Options for `createEmojiContext`. `recentsCap` is the max recents kept and persisted (default 32).
+
+```ts
+export interface EmojiContextOptions {
+  recentsCap?: number;
+}
+```
+
+### RecentsStore
+
+Recently-used emoji store. `recents` is a most-recent-first reactive array (read it inside render / computed); `push` records a pick (moves or adds to front, LRU, capped). Persisted as base glyphs.
+
+```ts
+export interface RecentsStore {
+  recents: Signal<EmojiDatum[]>;
+  push(datum: EmojiDatum): void;
+}
+```
+
+### SkinToneStore
+
+Sticky skin-tone preference store (one tone for the whole picker). `state` is reactive — read `.tone` inside render / computed; `set()` applies grid-wide and persists immediately.
+
+```ts
+export interface SkinToneStore {
+  state: Signal<{ tone: SkinTone }>;
+  set(tone: SkinTone): void;
+}
+```
+
+### EmojiSearchIndex
+
+The built search index. `search()` returns ranked matches for a query (`[]` for a blank query); the default `limit` is 60.
+
+```ts
+export interface EmojiSearchIndex {
+  search(query: string, limit?: number): EmojiDatum[];
+}
+```
+
+## Types — dataset
+
+### EmojiData
+
+The compact per-locale dataset shape emitted by `gen-data.mjs`. `locale` is BCP-47; `categories` are in CLDR group order (components excluded); `emojis` are sorted by `o` with contiguous category runs; `skinTones` are localized labels indexed tone-1.
+
+```ts
+export interface EmojiData {
+  locale: string;
+  categories: EmojiCategory[];
+  emojis: EmojiDatum[];
+  skinTones: string[];
+}
+```
+
+### EmojiDatum
+
+One emoji. Single-letter keys keep ~1900 entries ~30% smaller minified.
+
+```ts
+export interface EmojiDatum {
+  e: string;        // native glyph (fully-qualified unicode sequence)
+  n: string;        // localized display name (CLDR annotation)
+  c: number;        // index into EmojiData.categories
+  o: number;        // CLDR sort order
+  k?: string[];     // search keywords (CLDR tags)
+  sc?: string[];    // shortcodes (emojibase set), without colons
+  s?: string[];     // uniform skin-tone variant glyphs, index tone-1; only when all five exist
+}
+```
+
+### EmojiCategory
+
+A dataset category: the stable emojibase group key plus its localized label.
+
+```ts
+export interface EmojiCategory {
+  key: string;
+  label: string;
+}
+```
+
+### SkinTone
+
+The skin-tone selector: `0` is the base glyph; `1..5` are light to dark (U+1F3FB–U+1F3FF).
+
+```ts
+export type SkinTone = 0 | 1 | 2 | 3 | 4 | 5;
+```
+
+## See also
+
+- [Usage](/lynx/modules/emoji/usage) — guides and complete examples.
+- [DaisyUI](/lynx/modules/daisyui/overview) — `emojiClasses` and `EmojiPickerSheet`, a ready-made skin.

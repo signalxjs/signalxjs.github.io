@@ -1,0 +1,97 @@
+---
+title: Commands
+description: "The sigx-types CLI — generate component type definitions for tag-named components"
+layout: docs
+category: Guides
+order: 50
+---
+
+# Commands
+
+`@sigx/vite` ships a `sigx-types` CLI that generates TypeScript definitions for
+components declared with a tag name, so JSX gets intellisense for those tags.
+
+> **Packaging note (v0.4.9).** The published package has no `bin` field and no
+> `./cli` entry in its exports map, so `npx sigx-types` does not resolve from an
+> installed copy of this version. The command is documented here for
+> completeness; see [Gaps](#known-gap) below before relying on it.
+
+## sigx-types
+
+Scans the project (the current working directory) for components declared with a
+tag name — `component('my-button', ...)`, including the typed form
+`component<...>('my-button', ...)` and `export default component('my-button', ...)`
+— and writes two files into the output directory:
+
+- `components.d.ts` — augments `@sigx/runtime-core`'s `CustomElementRegistry` so
+  JSX gets intellisense for tag names like `<my-button>`.
+- `components.ts` — nested global runtime objects (for example, `ui.button.primary`
+  from the tag `ui-button-primary`).
+
+Add the output directory to your tsconfig `include` so the editor picks it up.
+
+### Usage
+
+```bash
+npx sigx-types [options]
+```
+
+### Flags
+
+| Flag | Alias | Description |
+|---|---|---|
+| `--help` | `-h` | Show the help message and exit. |
+| `--watch` | `-w` | Re-generate on file changes instead of running once. |
+| `--out <dir>` | `-o` | Output directory. Default: `node_modules/.sigx`. |
+| `--include <globs>` | — | Comma-separated globs to scan. Default: `**/*.tsx,**/*.ts,**/*.jsx`. |
+| `--exclude <globs>` | — | Comma-separated globs to skip. Default: `node_modules/**,dist/**,**/*.d.ts`. |
+
+### Examples
+
+Generate once into the default output directory:
+
+```bash
+npx sigx-types
+```
+
+Watch for changes:
+
+```bash
+npx sigx-types --watch
+```
+
+Use a custom output directory:
+
+```bash
+npx sigx-types --out .sigx-types
+```
+
+Restrict the scan to specific globs:
+
+```bash
+npx sigx-types --include "src/**/*.tsx,components/**/*.tsx"
+```
+
+### Wiring the Output into TypeScript
+
+After generating, add the output to your tsconfig `include` so the editor uses
+the generated definitions:
+
+```json
+// tsconfig.json
+{
+    "include": ["src", "node_modules/.sigx/**/*.d.ts"]
+}
+```
+
+## Known Gap
+
+In v0.4.9 the `sigx-types` command is not exposed by the published package (no
+`bin` field, no `./cli` export). The source compiles to `dist/cli.{js,d.ts}` but
+is not reachable via `npx` from an installed copy. Confirm the package version
+exposes the command before depending on it in your workflow.
+
+## Next Steps
+
+- [Installation](/vite/docs/installation) — peer deps and TypeScript wiring
+- [API Reference](/vite/docs/api) — every export and option

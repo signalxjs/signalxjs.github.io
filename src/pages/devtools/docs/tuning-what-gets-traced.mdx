@@ -1,0 +1,139 @@
+---
+title: Tuning what gets traced
+description: "Control reactivity volume, observe stores and the router, and understand how @sigx/devtools serializes values"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Tuning what gets traced
+
+A busy app can update signals hundreds of times per frame. `@sigx/devtools` gives you a
+few knobs to keep the panel responsive and to choose exactly which event families flow
+over the wire.
+
+## Throttling reactive updates
+
+The plugin coalesces `reactive:updated` events per primitive id within a millisecond
+window. The default is `16` (~one frame), which collapses bursts of same-id updates into
+a single event. Raise it to cap traffic harder, or set `0` to disable coalescing and see
+every update:
+
+```tsx
+import { devtools } from '@sigx/devtools';
+
+// ~10 updates/sec per primitive at most
+app.use(devtools({ throttleMs: 100 }));
+
+// every update, no coalescing
+app.use(devtools({ throttleMs: 0 }));
+```
+
+Throttling only affects `reactive:updated` — create and dispose events are always sent.
+
+## Dropping reactivity entirely
+
+If you only care about the component tree, props, stores, and router, turn reactivity
+off. This keeps those timelines but drops all signal/computed/effect events:
+
+```tsx
+app.use(devtools({ includeReactivity: false }));
+```
+
+## Observing stores
+
+Pass each store you want to trace in the `stores` array. The observer subscribes to the
+store's action topics (dispatching, dispatched, failure) and its mutation topics, then
+emits `store:action` and `store:mutation` events.
+
+```tsx
+import { defineApp } from 'sigx';
+import { devtools } from '@sigx/devtools';
+import { App } from './App';
+import { cartStore } from './stores/cart';
+import { userStore } from './stores/user';
+
+defineApp(<App />)
+    .use(devtools({
+        stores: [cartStore, userStore],
+    }))
+    .mount('#app');
+```
+
+Each action dispatch is reported in three phases that share one `actionId`:
+`dispatching` then either `dispatched` (with the serialized `result` and `durationMs`)
+or `failed` (with a serialized `error`). Mutations carry the changed `key` and the new
+`value` serialized inline.
+
+Any `@sigx/store` result satisfies the duck-typed shape the observer expects, so you
+register the store instance directly — no adapter needed.
+
+## Observing the router
+
+Pass your router instance to stream navigations as `router:nav` events:
+
+```tsx
+import { defineApp } from 'sigx';
+import { devtools } from '@sigx/devtools';
+import { createRouter } from '@sigx/router';
+import { App } from './App';
+
+const router = createRouter({ routes: [/* ... */] });
+
+defineApp(<App />)
+    .use(router)
+    .use(devtools({ router }))
+    .mount('#app');
+```
+
+The observer wraps the router's reactive `currentRoute` in an effect. The route present
+at mount is skipped — only subsequent navigations fire. Each event carries `fromPath`,
+`toPath`, and serialized `params` and `query`.
+
+## How values are serialized
+
+The plugin never puts live reactive proxies or DOM nodes on the wire. Two mechanisms
+keep traffic safe and small:
+
+- **Value references.** Component props and other large values are sent as a numeric
+  `ValueRef`. The panel resolves the actual value on demand with a `get:value` request.
+  Object values are held via `WeakRef` so unmounted components can be garbage-collected;
+  primitives and functions are held strongly.
+- **Bounded serialization.** When a value is serialized it is unwrapped from any reactive
+  proxy first, cycles become `{ kind: 'circular' }`, functions become
+  `{ kind: 'function', name }`, and recursion is bounded to a depth of 4 — past which a
+  value becomes `{ kind: 'truncated', reason: 'depth' }`. Objects/arrays are capped at 100
+  entries, but extra entries past the cap are silently dropped with no `truncated` marker.
+  Only own enumerable string keys are included; symbol keys (framework internals) are skipped.
+
+Reactive current values are resolved with `get:reactive-value`, which serializes through
+`toRaw` so reading the value does not re-engage the proxy or create accidental
+subscriptions.
+
+You don't call the serializer yourself — it runs inside the plugin and observers — but
+knowing its bounds explains why a deeply nested object shows up `truncated` in the panel.
+
+## A combined configuration
+
+```tsx
+import { defineApp } from 'sigx';
+import { devtools } from '@sigx/devtools';
+import { createRouter } from '@sigx/router';
+import { App } from './App';
+import { cartStore } from './stores/cart';
+
+const router = createRouter({ routes: [/* ... */] });
+
+defineApp(<App />)
+    .use(router)
+    .use(devtools({
+        appName: 'shop',
+        stores: [cartStore],
+        router,
+        includeReactivity: true,
+        throttleMs: 32,
+    }))
+    .mount('#app');
+```
+
+See the [API Reference](/devtools/docs/api) for every option and event shape.

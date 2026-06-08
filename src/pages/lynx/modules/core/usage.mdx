@@ -8,16 +8,144 @@ order: 30
 
 # Using Native Bridge
 
-<p class="lede">Low-level NativeModules bridge — the essentials.</p>
+<p class="lede">The low-level plumbing every native-module package is built on — and the toolkit you reach for when you write your own.</p>
+
+Most app code never imports `@sigx/lynx-core` directly. You use the high-level packages — `@sigx/lynx-haptics`, `@sigx/lynx-camera`, `@sigx/lynx-file-system`, and the rest — which depend on this one for their iOS/Android plumbing. This guide is for the case where you are **authoring a new native module** and need to talk to a `NativeModules` entry yourself.
+
+The bridge relies on a global `NativeModules` object that the Lynx runtime injects. Each registered native module shows up as a property on it, and the helpers here read from that global.
 
 ## Basic usage
 
-```tsx
-import * as NativeBridge from '@sigx/lynx-core';
+A native-module wrapper guards that its module is linked, then calls a bridge method. Synchronous methods return their value directly; async methods (which take a result callback as their last native argument) come back as a Promise.
+
+```ts
+import { guardModule, callSync, callAsync, isModuleAvailable } from '@sigx/lynx-core';
+
+export function getDeviceName(): string {
+  guardModule('DeviceInfo');
+  return callSync<string>('DeviceInfo', 'getDeviceName');
+}
+
+export async function vibrate(): Promise<void> {
+  guardModule('Haptics');
+  return callAsync<void>('Haptics', 'vibrate');
+}
+
+// Feature-detect without throwing.
+const hasHaptics = isModuleAvailable('Haptics');
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-core */}
+## Wrapping a native module
 
-## Notes
+When you publish a `@sigx/lynx-<name>` package, the convention is to `guardModule` once at the entry points so callers get a clear error if the native side was never linked, then forward each call through `callSync` or `callAsync`.
 
-getModule, callSync, callAsync, guardModule — every native-module package depends on this.
+```ts
+import { guardModule, callAsync, callSync } from '@sigx/lynx-core';
+
+const MODULE = 'Clipboard';
+
+export async function setString(text: string): Promise<void> {
+  guardModule(MODULE);
+  return callAsync<void>(MODULE, 'setString', text);
+}
+
+export async function getString(): Promise<string> {
+  guardModule(MODULE);
+  return callAsync<string>(MODULE, 'getString');
+}
+
+export function hasString(): boolean {
+  guardModule(MODULE);
+  return callSync<boolean>(MODULE, 'hasString');
+}
+```
+
+Use `callSync` only for native methods that genuinely return synchronously. Use `callAsync` for methods whose last native argument is a single result callback — it wraps that callback in a Promise that resolves with the callback's value.
+
+Note the `callAsync` contract: it expects a node-style callback that receives **only a success value**, not `(err, res)`. There is no native-side error channel in this signature, so `callAsync` only rejects if the synchronous invocation itself throws. If your native method needs to report errors, return a result object the wrapper can inspect rather than relying on a rejected Promise.
+
+## Feature detection and guarding
+
+`guardModule` throws a multi-line, actionable error when a module is not linked — it names the package to install and points at `sigx prebuild`. Call it at the top of each public function so the failure is loud and early.
+
+When you would rather degrade gracefully than throw — for example, hiding a button on a device that lacks a sensor — use `isModuleAvailable`, which feature-detects without throwing.
+
+```ts
+import { isModuleAvailable, guardModule, callAsync } from '@sigx/lynx-core';
+
+export function biometricsSupported(): boolean {
+  return isModuleAvailable('Biometric');
+}
+
+export async function authenticate(reason: string): Promise<boolean> {
+  guardModule('Biometric');
+  return callAsync<boolean>('Biometric', 'authenticate', reason);
+}
+```
+
+If you need the proxy object itself — to inspect or call several methods on one module — `getModule` returns it directly (and throws the same descriptive error if it is missing).
+
+```ts
+import { getModule } from '@sigx/lynx-core';
+
+const storage = getModule('Storage');
+storage.setItem('token', 'abc');
+```
+
+## Permission-using modules
+
+Modules that touch protected APIs (camera, location, notifications, …) share a common permission shape. Type your wrapper's permission methods with `PermissionResponse` and `PermissionStatus` so callers can branch consistently across every module.
+
+```ts
+import { guardModule, callAsync } from '@sigx/lynx-core';
+import type { PermissionResponse, PermissionStatus } from '@sigx/lynx-core';
+
+export function getCameraPermission(): Promise<PermissionResponse> {
+  guardModule('Camera');
+  return callAsync<PermissionResponse>('Camera', 'getPermissionStatus');
+}
+
+export async function ensureCamera(): Promise<boolean> {
+  guardModule('Camera');
+  const current: PermissionStatus =
+    (await getCameraPermission()).status;
+  if (current === 'granted') return true;
+
+  const res = await callAsync<PermissionResponse>('Camera', 'requestPermission');
+  return res.status === 'granted';
+}
+```
+
+`canAskAgain` on the response tells you whether the OS will still show its dialog — it is `false` once the user picked "Don't ask again" on Android, or after the first denial on iOS (where they must go to Settings). Surface that state in your UI instead of re-prompting into a no-op.
+
+## Binary data over the bridge
+
+The JS-to-native bridge is JSON-shaped, so binary payloads travel as base64 strings. `arrayBufferToBase64` and `base64ToArrayBuffer` are the shared codecs — use them on both sides of any call that carries bytes.
+
+```ts
+import { arrayBufferToBase64, base64ToArrayBuffer, guardModule, callAsync } from '@sigx/lynx-core';
+
+export function writeFile(path: string, bytes: ArrayBuffer): Promise<void> {
+  guardModule('FileSystem');
+  const b64 = arrayBufferToBase64(bytes);
+  return callAsync<void>('FileSystem', 'writeFile', path, b64);
+}
+
+export async function readFile(path: string): Promise<ArrayBuffer> {
+  guardModule('FileSystem');
+  const b64 = await callAsync<string>('FileSystem', 'readFile', path);
+  return base64ToArrayBuffer(b64);
+}
+```
+
+`arrayBufferToBase64` accepts an `ArrayBuffer`, a `Uint8Array`, or any `ArrayBufferView`, and honors a view's `byteOffset`/`byteLength` — so you can encode a slice without copying the whole backing buffer. The encoder chunks internally to stay clear of call-stack limits on large (tens of kilobytes and up) payloads, and both codecs ship pure-JS fallbacks for hosts that lack `atob`/`btoa`.
+
+## Native setup
+
+You never add `@sigx/lynx-core` to your app's dependencies yourself. The CLI autolinker discovers it transitively whenever any native module is installed, copies its shared native helpers into the generated project, and wires up its lifecycle hook. Module authors should reuse the shared `SigxActivityHolder` (Android) and `SigxPresentation.topPresenter()` (iOS) helpers rather than re-implementing per-package Activity or top-presenter lookups.
+
+## See also
+
+- [Overview](/lynx/modules/core/overview) — what the package is and where it fits.
+- [Installation](/lynx/modules/core/installation) — project setup.
+- [API reference](/lynx/modules/core/api) — every export, typed.

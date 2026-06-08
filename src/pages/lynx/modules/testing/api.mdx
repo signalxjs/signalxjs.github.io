@@ -8,10 +8,294 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-testing` v0.4.1.</p>
+<p class="lede">Every export of `@sigx/lynx-testing` v0.4.1.</p>
 
-## Exports
+The package has three entry points: `@sigx/lynx-testing` (the main render / query / event API), `@sigx/lynx-testing/mt` (the main-thread worklet harness) and `@sigx/lynx-testing/mt/setup` (a side-effect bootstrap for Vitest `setupFiles`). Exports tagged below with a subpath live under `/mt`.
 
-{/* TODO: document the public API of @sigx/lynx-testing */}
+## Rendering
 
-See the package source for the complete typed surface.
+### render
+
+```ts
+export function render(
+  element: JSXElement,
+  options?: { appContext?: AppContext },
+): RenderResult
+```
+
+Mounts a sigx Lynx JSX element into an in-memory `TestNode` tree and returns query and teardown helpers. This is the background side only — there is no Lynx runtime or PAPI, and the worklet transform does not run. Pass an `appContext` via `options` to supply application context. Returns a [`RenderResult`](#renderresult). Available on iOS and Android.
+
+## Queries
+
+These standalone helpers operate on any `TestNode` container; the same set is also returned, container-bound, from [`render`](#render). The `get*` helpers throw when no node matches; the `query*` helpers return `null`.
+
+### getByType
+
+```ts
+export function getByType(container: TestNode, type: string): TestNode
+```
+
+Returns the first descendant matching an element type. Throws if none found.
+
+### getAllByType
+
+```ts
+export function getAllByType(container: TestNode, type: string): TestNode[]
+```
+
+Returns all descendants matching an element type. Returns an empty array if none match.
+
+### getByText
+
+```ts
+export function getByText(container: TestNode, text: string): TestNode
+```
+
+Returns the first descendant whose text content includes the given substring. Throws if none found.
+
+### queryByType
+
+```ts
+export function queryByType(container: TestNode, type: string): TestNode | null
+```
+
+Returns the first descendant matching an element type, or `null` if none found.
+
+### queryByText
+
+```ts
+export function queryByText(container: TestNode, text: string): TestNode | null
+```
+
+Returns the first descendant whose text content includes the given substring, or `null` if none found.
+
+### getByProp
+
+```ts
+export function getByProp(container: TestNode, key: string, value: unknown): TestNode
+```
+
+Returns the first node (including the container) whose `props[key]` strictly equals (`===`) `value`. Throws if none found.
+
+## Events
+
+### fireEvent
+
+```ts
+export const fireEvent: {
+  tap(node: TestNode, data?: { x?: number; y?: number }): void;
+  touchStart(node: TestNode, data?: SyntheticTouchEvent): void;
+  touchMove(node: TestNode, data?: SyntheticTouchEvent): void;
+  touchEnd(node: TestNode, data?: SyntheticTouchEvent): void;
+  touchCancel(node: TestNode, data?: SyntheticTouchEvent): void;
+  scroll(node: TestNode, data?: SyntheticScrollEvent): void;
+  input(node: TestNode, data?: SyntheticInputEvent): void;
+  longPress(node: TestNode): void;
+}
+```
+
+Dispatches synthetic events to a `TestNode`'s registered handlers. `tap`, `scroll`, `input` and `longPress` fire both the `bind*` element form (for example `bindtap`) and the camelCase `onX` component form, so either handler shape fires. `touchStart` / `touchMove` / `touchEnd` / `touchCancel` fire only the `bind*` form. Available on iOS and Android.
+
+See [Synthetic event shapes](#synthetic-event-shapes) for the `data` interfaces.
+
+### touch
+
+```ts
+export function touch(pageX: number, pageY: number, identifier = 1): SyntheticTouch
+```
+
+Builds a normalized synthetic touch object — `{ identifier, x, y, pageX, pageY, clientX, clientY }` — for passing into `fireEvent.touch*` via `touches` / `changedTouches`. Available on iOS and Android.
+
+## Flushing
+
+### act
+
+```ts
+export async function act(fn: () => void | Promise<void>): Promise<void>
+```
+
+Runs a callback (for example signal mutations or a `fireEvent` call) then awaits [`waitForUpdate`](#waitforupdate), so the rendered tree commits before you assert. Available on iOS and Android.
+
+### waitForUpdate
+
+```ts
+export function waitForUpdate(): Promise<void>
+```
+
+A bare reactive flush: awaits a microtask then a `setTimeout(0)` so pending reactive effects and scheduled renderer commits complete before assertions. Available on iOS and Android.
+
+## Types
+
+### RenderResult
+
+```ts
+export interface RenderResult {
+  container: TestNode;
+  unmount: () => void;
+  getByType: (type: string) => TestNode;
+  getAllByType: (type: string) => TestNode[];
+  getByText: (text: string) => TestNode;
+  queryByType: (type: string) => TestNode | null;
+  queryByText: (text: string) => TestNode | null;
+  getByProp: (key: string, value: unknown) => TestNode;
+  debug: () => string;
+}
+```
+
+The return value of [`render`](#render): the `container` root node, container-scoped query helpers, an `unmount` teardown function and a `debug` pretty-printer that returns the tree as a string.
+
+### TestNode
+
+```ts
+export class TestNode {
+  type: string;
+  props: Record<string, unknown>;
+  children: TestNode[];
+  parent: TestNode | null;
+  text?: string;
+  _handlers: Map<string, Function>;
+  _style: Record<string, unknown>;
+  _class: string;
+  constructor(type: string);
+  findByType(type: string): TestNode | null;
+  findAllByType(type: string): TestNode[];
+  findByText(text: string): TestNode | null;
+  textContent(): string;
+  toDebugString(indent?: number): string;
+}
+```
+
+A lightweight in-memory tree node that replaces `ShadowElement` plus the Lynx PAPI. It holds the element `type`, `props`, `children`, optional `text`, registered event handlers (`_handlers`), resolved `_style` and `_class`, plus tree-query methods (`findByType`, `findAllByType`, `findByText`), a `textContent()` accessor and a `toDebugString()` pretty-printer.
+
+### Synthetic event shapes
+
+The `data` arguments accepted by [`fireEvent`](#fireevent). These interfaces are not exported; they are documented here for reference.
+
+```ts
+interface SyntheticTouch {
+  identifier?: number;
+  x?: number;
+  y?: number;
+  pageX?: number;
+  pageY?: number;
+  clientX?: number;
+  clientY?: number;
+}
+
+interface SyntheticTouchEvent {
+  touches?: SyntheticTouch[];
+  changedTouches?: SyntheticTouch[];
+}
+
+interface SyntheticScrollEvent {
+  detail?: {
+    scrollTop?: number;
+    scrollLeft?: number;
+    scrollHeight?: number;
+    scrollWidth?: number;
+    deltaX?: number;
+    deltaY?: number;
+  };
+}
+
+interface SyntheticInputEvent {
+  detail?: { value?: string };
+}
+```
+
+`SyntheticTouch` is the shape returned by [`touch`](#touch) and accepted in `touches` / `changedTouches` arrays. `SyntheticTouchEvent` is the `data` arg for the `touch*` events, `SyntheticScrollEvent` for `scroll` and `SyntheticInputEvent` for `input`.
+
+## Main-thread worklet harness
+
+The following exports live under the `@sigx/lynx-testing/mt` subpath. They compile and run main-thread worklets against a mocked gesture arena. Peer dependencies (`@lynx-js/react`, `@sigx/lynx-runtime-main`, `vitest`) must be installed, and [`@sigx/lynx-testing/mt/setup`](#mtsetup-side-effect-bootstrap) must run via Vitest `setupFiles` first — the compile and map functions throw if it did not.
+
+### compileMTWorklets
+
+```ts
+export function compileMTWorklets(opts: {
+  filename: string;
+  source: string;
+  runtimePkg?: string;
+}): Function[]
+```
+
+`@sigx/lynx-testing/mt` — Compiles a `.tsx` source through the SWC LEPUS transform, evals the emitted `registerWorkletInternal(...)` calls into the live worklet runtime and returns the registered worklets **in source order**. For example, `Gesture.Pan().onBegin().onStart().onUpdate().onEnd()` maps to `[0]=onBegin, [1]=onStart, [2]=onUpdate, [3]=onEnd`. Call each worklet with `.call(ctx, event)`, where `ctx` supplies the `_c` capture. `runtimePkg` defaults to `'@sigx/lynx-runtime-main'`. Available on iOS and Android.
+
+### extractRegistrations
+
+```ts
+export function extractRegistrations(lepusCode: string): string
+```
+
+`@sigx/lynx-testing/mt` — Extracts the `registerWorkletInternal(...)` call source from a LEPUS-target transform output via bracket-depth counting. Called internally by [`compileMTWorklets`](#compilemtworklets) but exported for custom compile flows. Available on iOS and Android.
+
+### getWorkletMap
+
+```ts
+export function getWorkletMap(): Record<string, Function>
+```
+
+`@sigx/lynx-testing/mt` — Returns the live `lynxWorkletImpl._workletMap` (`_wkltId` to callable) populated by the upstream worklet runtime. Throws if `mt/setup` did not run. Available on iOS and Android.
+
+### makeRef
+
+```ts
+export function makeRef<T>(current: T, id = 1): { current: T; _wvid: number }
+```
+
+`@sigx/lynx-testing/mt` — Fabricates a synthetic `MainThreadRef` shape (`{ current, _wvid }`) that worklets read via `ref.current.value` and may mutate. Available on iOS and Android.
+
+### fabricatePanEvent
+
+```ts
+export function fabricatePanEvent(opts: { pageX: number; pageY?: number }): MTGestureEvent
+```
+
+`@sigx/lynx-testing/mt` — Fabricates a Lynx pan-gesture event payload matching the iOS arena shape: touch data is nested under `e.params` / `e.detail`, not top-level. Verified against the iOS Lynx 3.5 gesture handlers. iOS only.
+
+### fabricateTapEvent
+
+```ts
+export function fabricateTapEvent(opts: { pageX?: number; pageY?: number } = {}): MTGestureEvent
+```
+
+`@sigx/lynx-testing/mt` — Fabricates a Lynx tap-gesture event payload (the same `params` / `detail`-nested shape as the pan event, minus the scroll fields). iOS only.
+
+### getJsContext
+
+```ts
+export function getJsContext(): { addEventListener: Function; dispatchEvent: Function }
+```
+
+`@sigx/lynx-testing/mt` — Returns the JS-context spy installed by `mt/setup` on the lynx mock. Use it to assert `runOnBackground` / `Lynx.Sigx.AvPublish` `dispatchEvent` calls made from within a worklet. Available on iOS and Android.
+
+### resetJsContextSpy
+
+```ts
+export function resetJsContextSpy(): void
+```
+
+`@sigx/lynx-testing/mt` — Replaces the JS-context spy with fresh `vi.fn()` instances between tests, so `dispatchEvent` / `addEventListener` call counts do not bleed across cases. Available on iOS and Android.
+
+### MTGestureEvent
+
+```ts
+export interface MTGestureEvent {
+  type: string;
+  timestamp: number;
+  currentTarget: { element: null };
+  target: { element: null };
+  params: Record<string, unknown>;
+  detail: Record<string, unknown>;
+}
+```
+
+`@sigx/lynx-testing/mt` — The shape of the events the iOS gesture arena delivers to main-thread worklets. The top-level keys are dispatch metadata; the actual touch data lives under `params` (duplicated in `detail`). Returned by [`fabricatePanEvent`](#fabricatepanevent) and [`fabricateTapEvent`](#fabricatetapevent).
+
+### mt/setup (side-effect bootstrap)
+
+```ts
+import '@sigx/lynx-testing/mt/setup';
+```
+
+`@sigx/lynx-testing/mt/setup` — A side-effect-only module listed in Vitest `setupFiles`. It stubs the PAPI globals plus `globalThis.lynx` and `globalThis.SystemInfo`, then imports `@sigx/lynx-runtime-main`, `@lynx-js/react/worklet-runtime` and `@sigx/lynx-runtime-main/install-hybrid-worklet` to boot the worklet runtime. The ordering is load-bearing and the mocks install once per worker. Available on iOS and Android.

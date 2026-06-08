@@ -1,0 +1,785 @@
+---
+title: "API reference"
+description: "Markdown — Streaming markdown renderer"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-markdown` v0.4.9.</p>
+
+The package has two entry points. The root (`@sigx/lynx-markdown`, the `"."` export) carries the renderer, parser, streaming bridge, and plugins, with no runtime peer imports. The `@sigx/lynx-markdown/editor` subpath adds the WYSIWYG editor and the markdown ⇄ RichDoc converters; importing it turns the optional peers (`@sigx/lynx-keyboard`, `@sigx/lynx-richtext`) into real requirements. The renderer is pure JS and renders identically on iOS, Android, and Harmony — there is no native module.
+
+Unless noted, every export below is from the root entry and available on all platforms.
+
+## Components
+
+### MarkdownView
+
+SignalX-native, streaming-aware markdown renderer. Parses markdown in JS and renders to Lynx primitives. The `value` is reactive; finalized blocks keep stable keys and are never re-parsed or remounted, so streaming output does not flicker. Design-system agnostic via `components`.
+
+```ts
+export const MarkdownView: (props: MarkdownViewProps) => JSXElement;
+```
+
+**Props** — see [`MarkdownViewProps`](#markdownviewprops). All optional: `value`, `onLink`, `onImageTap`, `components`, `extensions`.
+
+**Notes** — supports CommonMark + GFM. Unsupported constructs (raw HTML, reference-style links, setext headings, syntax highlighting) render as literal text. Link hrefs are sanitized — only `http(s):`, `mailto:`, `tel:`, and scheme-less links reach `onLink`. The `extensions` array must be a stable reference; changing its identity recreates the engine and re-parses from scratch.
+
+### MarkdownEditor
+
+True-WYSIWYG markdown editing on the native `<sigx-richtext>` element. Lightly controlled: markdown in via `value`, `onChange(markdown)` out. An incoming value equal to the last emitted markdown is treated as an echo and ignored. From the `@sigx/lynx-markdown/editor` subpath.
+
+```ts
+export const MarkdownEditor: component<MarkdownEditorProps>;
+```
+
+**Props** — `MarkdownEditorProps`, including `value`, `placeholder`, `minLines`, `maxLines`, and `mode` (`MarkdownEditorMode`). A controller is exposed via `controllerRef`.
+
+**Platform notes** — statically imports `@sigx/lynx-richtext`; the suggestion popup imports `@sigx/lynx-keyboard`'s `useKeyboard`, which needs a `<SafeAreaProvider>` ancestor while the fullscreen overlay is open. Toolbar, popup, and the fullscreen close affordance carry `ignore-focus`. Fullscreen restyles the same element in place — it is never re-parented.
+
+## Functions
+
+### createMarkdownStream
+
+One-line bridge from an AI token loop to `MarkdownView`. Owns a reactive `value` signal and coalesces `append()` bursts into bounded re-renders.
+
+```ts
+export function createMarkdownStream(opts?: CreateMarkdownStreamOptions): MarkdownStream;
+```
+
+**Parameters** — `opts` (optional), see [`CreateMarkdownStreamOptions`](#createmarkdownstreamoptions).
+
+**Returns** — a [`MarkdownStream`](#markdownstream). Pass `stream.value.value` to `MarkdownView`.
+
+### createMentionPlugin
+
+Reference plugin: `@[label](id)` mentions rendered as native chips. Wires parser syntax, document mapping (a mention span over a single `U+FFFC`), serialization, and trigger suggestions (default trigger `@`).
+
+```ts
+export function createMentionPlugin(options: MentionPluginOptions): MarkdownEditorPlugin;
+```
+
+**Parameters** — `options`, see [`MentionPluginOptions`](#mentionpluginoptions).
+
+**Returns** — a `MarkdownEditorPlugin` (the plugin type from the editor subpath).
+
+**Notes** — v1 rule: `]`, `)`, CR, and LF are stripped from `label` and `id` for idempotent round-trips. To render mention previews in `MarkdownView`, pass [`mentionSyntax`](#mentionsyntax) via `extensions` and map the plugin's preview component through `components.extension.mention`.
+
+### createIncrementalEngine
+
+Advanced / testing: build the incremental streaming parse engine directly. Reuses finalized blocks by reference across append-only parses; only the trailing block region is re-parsed.
+
+```ts
+export function createIncrementalEngine(options?: IncrementalEngineOptions): IncrementalEngine;
+```
+
+**Parameters** — `options` (optional), see [`IncrementalEngineOptions`](#incrementalengineoptions). Extensions are captured at construction (config, not data).
+
+**Returns** — an [`IncrementalEngine`](#incrementalengine).
+
+### parseBlocks
+
+Block-level parser: parse a complete or partial source string into `BlockNode[]`. Unterminated fences parse as a code block with `closed: false`. Never throws.
+
+```ts
+export declare function parseBlocks(
+  src: string,
+  keys?: KeyGen,
+  extensions?: readonly ParserInlineExtension[],
+): BlockNode[];
+```
+
+**Parameters**
+
+- `src` — the markdown source (complete or partial).
+- `keys` — optional key generator. `KeyGen` and `makeKeyGen` are internal and not re-exported from the entry.
+- `extensions` — optional stable array of inline extensions.
+
+**Returns** — a `BlockNode[]`.
+
+### parseInline
+
+Inline tokenizer: turn a markdown text run into a nested `InlineNode[]`. Precedence is backslash escapes, plugin extensions (trigger-char gated), code spans, images, links, autolinks, emphasis, hard breaks, then text. An unmatched tail degrades to literal text; never throws.
+
+```ts
+export declare function parseInline(
+  input: string,
+  extensions?: readonly ParserInlineExtension[],
+): InlineNode[];
+```
+
+**Parameters**
+
+- `input` — a single markdown text run.
+- `extensions` — optional stable array of inline extensions.
+
+**Returns** — an `InlineNode[]`. (`stripFormatting` from the same module is not re-exported from the entry.)
+
+### mdToDoc
+
+Convert markdown to a `@sigx/lynx-richtext` `RichDoc`. From the `@sigx/lynx-markdown/editor` subpath. Content the flat model can't hold (nested/loose/multi-paragraph lists, quotes with non-paragraphs, tables, thematic breaks, images) is preserved as `raw` blocks.
+
+```ts
+export function mdToDoc(markdown: string): RichDoc;
+```
+
+### docToMd
+
+Convert a `@sigx/lynx-richtext` `RichDoc` back to markdown. From the `@sigx/lynx-markdown/editor` subpath. `mdToDoc(docToMd(doc))` is structurally equal to a normalized doc — emphasis markers, hard breaks, and blank lines normalize, and italic serializes as `_`.
+
+```ts
+export function docToMd(doc: RichDoc): string;
+```
+
+## Constants
+
+### defaultComponents
+
+Neutral, theme-agnostic default render-function map (plain inline styles, theme-agnostic colors). `MarkdownView` merges your partial `components` over this. Bullets and checkboxes are drawn as `<view>` shapes, not glyphs; `br` renders as `\n`.
+
+```ts
+export const defaultComponents: MarkdownComponents;
+```
+
+### mentionSyntax
+
+The standalone parser extension for `@[label](id)` (`name: 'mention'`, `triggerChars: ['@']`). Exported so `MarkdownView` can render mention previews via `extensions={[mentionSyntax]}`. Streaming-safe: a partial `@[lab` stays literal.
+
+```ts
+export const mentionSyntax: ParserInlineExtension;
+```
+
+## Props types
+
+### MarkdownViewProps
+
+Props for [`MarkdownView`](#markdownview). All optional. `extensions` must be a stable array — changing its identity resets incremental parse state.
+
+```ts
+export type MarkdownViewProps =
+  & Define.Prop<'value', string, false>
+  & Define.Prop<'onLink', (href: string) => void, false>
+  & Define.Prop<'onImageTap', (src: string) => void, false>
+  & Define.Prop<'components', Partial<MarkdownComponents>, false>
+  & Define.Prop<'extensions', readonly ParserInlineExtension[], false>;
+```
+
+**Fields**
+
+- `value` — the markdown source. Reactive and incremental.
+- `onLink` — called with a sanitized href when a link is tapped.
+- `onImageTap` — called with the image `src` when an image is tapped.
+- `components` — a partial [`MarkdownComponents`](#markdowncomponents) map merged over `defaultComponents`.
+- `extensions` — a stable readonly array of [`ParserInlineExtension`](#parserinlineextension).
+
+### MarkdownEditorProps
+
+Props for [`MarkdownEditor`](#markdowneditor). From the `@sigx/lynx-markdown/editor` subpath.
+
+```ts
+export type MarkdownEditorProps =
+  & Define.Prop<'value', string, false>
+  & Define.Prop<'placeholder', string, false>
+  & Define.Prop<'minLines', number, false>
+  & Define.Prop<'maxLines', number, false>
+  & Define.Prop<'mode', MarkdownEditorMode, false>
+  // …additional props (onChange, controllerRef, toolbar, plugins) — see gaps.
+```
+
+**Fields (documented subset)**
+
+- `value` — initial markdown (lightly-controlled; echoes of the last emitted value are ignored).
+- `placeholder` — placeholder text shown when empty.
+- `minLines` / `maxLines` — line bounds for the native field.
+- `mode` — a `MarkdownEditorMode`.
+
+The full prop list (including `onChange`, `controllerRef`, toolbar, and plugin props) was truncated in the source inventory; see gaps.
+
+## Editor subpath
+
+All exports in this section live on the `@sigx/lynx-markdown/editor` subpath. Importing the subpath turns the optional peers (`@sigx/lynx-keyboard`, `@sigx/lynx-richtext`) into real requirements.
+
+```ts
+import {
+  MarkdownEditor,
+  EditorToolbar,
+  defaultToolbarItems,
+  SuggestionPopup,
+  createTriggerSessionManager,
+} from '@sigx/lynx-markdown/editor';
+import type { MarkdownEditorController } from '@sigx/lynx-markdown/editor';
+```
+
+### EditorToolbar
+
+The neutral, theme-agnostic formatting toolbar for [`MarkdownEditor`](#markdowneditor). Mirrors the renderer's override pattern: the items are data ([`ToolbarItem`](#toolbaritem)) and each item's rendering is replaceable via `renderItem`. Ships with `ignore-focus` on its root so toolbar taps never blur the editor. Use built in (`<MarkdownEditor toolbar />`) or standalone, passing `controller` + `selection` yourself.
+
+```ts
+export const EditorToolbar: component<EditorToolbarProps>;
+
+export type EditorToolbarProps =
+  & Define.Prop<'controller', MarkdownEditorController | null, false>
+  & Define.Prop<'selection', SelectionState | null, false>
+  & Define.Prop<'items', ToolbarItem[], false>
+  & Define.Prop<'renderItem', ToolbarRenderItem, false>
+  & Define.Prop<'class', string, false>;
+
+export type ToolbarRenderItem = (
+  item: ToolbarItem,
+  active: boolean,
+  run: () => void,
+) => JSXElement;
+```
+
+**Props** — `controller` (the editor's [`MarkdownEditorController`](#markdowneditorcontroller)), `selection` (current `SelectionState` from `@sigx/lynx-richtext`, drives active state), `items` (defaults to [`defaultToolbarItems`](#defaulttoolbaritems)), `renderItem` (per-item render override), and `class`.
+
+### defaultToolbarItems
+
+The default toolbar item set (bold, italic, strike, code, link, headings, lists, quote) wired to the controller. Pass a custom `items` array to `EditorToolbar` to override.
+
+```ts
+export const defaultToolbarItems: ToolbarItem[];
+```
+
+### ToolbarItem
+
+A single toolbar command — data, not chrome. `label` is the neutral short text (`B`, `H1`, …; falls back to `id`); `icon` is an optional hint for design-system skins; `group` keeps related items adjacent.
+
+```ts
+export interface ToolbarItem {
+  id: string;
+  label?: string;
+  icon?: string;
+  group?: string;
+  isActive?(ctx: ToolbarContext): boolean;
+  run(ctx: ToolbarContext): void;
+}
+
+export interface ToolbarContext {
+  controller: MarkdownEditorController;
+}
+```
+
+### SuggestionPopup
+
+The neutral suggestion popup for trigger sessions (e.g. `@`-mentions). Positions itself from a caret rect and the relative container's page frame; rows are replaceable via `renderItem`. Imports `@sigx/lynx-keyboard`'s `useKeyboard`, so it needs a `<SafeAreaProvider>` ancestor.
+
+```ts
+export const SuggestionPopup: component<SuggestionPopupProps>;
+
+export type SuggestionRenderItem = (item: TriggerItem, active: boolean) => JSXElement;
+```
+
+**Props** — `items` ([`TriggerItem`](#)[] for the active session), `caretRect`, `containerFrame`, `renderItem`, `onSelect`, `activeIndex` (highlighted row; `-1`/omitted = none), `maxHeight`, `width`, and `class`.
+
+### createTriggerSessionManager
+
+Builds the trigger-session state machine behind [`SuggestionPopup`](#suggestionpopup). The editor element exposes no keystrokes, so a session is derived purely from the document text (`bindchange`) and the collapsed caret offset (`bindselection`). Whitespace, caret exits, blur, and selection all close the session for free.
+
+```ts
+export function createTriggerSessionManager(
+  opts: TriggerSessionManagerOptions,
+): TriggerSessionManager;
+
+export interface TriggerSessionManager {
+  syncText(text: string): void;
+  syncCaret(caret: number): void;
+  close(): void;
+  readonly session: TriggerSession | null;
+}
+```
+
+**Parameters** — `opts.triggers` (per-plugin `TriggerSpec`s) and `opts.onUpdate(session)` (fired when the session opens, updates, or closes).
+
+### MarkdownEditorController
+
+The imperative handle exposed via [`MarkdownEditor`](#markdowneditor)'s `controllerRef`. Toolbar items and trigger plugins drive the editor through it.
+
+```ts
+export interface MarkdownEditorController {
+  toggleBold(): void;
+  toggleItalic(): void;
+  toggleStrike(): void;
+  toggleCode(): void;
+  setHeading(level: 0 | 1 | 2 | 3 | 4 | 5 | 6): void;
+  setList(kind: 'bullet' | 'ordered' | 'task' | 'none'): void;
+  toggleQuote(): void;
+  insertLink(href: string, text?: string): void;
+  insertText(text: string): void;
+  replaceRange(start: number, end: number, text: string): void;
+  insertChip(chip: { id: string; label: string; kind?: string }, replace?: { from: number; to: number }): void;
+  clear(): void;
+  openFullscreen(): void;
+  closeFullscreen(): void;
+  isFullscreen(): boolean;
+}
+```
+
+**Members** — inline toggles (`toggleBold` / `toggleItalic` / `toggleStrike` / `toggleCode`); block ops (`setHeading`, `setList`, `toggleQuote`); insertion (`insertLink`, `insertText`, `replaceRange`, `insertChip`); `clear`; and fullscreen control (`openFullscreen` / `closeFullscreen` / `isFullscreen`, which restyle the same mounted element in place — never re-parented).
+
+Other editor-subpath exports documented elsewhere on this page: [`MarkdownEditor`](#markdowneditor), [`mdToDoc`](#mdtodoc), [`docToMd`](#doctomd), and [`createMentionPlugin`](#creatementionplugin). The subpath also re-exports the plugin contract types (`MarkdownEditorPlugin`, `InlinePluginSpec`, `TriggerSpec`, `TriggerItem`, `TriggerSelectApi`), the converter option types (`MdToDocOptions`, `ExtensionSpanMapper`, `DocToMdOptions`, `SpanSerializer`), and `SelectionState` (from `@sigx/lynx-richtext`).
+
+## Streaming types
+
+### MarkdownStream
+
+Streaming controller returned by [`createMarkdownStream`](#createmarkdownstream).
+
+```ts
+export interface MarkdownStream {
+  readonly value: PrimitiveSignal<string>;
+  readonly finished: PrimitiveSignal<boolean>;
+  append(chunk: string): void;
+  done(): void;
+  reset(): void;
+}
+```
+
+**Members**
+
+- `value` — reactive accumulated source. Pass `stream.value.value` to `MarkdownView`.
+- `finished` — set by `done()`.
+- `append(chunk)` — buffers and coalesces an appended chunk.
+- `done()` — marks the stream finished.
+- `reset()` — clears state for a regenerate.
+
+### CreateMarkdownStreamOptions
+
+Options for [`createMarkdownStream`](#createmarkdownstream).
+
+```ts
+export interface CreateMarkdownStreamOptions {
+  flushIntervalMs?: number;
+}
+```
+
+**Fields** — `flushIntervalMs` coalesces appends within the window into one `value` update. `0` (default) flushes synchronously per append; `16` caps roughly 60fps under a fast stream.
+
+## Parser / engine types
+
+### ParserInlineExtension
+
+Plugin inline-extension contract.
+
+```ts
+export interface ParserInlineExtension {
+  name: string;
+  triggerChars: readonly string[];
+  match(text: string, pos: number): { node: InlineExtension; end: number } | null;
+}
+```
+
+**Fields**
+
+- `name` — the render dispatch key (matches a key in `components.extension`).
+- `triggerChars` — a non-empty fast-path gate; `match` is only called when the current char is in the set.
+- `match` — must be pure and streaming-safe (return `null` on a partial tail) and build `node.raw = text.slice(pos, end)`. The tokenizer hardens against throwing, non-advancing, or overrunning matches (treated as no match).
+
+### IncrementalEngine
+
+The incremental parse engine built by [`createIncrementalEngine`](#createincrementalengine).
+
+```ts
+export interface IncrementalEngine {
+  parse(src: string): BlockNode[];
+  reset(): void;
+}
+```
+
+**Members**
+
+- `parse(src)` — reuses finalized blocks where possible.
+- `reset()` — drops cached state (use when the source is replaced, not appended).
+
+### IncrementalEngineOptions
+
+Options for [`createIncrementalEngine`](#createincrementalengine).
+
+```ts
+export interface IncrementalEngineOptions {
+  extensions?: readonly ParserInlineExtension[];
+}
+```
+
+**Fields** — `extensions` are threaded into every parse and snapshotted at construction; each `match` must be pure or finalized-block reuse breaks.
+
+## Mention plugin types
+
+### MentionPluginOptions
+
+Options for [`createMentionPlugin`](#creatementionplugin).
+
+```ts
+export interface MentionPluginOptions {
+  search(query: string): MentionCandidate[] | Promise<MentionCandidate[]>;
+  renderItem?(item: TriggerItem, active: boolean): JSXElement;
+  component?: (props: ExtensionProps) => MarkdownChild;
+  trigger?: string;
+  debounce?: number;
+}
+```
+
+**Fields**
+
+- `search` — resolves candidates, sync or async.
+- `renderItem` — optional custom suggestion-row renderer.
+- `component` — the preview-pill renderer, exposed as `plugin.inline.component`.
+- `trigger` — the trigger character; defaults to `@`.
+- `debounce` — search debounce in milliseconds.
+
+### MentionCandidate
+
+A mention search result.
+
+```ts
+export interface MentionCandidate {
+  id: string;
+  label: string;
+  kind?: string;
+}
+```
+
+## Component-map types
+
+### MarkdownComponents
+
+Map of node type to render function. Pass a partial map to `components`; unspecified types fall back to `defaultComponents`. Block renderers return `JSXElement`; inline renderers return `MarkdownChild`. `extension` keys are plugin extension names; an unmatched extension node falls back to its `raw` source as plain text.
+
+```ts
+export interface MarkdownComponents {
+  root(props: RootProps): JSXElement;
+  heading(props: HeadingProps): JSXElement;
+  paragraph(props: ParagraphProps): JSXElement;
+  blockquote(props: BlockquoteProps): JSXElement;
+  list(props: ListProps): JSXElement;
+  listItem(props: ListItemProps): JSXElement;
+  code(props: CodeProps): JSXElement;
+  thematicBreak(props: ThematicBreakProps): JSXElement;
+  table(props: TableProps): JSXElement;
+  tableRow(props: TableRowProps): JSXElement;
+  tableCell(props: TableCellProps): JSXElement;
+  strong(props: StrongProps): MarkdownChild;
+  em(props: EmProps): MarkdownChild;
+  del(props: DelProps): MarkdownChild;
+  codeSpan(props: CodeSpanProps): MarkdownChild;
+  link(props: LinkProps): MarkdownChild;
+  autolink(props: AutolinkProps): MarkdownChild;
+  image(props: ImageProps): MarkdownChild;
+  br(): MarkdownChild;
+  extension?: Record<string, (props: ExtensionProps) => MarkdownChild>;
+}
+```
+
+### MarkdownChild
+
+A renderable child: a JSX element or a raw string (for text and `<br>`).
+
+```ts
+export type MarkdownChild = JSXElement | string;
+```
+
+### RootProps
+
+Props for the root container renderer.
+
+```ts
+export interface RootProps {
+  children: MarkdownChild[];
+}
+```
+
+### HeadingProps
+
+Props for the heading renderer; `level` is 1–6.
+
+```ts
+export interface HeadingProps {
+  level: HeadingLevel;
+  children: MarkdownChild[];
+  node: HeadingBlock;
+}
+```
+
+### ParagraphProps
+
+Props for the paragraph renderer.
+
+```ts
+export interface ParagraphProps {
+  children: MarkdownChild[];
+  node: ParagraphBlock;
+}
+```
+
+### BlockquoteProps
+
+Props for the blockquote renderer.
+
+```ts
+export interface BlockquoteProps {
+  children: MarkdownChild[];
+  node: BlockquoteBlock;
+}
+```
+
+### ListProps
+
+Props for the list renderer.
+
+```ts
+export interface ListProps {
+  ordered: boolean;
+  start: number;
+  tight: boolean;
+  children: MarkdownChild[];
+  node: ListBlock;
+}
+```
+
+### ListItemProps
+
+Props for the list-item renderer. `index` is zero-based; `number` is the display number (`start + index`); `checked` is the GFM task state, or `null` when the item is not a task.
+
+```ts
+export interface ListItemProps {
+  ordered: boolean;
+  index: number;
+  number: number;
+  checked: boolean | null;
+  children: MarkdownChild[];
+  item: ListItem;
+}
+```
+
+### CodeProps
+
+Props for the fenced-code renderer. `closed` is `false` while the fence is still streaming or unterminated.
+
+```ts
+export interface CodeProps {
+  lang?: string;
+  value: string;
+  closed: boolean;
+  node: CodeBlock;
+}
+```
+
+### ThematicBreakProps
+
+Props for the thematic-break (hr) renderer.
+
+```ts
+export interface ThematicBreakProps {
+  node: ThematicBreakBlock;
+}
+```
+
+### TableProps
+
+Props for the table renderer; `align` is per-column (`null` = default left).
+
+```ts
+export interface TableProps {
+  align: (TableAlign | null)[];
+  children: MarkdownChild[];
+  node: TableBlock;
+}
+```
+
+### TableRowProps
+
+Props for the table-row renderer; `header` marks the header row.
+
+```ts
+export interface TableRowProps {
+  header: boolean;
+  children: MarkdownChild[];
+  node: TableBlock;
+}
+```
+
+### TableCellProps
+
+Props for the table-cell renderer; `align` is this column's alignment.
+
+```ts
+export interface TableCellProps {
+  header: boolean;
+  align: TableAlign | null;
+  children: MarkdownChild[];
+  node: TableBlock;
+}
+```
+
+### StrongProps
+
+Props for the strong (bold) inline renderer.
+
+```ts
+export interface StrongProps {
+  children: MarkdownChild[];
+  node: InlineStrong;
+}
+```
+
+### EmProps
+
+Props for the em (italic) inline renderer.
+
+```ts
+export interface EmProps {
+  children: MarkdownChild[];
+  node: InlineEm;
+}
+```
+
+### DelProps
+
+Props for the del (strikethrough) inline renderer.
+
+```ts
+export interface DelProps {
+  children: MarkdownChild[];
+  node: InlineDel;
+}
+```
+
+### CodeSpanProps
+
+Props for the inline code-span renderer; `value` is literal.
+
+```ts
+export interface CodeSpanProps {
+  value: string;
+  node: InlineCodeSpan;
+}
+```
+
+### LinkProps
+
+Props for the link renderer; `href` is sanitized; `onLink` is forwarded from `MarkdownView`.
+
+```ts
+export interface LinkProps {
+  href: string;
+  title?: string;
+  children: MarkdownChild[];
+  onLink?: (href: string) => void;
+  node: InlineLink;
+}
+```
+
+### AutolinkProps
+
+Props for the autolink renderer (angle and bare URLs); `value` is the displayed text.
+
+```ts
+export interface AutolinkProps {
+  href: string;
+  value: string;
+  onLink?: (href: string) => void;
+  node: InlineAutolink;
+}
+```
+
+### ImageProps
+
+Props for the image renderer. The default renderer shows the alt-or-`src` as a tappable link, not a real `<image>`.
+
+```ts
+export interface ImageProps {
+  src: string;
+  alt: string;
+  title?: string;
+  onImageTap?: (src: string) => void;
+  node: InlineImage;
+}
+```
+
+### ExtensionProps
+
+Props for a plugin inline-extension renderer (`components.extension[name]`). `children` is the rendered node's children (`[]` for a leaf extension).
+
+```ts
+export interface ExtensionProps {
+  name: string;
+  attrs: Record<string, string>;
+  children: MarkdownChild[];
+  node: InlineExtension;
+}
+```
+
+## AST types
+
+The AST is exported from the root entry via `export type * from './ast.js'`.
+
+### InlineNode
+
+```ts
+export type InlineNode =
+  | InlineText
+  | InlineStrong
+  | InlineEm
+  | InlineDel
+  | InlineCodeSpan
+  | InlineLink
+  | InlineImage
+  | InlineAutolink
+  | InlineBreak
+  | InlineExtension;
+```
+
+**Members**
+
+- `InlineText` — `{ type: 'text'; value: string }`
+- `InlineStrong` — `{ type: 'strong'; children: InlineNode[] }`
+- `InlineEm` — `{ type: 'em'; children: InlineNode[] }`
+- `InlineDel` — `{ type: 'del'; children: InlineNode[] }`
+- `InlineCodeSpan` — `{ type: 'codeSpan'; value: string }`
+- `InlineLink` — `{ type: 'link'; href: string; title?: string; children: InlineNode[] }`
+- `InlineImage` — `{ type: 'image'; src: string; alt: string; title?: string }`
+- `InlineAutolink` — `{ type: 'autolink'; href: string; value: string }`
+- `InlineBreak` — `{ type: 'br' }`
+- `InlineExtension` — `{ type: 'extension'; name: string; attrs: Record<string, string>; children?: InlineNode[]; raw: string }`
+
+### BlockNode
+
+All members extend `BlockBase` (`{ key: string; raw: string }`). `key` is assigned by the incremental engine (`b-<i>`); `raw` is the exact source slice.
+
+```ts
+export type BlockNode =
+  | HeadingBlock
+  | ParagraphBlock
+  | BlockquoteBlock
+  | ListBlock
+  | CodeBlock
+  | ThematicBreakBlock
+  | TableBlock;
+```
+
+**Members**
+
+- `HeadingBlock` — `{ type: 'heading'; level: HeadingLevel; children: InlineNode[] }`
+- `ParagraphBlock` — `{ type: 'paragraph'; children: InlineNode[] }`
+- `BlockquoteBlock` — `{ type: 'blockquote'; children: BlockNode[] }`
+- `ListBlock` — `{ type: 'list'; ordered: boolean; start: number; tight: boolean; items: ListItem[] }`
+- `CodeBlock` — `{ type: 'codeBlock'; lang?: string; value: string; closed: boolean }`
+- `ThematicBreakBlock` — `{ type: 'thematicBreak' }`
+- `TableBlock` — `{ type: 'table'; align: (TableAlign | null)[]; header: TableCell[]; rows: TableCell[][] }`
+
+Supporting shapes: `ListItem` — `{ key: string; checked: boolean | null; children: BlockNode[] }`; `TableCell` — `{ children: InlineNode[] }`.
+
+### HeadingLevel
+
+```ts
+export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
+```
+
+### TableAlign
+
+```ts
+export type TableAlign = 'left' | 'center' | 'right';
+```

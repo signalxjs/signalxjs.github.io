@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Background Tasks — Periodic sync & fetch"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-background` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-background
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as BackgroundTasks from '@sigx/lynx-background';
+
+console.log(Object.keys(BackgroundTasks));
+```

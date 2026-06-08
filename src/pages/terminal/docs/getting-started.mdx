@@ -1,0 +1,87 @@
+---
+title: Getting Started
+description: "@sigx/terminal — build TUIs with TSX"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+# Getting Started with Terminal
+
+`@sigx/terminal` lets you build terminal user interfaces (TUIs) and interactive CLI apps using the same reactive model and TSX components you use on the web. It is built on `@sigx/reactivity` and `@sigx/runtime-core`, and ships a cell renderer that paints your component tree to the terminal as ANSI-styled lines.
+
+The package is a thin aggregator: it re-exports the full `@sigx/reactivity` and `@sigx/runtime-core` surface plus the terminal runtime, so you can import everything you need from a single `@sigx/terminal` entry.
+
+## What you get
+
+- **TSX intrinsics** for the terminal — `box`, `text`, and `br` — with colors, borders, labels and drop shadows.
+- **A render entry** (`renderTerminal` / `terminalMount`) that wires up raw-mode stdin, hides the cursor and repaints on every reactive change.
+- **Input handling** — global keyboard dispatch with Tab/Shift+Tab focus traversal and a `focusState` signal.
+- **Ready-made interactive components** — `Input`, `Button`, `Checkbox`, `Select` and `ProgressBar`.
+
+## Install
+
+```bash
+npm install @sigx/terminal
+```
+
+See [Installation](/terminal/docs/installation) for peer dependencies and the required TSX/Vite wiring.
+
+## A minimal app
+
+Every `.tsx` file that uses terminal intrinsics needs the JSX pragma at the top so TSX compiles against the terminal runtime:
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal } from '@sigx/terminal';
+
+const App = component(() => {
+    const count = signal(0);
+    const tick = () => count.value++;
+
+    return () => (
+        <box border="rounded" label="Counter" color="cyan">
+            <text>Count is {count.value}</text>
+            <br />
+            <text color="green">Press the button to increment.</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+`defineApp(<App />).mount(...)` works without passing a mount function because the terminal runtime registers `terminalMount` as the platform default. Any reactive change in your tree schedules a repaint of the whole screen.
+
+## Adding interactivity
+
+The runtime ships focusable components with two-way model binding. Tab and Shift+Tab move focus between them:
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal } from '@sigx/terminal';
+import { Input, Button } from '@sigx/terminal';
+
+const App = component(() => {
+    const name = signal('');
+
+    return () => (
+        <box border="single" label="Greeting">
+            <Input model={() => name} placeholder="Your name" autofocus label="Name" />
+            <br />
+            <text>Hello, {name.value || 'stranger'}!</text>
+            <br />
+            <Button label="Done" onClick={() => console.log(name.value)} />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Next steps
+
+- [Installation](/terminal/docs/installation) — install command, peer deps and TSX/Vite config.
+- [Layout & Styling](/terminal/docs/layout-and-styling) — boxes, borders, colors and the line layout model.
+- [Input & Interactive Components](/terminal/docs/input-and-components) — focus, keyboard input and the built-in widgets.
+- [API Reference](/terminal/docs/api) — every export, grouped by kind.

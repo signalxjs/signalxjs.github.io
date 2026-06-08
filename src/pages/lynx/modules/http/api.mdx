@@ -1,0 +1,327 @@
+---
+title: "API reference"
+description: "HTTP — WHATWG fetch transport"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-http` v0.4.9.</p>
+
+Importing the package installs `fetch`, `Headers`, `FormData`, `Response`, and a minimal UTF-8 `TextDecoder` on `globalThis`. Every symbol below is also importable by name from `@sigx/lynx-http`. The functions and runtime classes work on all hosts in shape; an actual request only completes on a real iOS / Android build where the native `Http` module is linked (URLSession on iOS, OkHttp on Android).
+
+## Functions
+
+### fetch
+
+```ts
+function fetch(input: string | { url: string }, init?: RequestInitLike): Promise<Response>
+```
+
+A WHATWG-shaped `fetch`. Accepts a URL string or an object with a `url` property, builds a `Headers`, normalizes the body to a native descriptor, assigns a monotonic request id, and dispatches the request over the bridge. The returned promise resolves on the native `response` event — before the body finishes arriving — so streaming consumers can read `res.body` immediately.
+
+- `input` — the request URL string, or an object carrying a `url` property. Only `http` and `https` schemes are accepted; other schemes reject with a `TypeError`, and an empty or missing URL rejects with `TypeError('fetch: invalid URL')`.
+- `init` — an optional [`RequestInitLike`](#requestinitlike). A body with no explicit `method` defaults to `POST`; a `GET` / `HEAD` with a body rejects with a `TypeError`.
+
+**Returns:** a `Promise<Response>` that resolves once response headers and status have arrived. Network failures reject with `TypeError('fetch failed: ...')`; aborts reject with an `Error` whose `name` is `'AbortError'`.
+
+**Platform:** iOS and Android (native `Http` module). On web, Node, and tests the request never receives a response, and the underlying module guard throws if the module is absent.
+
+### isHttpAvailable
+
+```ts
+function isHttpAvailable(): boolean
+```
+
+Reports whether the native `Http` module is linked into this runtime (delegates to `isModuleAvailable('Http')` from `@sigx/lynx-core`). The package entry uses it to decide whether to replace the engine-provided global `fetch` stack, or merely fill in missing globals.
+
+**Returns:** `true` in real iOS / Android builds where the native module is present, `false` on web, SSR, Node, and test environments.
+
+**Platform:** all.
+
+### isFileHandle
+
+```ts
+function isFileHandle(value: unknown): value is FileHandleLike
+```
+
+Type guard that returns `true` when `value` is a non-null object with a non-empty string `uri`. Determines whether a `FormData` value is treated as a file (streamed natively from the URI) or as a string field.
+
+**Returns:** a boolean type predicate narrowing `value` to [`FileHandleLike`](#filehandlelike).
+
+**Platform:** all.
+
+## Classes
+
+### Headers
+
+A WHATWG-shaped header bag. Names are case-insensitive (stored lowercased) and validated against the HTTP token charset (invalid names throw a `TypeError`). Values are trimmed of leading / trailing HTTP whitespace and rejected with a `TypeError` if they contain CR, LF, or NUL (header-injection guard). `append` combines repeated names with `', '`. Iteration yields lowercase names sorted ascending, like a browser.
+
+```ts
+class Headers {
+  constructor(init?: HeadersInitLike);
+  append(name: string, value: string): void;
+  set(name: string, value: string): void;
+  get(name: string): string | null;
+  has(name: string): boolean;
+  delete(name: string): void;
+  forEach(fn: (value: string, name: string, parent: Headers) => void, thisArg?: unknown): void;
+  entries(): IterableIterator<[string, string]>;
+  keys(): IterableIterator<string>;
+  values(): IterableIterator<string>;
+  [Symbol.iterator](): IterableIterator<[string, string]>;
+  toRecord(): Record<string, string>;
+}
+```
+
+- `constructor(init?)` — accepts a [`HeadersInitLike`](#headersinitlike): a `Headers` instance, a plain record, or an iterable of `[name, value]` pairs.
+- `append` / `set` — `append` adds a value (combining with `', '` if the name already exists); `set` replaces all values for the name.
+- `get` — the combined value for a name, or `null`.
+- `has` / `delete` — membership test and removal.
+- `forEach` / `entries` / `keys` / `values` / `[Symbol.iterator]` — iteration helpers over the sorted, lowercased entries.
+- `toRecord()` — a non-standard helper that flattens the bag to the plain `Record<string, string>` the bridge spec carries.
+
+**Platform:** all.
+
+### FormData
+
+A WHATWG-shaped `FormData` for multipart uploads. Values are strings or file handles. Its core invariant is that file bytes never cross the JS bridge: a file value serializes to a `{ kind: 'file', uri, ... }` descriptor and native streams the bytes from the URI into the multipart body.
+
+```ts
+class FormData {
+  append(name: string, value: FormDataEntryValueLike, filename?: string): void;
+  set(name: string, value: FormDataEntryValueLike, filename?: string): void;
+  get(name: string): FormDataEntryValueLike | null;
+  getAll(name: string): FormDataEntryValueLike[];
+  has(name: string): boolean;
+  delete(name: string): void;
+  forEach(fn: (value: FormDataEntryValueLike, name: string, parent: FormData) => void, thisArg?: unknown): void;
+  entries(): IterableIterator<[string, FormDataEntryValueLike]>;
+  keys(): IterableIterator<string>;
+  values(): IterableIterator<FormDataEntryValueLike>;
+  [Symbol.iterator](): IterableIterator<[string, FormDataEntryValueLike]>;
+}
+```
+
+- `append` / `set` — add or replace an entry. The value must be a string or a valid file handle, otherwise a `TypeError` is thrown. `filename` overrides the name used in the multipart part; the filename precedence is the explicit `filename` argument, then `handle.name`, then `'file'`, and the content-type precedence is `handle.mimeType`, then `handle.type`, then `'application/octet-stream'`.
+- `get` / `getAll` — the first value, or all values, for a name.
+- `has` / `delete` — membership test and removal.
+- `forEach` / `entries` / `keys` / `values` / `[Symbol.iterator]` — iteration helpers.
+
+When a `FormData` is used as a `fetch` body, `fetch` forcibly sets the `Content-Type` header with the generated multipart boundary.
+
+**Platform:** all (file streaming requires the native module on iOS / Android; `content://` URIs are Android).
+
+### Response
+
+A WHATWG-shaped response with a `ReadableStream`-like `.body`. `ok` is true for status 200-299. `bodyUsed` reflects both `text` / `json` / `arrayBuffer` consumption and reader acquisition (WHATWG "disturbed").
+
+```ts
+class Response {
+  readonly status: number;
+  readonly statusText: string;
+  readonly headers: Headers;
+  readonly url: string;
+  readonly body: BodyStream;
+  constructor(init: { status: number; statusText: string; headers: Headers; url: string; body: BodyStream });
+  get ok(): boolean;
+  get bodyUsed(): boolean;
+  arrayBuffer(): Promise<ArrayBuffer>;
+  text(): Promise<string>;
+  json(): Promise<unknown>;
+}
+```
+
+- `status` / `statusText` / `headers` / `url` — the response metadata. `url` is the request URL; redirects are followed silently by URLSession / OkHttp.
+- `body` — the [`BodyStream`](#bodystream) chunk queue.
+- `ok` (getter) — `true` for status 200-299.
+- `bodyUsed` (getter) — `true` once the body has been consumed or a reader has been acquired.
+- `text()` — decodes the body with the bundled incremental UTF-8 decoder.
+- `json()` — `JSON.parse(text())`.
+- `arrayBuffer()` — concatenates all chunks into a single `ArrayBuffer`.
+
+Each body-consuming method throws `TypeError('Response: body already consumed')` if `bodyUsed` is already true. There is no `clone()` and no `blob()` (no `Blob` in the runtime).
+
+**Platform:** all.
+
+### BodyStream
+
+A minimal `ReadableStream`-like backing of `Response.body`, fed by native `chunk` events. `read()` resolves once per network read, so SSE tokens render incrementally. There is no backpressure — chunks queue in JS until read, so large unread downloads buffer in memory.
+
+```ts
+class BodyStream {
+  onCancel: ((reason?: unknown) => void) | null;
+  get locked(): boolean;
+  get disturbed(): boolean;
+  push(chunk: Uint8Array): void;
+  end(): void;
+  fail(err: unknown): void;
+  getReader(): {
+    read(): Promise<{ done: boolean; value?: Uint8Array }>;
+    cancel(reason?: unknown): Promise<void>;
+    releaseLock(): void;
+  };
+}
+```
+
+- `getReader()` — returns a reader with `read`, `cancel`, and `releaseLock`. `read()` resolves per network read and rejects if the stream failed. Throws a `TypeError` if the stream is already locked. `cancel()` (or aborting the request signal) invokes `onCancel` to abort the native task and ends the stream.
+- `onCancel` — a hook invoked on cancellation to abort the underlying native task.
+- `locked` / `disturbed` (getters) — WHATWG-style flags.
+- `push` / `end` / `fail` — the native-event sinks that feed body bytes, signal completion, and propagate errors. You normally do not call these directly.
+
+**Platform:** all.
+
+### TextDecoder
+
+A minimal incremental UTF-8 decoder, exported under the name `TextDecoder` (the class is `SigxTextDecoder`). The Lynx background runtime ships no `TextDecoder`; this covers exactly what `fetch` / SSE consumers use.
+
+```ts
+export { SigxTextDecoder as TextDecoder };
+
+class SigxTextDecoder {
+  readonly encoding = 'utf-8';
+  readonly fatal = false;
+  readonly ignoreBOM = false;
+  constructor(label?: string);
+  decode(input?: ArrayBuffer | ArrayBufferView, options?: { stream?: boolean }): string;
+}
+```
+
+- `constructor(label?)` — UTF-8 only. Accepts `'utf-8'`, `'utf8'`, and `'unicode-1-1-utf-8'`; any other label throws a `RangeError`.
+- `decode(input?, options?)` — decodes bytes to a string. With `{ stream: true }` it stashes an incomplete trailing sequence for the next chunk. Invalid sequences (overlongs, surrogates, out-of-range code points) are replaced with U+FFFD.
+
+**Platform:** all.
+
+## Types
+
+These types appear in the signatures above and are exported from the package entry, so you can import them by name.
+
+### RequestInitLike
+
+The init bag for `fetch`.
+
+```ts
+interface RequestInitLike {
+  method?: string;
+  headers?: HeadersInitLike;
+  body?: BodyInitLike;
+  signal?: AbortSignalLike;
+  onUploadProgress?: (loaded: number, total: number) => void;
+}
+```
+
+- `method` — the HTTP method. A body with no method defaults to `POST`.
+- `headers` — a [`HeadersInitLike`](#headersinitlike).
+- `body` — a [`BodyInitLike`](#bodyinitlike).
+- `signal` — a duck-typed [`AbortSignalLike`](#abortsignallike).
+- `onUploadProgress` — non-standard; fired from native upload-progress events for multipart and binary uploads, with bytes sent and total.
+
+### BodyInitLike
+
+```ts
+type BodyInitLike = string | ArrayBuffer | ArrayBufferView | FormData | null | undefined;
+```
+
+Accepted body types. A `string` is sent as `text/plain;charset=UTF-8` if no content-type is set; `ArrayBuffer` / typed-array bodies are base64-encoded; a `FormData` becomes a multipart body (with the content-type forcibly set to include the generated boundary). Anything else throws a `TypeError` whose message is `'fetch: unsupported body type — use string, ArrayBuffer, typed array, or FormData'`.
+
+### HeadersInitLike
+
+```ts
+type HeadersInitLike = Headers | Record<string, string> | Iterable<readonly [string, string]>;
+```
+
+Accepted input for the `Headers` constructor and the `headers` init field: a `Headers` instance, a plain record, or an iterable of `[name, value]` pairs. A non-pair iterable throws a `TypeError`.
+
+### AbortSignalLike
+
+```ts
+interface AbortSignalLike {
+  readonly aborted: boolean;
+  reason?: unknown;
+  addEventListener?: (type: 'abort', fn: () => void, opts?: { once?: boolean }) => void;
+}
+```
+
+A duck-typed `AbortSignal` — any spec-shaped implementation works. If already `aborted`, `fetch` rejects immediately; on abort it rejects (or fails the body stream) with an `Error` named `'AbortError'` and cancels the native task. `reader.cancel()` also aborts.
+
+### FileHandleLike
+
+```ts
+interface FileHandleLike {
+  uri: string;
+  name?: string;
+  mimeType?: string;
+  type?: string;
+  size?: number;
+}
+```
+
+A `FormData` file value. `uri` is a `file://` (or, on Android, `content://`) URI that native streams from. Two handle conventions are accepted: picker-asset (`{ uri, name?, mimeType?, size? }`) and React Native (`{ uri, name?, type? }`). `size` is informational only and is not sent on the wire.
+
+### FormDataEntryValueLike
+
+```ts
+type FormDataEntryValueLike = string | FileHandleLike;
+```
+
+A `FormData` entry value — either a string field or a file handle.
+
+## Bridge protocol types
+
+These types describe the wire shapes exchanged with the native module. They are exported for contributors and advanced callers; everyday code does not need them.
+
+### NativeRequestSpec
+
+```ts
+interface NativeRequestSpec {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  streaming: boolean;
+  body: NativeBody;
+}
+```
+
+The request shape sent to native via `Http.request(id, spec, cb)`. `fetch` always sets `streaming: true` (one `chunk` event per network read).
+
+### NativeBody
+
+```ts
+type NativeBody =
+  | { type: 'none' }
+  | { type: 'text'; text: string }
+  | { type: 'base64'; data: string }
+  | { type: 'multipart'; boundary: string; parts: NativeMultipartPart[] };
+```
+
+The native body descriptor union. The multipart `boundary` is generated JS-side so the same boundary appears in the `Content-Type` header and the body native composes verbatim.
+
+### NativeMultipartPart
+
+```ts
+type NativeMultipartPart =
+  | { kind: 'field'; name: string; value: string }
+  | { kind: 'file'; name: string; uri: string; filename: string; contentType: string };
+```
+
+One multipart part. For a `'file'` part, bytes never cross the bridge — native streams from `uri`. Names and filenames are sanitized for `Content-Disposition` (CR / LF / quote characters become `_`), and `contentType` is stripped of CR / LF.
+
+### NativeHttpEvent
+
+```ts
+interface NativeHttpEvent {
+  id: number;
+  type: 'response' | 'chunk' | 'progress' | 'done' | 'error';
+  status?: number;
+  statusText?: string;
+  headers?: Record<string, string>;
+  data?: string;
+  loaded?: number;
+  total?: number;
+  message?: string;
+}
+```
+
+A native-to-JS event carried on the `__sigxHttpEvent` global event and demultiplexed by `id`. The ordering is `response` (once), then `progress*` (upload), then `chunk*` (base64 body bytes), then `done` or `error`.

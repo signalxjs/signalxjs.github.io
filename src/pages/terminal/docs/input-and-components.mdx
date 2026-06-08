@@ -1,0 +1,264 @@
+---
+title: Input & Interactive Components
+description: "Focus, keyboard input and the built-in terminal widgets"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Input & Interactive Components
+
+This guide covers how keyboard input is dispatched, how focus traversal works, and how to use the built-in interactive components.
+
+## Keyboard input
+
+When you mount a terminal app, the runtime puts stdin into raw mode and dispatches every keypress. You can subscribe to raw input with `onKey`:
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, onMounted, onUnmounted } from '@sigx/terminal';
+import { onKey, exitTerminal } from '@sigx/terminal';
+
+const App = component(() => {
+    let off: (() => void) | undefined;
+
+    onMounted(() => {
+        off = onKey((key) => {
+            // key is a raw string, e.g. '\r' (Enter), arrow keys as escape sequences
+            if (key === 'q') {
+                exitTerminal();
+            }
+        });
+    });
+
+    onUnmounted(() => off?.());
+
+    return () => (
+        <box border="rounded" label="Keys">
+            <text>Press 'q' to quit.</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+`onKey` returns an unsubscribe function. Each keypress arrives as a string — printable characters as themselves, special keys as escape sequences (for example `'\x1B[A'` for the up arrow). Some keys are intercepted by the runtime before your handler fires: **Ctrl+C** exits the process, **Tab** moves focus to the next element, and **Shift+Tab** moves to the previous one.
+
+## Focus traversal
+
+Focus is a global singleton. Interactive components register a focusable id when they mount; the first one registered becomes active. Tab and Shift+Tab cycle through them (wrapping around).
+
+You can read and drive focus directly:
+
+```tsx
+import {
+    focusState,
+    registerFocusable,
+    unregisterFocusable,
+    focus,
+    focusNext,
+    focusPrev,
+} from '@sigx/terminal';
+
+// Is some id currently active?
+const active = focusState.activeId;
+
+// Programmatically move focus
+focusNext();
+focusPrev();
+focus('my-id');
+```
+
+`focusState` is created with the object overload of `signal`, so it is a deeply reactive proxy read via property access. Reading `focusState.activeId` inside a render makes the component repaint when focus changes. Custom interactive components typically call `registerFocusable(id)` in `onMounted` and `unregisterFocusable(id)` in `onUnmounted`.
+
+## Built-in components
+
+### Input
+
+A focusable single-line text field with two-way model binding. It renders as a bordered box (green border when focused). Backspace deletes, Enter emits `submit`, and printable characters emit `input`.
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal } from '@sigx/terminal';
+import { Input } from '@sigx/terminal';
+
+const App = component(() => {
+    const text = signal('');
+
+    return () => (
+        <box border="single" label="Form">
+            <Input
+                model={() => text}
+                label="Name"
+                placeholder="Type here"
+                autofocus
+                onInput={(v) => console.log('changed:', v)}
+                onSubmit={(v) => console.log('submitted:', v)}
+            />
+            <br />
+            <text>You typed: {text.value}</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+### Button
+
+A focusable button. Enter or Space triggers a brief press visual and emits `click`. It shows a green border with a blue background when focused.
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal } from '@sigx/terminal';
+import { Button } from '@sigx/terminal';
+
+const App = component(() => {
+    const clicks = signal(0);
+
+    return () => (
+        <box border="rounded" label="Buttons">
+            <Button label="Click me" onClick={() => clicks.value++} />
+            <br />
+            <Button label="With shadow" dropShadow onClick={() => { clicks.value = 0; }} />
+            <br />
+            <text>Clicks: {clicks.value}</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+### Checkbox
+
+A focusable toggle with two-way model binding. Enter or Space toggles it. It renders as `> [x] Label` when focused and checked.
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal } from '@sigx/terminal';
+import { Checkbox } from '@sigx/terminal';
+
+const App = component(() => {
+    const agreed = signal(false);
+
+    return () => (
+        <box border="single" label="Terms">
+            <Checkbox
+                model={() => agreed}
+                label="I agree"
+                autofocus
+                onChange={(v) => console.log('agreed:', v)}
+            />
+            <br />
+            <text>{agreed.value ? 'Thank you!' : 'Please accept to continue.'}</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+### Select
+
+A focusable option list with keyboard navigation. Up/`k` and Down/`j` move the selection (wrapping), updating the model and emitting `change`; Enter emits `submit`. The selected option is marked with `❯`. The `options` prop is required and takes `SelectOption[]`.
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal } from '@sigx/terminal';
+import { Select } from '@sigx/terminal';
+import type { SelectOption } from '@sigx/terminal';
+
+const options: SelectOption[] = [
+    { label: 'Development', value: 'dev', description: 'Local dev build' },
+    { label: 'Staging', value: 'staging', description: 'Pre-production' },
+    { label: 'Production', value: 'prod', description: 'Live environment' },
+];
+
+const App = component(() => {
+    const env = signal('dev');
+
+    return () => (
+        <box border="rounded" label="Deploy target">
+            <Select
+                options={options}
+                model={() => env}
+                label="Environment"
+                showDescription
+                autofocus
+                onChange={(v) => console.log('selected:', v)}
+                onSubmit={(v) => console.log('confirmed:', v)}
+            />
+            <br />
+            <text>Target: {env.value}</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+### ProgressBar
+
+A read-only progress indicator. It renders filled and empty characters plus a percentage label. It is not focusable and emits no events.
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, onMounted } from '@sigx/terminal';
+import { ProgressBar } from '@sigx/terminal';
+
+const App = component(() => {
+    const value = signal(0);
+
+    onMounted(() => {
+        const t = setInterval(() => {
+            value.value = Math.min(100, value.value + 5);
+        }, 200);
+        return () => clearInterval(t);
+    });
+
+    return () => (
+        <box border="single" label="Download">
+            <ProgressBar value={value.value} max={100} width={30} color="green" />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Quitting gracefully
+
+For a clean programmatic exit, pair `mountTerminal()` with `exitTerminal()`:
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp } from '@sigx/terminal';
+import { mountTerminal, exitTerminal, onKey, onMounted, onUnmounted } from '@sigx/terminal';
+
+const App = component(() => {
+    let off: (() => void) | undefined;
+    onMounted(() => {
+        off = onKey((key) => {
+            if (key === 'q') exitTerminal();
+        });
+    });
+    onUnmounted(() => off?.());
+
+    return () => (
+        <box border="rounded" label="App">
+            <text>Press 'q' to quit cleanly.</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount(mountTerminal());
+```
+
+`mountTerminal()` returns a mount target you pass to `.mount()`, and captures the unmount callback so `exitTerminal()` can tear it down, restore the cursor and clear the screen.
+
+## Next steps
+
+- [Layout & Styling](/terminal/docs/layout-and-styling) — boxes, borders and colors.
+- [API Reference](/terminal/docs/api) — the full export list.

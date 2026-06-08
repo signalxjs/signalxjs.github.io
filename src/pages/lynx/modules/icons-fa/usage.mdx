@@ -8,16 +8,89 @@ order: 30
 
 # Using FA Icons
 
-<p class="lede">Font Awesome adapter — the essentials.</p>
+<p class="lede">Render Font Awesome Free glyphs as real native icons — solid, regular and brands — with three pinned components or the generic Icon.</p>
 
 ## Basic usage
 
+The fastest path is the three pinned components. Each one wraps the generic `Icon` with its Font Awesome style prefilled, so you only pass a glyph `name`. Import them from the `/components` subpath:
+
 ```tsx
-import * as FAIcons from '@sigx/lynx-icons-fa-free';
+import { FaSolidIcon, FaRegularIcon, FaBrandIcon } from '@sigx/lynx-icons-fa-free/components';
+
+export function Toolbar() {
+  return (
+    <view>
+      <FaSolidIcon name="user" />
+      <FaSolidIcon name="chevron-right" size={20} color="#0D9488" />
+      <FaRegularIcon name="bell" size={20} />
+      <FaBrandIcon name="github" size={24} />
+    </view>
+  );
+}
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-icons-fa-free */}
+Glyph names are kebab-case (`chevron-right`, not `faChevronRight`). The `size` and `color` props are optional; `name` is required.
+
+## Wiring up the icon sets
+
+The pinned components resolve glyphs through the build-time adapter, which the build only loads when your `signalx.config.ts` declares matching `iconSets` entries. The set ids must be exactly `fas`, `far` and `fab` — the pinned components hardcode these:
+
+```ts
+// signalx.config.ts
+export default {
+  iconSets: [
+    { id: 'fas', source: '@sigx/lynx-icons-fa-free', styles: ['solid'] },
+    { id: 'far', source: '@sigx/lynx-icons-fa-free', styles: ['regular'] },
+    { id: 'fab', source: '@sigx/lynx-icons-fa-free', styles: ['brands'] },
+  ],
+};
+```
+
+If you rename a set id, the pinned components will no longer find it — fall back to the generic `Icon` (below) with a matching `set=`. Only the styles you list will be bundled; declare `regular` and `brands` only if you use them.
+
+Note the peer dependencies. `@fortawesome/free-solid-svg-icons` is required, but `@fortawesome/free-regular-svg-icons` and `@fortawesome/free-brands-svg-icons` are optional. If an optional package is not installed, requests for that style resolve to `null` and `Icon` renders the missing-glyph placeholder instead of failing the build.
+
+## Using the generic Icon
+
+When the set id is dynamic or does not follow FA's `fas`/`far`/`fab` convention, use the generic `Icon` from `@sigx/lynx-icons` and pass `set` yourself:
+
+```tsx
+import { Icon } from '@sigx/lynx-icons';
+
+export function DynamicIcon() {
+  return (
+    <view>
+      <Icon set="fas" name="user" />
+      <Icon set="fab" name="github" size={24} />
+    </view>
+  );
+}
+```
+
+Rendering, color sanitization and theming go through the same `Icon` for both paths, so the output is identical — the pinned components are purely a thin convenience over `Icon`.
+
+## Bundling data-driven icon names
+
+The build-time scanner finds glyph names it can see in your source. If a name is computed at runtime (for example from API data), the scanner can't bundle it. Set `include: ['*']` on the icon set to bundle every glyph for that style:
+
+```ts
+// signalx.config.ts — bundle the whole solid catalog
+iconSets: [
+  { id: 'fas', source: '@sigx/lynx-icons-fa-free', styles: ['solid'], include: ['*'] },
+],
+```
+
+This is heavy — the solid catalog is ~1,900 glyphs (roughly 2 MB of JS). Prefer listing the specific dynamic names you need where possible.
 
 ## Notes
 
-Font Awesome Free adapter for @sigx/lynx-icons (solid / regular / brands).
+- This is a pure JS/TS adapter — no native iOS/Android setup, no permissions, no `signalx-module.json`.
+- The pinned components have no `set` prop, so callers cannot override the pinned style. Use the generic `Icon` if you need a different set.
+- Peers are pinned to Font Awesome v6: v7 ships only WOFF2 fonts, which Lynx Android does not support.
+- Font Awesome Pro styles (duotone, light, thin, sharp) are not part of FA Free and are not available here.
+
+## See also
+
+- [Overview](/lynx/modules/icons-fa/overview) and [Installation](/lynx/modules/icons-fa/installation)
+- [API reference](/lynx/modules/icons-fa/api)
+- The base [icons module](/lynx/modules/icons/overview) for `Icon` and adapter contracts

@@ -1,0 +1,77 @@
+---
+title: Alert
+description: "Alert — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Feedback"]
+order: 140
+---
+
+# Alert
+
+<p class="lede">Inline status box for informing the user about contextual messages — info, success, warning, or error.</p>
+
+## Import
+
+```tsx
+import { Alert } from '@sigx/lynx-daisyui';
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` | `'info' \| 'success' \| 'warning' \| 'error'` | - | Semantic status color. Adds the matching `alert-{color}` style. When omitted, the alert renders in the neutral base style. |
+| `class` | `string` | - | Additional CSS classes appended to the root `view`. |
+| children | slot | - | Default slot for the alert content. Wrap text in a `Text` (or native `<text>`) element since Lynx does not render bare strings inside a `view`. |
+
+Alert is a presentational container — it has no model binding and no built-in dismiss control. Compose your own actions (e.g. a `Button`) inside the slot when you need them.
+
+## Basic Usage
+
+A plain alert with no `color` uses the neutral base style. Put the message inside a `Text` element:
+
+```tsx
+import { Alert, Text } from '@sigx/lynx-daisyui';
+
+<Alert>
+  <Text>A new software update is available.</Text>
+</Alert>
+```
+
+## Status Colors
+
+Use `color` to convey the semantic meaning of the message:
+
+```tsx
+import { Alert, Text, Col } from '@sigx/lynx-daisyui';
+
+<Col gap="3">
+  <Alert color="info">
+    <Text>New version 2.1 is ready to install.</Text>
+  </Alert>
+  <Alert color="success">
+    <Text>Your changes have been saved.</Text>
+  </Alert>
+  <Alert color="warning">
+    <Text>Your storage is almost full.</Text>
+  </Alert>
+  <Alert color="error">
+    <Text>Failed to upload the file. Please try again.</Text>
+  </Alert>
+</Col>
+```
+
+## With an Action
+
+The default slot accepts any content, so you can pair a message with an action such as a `Button`:
+
+```tsx
+import { Alert, Text, Button, Row } from '@sigx/lynx-daisyui';
+
+<Alert color="warning">
+  <Row align="center" gap="3">
+    <Text>Your session is about to expire.</Text>
+    <Button size="sm">Stay signed in</Button>
+  </Row>
+</Alert>
+```

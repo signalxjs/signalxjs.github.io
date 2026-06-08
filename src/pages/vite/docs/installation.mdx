@@ -1,0 +1,110 @@
+---
+title: Installation
+description: "Install @sigx/vite — peer dependencies, versions, and required Vite/TypeScript wiring"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+`@sigx/vite` is an ESM-only package (`"type": "module"`, `sideEffects: false`).
+It supports Node `^20.19.0 || >=22.12.0`.
+
+## Install
+
+```bash
+npm install -D @sigx/vite
+```
+
+```bash
+pnpm add -D @sigx/vite
+```
+
+```bash
+yarn add -D @sigx/vite
+```
+
+## Peer Dependencies
+
+Both peer dependencies are required and are not bundled — install them
+yourself:
+
+| Peer | Version range | Notes |
+|---|---|---|
+| `vite` | `>= 8.0.0` | The plugin targets Vite 8 (Rolldown). |
+| `sigx` | `*` | The SignalX runtime the plugin shares as a singleton. |
+
+```bash
+npm install vite sigx
+```
+
+## Configure Vite
+
+Add the plugin to the `plugins` array in `vite.config.ts`. The default export is
+the plugin factory:
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+
+export default defineConfig({
+    plugins: [sigx()],
+});
+```
+
+The named export `sigxPlugin` is equivalent if you prefer it:
+
+```ts
+import { sigxPlugin } from '@sigx/vite';
+
+export default defineConfig({
+    plugins: [sigxPlugin()],
+});
+```
+
+The plugin runs with `enforce: 'pre'` and only transforms first-party
+`.ts`/`.tsx`/`.jsx` files — it skips `node_modules` and `/dist/`.
+
+## Configure TypeScript
+
+For JSX/TSX, point TypeScript's JSX transform at SignalX:
+
+```json
+// tsconfig.json
+{
+    "compilerOptions": {
+        "jsx": "react-jsx",
+        "jsxImportSource": "sigx"
+    }
+}
+```
+
+If you use the type-generation output (see the
+[Commands](/vite/docs/commands) guide), add its output directory
+to `include` so the editor picks it up:
+
+```json
+// tsconfig.json
+{
+    "include": ["src", "node_modules/.sigx/**/*.d.ts"]
+}
+```
+
+## Package Entry Points
+
+The package exposes three entry points through its exports map:
+
+| Import path | Purpose |
+|---|---|
+| `@sigx/vite` | The plugin (default and `sigxPlugin` export) plus HMR re-exports. |
+| `@sigx/vite/hmr` | The browser-side HMR runtime (injected automatically). |
+| `@sigx/vite/lib` | `defineLibConfig` for building `@sigx/*` libraries. |
+
+## Next Steps
+
+- [Getting Started](/vite/docs/getting-started) — the minimal end-to-end setup
+- [HMR for Components](/vite/docs/hmr) — how component hot-reload works
+- [Library Builds](/vite/docs/library-builds) — build packages with `defineLibConfig`
+- [API Reference](/vite/docs/api) — every export and option

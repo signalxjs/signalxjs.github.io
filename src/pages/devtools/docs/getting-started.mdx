@@ -1,0 +1,101 @@
+---
+title: Getting Started
+description: "@sigx/devtools — inspect signals and the reactive graph at runtime"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PrereqCallout } from '@/components/PrereqCallout';
+
+# Getting Started with DevTools
+
+<PrereqCallout items={[
+    { name: 'SignalX Core basics', path: '/core/docs/getting-started' },
+]} />
+
+`@sigx/devtools` is the page-side agent that lets an external inspector or browser
+extension see inside a running SignalX app. Install it as a plugin and it attaches
+to the framework's global devtools hook, then streams two families of events to a
+panel: component lifecycle (mount, update, unmount, error) and reactivity primitives
+(signal, computed, effect create/update/dispose). It can also observe `@sigx/store`
+dispatches/mutations and `@sigx/router` navigations.
+
+Everything the plugin sends over the wire is JSON-serializable. It never puts a DOM
+node or a live reactive proxy on the wire — large or reactive values are inspected on
+demand through value references and a bounded, cycle-safe serializer.
+
+The package is SSR-safe: with no transport supplied and no `window`, the plugin
+installs as a no-op so server rendering never crashes.
+
+## Install
+
+```bash
+pnpm add -D @sigx/devtools
+```
+
+## Minimal example
+
+Register the plugin on your app. With no options it uses the default `postMessage`
+transport (in the browser), names the app `sigx-app`, and tracks reactivity.
+
+```tsx
+import { defineApp } from 'sigx';
+import { devtools } from '@sigx/devtools';
+import { App } from './App';
+
+defineApp(<App />)
+    .use(devtools())
+    .mount('#app');
+```
+
+To see store and router activity in the panel timeline, pass them in:
+
+```tsx
+import { defineApp } from 'sigx';
+import { devtools } from '@sigx/devtools';
+import { createRouter } from '@sigx/router';
+import { App } from './App';
+import { counterStore } from './stores/counter';
+
+const router = createRouter({ routes: [/* ... */] });
+
+defineApp(<App />)
+    .use(router)
+    .use(devtools({
+        appName: 'my-app',
+        stores: [counterStore],
+        router,
+    }))
+    .mount('#app');
+```
+
+Once the wire is up the plugin emits a `hello` event carrying `PROTOCOL_VERSION` and
+the agent version. A connected panel then calls `get:apps` followed by
+`get:tree(appId)` to bootstrap its component tree.
+
+## Production builds
+
+Prefer not to ship devtools in production. Dynamic-import it behind a dev flag so
+bundlers tree-shake it out of release builds:
+
+```tsx
+import { defineApp } from 'sigx';
+import { App } from './App';
+
+const app = defineApp(<App />);
+
+if (import.meta.env.DEV) {
+    const { devtools } = await import('@sigx/devtools');
+    app.use(devtools());
+}
+
+app.mount('#app');
+```
+
+## Next steps
+
+- [Installation](/devtools/docs/installation) — peer dependencies, config, and wiring details.
+- [Connecting an inspector](/devtools/docs/connecting-an-inspector) — transports, the Chrome extension relay, and non-browser hosts.
+- [Tuning what gets traced](/devtools/docs/tuning-what-gets-traced) — throttling, reactivity opt-out, stores and router.
+- [API Reference](/devtools/docs/api) — every export with signatures.

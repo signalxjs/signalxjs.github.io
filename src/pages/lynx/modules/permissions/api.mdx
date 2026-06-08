@@ -8,10 +8,322 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-permissions` v0.4.1.</p>
+<p class="lede">Exports of `@sigx/lynx-permissions` v0.4.1 — an Android-only Kotlin surface. The JavaScript entry exports nothing.</p>
 
-## Exports
+## JavaScript surface
 
-{/* TODO: document the public API of @sigx/lynx-permissions */}
+### `@sigx/lynx-permissions` (entry)
 
-See the package source for the complete typed surface.
+```ts
+export {};
+```
+
+The JS entry (`src/index.ts` → `dist/index.d.ts`) exports nothing. The package ships only Android Kotlin source consumed by other native modules; there is no JavaScript or TypeScript API to import. JS callers go through higher-level modules such as `@sigx/lynx-camera`.
+
+**Platform:** Android only.
+
+## Kotlin: PermissionHelper
+
+### `PermissionHelper`
+
+```kotlin
+object PermissionHelper // package com.sigx.permissions
+```
+
+A shared Kotlin singleton that other native modules call to check and request Android runtime permissions and to open app settings. It is not a LynxModule. The foreground Activity is read from `@sigx/lynx-core`'s `SigxActivityHolder.current()`.
+
+**Platform:** Android only.
+
+### `PermissionHelper.resolveAndroidPermissions`
+
+```kotlin
+fun resolveAndroidPermissions(permission: String): List<String>
+```
+
+Maps a sigx permission key to the underlying Android Manifest permission string(s), with API-level branching. Raw `"android.permission.*"` strings pass through unchanged. An unknown key logs a warning and returns `emptyList()`.
+
+**Parameters**
+
+- `permission` — a sigx permission key (see [Supported permission keys](#supported-permission-keys)) or a raw `"android.permission.*"` string.
+
+**Returns:** the list of concrete Android Manifest permissions for that key.
+
+**Platform:** Android only.
+
+### `PermissionHelper.checkPermission`
+
+```kotlin
+fun checkPermission(context: Context, permission: String): JavaOnlyMap
+```
+
+Checks permission status without prompting. Uses a `SharedPreferences` store (`"sigx_permissions"`, key `"asked_<permission>"`) to distinguish `"undetermined"` (never asked) from `"blocked"`.
+
+**Parameters**
+
+- `context` — an Android `Context`.
+- `permission` — a sigx permission key or raw manifest string.
+
+**Returns:** a `JavaOnlyMap` shaped `{ status: "granted" | "denied" | "blocked" | "undetermined", canAskAgain: Boolean }` (see [Permission status result](#permission-status-result)).
+
+**Platform:** Android only.
+
+### `PermissionHelper.requestPermission`
+
+```kotlin
+fun requestPermission(context: Context, permission: String, callback: (JavaOnlyMap) -> Unit)
+```
+
+Requests a permission, showing the OS dialog if needed. Short-circuits to `granted` when no runtime permission is required or it is already granted. Returns `denied` with `canAskAgain = true` if no foreground Activity is available. Uses an incrementing request code starting at 1000.
+
+**Parameters**
+
+- `context` — an Android `Context`.
+- `permission` — a sigx permission key or raw manifest string.
+- `callback` — invoked with a `{ status, canAskAgain }` `JavaOnlyMap` once resolved.
+
+**Platform:** Android only.
+
+### `PermissionHelper.onRequestPermissionsResult`
+
+```kotlin
+fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray)
+```
+
+Resolves the pending request callback registered by `requestPermission`. Must be called from the Activity's `onRequestPermissionsResult`. Computes `granted` / `denied` / `blocked` from `grantResults` plus `shouldShowRequestPermissionRationale`. The auto-linker forwards this for you via `PermissionsActivityHook`.
+
+**Parameters**
+
+- `requestCode` — the request code from the Activity callback.
+- `permissions` — the requested permission strings.
+- `grantResults` — the OS grant results.
+
+**Platform:** Android only.
+
+### `PermissionHelper.openSettings`
+
+```kotlin
+fun openSettings(context: Context)
+```
+
+Opens the app's system settings details page (`ACTION_APPLICATION_DETAILS_SETTINGS`). Use it when a permission is `blocked` so the user can grant it manually.
+
+**Parameters**
+
+- `context` — an Android `Context`.
+
+**Platform:** Android only.
+
+## Kotlin: MediaCapture
+
+### `MediaCapture`
+
+```kotlin
+object MediaCapture // package com.sigx.permissions
+```
+
+A module-level registry of Android Activity-Result launchers (camera capture, photo picker, SAF document pickers) so a single MainActivity hook covers the camera, image-picker, and file-picker modules. Only one pending operation is allowed per launcher kind; a re-entrant call pre-empts the prior callback with `error = "cancelled by new <op>"`. Callbacks run on the main thread.
+
+**Platform:** Android only.
+
+### `MediaCapture.register`
+
+```kotlin
+fun register(activity: ComponentActivity)
+```
+
+Registers all `ActivityResultLauncher`s (`TakePicture`, `PickVisualMedia`, `PickMultipleVisualMedia`, `OpenDocument`, `OpenMultipleDocuments`) on the Activity. Must be called from `onCreate` before the Activity reaches the `STARTED` state, otherwise `registerForActivityResult` throws.
+
+**Parameters**
+
+- `activity` — the host `ComponentActivity`.
+
+**Platform:** Android only.
+
+### `MediaCapture.unregister`
+
+```kotlin
+fun unregister()
+```
+
+Clears the Activity reference and all launchers (call from `onDestroy`) and resolves any pending callbacks with a cancelled / `"activity destroyed"` result so JS Promises do not hang.
+
+**Platform:** Android only.
+
+### `MediaCapture.takePicture`
+
+```kotlin
+fun takePicture(context: Context, callback: (JavaOnlyMap) -> Unit)
+```
+
+Launches the system camera via `TakePicture` and saves to `cacheDir/sigx-camera-<timestamp>.jpg` through a FileProvider authority `"${packageName}.fileprovider"`. Requires the `CAMERA` permission and a configured FileProvider; a missing authority returns an error result.
+
+**Parameters**
+
+- `context` — an Android `Context`.
+- `callback` — invoked with `{ uri, cancelled: false }` on success, or `{ error, cancelled: true }` on cancel/error (see [Capture result](#capture-result)).
+
+**Platform:** Android only.
+
+### `MediaCapture.pickImage`
+
+```kotlin
+fun pickImage(callback: (JavaOnlyMap) -> Unit)
+```
+
+Launches the Android 13+ system photo picker (image only). Needs no `CAMERA` or `READ_MEDIA` permission.
+
+**Parameters**
+
+- `callback` — invoked with `{ cancelled, assets: [{ uri, type: "image" }] }` (see [Media-pick result](#media-pick-result)).
+
+**Platform:** Android only.
+
+### `MediaCapture.pickImages`
+
+```kotlin
+fun pickImages(maxItems: Int, callback: (JavaOnlyMap) -> Unit)
+```
+
+The multi-image variant of `pickImage`. `maxItems <= 0` yields the registered hard cap (`MULTI_PICK_HARD_CAP = 50`); smaller values trim the returned URI list client-side rather than re-registering the launcher.
+
+**Parameters**
+
+- `maxItems` — maximum images to return; `<= 0` means the hard cap of 50.
+- `callback` — invoked with `{ cancelled, assets: [{ uri, type: "image" }, ...] }`.
+
+**Platform:** Android only.
+
+### `MediaCapture.pickFile`
+
+```kotlin
+fun pickFile(types: Array<String>, callback: (JavaOnlyMap) -> Unit)
+```
+
+Launches the Storage Access Framework single-file document picker (`OpenDocument`). No runtime permission is needed — SAF grants per-pick read access.
+
+**Parameters**
+
+- `types` — the MIME filter; an empty array defaults to `"*/*"`.
+- `callback` — invoked with `{ cancelled, assets: [{ uri }] }` (see [Document-pick result](#document-pick-result)).
+
+**Platform:** Android only.
+
+### `MediaCapture.pickFiles`
+
+```kotlin
+fun pickFiles(types: Array<String>, callback: (JavaOnlyMap) -> Unit)
+```
+
+The multi-file variant of `pickFile` (`OpenMultipleDocuments`). No selection cap, unlike `pickImages`.
+
+**Parameters**
+
+- `types` — the MIME filter; an empty array defaults to `"*/*"`.
+- `callback` — invoked with `{ cancelled, assets: [{ uri }, ...] }`.
+
+**Platform:** Android only.
+
+## Kotlin: PermissionsActivityHook
+
+### `PermissionsActivityHook`
+
+```kotlin
+object PermissionsActivityHook // package com.sigx.permissions
+```
+
+The auto-linker Activity-lifecycle hook, declared in `signalx-module.json` under `android.activityHook`. It bridges the Activity lifecycle into `MediaCapture` and `PermissionHelper`.
+
+**Platform:** Android only.
+
+### `PermissionsActivityHook.onCreate`
+
+```kotlin
+@JvmStatic fun onCreate(activity: Activity, savedInstanceState: Bundle?)
+```
+
+Called by the auto-linked Activity `onCreate`. If the Activity is a `ComponentActivity`, it calls `MediaCapture.register(activity)` (which must happen before the `STARTED` state).
+
+**Parameters**
+
+- `activity` — the host Activity.
+- `savedInstanceState` — the Activity's saved-state bundle.
+
+**Platform:** Android only.
+
+### `PermissionsActivityHook.onRequestPermissionsResult`
+
+```kotlin
+@JvmStatic fun onRequestPermissionsResult(activity: Activity, requestCode: Int, permissions: Array<String>, grantResults: IntArray)
+```
+
+Called by the auto-linked Activity `onRequestPermissionsResult`. Forwards to `PermissionHelper.onRequestPermissionsResult(requestCode, permissions, grantResults)`.
+
+**Parameters**
+
+- `activity` — the host Activity.
+- `requestCode` — the request code from the Activity callback.
+- `permissions` — the requested permission strings.
+- `grantResults` — the OS grant results.
+
+**Platform:** Android only.
+
+## Types
+
+### Permission status result
+
+Returned by `checkPermission` and `requestPermission`.
+
+```ts
+{ status: "granted" | "denied" | "blocked" | "undetermined", canAskAgain: Boolean }
+```
+
+### Capture result
+
+Returned by `takePicture`.
+
+```ts
+// success
+{ uri: String /* content:// */, cancelled: false }
+// failure / cancel
+{ error: String, cancelled: true }
+```
+
+### Media-pick result
+
+Returned by `pickImage` and `pickImages`.
+
+```ts
+{ cancelled: Boolean, assets: [{ uri: String, type: "image" }, ...] }
+// error path also carries:
+{ error: String, cancelled: true, assets: [] }
+```
+
+### Document-pick result
+
+Returned by `pickFile` and `pickFiles`.
+
+```ts
+{ cancelled: Boolean, assets: [{ uri: String /* content:// */ }, ...] }
+// error path:
+{ error: String, cancelled: true, assets: [] }
+```
+
+### Supported permission keys
+
+Input to `resolveAndroidPermissions`, `checkPermission`, and `requestPermission`. Any raw `"android.permission.*"` string also passes through.
+
+```ts
+"camera"                              // CAMERA
+"microphone"                          // RECORD_AUDIO
+"location" | "location_when_in_use"   // ACCESS_FINE_LOCATION + ACCESS_COARSE_LOCATION
+"location_always"                     // ACCESS_BACKGROUND_LOCATION
+"photo_library"                       // READ_MEDIA_IMAGES + READ_MEDIA_VIDEO (API 33+) else READ_EXTERNAL_STORAGE
+"notifications"                       // POST_NOTIFICATIONS (API 33+) else none
+"contacts"                            // READ_CONTACTS
+"calendar"                            // READ_CALENDAR
+"bluetooth"                           // BLUETOOTH_SCAN + BLUETOOTH_CONNECT (API 31+) else BLUETOOTH
+```
+
+## Notes
+
+`JavaOnlyMap` and `JavaOnlyArray` are `com.lynx.react.bridge` types from the Lynx runtime, not defined in this package. See [Usage](/lynx/modules/permissions/usage) for end-to-end Kotlin examples.

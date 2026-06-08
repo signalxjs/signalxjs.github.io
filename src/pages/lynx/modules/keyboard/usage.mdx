@@ -1,0 +1,196 @@
+---
+title: "Usage"
+description: "Keyboard — Soft-keyboard handling"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Keyboard
+
+<p class="lede">Keep content above the soft keyboard and pin a composer bar to its top edge — with smooth main-thread animation and inset-aware first paint on iOS and Android.</p>
+
+## Setup
+
+`@sigx/lynx-keyboard` is pure TypeScript — it ships no native code and needs no permissions. Keyboard height arrives through the safe-area bridge: the native publisher in `@sigx/lynx-safe-area` reports the IME height as the `keyboard` inset on every `safeAreaChanged` event, so Lynx needs no separate keyboard event API.
+
+Every primitive in this package requires a `SafeAreaProvider` ancestor at the app root. Without one, the hooks read zero insets and warn once in development.
+
+```bash
+pnpm add @sigx/lynx-keyboard @sigx/lynx-safe-area
+sigx prebuild
+```
+
+```tsx
+import { defineApp } from '@sigx/lynx';
+import { SafeAreaProvider } from '@sigx/lynx-safe-area';
+
+export default defineApp(() => () => (
+  <SafeAreaProvider>
+    <ChatScreen />
+  </SafeAreaProvider>
+));
+```
+
+## Keeping content above the keyboard
+
+`KeyboardAvoidingView` mirrors React Native's component of the same name: wrap your screen content in it and the content stays above the soft keyboard. With the default `behavior="padding"` it squeezes the flex column by adding a `paddingBottom` equal to the keyboard overlap, so every child stays visible.
+
+```tsx
+import { KeyboardAvoidingView } from '@sigx/lynx-keyboard';
+
+const Form = () => () => (
+  <KeyboardAvoidingView behavior="padding" class="flex-1">
+    <scroll-view class="flex-1">
+      <FormFields />
+    </scroll-view>
+  </KeyboardAvoidingView>
+);
+```
+
+The lift is computed as `max(0, keyboard - (discountBottomInset ? bottom : 0) + keyboardVerticalOffset)`. The bottom safe-area inset is discounted by default because an ancestor `SafeAreaView edges={['bottom']}` typically already keeps content above the home indicator — and the keyboard covers that region when it opens. Set `discountBottomInset={false}` only when nothing pads the bottom inset, so the view lifts by the full keyboard height.
+
+`KeyboardAvoidingView` is layout-affecting, so it applies its lift through inline background-thread styles in a single re-render rather than animating on the main thread. The native keyboard slide masks the snap, so it still reads smoothly.
+
+### Choosing a behavior
+
+`behavior` accepts three modes (the `KeyboardAvoidingBehavior` type):
+
+- `'padding'` (default) — adds `paddingBottom` equal to the overlap, squeezing the flex column so all content stays above the keyboard.
+- `'translate'` — shifts the whole container up via `transform: translateY` with no reflow; top content can move off-screen.
+- `'height'` — appends a trailing spacer view of the overlap height, squeezing content above without touching container padding.
+
+```tsx
+import { KeyboardAvoidingView } from '@sigx/lynx-keyboard';
+
+const Screen = () => () => (
+  <KeyboardAvoidingView behavior="translate" keyboardVerticalOffset={12}>
+    <PageBody />
+  </KeyboardAvoidingView>
+);
+```
+
+## Pinning a composer bar to the keyboard
+
+`KeyboardStickyView` pins its children to the top edge of the soft keyboard — the home for a chat composer or input-accessory toolbar. The bar flows as a normal bottom flex sibling; when the keyboard opens it is lifted with `transform: translateY(-lift)`. Because a transform does not reflow layout, the bar is animated on the main thread for a smooth 60fps slide (`animated` is `true` by default).
+
+```tsx
+import { KeyboardStickyView } from '@sigx/lynx-keyboard';
+
+const Composer = () => () => (
+  <KeyboardStickyView class="border-t border-base-300 p-2">
+    <view class="flex-row items-center gap-2">
+      <input class="flex-1" placeholder="Message" />
+      <text class="btn btn-primary">Send</text>
+    </view>
+  </KeyboardStickyView>
+);
+```
+
+The same component is re-exported under two React Native-friendly aliases — `KeyboardAccessoryView` (mirroring core RN's `InputAccessoryView`) and `KeyboardToolbar` (matching `react-native-keyboard-controller`). They are identical and take the same `KeyboardStickyViewProps`.
+
+Set `animated={false}` to fall back to a discrete background re-render with an inline transform — useful when debugging. Note that the bar's transform is controlled internally, so a `transform` passed through `style` is overridden on the animated path; wrap children in their own view if you need an additional transform.
+
+## A full chat screen
+
+The canonical layout combines both primitives. Wrap the message list — and only the message list — in a `KeyboardAvoidingView behavior="padding"`, then place the `KeyboardStickyView` composer as a sibling below it. Both lift by `max(0, keyboard - bottomInset)`, so the list's bottom ends exactly where the bar lands.
+
+```tsx
+import { defineApp } from '@sigx/lynx';
+import { SafeAreaProvider, SafeAreaView } from '@sigx/lynx-safe-area';
+import { KeyboardAvoidingView, KeyboardStickyView } from '@sigx/lynx-keyboard';
+
+const ChatScreen = () => () => (
+  <SafeAreaView edges={['top', 'bottom']} class="flex-1">
+    <view style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <KeyboardAvoidingView behavior="padding" class="flex-1">
+        <scroll-view class="flex-1">
+          <MessageList />
+        </scroll-view>
+      </KeyboardAvoidingView>
+      <KeyboardStickyView class="border-t border-base-300 p-2">
+        <view class="flex-row items-center gap-2">
+          <input class="flex-1" placeholder="Message" />
+          <text class="btn btn-primary">Send</text>
+        </view>
+      </KeyboardStickyView>
+    </view>
+  </SafeAreaView>
+);
+
+export default defineApp(() => () => (
+  <SafeAreaProvider>
+    <ChatScreen />
+  </SafeAreaProvider>
+));
+```
+
+Use exactly one primitive per subtree. A bar placed inside both a padding `KeyboardAvoidingView` and a `KeyboardStickyView` would lift twice — wrap the avoiding view around the content area only, never around the sticky bar.
+
+## Reading keyboard state directly
+
+When you need the raw numbers — to drive your own layout — call `useKeyboard`. It returns a `Computed<KeyboardState>`; reading `.value` in render subscribes you to show/hide changes.
+
+```tsx
+import { useKeyboard } from '@sigx/lynx-keyboard';
+
+const Banner = () => {
+  const kb = useKeyboard();
+  return () => (
+    <view>
+      {kb.value.visible ? <text>Keyboard is {kb.value.height}dp tall</text> : null}
+    </view>
+  );
+};
+```
+
+For the raw lift height a bottom-anchored bar must rise to clear the keyboard, use `useKeyboardLift`. It applies the same `max(0, keyboard - bottomInset + offset)` formula and returns a `Computed<number>`.
+
+```tsx
+import { useKeyboardLift } from '@sigx/lynx-keyboard';
+
+const CustomBar = () => {
+  const lift = useKeyboardLift(true, 8);
+  return () => (
+    <view style={{ transform: `translateY(${-lift.value}px)` }}>
+      <Toolbar />
+    </view>
+  );
+};
+```
+
+## Animating your own bar on the main thread
+
+For a hand-rolled bar that should slide as smoothly as `KeyboardStickyView`, use `useKeyboardLiftSV`. It returns a `SharedValue<number>` that tracks the lift with a timed tween, bridging the background-only keyboard inset to the main thread. Bind it with `useAnimatedStyle` (re-exported from `@sigx/lynx`), negating the positive lift so the bar moves up. The animation targets a main-thread ref, so create the ref with `useMainThreadRef` and bind it through the `main-thread:ref` attribute.
+
+```tsx
+import { useAnimatedStyle, useMainThreadRef, type MainThread } from '@sigx/lynx';
+import { useKeyboardLiftSV } from '@sigx/lynx-keyboard';
+
+const AnimatedBar = () => {
+  const ref = useMainThreadRef<MainThread.Element | null>(null);
+  const sv = useKeyboardLiftSV(true, 0, 0.25);
+  useAnimatedStyle(ref, sv, 'translateY', { factor: -1 });
+  return () => (
+    <view main-thread:ref={ref}>
+      <Toolbar />
+    </view>
+  );
+};
+```
+
+The SharedValue is seeded from the current insets, so a screen mounting while the keyboard is already open paints at the lifted position on the first frame — no animate-up-from-zero. The timing loop runs entirely on the main thread, so there is no per-frame thread crossing.
+
+## Notes
+
+- All heights are in dp/pt (logical pixels), not raw device pixels.
+- The lift formula is always `max(0, keyboard - bottomInset + offset)` — never add both the keyboard height and the bottom inset, since the keyboard covers the home-indicator region.
+- Content behind a translated `KeyboardStickyView` does not shrink. Pair it with a `KeyboardAvoidingView behavior="padding"` around the content area so the list reflows to meet the bar.
+- `KeyboardAvoidingView` snaps rather than animating because main-thread layout writes land after the first layout pass and a `scroll-view` will not reflow from them; the native keyboard slide masks the snap.
+- Native keyboard-height reporting is handled by `@sigx/lynx-safe-area`'s publisher — see that package for any platform-specific IME behavior.
+
+## See also
+
+- [API reference](/lynx/modules/keyboard/api) — every export with signatures.
+- [Safe Area](/lynx/modules/safe-area/overview) — the required `SafeAreaProvider` and inset bridge.
+- [Motion](/lynx/modules/motion/overview) — `withTiming` (powers the lift tween). The `useAnimatedStyle` binding helper is exported from `@sigx/lynx`.

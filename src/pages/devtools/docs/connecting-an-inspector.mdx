@@ -1,0 +1,177 @@
+---
+title: Connecting an inspector
+description: "Choose a transport and connect a browser extension or external inspector to @sigx/devtools"
+layout: docs
+category: Guides
+order: 30
+---
+
+# Connecting an inspector
+
+The plugin is transport-agnostic. It speaks a small JSON protocol through a `Transport`
+and lets you swap how those messages travel: `postMessage` for browser panels and
+extensions, WebSocket for non-browser hosts, or your own implementation.
+
+## How the wire works
+
+Every message is wrapped in a namespaced envelope so a content script or relay can
+filter SignalX traffic out of everything else on the channel:
+
+```ts
+{ __sigx: 'SIGX_DEVTOOLS', dir: 'to-panel' | 'to-page', msg }
+```
+
+Page-to-panel traffic uses `dir: 'to-panel'`; panel-to-page requests use
+`dir: 'to-page'`. The page side sends `PageEvent` broadcasts and `PanelResponse`
+replies; the panel side sends `PanelRequest` messages, each carrying a numeric `id`
+for response correlation.
+
+On connect the plugin emits a `hello` event:
+
+```ts
+{ t: 'hello', payload: { protocol: 1, agentVersion: '0.0.3' } }
+```
+
+A panel bootstraps by calling `get:apps`, then `get:tree` for each app id it cares
+about. After a reconnect it re-runs the same sequence — intermediate dropped events
+are acceptable.
+
+## Default: postMessage (browser)
+
+`devtools()` defaults to `createPostMessageTransport()` whenever `window` is available,
+so you usually do not configure a transport at all:
+
+```tsx
+import { defineApp } from 'sigx';
+import { devtools } from '@sigx/devtools';
+import { App } from './App';
+
+defineApp(<App />)
+    .use(devtools())
+    .mount('#app');
+```
+
+The transport posts `to-panel` envelopes to the target window (`targetOrigin: '*'`) and
+listens for `to-page` envelopes. You can pass an explicit target window if you need to:
+
+```tsx
+import { devtools, createPostMessageTransport } from '@sigx/devtools';
+
+app.use(devtools({
+    transport: createPostMessageTransport(window),
+}));
+```
+
+### An in-page overlay
+
+If your panel lives in the same page (an overlay or a debug iframe sharing the window),
+it can listen on the same `window` for the same `__sigx: 'SIGX_DEVTOOLS'` tag and post
+`to-page` envelopes back. No relay is needed because both sides share JavaScript objects.
+
+### A Chrome extension
+
+A Chrome MV3 extension cannot share JS objects between the page world and the extension,
+so a content script must relay envelopes both directions:
+
+- Listen on `window` for `message` events whose data has `__sigx === 'SIGX_DEVTOOLS'`
+  and `dir === 'to-panel'`, and forward `msg` to `chrome.runtime`.
+- Receive panel requests from `chrome.runtime` and `window.postMessage` them back as
+  `{ __sigx: 'SIGX_DEVTOOLS', dir: 'to-page', msg }`.
+
+The page-side plugin needs no extra configuration for this — the default `postMessage`
+transport already produces the envelopes the content script filters on. The content
+script, the extension panel, and any standalone inspector are separate packages outside
+`@sigx/devtools`.
+
+## Non-browser hosts: WebSocket
+
+For native hosts (for example Lynx) or terminal renderers there is no `window`, so use
+the WebSocket transport and pair it with a relay that the inspector connects to:
+
+```tsx
+import { defineApp } from 'sigx';
+import { devtools, createWebSocketTransport } from '@sigx/devtools';
+import { App } from './App';
+
+defineApp(<App />)
+    .use(devtools({
+        transport: createWebSocketTransport({
+            url: 'ws://localhost:8098/page',
+        }),
+    }))
+    .mount('#app');
+```
+
+`createWebSocketTransport` defaults to `ws://localhost:8098/page` — the path the bundled
+`sigx-devtools-inspector` relay listens on for page-side clients. While disconnected it
+queues outgoing messages (up to `maxQueue`, default 1000, dropping the oldest on
+overflow) and flushes them on connect. It auto-reconnects with exponential backoff
+capped by `maxBackoffMs` (default 30000ms). If no `WebSocket` constructor is available
+it returns a no-op stub.
+
+For tests you can inject a custom WebSocket implementation:
+
+```tsx
+import { createWebSocketTransport } from '@sigx/devtools';
+
+const transport = createWebSocketTransport({
+    url: 'ws://localhost:8098/page',
+    maxQueue: 500,
+    WebSocketImpl: MyFakeWebSocket,
+});
+```
+
+## Custom transports
+
+Implement the `Transport` interface to ferry messages over any channel — for instance a
+`BroadcastChannel`:
+
+```ts
+import type { Transport } from '@sigx/devtools';
+
+function createBroadcastTransport(name = 'sigx-devtools'): Transport {
+    const channel = new BroadcastChannel(name);
+    const listeners = new Set<(msg: unknown) => void>();
+
+    channel.onmessage = (event) => {
+        const data = event.data;
+        if (data && data.__sigx === 'SIGX_DEVTOOLS' && data.dir === 'to-page') {
+            for (const fn of listeners) fn(data.msg);
+        }
+    };
+
+    return {
+        send(msg) {
+            channel.postMessage({ __sigx: 'SIGX_DEVTOOLS', dir: 'to-panel', msg });
+        },
+        onMessage(listener) {
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+        },
+        close() {
+            listeners.clear();
+            channel.close();
+        },
+    };
+}
+```
+
+Pass it like any other transport:
+
+```tsx
+app.use(devtools({ transport: createBroadcastTransport() }));
+```
+
+## What the panel can ask for
+
+Once connected, the panel drives inspection through `PanelRequest` messages:
+
+- `get:apps` — list the apps the plugin knows about.
+- `get:tree` — component nodes for an app id.
+- `get:value` — resolve a `ValueRef` (props records and other large values).
+- `get:reactive-value` — serialize a reactive's current raw value.
+- `get:reactives` — the primitives owned by a component.
+- `highlight` / `unhighlight` — currently acknowledged with `{ ok: true }`; this
+  package does not implement DOM highlighting itself.
+
+See the [API Reference](/devtools/docs/api) for the exact message shapes.

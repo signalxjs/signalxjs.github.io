@@ -8,10 +8,278 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-notifications` v0.4.1.</p>
+<p class="lede">Exports of `@sigx/lynx-notifications` v0.4.9.</p>
 
-## Exports
+The package exposes a single `Notifications` singleton plus four standalone event-listener functions and the supporting types. The listener functions are also re-exported as methods on `Notifications`, so you can subscribe without a second import. Every method is promise-based.
 
-{/* TODO: document the public API of @sigx/lynx-notifications */}
+## Notifications
 
-See the package source for the complete typed surface.
+```ts
+const Notifications: {
+  schedule(content: NotificationContent, options?: ScheduleOptions): Promise<string>;
+  cancel(notificationId: string): Promise<void>;
+  cancelAll(): Promise<void>;
+  requestPermission(): Promise<PermissionResponse>;
+  getPermissionStatus(): Promise<PermissionResponse>;
+  registerForPushNotifications(): Promise<RegisterPushResult>;
+  unregisterForPushNotifications(): Promise<UnregisterPushResult>;
+  setBadgeCount(count: number): Promise<void>;
+  getBadgeCount(): Promise<number>;
+  getInitialNotification(): Promise<NotificationResponse | null>;
+  addTokenListener: (cb: (event: PushTokenEvent) => void) => () => void;
+  addTokenErrorListener: (cb: (event: PushTokenError) => void) => () => void;
+  addPushListener: (cb: (event: RemoteMessage) => void) => () => void;
+  addNotificationResponseListener: (cb: (event: NotificationResponse) => void) => () => void;
+  isAvailable(): boolean;
+};
+```
+
+Singleton object exposing all local and remote push APIs. It is a thin JS wrapper over the native `Notifications` module; the four event-listener helpers are re-exported as methods so you can chain them without importing separately. Available on both iOS and Android.
+
+## Methods
+
+### schedule
+
+```ts
+schedule(content: NotificationContent, options?: ScheduleOptions): Promise<string>
+```
+
+Schedules a local notification. Resolves with the generated notification id (a UUID) for use with `cancel()`. `options` defaults to `{}`.
+
+Platform notes: iOS honors `options.delay` (in seconds); when omitted it fires after ~0.1s. Android fires immediately and does not read `delay`. `options.repeat` is not honored on either platform.
+
+### cancel
+
+```ts
+cancel(notificationId: string): Promise<void>
+```
+
+Cancels a scheduled or delivered notification by id. No-op if the id is not scheduled.
+
+### cancelAll
+
+```ts
+cancelAll(): Promise<void>
+```
+
+Cancels all pending notifications scheduled by this app (on iOS, also delivered ones).
+
+### requestPermission
+
+```ts
+requestPermission(): Promise<PermissionResponse>
+```
+
+Requests notification permission, showing the OS dialog if needed. On Android it delegates to `@sigx/lynx-permissions`; on iOS it requests `UNUserNotificationCenter` authorization for alert, sound, and badge.
+
+### getPermissionStatus
+
+```ts
+getPermissionStatus(): Promise<PermissionResponse>
+```
+
+Reads the current notification permission status without prompting. On iOS, provisional and ephemeral authorization map to `'granted'`.
+
+### registerForPushNotifications
+
+```ts
+registerForPushNotifications(): Promise<RegisterPushResult>
+```
+
+Triggers remote-push registration. iOS dispatches APNs registration and resolves with `{ dispatched: true }` — the real token arrives via `addTokenListener`. Android resolves directly with `{ token, platform: 'fcm' }` and also publishes the token on the token channel.
+
+Platform note: the iOS simulator cannot register for APNs; use a real device.
+
+### unregisterForPushNotifications
+
+```ts
+unregisterForPushNotifications(): Promise<UnregisterPushResult>
+```
+
+Detaches from APNs/FCM. iOS resolves `{ ok: true }` after `unregisterForRemoteNotifications`. Android awaits FCM `deleteToken()` and resolves `{ ok: false, error }` on failure (also published on the token-error channel).
+
+### setBadgeCount
+
+```ts
+setBadgeCount(count: number): Promise<void>
+```
+
+iOS: sets the app-icon badge (iOS 16+ uses `UNUserNotificationCenter.setBadgeCount`, older falls back to `applicationIconBadgeNumber`). Android: no-op — there is no portable badging API, and it does not clear notifications (use `cancelAll()`).
+
+### getBadgeCount
+
+```ts
+getBadgeCount(): Promise<number>
+```
+
+iOS: returns the current app-icon badge number. Android: always resolves `0` (no portable read API).
+
+### getInitialNotification
+
+```ts
+getInitialNotification(): Promise<NotificationResponse | null>
+```
+
+If the app was cold-launched by a notification tap, returns the payload; otherwise `null`. One-shot — subsequent calls return `null`. Call exactly once on startup.
+
+### isAvailable
+
+```ts
+isAvailable(): boolean
+```
+
+Returns whether the native `Notifications` module is registered in the current build.
+
+## Event listeners
+
+These are standalone exports and are also available as methods on `Notifications`. Each returns an unsubscribe function. With no native bridge (web/SSR/test) they return a no-op unsubscribe; a throwing handler is caught and warned.
+
+### addTokenListener
+
+```ts
+function addTokenListener(cb: (event: PushTokenEvent) => void): () => void
+```
+
+Subscribes to push-token events on the `__sigxPushToken` channel. Returns an unsubscribe function.
+
+### addTokenErrorListener
+
+```ts
+function addTokenErrorListener(cb: (event: PushTokenError) => void): () => void
+```
+
+Subscribes to APNs/FCM registration failures on the `__sigxPushTokenError` channel. Returns an unsubscribe function.
+
+### addPushListener
+
+```ts
+function addPushListener(cb: (event: RemoteMessage) => void): () => void
+```
+
+Subscribes to incoming remote messages on the `__sigxPushMessage` channel (foreground messages, plus FCM data messages while backgrounded). Returns an unsubscribe function.
+
+### addNotificationResponseListener
+
+```ts
+function addNotificationResponseListener(cb: (event: NotificationResponse) => void): () => void
+```
+
+Subscribes to user notification taps on the `__sigxNotificationResponse` channel (fires for both remote and local notifications). Returns an unsubscribe function.
+
+## Types
+
+### NotificationContent
+
+```ts
+interface NotificationContent {
+  title: string;
+  body: string;
+  /** Optional data payload. Round-tripped to JS on tap responses. */
+  data?: Record<string, string>;
+}
+```
+
+Content for a local notification passed to `schedule()`.
+
+### ScheduleOptions
+
+```ts
+interface ScheduleOptions {
+  /** Delay in seconds from now */
+  delay?: number;
+  /** Repeat interval: 'minute', 'hour', 'day', 'week' */
+  repeat?: 'minute' | 'hour' | 'day' | 'week';
+}
+```
+
+Scheduling options for `schedule()`. Native iOS reads only `delay`; `repeat` is declared but not honored by the current iOS or Android native code.
+
+### RegisterPushResult
+
+```ts
+interface RegisterPushResult {
+  token?: string;
+  platform?: 'apns' | 'fcm';
+  /** iOS resolves with `{ dispatched: true }` — the real token arrives via addTokenListener. */
+  dispatched?: boolean;
+  error?: string;
+}
+```
+
+Result of `registerForPushNotifications()`. The shape differs by platform: iOS sets `dispatched`, Android sets `token` and `platform`.
+
+### UnregisterPushResult
+
+```ts
+interface UnregisterPushResult {
+  ok: boolean;
+  error?: string;
+}
+```
+
+Result of `unregisterForPushNotifications()`.
+
+### NotificationResponse
+
+```ts
+interface NotificationResponse {
+  notificationId: string;
+  data: Record<string, string>;
+  /** 'default' for the standard tap; custom action ids when categories ship. */
+  actionIdentifier: string;
+}
+```
+
+Payload delivered when a user taps a notification (remote or local) and from `getInitialNotification()`.
+
+### PushTokenEvent
+
+```ts
+interface PushTokenEvent {
+  token: string;
+  platform: 'apns' | 'fcm';
+}
+```
+
+Event delivered to `addTokenListener` with the device push token and its platform.
+
+### PushTokenError
+
+```ts
+interface PushTokenError {
+  error: string;
+}
+```
+
+Event delivered to `addTokenErrorListener` on registration failure.
+
+### RemoteMessage
+
+```ts
+interface RemoteMessage {
+  title?: string;
+  body?: string;
+  data: Record<string, string>;
+  foreground: boolean;
+}
+```
+
+Incoming remote push message delivered to `addPushListener`. `foreground` indicates whether the app was foregrounded when it arrived.
+
+### PermissionResponse
+
+```ts
+// re-exported from @sigx/lynx-core
+interface PermissionResponse {
+  /** Current permission status. */
+  status: PermissionStatus;
+  /**
+   * Whether the app can show the OS permission dialog again.
+   * false when the user selected "Don't ask again" (Android) or
+   * after the first denial (iOS — user must go to Settings).
+   */
+  canAskAgain: boolean;
+}
+```
+
+Re-exported from `@sigx/lynx-core`. Returned by `requestPermission()` and `getPermissionStatus()`. `status` is one of `'granted'`, `'denied'`, `'undetermined'`, or `'blocked'`.

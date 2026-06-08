@@ -8,16 +8,136 @@ order: 30
 
 # Using WebSocket
 
-<p class="lede">WebSocket global — the essentials.</p>
+<p class="lede">A WHATWG-standard WebSocket client for Lynx — the same API you use in the browser, backed by URLSessionWebSocketTask on iOS and OkHttp on Android.</p>
 
 ## Basic usage
 
+Installing `@sigx/lynx-websocket` and listing it in your `modules:` config installs a global `WebSocket` on `globalThis`. Portable code can construct one with no import at all:
+
 ```tsx
-import * as WebSocket from '@sigx/lynx-websocket';
+const ws = new WebSocket('wss://ws.postman-echo.com/raw');
+
+ws.onopen = () => ws.send('hello');
+ws.onmessage = (e) => console.log(e.data);
+ws.onclose = (e) => console.log(e.code, e.reason);
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-websocket */}
+Inside a library — or any time you want TypeScript clarity rather than relying on the global — import the class explicitly:
+
+```tsx
+import { WebSocket } from '@sigx/lynx-websocket';
+
+const ws = new WebSocket('wss://example.com/socket');
+```
+
+After installing the package, run `sigx prebuild` once. The CLI auto-discovers the native module and regenerates the iOS and Android projects. No extra permissions are required — the native side piggy-backs on the app's standard internet access.
+
+## Handling events
+
+You can use the four `on*` handler properties shown above, or `addEventListener` for multiple listeners on the same event. Either way the callback receives a minimal WHATWG-style event whose useful fields depend on the event type:
+
+```tsx
+const ws = new WebSocket('wss://example.com/socket');
+
+ws.addEventListener('open', () => {
+  console.log('connected, protocol:', ws.protocol);
+});
+
+ws.addEventListener('message', (e) => {
+  console.log('received:', e.data);
+});
+
+ws.addEventListener('close', (e) => {
+  console.log('closed', e.code, e.reason, 'clean:', e.wasClean);
+});
+
+ws.addEventListener('error', (e) => {
+  console.warn('socket error:', e.message);
+});
+```
+
+On a `message` event, `e.data` is a `string` for text frames or an `ArrayBuffer` for binary frames. On `close`, `e.code` / `e.reason` / `e.wasClean` describe how the connection ended — a bridge failure synthesizes an abnormal close (code `1006`, `wasClean: false`).
+
+## Sending binary data
+
+Binary frames are supported. Set `binaryType` to `'arraybuffer'` and check for `ArrayBuffer` on receipt. Note that `'arraybuffer'` is the only supported value — `'blob'` is unavailable because Lynx ships no `Blob` polyfill.
+
+```tsx
+const ws = new WebSocket('wss://example.com/socket');
+ws.binaryType = 'arraybuffer';
+
+ws.onopen = () => {
+  ws.send(new Uint8Array([0x01, 0x02, 0x03]));
+};
+
+ws.onmessage = (e) => {
+  if (e.data instanceof ArrayBuffer) {
+    const bytes = new Uint8Array(e.data);
+    console.log('binary frame, length:', bytes.length);
+  }
+};
+```
+
+You can pass a `string`, an `ArrayBuffer`, or any `ArrayBufferView` to `send`. Binary payloads are base64-encoded across the bridge and decoded to raw bytes natively.
+
+## Subprotocols
+
+Pass a subprotocol string or an array of candidates as the second constructor argument. The negotiated protocol is available on `ws.protocol` once the connection opens:
+
+```tsx
+const ws = new WebSocket('wss://example.com/chat', ['v2.chat', 'v1.chat']);
+
+ws.onopen = () => {
+  console.log('negotiated subprotocol:', ws.protocol);
+};
+```
+
+## Error handling
+
+The constructor and `send` / `close` validate their arguments synchronously and throw on misuse:
+
+```tsx
+try {
+  const ws = new WebSocket('wss://example.com/socket');
+
+  ws.onopen = () => {
+    // send() throws InvalidStateError if called while still CONNECTING;
+    // wait for the open event before sending.
+    ws.send('ready');
+  };
+} catch (err) {
+  // TypeError      — empty / non-string URL
+  // SyntaxError    — missing or unsupported scheme (only ws, wss, http, https allowed)
+  console.error('could not open socket:', err);
+}
+```
+
+Key rules to keep in mind:
+
+- **`send`** throws an `InvalidStateError` if called while the socket is still `CONNECTING`, and silently no-ops if the socket is `CLOSING` or `CLOSED`. Unsupported data types throw a `TypeError`.
+- **`close`** accepts code `1000` or any code in the `3000–4999` range (otherwise it throws), and the `reason` must be 123 UTF-8 bytes or fewer. It defaults to code `1000` with an empty reason and no-ops if the socket is already closing or closed.
+- **`bufferedAmount`** is a JS-side write-through approximation (bytes handed to native, not the OS socket buffer level) — treat it as a hint, not exact accounting.
+
+## Detecting availability
+
+The native module is only present in real iOS / Android builds. On web, SSR, or test environments there is no native WebSocket, and events from a connection will never arrive. Use `isWebSocketAvailable` to branch:
+
+```tsx
+import { isWebSocketAvailable } from '@sigx/lynx-websocket';
+
+if (isWebSocketAvailable()) {
+  const ws = new WebSocket('wss://example.com/socket');
+  // ...
+}
+```
 
 ## Notes
 
-Browser-standard WebSocket — URLSessionWebSocketTask (iOS), OkHttp (Android).
+- Sockets outlive any single LynxView, so a template reload will not drop in-flight connections.
+- This version does not expose custom handshake headers beyond `Sec-WebSocket-Protocol`, and extension negotiation (such as `permessage-deflate`) is whatever URLSession / OkHttp offer by default.
+
+## See also
+
+- Plain HTTP needs no package — Lynx ships a global `fetch()`.
+- For connectivity and online/offline state, see [Network](/lynx/modules/network/overview).
+- The complete typed surface is in the [API reference](/lynx/modules/websocket/api).

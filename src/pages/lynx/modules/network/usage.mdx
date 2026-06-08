@@ -8,16 +8,112 @@ order: 30
 
 # Using Network
 
-<p class="lede">Connectivity status — the essentials.</p>
+<p class="lede">Read the device's current connectivity in one async call — transport type, whether you're connected, and whether the internet is actually reachable.</p>
+
+`@sigx/lynx-network` is a thin, typed wrapper over the native connectivity APIs (NWPathMonitor on iOS, ConnectivityManager on Android). It reports status — it is not a transport. Pair it with `fetch` or a WebSocket to act on the result.
+
+No special permissions are required on either platform. Run `sigx prebuild` once to auto-link the native module — there is no manual linking step.
 
 ## Basic usage
 
-```tsx
-import * as Network from '@sigx/lynx-network';
+`Network.getState()` returns a single snapshot of the current connectivity state. It is a one-shot Promise, not a subscription.
+
+```ts
+import { Network } from '@sigx/lynx-network';
+
+const state = await Network.getState();
+console.log(state.isConnected, state.type, state.isInternetReachable);
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-network */}
+The returned object has three fields:
+
+```ts
+interface NetworkState {
+  isConnected: boolean;
+  type: 'wifi' | 'cellular' | 'ethernet' | 'bluetooth' | 'none' | 'unknown';
+  isInternetReachable: boolean | null;
+}
+```
+
+## Gating work on connection type
+
+A common case is deferring large transfers until the device is on Wi-Fi, so you don't burn cellular data.
+
+```ts
+import { Network } from '@sigx/lynx-network';
+
+async function syncIfOnWifi() {
+  const state = await Network.getState();
+  if (state.isConnected && state.type === 'wifi') {
+    await uploadLargePayload();
+  }
+}
+```
+
+Note that `'bluetooth'` is only ever produced on Android. iOS never returns it from `getState()`.
+
+## Reacting to connectivity changes
+
+There is no event or subscription API yet. To react to live changes, poll `getState()` on an interval and act when the snapshot differs from the last one.
+
+```ts
+import { Network } from '@sigx/lynx-network';
+
+let last: boolean | null = null;
+
+const timer = setInterval(async () => {
+  const { isConnected } = await Network.getState();
+  if (isConnected !== last) {
+    last = isConnected;
+    onConnectivityChanged(isConnected);
+  }
+}, 5000);
+
+// Stop polling when you're done:
+clearInterval(timer);
+```
+
+Keep the interval modest — each call is a native round trip. A few seconds is plenty for most UIs.
+
+## Handling captive portals
+
+`isInternetReachable` is independent of `isConnected`. You can be connected to a Wi-Fi access point but still need to sign in at a captive portal before traffic flows.
+
+```ts
+import { Network } from '@sigx/lynx-network';
+
+const state = await Network.getState();
+
+if (state.isConnected && state.isInternetReachable === false) {
+  // Connected to a network, but no confirmed internet — likely a captive portal.
+  showSignInHint();
+}
+```
+
+A value of `null` means the OS has not confirmed reachability yet — treat it as "probably yes" rather than a failure.
+
+## Guarding optional builds
+
+If your app can ship without the native module, check `Network.isAvailable()` before calling `getState()`. It returns whether the native `Network` module is registered in the current build.
+
+```ts
+import { Network } from '@sigx/lynx-network';
+
+if (Network.isAvailable()) {
+  const state = await Network.getState();
+  // use state
+} else {
+  // module not linked — fall back gracefully
+}
+```
 
 ## Notes
 
-wifi / cellular / none status. Pair with fetch or WebSocket — not a transport.
+- One-shot only: `getState()` is a snapshot. There is no subscription stream — poll if you need updates.
+- Permissions: none required on iOS or Android.
+- Transport quirks: `'bluetooth'` is Android-only; `isInternetReachable` may be `null` (unknown).
+
+## See also
+
+- [API reference](/lynx/modules/network/api) — every export and its signature.
+- [Installation](/lynx/modules/network/installation) — project setup.

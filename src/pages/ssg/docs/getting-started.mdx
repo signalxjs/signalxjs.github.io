@@ -1,0 +1,108 @@
+---
+title: Getting Started
+description: "@sigx/ssg — static site generation with MDX and island hydration"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PrereqCallout } from '@/components/PrereqCallout';
+
+# Getting Started with SSG
+
+<PrereqCallout items={[
+    { name: 'SignalX Core basics', path: '/core/docs/getting-started' },
+    { name: 'Router basics', path: '/router/docs/getting-started' },
+]} />
+
+`@sigx/ssg` is the static site generator for SignalX. It turns a folder of pages into a fast, pre-rendered site:
+
+- **File-based routing** — files in `src/pages` become routes (`index.tsx` to `/`, `blog/[slug].tsx` to `/blog/:slug`, and so on).
+- **MDX and Markdown** — author content with frontmatter, Shiki syntax highlighting, GFM, and automatic heading slugs.
+- **Collections and navigation** — group content under a path prefix and get a sidebar generated from your frontmatter.
+- **Layouts and themes** — wrap pages in shared shells, or pull a full theme from a package.
+- **Island hydration** — ship static HTML and hydrate only what needs to be interactive.
+- **Build, dev, and preview** — a zero-config dev server, a static production build, sitemap and robots.txt generation.
+
+The current package version is `0.4.8`.
+
+## Install
+
+```bash
+npm install @sigx/ssg sigx @sigx/router
+npm install -D vite @sigx/vite
+```
+
+Vite 8 or newer is required. See [Installation](/ssg/docs/installation) for peer dependencies, the two ways to wire it up, and zero-config entry detection.
+
+## A minimal end-to-end example
+
+### 1. Create `ssg.config.ts`
+
+`defineSSGConfig` is a type-safe helper that applies sensible defaults and merges your config. Export the result as the default from `ssg.config.ts` in your project root.
+
+```ts
+import { defineSSGConfig } from '@sigx/ssg';
+
+export default defineSSGConfig({
+    site: {
+        title: 'My Site',
+        description: 'Built with @sigx/ssg',
+        url: 'https://example.com',
+    },
+});
+```
+
+### 2. Add a page
+
+Files under `src/pages` are routed automatically. `src/pages/index.tsx` becomes `/`.
+
+```tsx
+import { component } from 'sigx';
+
+export default component(() => {
+    return () => (
+        <main>
+            <h1>Hello from @sigx/ssg</h1>
+            <p>This page was pre-rendered to static HTML.</p>
+        </main>
+    );
+});
+
+export const meta = {
+    title: 'Home',
+    description: 'Welcome to my site',
+};
+```
+
+You can also author pages in MDX. `src/pages/about.mdx` becomes `/about`:
+
+```mdx
+---
+title: About
+description: About this site
+---
+
+# About
+
+Markdown content with **GFM**, frontmatter, and Shiki highlighting.
+```
+
+### 3. Run dev, then build
+
+If you have the CLI plugin available, drive everything through `sigx`:
+
+```bash
+npx sigx ssg dev
+npx sigx ssg build
+npx sigx ssg preview
+```
+
+The dev server defaults to port 5173, preview to 4173. The build renders every route to `dist/<path>/index.html` and writes `sitemap.xml` and `robots.txt`.
+
+## Where to go next
+
+- [Installation](/ssg/docs/installation) — install command, peer deps, and the required config / Vite wiring.
+- [Configuration & Content](/ssg/docs/configuration) — routing, layouts, collections, MDX, and the full config surface.
+- [Commands](/ssg/docs/commands) — every `sigx ssg` command with usage and flags.
+- [API Reference](/ssg/docs/api) — every public export with its signature.

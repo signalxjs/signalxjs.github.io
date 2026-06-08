@@ -8,16 +8,116 @@ order: 30
 
 # Using Image Picker
 
-<p class="lede">Pick / capture images — the essentials.</p>
+<p class="lede">Open the system photo picker, read the selected assets, and handle permissions — without touching native code.</p>
+
+The whole API hangs off a single `ImagePicker` object. Every method is async and resolves to a result you can branch on, so there is nothing to wire up and no events to subscribe to.
 
 ## Basic usage
 
+Call `pickImage` and check `cancelled` before reading `assets`. The promise always resolves — dismissing the picker gives you a cancelled result rather than an error.
+
 ```tsx
-import * as ImagePicker from '@sigx/lynx-image-picker';
+import { ImagePicker } from '@sigx/lynx-image-picker';
+
+async function pickOne() {
+  const result = await ImagePicker.pickImage();
+  if (result.cancelled) return;
+
+  const asset = result.assets[0];
+  console.log(asset.uri, asset.width, asset.height);
+}
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-image-picker */}
+Each asset carries a `uri` with a scheme (`file://`). The picked file is copied into the app's storage, so the URI is safe to store and reload after the app restarts. You can render it directly:
+
+```tsx
+import { ImagePicker } from '@sigx/lynx-image-picker';
+
+const [src, setSrc] = signal('');
+
+async function choose() {
+  const result = await ImagePicker.pickImage();
+  if (!result.cancelled) setSrc(result.assets[0].uri);
+}
+
+// in your component
+<image src={src()} />
+```
+
+## Selecting multiple images
+
+Pass `multiple: true` to let the user pick more than one. Use `maxItems` to cap the count; omit it for an unlimited selection (subject to the OS picker's own limit).
+
+```tsx
+import { ImagePicker } from '@sigx/lynx-image-picker';
+
+async function pickMany() {
+  const result = await ImagePicker.pickImage({ multiple: true, maxItems: 10 });
+  if (result.cancelled) return;
+
+  for (const asset of result.assets) {
+    console.log(asset.uri);
+  }
+}
+```
+
+## Picking video
+
+`pickVideo` opens the system video picker. On iOS the selection is always limited to a single video (the `multiple` option is ignored for video).
+
+```tsx
+import { ImagePicker } from '@sigx/lynx-image-picker';
+
+async function pickClip() {
+  const result = await ImagePicker.pickVideo();
+  if (result.cancelled) return;
+
+  const asset = result.assets[0];
+  console.log(asset.uri, asset.type); // type === 'video'
+}
+```
+
+Platform note: `pickVideo` is currently functional on iOS only. On Android it is a stub that always resolves to a cancelled result — avoid relying on it there for now.
+
+## Permissions
+
+The system photo picker grants per-pick access on both platforms, so you do **not** need to request a permission before calling `pickImage`. In most apps, skip permission handling entirely and just call `pickImage`.
+
+Only call `requestPermission` if you read the gallery directly outside the picker. On Android 14+ calling it before `pickImage` surfaces an extra partial-access sheet, which is usually not what you want.
+
+```tsx
+import { ImagePicker } from '@sigx/lynx-image-picker';
+
+async function ensureGalleryAccess() {
+  const status = await ImagePicker.getPermissionStatus();
+  if (status.status === 'granted') return true;
+
+  const result = await ImagePicker.requestPermission();
+  return result.status === 'granted';
+}
+```
+
+On iOS these calls always report `granted` (PHPicker needs no library permission, and a limited grant also reports `granted`). On Android they reflect the real `photo_library` permission state. See the [Permissions module](/lynx/modules/permissions/overview) for the shared status model.
+
+## Native setup
+
+`sigx prebuild` auto-discovers the package, links the native module, and injects the platform configuration for you:
+
+```bash
+pnpm add @sigx/lynx-image-picker
+sigx prebuild
+```
+
+This adds the iOS photo-library usage description and the Android media permissions (`READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, plus `READ_EXTERNAL_STORAGE` on older API levels). Nothing to install or register by hand. If you want to guard against a build where the module was not linked, check `ImagePicker.isAvailable()` before calling.
 
 ## Notes
 
-Pick or capture images from the photo library or camera.
+- The promise never rejects on user cancellation — branch on `result.cancelled`.
+- Picked assets are persisted into app storage and returned as `file://` URIs that survive an app restart.
+- On Android, persisted assets populate only `uri` and `type`; `width`, `height`, `fileSize`, and `fileName` are dropped. Read those fields only on iOS.
+- The `quality` option is accepted but not applied on iOS, where images are re-encoded to JPEG at a fixed quality.
+
+## See also
+
+- [API reference](/lynx/modules/image-picker/api) — every export and option.
+- [Installation](/lynx/modules/image-picker/installation) — project setup.

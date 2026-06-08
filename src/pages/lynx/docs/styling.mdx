@@ -8,22 +8,259 @@ order: 60
 
 # Styling & layout
 
-<p class="lede">Every element lays out with flexbox; styles are typed objects (or DaisyUI classes via @sigx/lynx-daisyui).</p>
+<p class="lede">Every element lays out with flexbox; styles are typed objects or stylesheet classes. SignalX's runtime smooths over Lynx's CSS quirks, and @sigx/lynx-zero / @sigx/lynx-daisyui add a token-based theming layer on top.</p>
+
+## The mental model
+
+On Lynx there is no DOM and no browser CSS engine. Native host elements — `view`, `text`, `image`, `scroll-view` and friends — take two styling props:
+
+- `style` — an inline object of camelCase CSS properties.
+- `class` — a string that resolves against rules in an imported stylesheet (Lynx uses `class`, not React's `className`).
+
+Both flow to the main thread as ops over SignalX's background-to-main bridge, not as HTML attributes. The runtime normalizes what you write so that the values Lynx's CSS engine actually receives are well-formed. Understanding that normalization is most of what you need to style confidently.
 
 ## Style objects
 
+Write properties as camelCase JS keys. Numeric values are auto-suffixed with `px` by the runtime, so you rarely write units by hand:
+
 ```tsx
-<View style={{ flexDirection: 'row', gap: 12, padding: 16 }}>
-    <Text style={{ fontSize: 16, color: '#e7e9f1' }}>Styled natively</Text>
-</View>
+import { component } from 'sigx';
+// view/text are global JSX intrinsics — importing @sigx/lynx augments JSX
+// so the lowercase tags are typed; there are no View/Text components to import.
+
+export const Card = component(() => {
+    return () => (
+        <view style={{ flexDirection: 'row', gap: 12, padding: 16, borderRadius: 12 }}>
+            <text style={{ fontSize: 16, color: '#e7e9f1' }}>Styled natively</text>
+        </view>
+    );
+});
 ```
+
+A handful of properties are dimensionless and are passed through without a unit: `flex`, `flexGrow`, `flexShrink`, `order`, `opacity`, `zIndex`, `aspectRatio`, `fontWeight` and `lineClamp`. A literal `0` is also never suffixed. Everything else numeric becomes `px`. If you need a non-px unit, pass a string — for example `width: '100%'`.
 
 ## Flexbox by default
 
-Lynx's layout engine speaks flexbox natively — `flexDirection`, `gap`, `alignItems`, `justifyContent` behave like the web.
+Lynx's layout engine speaks flexbox natively. `flexDirection`, `gap`, `alignItems` and `justifyContent` behave like the web, so a column layout is just:
 
-{/* TODO: styling reference + units, themes */}
+```tsx
+<view style={{ flexDirection: 'column', gap: 8, padding: 16 }}>
+    <text>First</text>
+    <text>Second</text>
+</view>
+```
+
+### The flex shorthand trap
+
+Lynx's native inline-style path does NOT expand CSS shorthands. A raw `flex: 1` would reach the engine as an unknown property and silently apply no sizing. SignalX's runtime works around this on the inline path by expanding `flex: n` to its longhand form (`flexGrow` / `flexShrink` / `flexBasis`) before it crosses the bridge, so this just works:
+
+```tsx
+<view style={{ flexDirection: 'column' }}>
+    <text>Header</text>
+    <view style={{ flex: 1 }}>{/* fills remaining space */}</view>
+    <text>Footer</text>
+</view>
+```
+
+On the stylesheet / Tailwind path the runtime can't rewrite your CSS, so there you must use the `.flex-fill` utility instead of `flex-1` — see [Tailwind preset](#tailwind-preset) below.
+
+## Stylesheets and classes
+
+For shared rules, import a stylesheet once at your app entry and reference it by `class`. The DaisyUI package ships a complete stylesheet (a base reset, theme tokens and per-component CSS):
+
+```tsx
+// app entry, e.g. src/main.tsx
+import '@sigx/lynx-daisyui/styles';
+```
+
+Then any element can use those classes. Multi-class strings are applied verbatim, space-separated:
+
+```tsx
+<view class="card">
+    <text class="card-title">Hello</text>
+</view>
+```
+
+The component CSS is plain CSS that references custom properties like `var(--color-primary)`, `var(--size-field)` and `var(--radius-box)` — the structural token contract described under [Theming](#theming). Note that the imported base reset zeroes the border on every Lynx host element (`view`, `text`, `image`, `scroll-view`, `input` and so on), so borders are opt-in.
+
+You can combine `style` and `class` on the same element. Classes set the baseline; inline style overrides per instance.
+
+## Tailwind preset
+
+If you use Tailwind, both `@sigx/lynx-zero` and `@sigx/lynx-daisyui` ship a preset that re-points the color and font-size utilities at the active theme's custom properties and adds the Lynx-correct layout utility. Add it to your Tailwind config:
+
+```ts
+// tailwind.config.ts
+import { daisyuiPreset } from '@sigx/lynx-daisyui/preset';
+
+export default {
+    presets: [daisyuiPreset],
+    content: ['./src/**/*.{ts,tsx}'],
+};
+```
+
+With the preset installed, semantic utilities resolve against whichever theme is active:
+
+```tsx
+<view class="bg-base-200 p-4 rounded-box">
+    <text class="text-primary text-lg">Themed via Tailwind</text>
+</view>
+```
+
+`bg-primary`, `text-base-content`, `text-lg` and the rest map onto `var(--color-*)` and the `var(--text-*)` ramp through the preset's `contractColors` and `contractFontSizes` maps.
+
+If you don't use a design system, `@sigx/lynx-zero`'s `zeroPreset` is the same composition without the DaisyUI-specific layer — import it from `@sigx/lynx-zero/preset`. (`daisyuiPreset` currently just spreads `zeroPreset`.)
+
+### Use `.flex-fill`, not `flex-1`
+
+The preset adds a `.flex-fill` utility for "fill the remaining main-axis space." Reach for it instead of `flex-1`:
+
+```tsx
+<view class="flex-fill">{/* grows to fill its flex parent */}</view>
+```
+
+`flex-1` expands to the `flex: 1 1 auto` shorthand, which on Lynx sizes the box to its content and collapses the layout chain. `.flex-fill` sets the correct longhands (`flexGrow: 1`, `flexShrink: 1`, `flexBasis: 0`, `minHeight: 0`) plus `display: flex`.
+
+## Layout primitives
+
+Rather than hand-writing flex objects, `@sigx/lynx-zero` exports design-system-neutral primitives — `Row`, `Col`, `Center` and `Spacer` — that build a Lynx-correct inline style for you and accept a `class` passthrough. They understand the box-model props (`gap`, `padding`, `margin`, `width`, `height`, `flex`, `background`, `borderRadius`) and resolve spacing and the flex shorthand the safe way:
+
+```tsx
+import { Row, Spacer } from '@sigx/lynx-zero';
+// text is a global JSX intrinsic — no import needed.
+
+export const Toolbar = () => (
+    <Row gap={12} padding={{ x: 16, y: 8 }} background="base-200" borderRadius={12}>
+        <text>Title</text>
+        <Spacer />
+        <text>Action</text>
+    </Row>
+);
+```
+
+The `background` prop is token-aware: pass a semantic token like `base-200` or `primary` and it resolves through the active theme, or pass any raw CSS color (`#fff`, `rgb(...)`). `padding` and `margin` accept a single number (all sides), per-axis `{ x, y }`, or per-side `{ top, right, bottom, left }` overrides.
+
+## Theming
+
+Themes on Lynx are sets of CSS custom properties — colors (`--color-<token>`), roundness (`--radius-*`), sizing (`--size-*`) and the text ramp (`--text-*`). Components and utilities read those variables, so switching a theme recolors everything that references them.
+
+### Why a runtime, not inline vars
+
+Lynx in this toolchain does NOT honor CSS custom properties declared via the inline `style` attribute, and its CSS engine does not parse `oklch()` or reliably evaluate `calc(var() * n)`. So themes are applied as real, inheritable custom properties through the Lynx runtime `setProperty` API rather than inline. Two consequences shape how you author themes:
+
+- Theme colors must be engine-safe strings — hex or `rgb()`, never `oklch()`.
+- Structural sizes ship as literal `px`; the provider re-derives any scaled values in JS.
+
+`ThemeProvider` handles all of this. It wraps children in a host `view` carrying the theme classes and pushes the active palette down via `setProperty`. Because Lynx layout defaults enable CSS inheritance, the variables flow to every descendant.
+
+### Mounting a provider
+
+Mount one root provider near the top of your app and pick a starting theme:
+
+```tsx
+import { component } from 'sigx';
+import { ThemeProvider } from '@sigx/lynx-daisyui';
+
+export const App = component(() => {
+    return () => (
+        <ThemeProvider initial="daisy-light">
+            {/* your screens */}
+        </ThemeProvider>
+    );
+});
+```
+
+`@sigx/lynx-daisyui` registers six built-in themes on import — `daisy-light`, `daisy-dark`, `daisy-cupcake`, `daisy-synthwave`, `daisy-emerald` and `daisy-dracula` — each paired light/dark so they can toggle.
+
+### Switching themes
+
+Read and drive the active theme with the `useTheme` hook, which returns a reactive controller:
+
+```tsx
+import { component } from 'sigx';
+import { Pressable } from '@sigx/lynx-gestures';
+import { useTheme } from '@sigx/lynx-daisyui';
+// text is a global JSX intrinsic — no import needed.
+
+export const ThemeToggle = component(() => {
+    const theme = useTheme();
+    return () => (
+        <Pressable onPress={() => theme.toggle()}>
+            <text>Theme: {theme.name}</text>
+        </Pressable>
+    );
+});
+```
+
+`set('daisy-dark')` pins a theme, `toggle()` flips to the paired light/dark theme, and `followSystem()` resumes following the OS color scheme. Reading `theme.name` inside render makes the subtree reactive to theme switches.
+
+You can also drive the theme without a hook — from a store, a service or app boot — through the module-level `themeController`. A mounted root provider binds this singleton, so headless mutations still render:
+
+```ts
+import { themeController } from '@sigx/lynx-daisyui';
+
+themeController.set('daisy-dark');
+```
+
+### Font scaling
+
+Font scale is orthogonal to theme — it multiplies the `--text-*` ramp app-wide and persists across theme switches:
+
+```ts
+import { themeController } from '@sigx/lynx-daisyui';
+
+themeController.setFontScale(1.25);
+```
+
+### Scoped sub-themes
+
+Nesting a `ThemeProvider` creates a content-only sub-scope: its descendants recolor, while the OS status / navigation bars keep following the global root theme. This is handy for a single screen or panel on a different palette:
+
+```tsx
+<ThemeProvider initial="daisy-light">
+    <MainContent />
+    <ThemeProvider initial="daisy-dark">
+        <SidePanel />
+    </ThemeProvider>
+</ThemeProvider>
+```
+
+### Custom themes
+
+Register a theme before mounting the provider. The easiest path is `extendTheme`, which derives a full theme from a registered base and recomputes any soft tints you didn't override:
+
+```ts
+import { registerTheme, extendTheme } from '@sigx/lynx-daisyui';
+
+registerTheme(
+    extendTheme('daisy-dark', {
+        name: 'acme-dark',
+        colors: { primary: '#fb7185' },
+    }),
+);
+```
+
+Then use `initial="acme-dark"` on your provider. To build a theme from scratch, pass a `ThemeInput` to `registerTheme` directly — provide the core color tokens (the `*-soft` tints are computed for you) as hex or `rgb()` strings.
+
+### Concrete colors for native consumers
+
+Some native surfaces — text inputs, rich-text, SVG fills — can't read CSS variables. `useThemeColors` resolves the active palette to concrete hex values for those cases:
+
+```tsx
+import { component } from 'sigx';
+import { useThemeColors } from '@sigx/lynx-zero';
+// text is a global JSX intrinsic — no import needed.
+
+export const Hint = component(() => {
+    const colors = useThemeColors();
+    return () => (
+        <text style={{ color: colors.colorOf('base-content', 0.45) }}>Subtle hint</text>
+    );
+});
+```
+
+`colorOf(token, alpha?)` returns `#RRGGBB` or `#RRGGBBAA` and is reactive to theme switches.
 
 ## Component library
 
-For a themed, ready-made component set, see [DaisyUI for Lynx](/lynx/modules/daisyui/overview).
+For a themed, ready-made component set built on this model, see [DaisyUI for Lynx](/lynx/modules/daisyui/overview). Each component composes its own classes (for example `color="primary"` becomes `btn-primary`) and exposes a `class` escape hatch so you can append your own. For the elements that take these styles, see the [native elements](/lynx/docs/elements) guide.

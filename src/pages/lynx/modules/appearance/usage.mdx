@@ -1,0 +1,146 @@
+---
+title: "Usage"
+description: "Appearance — System color scheme & bars"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Appearance
+
+<p class="lede">Observe the system light/dark color scheme reactively, and tint the status and navigation bars to match — with the correct value on cold start and no flash.</p>
+
+## Basic usage
+
+Mount an `AppearanceProvider` once near your app root, above anything that reads the color scheme. The provider seeds its signal synchronously from `lynx.__globalProps` before the first paint, so the value is correct on cold start, and it subscribes to the native flip event to stay live. Then read the scheme anywhere below with `useSystemColorScheme`.
+
+```tsx
+import { defineApp } from '@sigx/lynx';
+import { AppearanceProvider, useSystemColorScheme } from '@sigx/lynx-appearance';
+
+const Status = () => {
+  const scheme = useSystemColorScheme();
+  return () => <text>System is in {scheme.value} mode</text>;
+};
+
+export default defineApp(() => () => (
+  <AppearanceProvider>
+    <Status />
+  </AppearanceProvider>
+));
+```
+
+`useSystemColorScheme` returns a reactive signal. Reading `.value` in a render or effect subscribes you to changes, so the component re-runs whenever the user flips dark mode in system settings.
+
+No native wiring or runtime permissions are required. The native module is named `Appearance` on both platforms, and `sigx prebuild` auto-discovers the package, registers the module and publishers, and wires the iOS host view controller to forward the status-bar style. No `Info.plist` strings or Android manifest permissions are needed.
+
+```bash
+pnpm add @sigx/lynx-appearance
+sigx prebuild   # auto-links the native module
+```
+
+## Keeping the system bars in sync with the theme
+
+The most common task is tinting the status and navigation bars so their icons stay legible against your current theme. Read the scheme, then call `setSystemBarsStyle` inside an effect so the bars re-apply whenever the system flips.
+
+```tsx
+import { defineApp, effect } from '@sigx/lynx';
+import { AppearanceProvider, useSystemColorScheme, setSystemBarsStyle } from '@sigx/lynx-appearance';
+
+const App = () => {
+  const scheme = useSystemColorScheme();
+
+  effect(() => {
+    const dark = scheme.value === 'dark';
+    void setSystemBarsStyle({
+      statusBar: dark ? 'light' : 'dark',
+      statusBarBackground: dark ? '#000000' : '#ffffff',
+      navigationBar: { style: dark ? 'light' : 'dark' },
+    });
+  });
+
+  return () => <text>System is in {scheme.value} mode</text>;
+};
+
+export default defineApp(() => () => (
+  <AppearanceProvider>
+    <App />
+  </AppearanceProvider>
+));
+```
+
+A few things worth knowing about the bar style values:
+
+- `'light'` and `'dark'` refer to the *content* (clock and icon) tint, not the background. `'light'` means light-colored icons that are legible on a dark background; `'dark'` means dark icons for a light background. It is easy to flip these the wrong way — behind a dark theme you want `statusBar: 'light'`.
+- `statusBarBackground` and `navigationBar` are Android-only. On iOS those legs resolve as `unsupported` and are ignored, while the status-bar content tint still applies.
+- Every setter is safe to fire-and-forget with `void`. They never reject — on unwired hosts (web preview, SSR, tests, unlinked apps) they resolve `{ ok: false, reason: 'unsupported' }` instead.
+
+### iOS host forwarding
+
+On iOS, `setStatusBarStyle` resolves `ok: true` but will only visibly change the bar if the host view controller overrides `preferredStatusBarStyle` to return `AppearanceModule.preferredStatusBarStyle`. The lynx-cli iOS template wires this automatically, so apps scaffolded with the CLI work out of the box.
+
+### Android 15 edge-to-edge
+
+On Android 15+ (API 35), edge-to-edge is enforced and `setStatusBarBackgroundColor` (and the nav-bar background color) are system-level no-ops. To color the area behind the status bar, overlay your own background view inside the safe-area top padding — this pairs naturally with [Safe Area](/lynx/modules/safe-area/overview).
+
+## Setting individual bars
+
+If you only need to touch one surface, the granular setters mirror `setSystemBarsStyle` and return the same `{ ok, reason }` envelope.
+
+```tsx
+import {
+  setStatusBarStyle,
+  setStatusBarBackgroundColor,
+  setNavigationBarStyle,
+} from '@sigx/lynx-appearance';
+
+// Status-bar content tint (iOS + Android).
+await setStatusBarStyle('light');
+
+// Android only — status-bar background. Pass null to clear to transparent.
+await setStatusBarBackgroundColor('#101010');
+
+// Android only — nav-bar tint plus optional background color.
+await setNavigationBarStyle({ style: 'light', color: '#101010' });
+```
+
+You can inspect the result before reacting, but for a flip-driven effect the fire-and-forget `void` pattern above is usually all you need. The iOS-only-unsupported legs return `{ ok: false, reason: 'unsupported' }` rather than throwing.
+
+## Reading the scheme on the main thread
+
+Inside a `'main thread'`-marked worklet body you cannot subscribe to a background signal. Use `useSystemColorSchemeMT` for a synchronous, subscription-free read that re-evaluates on each worklet invocation.
+
+```tsx
+import { useSystemColorSchemeMT } from '@sigx/lynx-appearance';
+
+const tint = () => {
+  'main thread';
+  const isDark = useSystemColorSchemeMT() === 'dark';
+  return isDark ? '#000000' : '#ffffff';
+};
+```
+
+`useSystemColorSchemeMT` returns `'light'` when the publisher has not populated yet (very early cold start) or when running on a non-Lynx host.
+
+## Reading without a provider
+
+`useSystemColorScheme` still works without an `AppearanceProvider` in scope: it returns a process-level fallback signal seeded once from `lynx.__globalProps`. The value is correct on cold start but does not update live on flips. This lets a `ThemeProvider`-style consumer use the hook even when no `AppearanceProvider` is mounted — but mount the provider if you want live updates.
+
+For a one-shot, non-reactive read from either thread, call `readGlobalColorScheme`. It returns `null` when the value is unknown (early cold start or non-Lynx host) — treat `null` as "fall back to your default theme".
+
+```tsx
+import { readGlobalColorScheme } from '@sigx/lynx-appearance';
+
+const scheme = readGlobalColorScheme() ?? 'light';
+```
+
+## Notes
+
+- The scheme JS sees is only ever `'light'` or `'dark'`. The iOS `unspecified` and Android `UI_MODE_NIGHT_UNDEFINED` states both collapse to `'light'` at the native publisher boundary.
+- No runtime permissions are required on either platform.
+- `isAvailable()` reports whether the native module is registered in the current build. The setters call it internally to short-circuit to the unsupported result, so you rarely need it directly.
+
+## See also
+
+- [API reference](/lynx/modules/appearance/api) — every export with signatures.
+- [Safe Area](/lynx/modules/safe-area/overview) — insets for overlaying your own bar backgrounds.

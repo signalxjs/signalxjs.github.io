@@ -1,0 +1,157 @@
+---
+title: "Usage"
+description: "Background Tasks — Periodic sync & fetch"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Background Tasks
+
+<p class="lede">Schedule periodic JS handlers that run while the app is backgrounded or closed — refresh a feed, drain an outbox, sync to storage.</p>
+
+## Basic usage
+
+Everything lives on the `Background` singleton. A task has two halves: a JS **handler** (the code that runs) and a native **registration** (the schedule the OS keeps). The handler lives only in JS and must be re-wired on every cold start; the registration is persisted natively across launches.
+
+```tsx
+import { Background } from '@sigx/lynx-background';
+```
+
+Wire the handler first, then register. The OS can fire a task as soon as the process starts — before any UI renders — so `setHandler` must run at startup, before the first foreground frame and before `register`.
+
+```tsx
+import { Background } from '@sigx/lynx-background';
+import { Storage } from '@sigx/lynx-storage';
+
+// 1. Handler — re-wire this on every cold start.
+Background.setHandler('refresh-feed', async () => {
+  const res = await fetch('https://example.com/feed.json');
+  Storage.setItem('feed', JSON.stringify(await res.json()));
+});
+
+// 2. Registration — idempotent, safe to call on every cold start.
+await Background.register('refresh-feed', {
+  minimumInterval: 15 * 60, // seconds — Android floor is 900s; iOS treats it as a hint
+  requiresNetwork: true,
+  type: 'fetch',            // iOS only; 'fetch' (default) or 'processing'
+});
+```
+
+`register` is idempotent. Calling it twice with the same `taskName` updates the existing request rather than creating a duplicate (iOS replaces the same-identifier request, Android uses an UPDATE/REPLACE policy), so cold-start wiring is safe to re-run.
+
+The handler return value drives task completion. If it resolves, native marks the run a success; if it throws or rejects, native marks it a failure. Keep the work inside the platform time budget — roughly 30s for an iOS `fetch` task and up to ~9 minutes on Android before the worker self-times-out.
+
+## iOS native setup
+
+`sigx prebuild` auto-links the module, adds the `UIBackgroundModes` keys, and wires the AppDelegate hook that re-submits persisted tasks on every cold launch (iOS 13.0+). The one thing it cannot infer is your task identifiers — iOS requires every permitted identifier to be known at **build** time.
+
+Declare the full reverse-DNS identifiers in `signalx.config.ts`. The convention is `${bundleId}.bg.${taskName}`. The JS API uses the short `taskName` (e.g. `'refresh-feed'`); native prepends the prefix before submitting to `BGTaskScheduler`, so the config entry must use the exact namespaced form or the OS crashes with "Required identifier not registered".
+
+```ts
+import { defineLynxConfig } from '@sigx/lynx-cli/config';
+
+export default defineLynxConfig({
+  ios: {
+    bundleIdentifier: 'com.example.app',
+    bgTaskIdentifiers: [
+      'com.example.app.bg.refresh-feed',
+      'com.example.app.bg.sync-outbox',
+    ],
+  },
+});
+```
+
+Android needs no per-task config — `sigx prebuild` adds the `androidx.work` dependency and the runtime enqueues work by name.
+
+## Wiring on startup
+
+Because the OS may fire a task before any UI is up, do all wiring in a single startup routine that runs on every cold start. Set the handler, then register, then prune stale tasks left over from older app versions.
+
+```tsx
+import { Background } from '@sigx/lynx-background';
+import { Storage } from '@sigx/lynx-storage';
+
+const TASKS = ['refresh-feed', 'sync-outbox'] as const;
+
+export async function setupBackground() {
+  if (!Background.isAvailable()) return; // web/SSR/test — no native bridge
+
+  // Handlers — must be re-wired every cold start.
+  Background.setHandler('refresh-feed', async () => {
+    const res = await fetch('https://example.com/feed.json');
+    Storage.setItem('feed', JSON.stringify(await res.json()));
+  });
+
+  Background.setHandler('sync-outbox', () => drainOutbox());
+
+  // Registrations — idempotent.
+  await Background.register('refresh-feed', { minimumInterval: 15 * 60, requiresNetwork: true });
+  await Background.register('sync-outbox', { minimumInterval: 30 * 60, requiresNetwork: true });
+
+  // Prune registrations from previous app versions.
+  const known = new Set<string>(TASKS);
+  for (const name of await Background.getRegistered()) {
+    if (!known.has(name)) await Background.unregister(name);
+  }
+}
+
+async function drainOutbox() {
+  // small idempotent step — see the time-budget note below
+}
+```
+
+## Cleaning up stale registrations
+
+`getRegistered` returns the short task names the native side still persists. Compare against the set your current build knows about and `unregister` the rest. `unregister` is a no-op for tasks that are not registered, so it is safe to call defensively.
+
+```tsx
+import { Background } from '@sigx/lynx-background';
+
+const known = new Set(['refresh-feed', 'sync-outbox']);
+for (const name of await Background.getRegistered()) {
+  if (!known.has(name)) await Background.unregister(name);
+}
+```
+
+## Long-budget processing tasks (iOS)
+
+For heavier work that should run while charging, use `type: 'processing'` on iOS. Only `processing` tasks honor the `requiresNetwork` and `requiresCharging` constraints on iOS — they are silently ignored for the default `fetch` task, because `BGAppRefreshTask` does not expose them. On Android both constraints apply to either work type.
+
+```tsx
+import { Background } from '@sigx/lynx-background';
+
+Background.setHandler('nightly-sync', async () => {
+  await syncLargeDataset(); // structure as small idempotent steps
+});
+
+await Background.register('nightly-sync', {
+  type: 'processing',       // iOS BGProcessingTask — longer budget
+  requiresCharging: true,   // honored on iOS only for 'processing'; on Android always
+  requiresNetwork: true,
+  minimumInterval: 12 * 60 * 60,
+});
+```
+
+## Tearing down a task
+
+To stop a task entirely, unregister it (clears the native schedule) and drop the handler via the unsubscribe returned by `setHandler`. The unsubscribe only clears the handler if it is still the same one, so a later `setHandler` for the same task is never clobbered.
+
+```tsx
+import { Background } from '@sigx/lynx-background';
+
+const off = Background.setHandler('refresh-feed', handler);
+await Background.register('refresh-feed', { minimumInterval: 15 * 60 });
+
+// later
+await Background.unregister('refresh-feed');
+off(); // after this, any stray fire completes as a no-op
+```
+
+## Notes
+
+- **Frequency is a hint, not a guarantee.** iOS `BGAppRefreshTask` may fire once every few hours at best; `BGProcessingTask` typically runs overnight while charging. Android `PeriodicWorkRequest` enforces a 15-minute floor — `minimumInterval` below 900s is silently clamped. Omit `minimumInterval` (or pass `<= 0`) for one-shot semantics.
+- **Structure handlers as small idempotent steps.** On Android the worker self-times-out near ~9 minutes and returns a retry, so the next fire should be able to resume.
+- **iOS Simulator does not run `BGTaskScheduler`** — test on a real device, or trigger manually from Xcode via LLDB: `e -l objc -- (void)[[BGTaskScheduler sharedScheduler] _simulateLaunchForTaskWithIdentifier:@"com.example.app.bg.refresh-feed"]`.
+- **Android OEM battery optimization** (Xiaomi, Huawei, Oppo) can prevent WorkManager from firing. Test on a Pixel or ask users to allow background activity.
+- See the [API reference](/lynx/modules/background/api) for every export, and [Installation](/lynx/modules/background/installation) for project setup.

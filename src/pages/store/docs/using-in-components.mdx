@@ -1,0 +1,164 @@
+---
+title: Using Stores in Components
+description: "Read store state in render, share instances, and control lifetimes"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Using Stores in Components
+
+A store factory returns a live instance whose `state` is signal-backed. When you read `store.state.x` inside a component's render function, SignalX tracks the dependency and re-renders that component whenever the value changes. This guide covers reading, sharing, lifetimes, and cleanup.
+
+## Reading state in render
+
+Call the factory inside a `component(...)` setup and reference the state in the returned render function. No manual subscription is needed for rendering.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { defineStore } from '@sigx/store';
+
+const useCounterStore = defineStore('counter', ({ defineState, defineActions }) => {
+    const { state, mutate } = defineState({ count: 0 });
+    const actions = defineActions({
+        increment() { mutate.count(prev => prev + 1); },
+    });
+    return { state, actions };
+});
+
+const Counter = component(() => {
+    const store = useCounterStore();
+    return () => (
+        <button class="btn btn-primary" onClick={store.actions.increment}>
+            Clicked {store.state.count} times
+        </button>
+    );
+});
+
+render(<Counter />, "#sandbox");
+```
+
+## Derived values in render
+
+Computed getters exposed under `get` are read with `.value`. They update automatically as the underlying state changes.
+
+```tsx preview code live
+import { component, render, computed } from 'sigx';
+import { defineStore } from '@sigx/store';
+
+const useCartStore = defineStore('cart', ({ defineState, defineActions }) => {
+    const { state, mutate } = defineState({
+        items: [
+            { name: 'Keyboard', price: 80, qty: 1 },
+            { name: 'Mouse', price: 30, qty: 1 },
+        ],
+    });
+
+    const total = computed(() =>
+        state.items.reduce((sum, item) => sum + item.price * item.qty, 0)
+    );
+
+    const actions = defineActions({
+        addMouse() {
+            mutate.items(prev =>
+                prev.map(i => (i.name === 'Mouse' ? { ...i, qty: i.qty + 1 } : i))
+            );
+        },
+    });
+
+    return { state, get: { total }, actions };
+});
+
+const Cart = component(() => {
+    const store = useCartStore();
+    return () => (
+        <div class="space-y-2">
+            <ul class="text-sm">
+                {store.state.items.map(item => (
+                    <li>{item.name} x{item.qty} - ${item.price * item.qty}</li>
+                ))}
+            </ul>
+            <p class="font-bold">Total: ${store.get.total.value}</p>
+            <button class="btn btn-sm" onClick={store.actions.addMouse}>Add a mouse</button>
+        </div>
+    );
+});
+
+render(<Cart />, "#sandbox");
+```
+
+## Reacting to specific mutations
+
+To run side effects when a single property changes, subscribe to its `onMutated{Key}` event. Each `subscribe` returns a `Subscription` you can `unsubscribe()` later.
+
+```tsx
+const store = useCounterStore();
+
+const sub = store.events.onMutatedCount.subscribe(value => {
+    document.title = `Count: ${value}`;
+});
+
+// later, when you no longer need it:
+sub.unsubscribe();
+```
+
+Subscribe to action lifecycle events the same way for cross-cutting concerns like logging or analytics:
+
+```tsx
+store.actions.onFailure.someAsyncAction.subscribe((error, ...args) => {
+    reportError(error, args);
+});
+```
+
+## Sharing one instance vs. fresh instances
+
+The third argument to `defineStore` is the instance **lifetime**, defaulting to `Scoped`:
+
+```ts
+import { defineStore } from '@sigx/store';
+import { InstanceLifetimes } from '@sigx/runtime-core';
+
+const useAppStore = defineStore('app', setup, InstanceLifetimes.Singleton);
+```
+
+- `Scoped` (default) — shared within the current resolution scope.
+- `Singleton` — one shared instance across the whole app; ideal for global app state.
+- `Transient` — a new instance every time the factory is called.
+
+Pick `Singleton` when several components must read and write the same state. Pick `Transient` when each component should own an isolated copy.
+
+## Parameterized stores
+
+A setup can accept up to five extra parameters after the context. Those parameters are forwarded through the factory call, letting you seed a store per instance.
+
+```tsx
+import { defineStore } from '@sigx/store';
+
+const useListStore = defineStore('list', ({ defineState }, initialItems: string[]) => {
+    const { state, mutate } = defineState({ items: initialItems });
+    return { state, mutate };
+});
+
+// create instances seeded with different data
+const left = useListStore(['a', 'b']);
+const right = useListStore(['x', 'y', 'z']);
+```
+
+## Cleanup and lifetime
+
+When you create a store instance **inside a component**, it is tied to that component's lifecycle. On unmount the instance auto-disposes: its effect scope is stopped and all event topics are destroyed, so `onMutated*` and action events stop firing.
+
+If you create an instance **outside** a component, dispose it yourself when you are done:
+
+```ts
+const store = useCounterStore();
+store.state.count = 1; // subscribers fire
+
+store.dispose();        // stop scope + destroy topics
+store.state.count = 2;  // subscribers no longer fire
+```
+
+## Next steps
+
+- [Defining a Store](/store/docs/defining-a-store) — state, getters, actions, and events in depth.
+- [API Reference](/store/docs/api) — full signatures for every export.

@@ -1,0 +1,136 @@
+---
+title: Toggle
+description: "Toggle — @sigx/lynx-heroui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 146
+---
+
+# Toggle
+
+<p class="lede">An on/off switch for boolean settings, with an animated sliding thumb, semantic colors, three sizes, and press feedback.</p>
+
+## Import
+
+```tsx
+import { Toggle } from '@sigx/lynx-heroui';
+```
+
+## Model binding
+
+`Toggle` is a controlled component. Drive it from a signal via the `checked` prop and update that signal in the `onChange` handler — there is no built-in two-way `model` prop. The handler receives the new boolean state, so a toggle bound to a signal looks like this:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Toggle } from '@sigx/lynx-heroui';
+
+export const NotificationsRow = component(({ signal }) => {
+  const state = signal({ enabled: false });
+
+  return () => (
+    <Toggle
+      checked={state.enabled}
+      color="primary"
+      onChange={(next) => { state.enabled = next; }}
+      accessibility-label="Enable notifications"
+    />
+  );
+});
+```
+
+When `onChange` is omitted the toggle is purely visual — tapping it emits nothing and `checked` stays at whatever you pass in. A `disabled` toggle never emits `change`.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `checked` | `boolean` | `false` | Controlled on/off state. When `true` the thumb slides to the end and the `hero-toggle-checked` style applies. |
+| `color` | `ToggleColor` | - | Track color shown when checked. One of `'primary'`, `'secondary'`, `'accent'`, `'info'`, `'success'`, `'warning'`, `'error'`. |
+| `size` | `ToggleSize` | `'md'` | Toggle size: `'sm'`, `'md'`, or `'lg'`. Controls track/thumb dimensions and the thumb travel distance. |
+| `disabled` | `boolean` | `false` | Dims the toggle and suppresses the `change` event. |
+| `class` | `string` | - | Additional class names appended to the toggle root. |
+| `accessibility-element` | `boolean` | - | Marks the toggle as an accessibility element. |
+| `accessibility-label` | `string` | - | Accessible label announced by assistive tech. |
+| `accessibility-role` | `string` | - | Accessibility role override. |
+| `accessibility-trait` | `string` | - | Accessibility trait(s) for the element. |
+| `accessibility-status` | `string` | - | Accessibility status text. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `onChange` | `boolean` | Fired on press with the next on/off state. Not emitted while `disabled`. |
+
+The exported types `ToggleColor` and `ToggleSize` are also available from `@sigx/lynx-heroui` for typing your own props:
+
+```ts
+import type { ToggleProps, ToggleColor, ToggleSize } from '@sigx/lynx-heroui';
+```
+
+## Sizes
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Toggle, Col } from '@sigx/lynx-heroui';
+
+export const Sizes = component(({ signal }) => {
+  const s = signal({ sm: true, md: true, lg: true });
+
+  return () => (
+    <Col gap="3">
+      <Toggle size="sm" checked={s.sm} onChange={(v) => { s.sm = v; }} />
+      <Toggle size="md" checked={s.md} onChange={(v) => { s.md = v; }} />
+      <Toggle size="lg" checked={s.lg} onChange={(v) => { s.lg = v; }} />
+    </Col>
+  );
+});
+```
+
+## Colors
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Toggle, Col } from '@sigx/lynx-heroui';
+
+export const Colors = component(({ signal }) => {
+  const on = signal({
+    primary: true,
+    success: true,
+    warning: true,
+    error: true,
+  });
+
+  return () => (
+    <Col gap="3">
+      <Toggle color="primary" checked={on.primary} onChange={(v) => { on.primary = v; }} />
+      <Toggle color="success" checked={on.success} onChange={(v) => { on.success = v; }} />
+      <Toggle color="warning" checked={on.warning} onChange={(v) => { on.warning = v; }} />
+      <Toggle color="error" checked={on.error} onChange={(v) => { on.error = v; }} />
+    </Col>
+  );
+});
+```
+
+## Disabled state
+
+Pair the toggle with your own `Text` label using a `Row` — the component has no built-in label slot.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Toggle, Row, Text } from '@sigx/lynx-heroui';
+
+export const Disabled = component(() => {
+  return () => (
+    <Row gap="4">
+      <Row gap="2">
+        <Toggle disabled checked={false} />
+        <Text>Disabled, off</Text>
+      </Row>
+      <Row gap="2">
+        <Toggle disabled checked color="success" />
+        <Text>Disabled, on</Text>
+      </Row>
+    </Row>
+  );
+});
+```

@@ -1,0 +1,257 @@
+---
+title: Configuration & Content
+description: "File-based routing, layouts, collections, navigation, MDX, hydration, and sitemap with @sigx/ssg"
+layout: docs
+category: Guides
+order: 30
+---
+
+# Configuration & Content
+
+This guide covers the day-to-day building blocks of an `@sigx/ssg` site: configuration, file-based routing, layouts, collections, MDX, hydration, and the generated sitemap. Every snippet uses the public `@sigx/ssg` import path.
+
+## Configuration
+
+Author your config with `defineSSGConfig` (or its alias `defineConfig`) and export it as the default from `ssg.config.ts`:
+
+```ts
+import { defineSSGConfig } from '@sigx/ssg';
+
+export default defineSSGConfig({
+    pages: 'src/pages',
+    layouts: 'src/layouts',
+    outDir: 'dist',
+    base: '/',
+    site: {
+        title: 'My Site',
+        description: 'Built with @sigx/ssg',
+        url: 'https://example.com',
+        lang: 'en',
+    },
+    defaultLayout: 'default',
+});
+```
+
+`defineSSGConfig` applies defaults before merging your config:
+
+- `pages` is `src/pages`, `layouts` is `src/layouts`, `content` is `src/content`.
+- `defaultLayout` is `default`, `outDir` is `dist`, `base` is `/`.
+- `autoEntries` and `prefetch` are enabled, `site.lang` is `en`.
+- `markdown.shiki` is on; `toc` uses `minLevel: 2`, `maxLevel: 3`.
+
+When `base` is not set, SSG inherits Vite's `base`, so the sitemap, canonical URLs, and router stay in sync for sub-path deploys.
+
+## File-based routing
+
+Files under `src/pages` map to routes by their path. Supported page extensions are `.tsx`, `.jsx`, `.mdx`, and `.md`.
+
+| File | Route |
+| --- | --- |
+| `index.tsx` | `/` |
+| `about.tsx` | `/about` |
+| `blog/index.tsx` | `/blog` |
+| `blog/[slug].tsx` | `/blog/:slug` |
+| `docs/[...path].tsx` | `/docs/*path` |
+
+Optional segments are also supported: `[[id]]` becomes `:id?` and `[[...slug]]` becomes `*slug`.
+
+Routes are sorted by specificity: static beats dynamic (`:param`) beats catch-all (`*`).
+
+### Excluded from routing
+
+- Root-level `components/`, `hooks/`, `utils/`, and `lib/` folders.
+- Any file or folder starting with `_` (at any level).
+- `*.test.*` and `*.spec.*` files.
+
+### Dynamic routes need `getStaticPaths`
+
+A dynamic route must export `getStaticPaths()` returning an array of `StaticPath` objects, each with `params` and optional `props`. Routes without it are skipped with a warning (`SSG102`).
+
+```tsx
+import { component } from 'sigx';
+
+export async function getStaticPaths() {
+    return [
+        { params: { slug: 'hello-world' } },
+        { params: { slug: 'second-post' }, props: { featured: true } },
+    ];
+}
+
+export default component<{ params: { slug: string } }>(({ props }) => {
+    return () => <article>Post: {props.params.slug}</article>;
+});
+```
+
+## Layouts
+
+Layouts live in `src/layouts`. A layout default-exports a component and renders the page content through `slots.default()`:
+
+```tsx
+import { component } from 'sigx';
+import type { LayoutProps, LayoutSlots } from '@sigx/ssg';
+
+export default component<LayoutProps, unknown, LayoutSlots>(({ slots }) => {
+    return () => (
+        <div class="site">
+            <header>My Site</header>
+            <main>{slots.default()}</main>
+        </div>
+    );
+});
+```
+
+A page selects its layout, in order of precedence, via:
+
+1. Frontmatter `layout:` (MDX/Markdown).
+2. An exported `export const layout = '...'`.
+3. The collection config.
+4. The config `defaultLayout` (defaults to `default`).
+
+Themes bundle layouts, components, and CSS in a package referenced by the config `theme` field.
+
+## MDX and Markdown
+
+Frontmatter is parsed with gray-matter and is available in MDX expressions through `frontmatter`:
+
+```mdx
+---
+title: My Post
+description: A post written in MDX
+category: Blog
+order: 10
+---
+
+# {frontmatter.title}
+
+Body content with **GFM**, autolinked headings, and Shiki highlighting.
+```
+
+Defaults that apply to content pages:
+
+- **Shiki** syntax highlighting is on (light: `github-light`, dark: `github-dark`).
+- **GFM**, `rehype-slug`, and autolinked headings are enabled.
+- **Table of contents** headings are extracted between `toc.minLevel` (2) and `toc.maxLevel` (3).
+
+Navigation-related frontmatter fields come from `PageMeta`: `category` (a string, or an array for nesting), `order`, `sidebar`, `draft`, `toc`, and `ssr`.
+
+## Collections and navigation
+
+A collection groups pages under a path prefix and generates its own sidebar from their `category` / `order` frontmatter:
+
+```ts
+import { defineSSGConfig } from '@sigx/ssg';
+
+export default defineSSGConfig({
+    collections: {
+        docs: {
+            path: '/docs',
+            layout: 'docs',
+            showDrafts: 'dev',
+        },
+    },
+});
+```
+
+You can also supply explicit navigation, or rely on auto-generation (the default):
+
+```ts
+import { defineSSGConfig } from '@sigx/ssg';
+
+export default defineSSGConfig({
+    navigation: {
+        autoGenerate: true,
+        showDrafts: 'dev',
+        sidebar: [
+            {
+                title: 'Getting Started',
+                order: 1,
+                items: [
+                    { title: 'Introduction', href: '/docs/intro' },
+                    { title: 'Setup', href: '/docs/setup' },
+                ],
+            },
+        ],
+    },
+});
+```
+
+At runtime, navigation is consumed through the `virtual:ssg-navigation` module, which exposes `getSidebar`, `getCollectionNav`, and `detectCollection`:
+
+```ts
+import nav, { getSidebar, detectCollection } from 'virtual:ssg-navigation';
+
+const collection = detectCollection('/docs/intro');
+const sidebar = collection ? getSidebar(collection) : nav.navigation;
+```
+
+## Client and island hydration
+
+The auto-generated client entry imports `ssrClientPlugin` (re-exported from `@sigx/ssg/client`) and hydrates `#app`; the server entry uses the SignalX server renderer's `renderToString`. The wiring it generates looks like this:
+
+```tsx
+import { defineApp, component } from 'sigx';
+import { createRouter, createWebHistory } from '@sigx/router';
+import { ssrClientPlugin } from '@sigx/ssg/client';
+import routes from 'virtual:ssg-routes';
+import { setupLayouts, LayoutRouter } from 'virtual:generated-layouts';
+
+const router = createRouter({
+    history: createWebHistory({ base: '/' }),
+    routes: setupLayouts(routes),
+    scrollBehavior(to, from, savedPosition) {
+        if (savedPosition) return savedPosition;
+        if (to.hash) return { el: to.hash };
+        return { top: 0 };
+    },
+});
+
+const App = component(() => () => <LayoutRouter />);
+
+defineApp(<App />).use(router).use(ssrClientPlugin).hydrate('#app');
+```
+
+Selective hydration (islands) works with `@sigx/ssr-islands` via `client:*` directives, so you can ship static HTML and hydrate only the interactive parts.
+
+### Link prefetch
+
+Prefetch-on-hover is enabled by default (config `prefetch`, with a 100 ms delay). The generated client entry wires it automatically. From `@sigx/ssg/client` you can also call the helpers directly:
+
+```ts
+import { prefetch, setupPrefetch } from '@sigx/ssg/client';
+
+setupPrefetch({ delay: 150 });
+prefetch('/blog/hello-world');
+```
+
+Other client helpers detect rendering mode and read embedded state:
+
+```ts
+import { isStaticPage, getInitialState } from '@sigx/ssg/client';
+
+if (!isStaticPage()) {
+    const state = getInitialState<{ user: string }>();
+}
+```
+
+## Sitemap and robots.txt
+
+`build()` writes `sitemap.xml` and `robots.txt` automatically. You can also generate them programmatically:
+
+```ts
+import { build, generateSitemap, generateRobotsTxt } from '@sigx/ssg';
+
+const result = await build();
+
+const xml = generateSitemap(
+    [{ path: '/', priority: 1.0, changefreq: 'weekly' }],
+    config,
+);
+const robots = generateRobotsTxt(config);
+```
+
+Entries are prefixed with `site.url` + `base`. When mapping built pages, priority is derived from depth (`/` = 1.0, depth 1 = 0.8, depth 2 = 0.6, otherwise the default 0.5) and the default change frequency is `weekly`.
+
+## Next steps
+
+- [Commands](/ssg/docs/commands) — every `sigx ssg` command with its flags.
+- [API Reference](/ssg/docs/api) — the full list of public exports.

@@ -1,0 +1,142 @@
+---
+title: "Usage"
+description: "Audio — Recording & playback"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Audio
+
+<p class="lede">Play sounds, record from the microphone, and read live level meters — on both iOS and Android.</p>
+
+## Basic usage
+
+The whole surface lives on a single `Audio` object. Playback returns an `AudioHandle` you control; recording returns a `RecordingHandle`:
+
+```tsx
+import { Audio } from '@sigx/lynx-audio';
+
+async function playClip() {
+  const handle = await Audio.play('file:///path/to/clip.m4a', { volume: 1, loop: false });
+  handle.onEnd(() => console.log('playback finished'));
+
+  await handle.pause();
+  await handle.resume();
+  await handle.seek(2.5); // seconds — NOT milliseconds
+  await handle.stop();
+}
+```
+
+`Audio.play` accepts a `file://...` URI or a remote URL, and each call allocates a fresh native player, so several clips can play at once (for example background music plus a UI sound effect). Control methods are async and reject with an `Error` prefixed `[lynx-audio]` on native failure.
+
+## Installing and linking
+
+Install the package, then let the CLI wire up the native module:
+
+```bash
+pnpm add @sigx/lynx-audio
+sigx prebuild
+```
+
+`sigx prebuild` auto-discovers the package and links the native module. It injects the Android `android.permission.RECORD_AUDIO` permission, adds the iOS `NSMicrophoneUsageDescription` usage description, and enables the iOS `audio` background mode. The companion `@sigx/lynx-permissions` package (used for the Android permission flow) is auto-linked too — there is nothing extra to install.
+
+If a build might ship without the native module, guard your calls with the synchronous `Audio.isAvailable()` check before touching any other method.
+
+## Recording with a permission gate
+
+Only one recording can be active per process, and both native sides reject with `Microphone permission not granted` if the permission is missing — so always request and check the status before calling `Audio.startRecording`. Skipping this step risks zero-byte files and recorder state-machine crashes.
+
+```tsx
+import { Audio } from '@sigx/lynx-audio';
+import type { RecordingResult } from '@sigx/lynx-audio';
+
+async function recordMemo(): Promise<RecordingResult | null> {
+  if (!Audio.isAvailable()) return null;
+
+  const perm = await Audio.requestPermission();
+  if (perm.status !== 'granted') {
+    // When canAskAgain is false the user must enable the mic from Settings.
+    return null;
+  }
+
+  const rec = await Audio.startRecording({ format: 'm4a', sampleRate: 44100, channels: 1 });
+
+  // ...record for a while, then stop. Keep the resolved metadata — it carries the file.
+  const result = await rec.stop();
+  console.log(result.uri, result.durationMs, result.sizeBytes);
+  return result;
+}
+```
+
+`format` defaults to `m4a` (AAC). The `wav` format is iOS-only — on Android it rejects with an explicit error, so use `m4a` and transcode if you need WAV. `outputPath` defaults to a generated file in the temp/cache directory, and `stop()` resolves with a `RecordingResult` whose `uri` is a `file://...` URI.
+
+## Showing a live VU meter
+
+`onMeter` streams amplitude samples (`peak` and `avg`, linear `0..1`) roughly ten times a second while recording. It is opt-in and ref-counted: the native metering loop only runs while at least one listener is attached, and the subscription returns an unsubscribe function you should call when done.
+
+```tsx
+import { Audio } from '@sigx/lynx-audio';
+import type { MeterSample } from '@sigx/lynx-audio';
+
+async function recordWithMeter(onLevel: (level: number) => void) {
+  const perm = await Audio.requestPermission();
+  if (perm.status !== 'granted') return;
+
+  const rec = await Audio.startRecording();
+  const off = rec.onMeter((m: MeterSample) => {
+    onLevel(m.peak); // peak is the safe single-envelope value across platforms
+  });
+
+  // later, when finished:
+  const result = await rec.stop();
+  off(); // unsubscribe — stops the native metering loop
+  console.log('saved to', result.uri);
+}
+```
+
+On Android, `MediaRecorder` exposes only a peak amplitude, so `peak` and `avg` report the same value there — prefer `peak` if you need a single envelope number that behaves the same on both platforms.
+
+## Preloading a sound effect
+
+Decode an asset ahead of time so the first play has no latency. `preload` returns the duration without playing anything:
+
+```tsx
+import { Audio } from '@sigx/lynx-audio';
+
+async function warmUpTap() {
+  const { durationMs } = await Audio.preload('file:///tmp/tap.m4a');
+  console.log('tap.m4a is', durationMs, 'ms long');
+}
+```
+
+## Reading playback status
+
+`AudioHandle.getStatus()` reports position and duration in **milliseconds** (note: `seek` takes **seconds**), plus whether the player is actively playing:
+
+```tsx
+import { Audio } from '@sigx/lynx-audio';
+
+async function logProgress(handle: Awaited<ReturnType<typeof Audio.play>>) {
+  const status = await handle.getStatus();
+  // durationMs is 0 until the asset is loaded.
+  console.log(`${status.positionMs} / ${status.durationMs} ms`, status.playing);
+}
+```
+
+## Notes
+
+- **`seek` is in seconds; status is in milliseconds.** `handle.seek(2.5)` jumps to 2.5 seconds, while `positionMs` / `durationMs` are reported in milliseconds.
+- **Keep the result of `stop()`.** `RecordingHandle.stop()` resolves with `{ uri, durationMs, sizeBytes }` — discarding it loses the only reference to the recorded file.
+- **One recording at a time.** A second `Audio.startRecording` while one is live rejects with `A recording is already in progress`.
+- **`onMeter` is opt-in.** Metering runs only while a listener is attached; remember to call the returned unsubscribe function.
+- **`onMeter` `avg` equals `peak` on Android** (a `MediaRecorder` limitation) — use `peak` for a portable envelope.
+- **iOS manages the audio session for you.** The category flips to playback while a player is alive, to play-and-record while recording, and deactivates when nothing is active. There is no explicit `setCategory` API today, so apps needing custom mixing categories must work around this.
+- **`isAvailable()` is JS-only** — it reports whether the native module is linked, not whether audio hardware is usable.
+- **The iOS simulator uses the host Mac's microphone.** Grant the Simulator mic permission in macOS System Settings to record there.
+- **Handle `id` is for debugging only.** Do not pass an `id` between handles.
+
+## See also
+
+- [Overview](/lynx/modules/audio/overview) — what the package is and how it fits the family.
+- [API reference](/lynx/modules/audio/api) — every export with signatures.

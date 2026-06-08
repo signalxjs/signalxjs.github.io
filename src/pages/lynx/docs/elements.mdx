@@ -8,22 +8,270 @@ order: 50
 
 # Native elements
 
-<p class="lede">Instead of HTML tags, Lynx components compose a small set of native elements.</p>
+<p class="lede">Instead of HTML tags, a Lynx component tree is built from a small fixed set of native elements. Each one maps to a real view on iOS and Android.</p>
 
-## The core set
+On the web you write `div`, `span`, `img`. On Lynx there is no DOM — your JSX is built from a closed set of intrinsic elements that the renderer knows how to turn into native views. Importing `@sigx/lynx` globally augments JSX so these tags are typed; there is deliberately no catch-all, so a misspelled tag is a type error.
+
+This page documents the low-level intrinsic tags directly. In day-to-day code you will more often reach for the capitalized layout primitives (`View`, `Text`, `Image`, `ScrollView`) that wrap them, but everything below is what those wrappers ultimately render.
+
+## How an element becomes a native view
+
+Every element exists twice. On the background thread, where your component runs, the renderer builds a lightweight tree of shadow nodes — there are no native APIs there, just enough structure for signals to walk parents and siblings. Each create, insert and prop change is pushed onto a compact op queue, serialized, and shipped to the main thread, where it is replayed against the real Lynx engine.
+
+Most elements use a dedicated native creator so the engine can set up type-specific internals: `view` becomes a native View (with overflow clipping), `text` a native Text, `image` a native Image (with hardware-accelerated decode), `scroll-view` a native ScrollView, and `list` a native recycler. Elements without a dedicated creator — `input`, `textarea`, `svg`, `filter-image` — fall through to a generic create call. You never see any of this; it is the mechanism behind the tags.
+
+## Attributes every element shares
+
+All elements extend a common base, so these props are valid everywhere:
+
+- `id`, `class`, `style`, `key`, `ref`
+- `flatten` — controls whether the element collapses into its parent for rendering
+- Accessibility: `accessibility-label`, `accessibility-role`, `accessibility-element`
+- Gesture routing: `ignore-focus` (a tap here does not blur the focused input), `block-native-event` and `block-native-event-areas` (claim a touch back from an external native scroll/pan)
+- The full touch event set (see [Events](#events))
 
 ```tsx
-import { View, Text, Image, ScrollView, Input } from '@sigx/lynx';
+<view id="card" class="surface" style={{ padding: 16 }}>
+    <text accessibility-label="Greeting">Hello</text>
+</view>
 ```
 
-- **View** — the flexbox container (UIView / ViewGroup)
-- **Text** — all text must live in a Text element
-- **Image** — local + remote sources
-- **ScrollView** — scrolling containers
-- **Input** — text entry
+## view
 
-{/* TODO: full element reference */}
+The base layout container — the flexbox box analogous to a `div`. It carries only the common attributes and children.
 
-## Composition
+```tsx
+<view style={{ flexDirection: 'row', gap: 8, padding: 12 }}>
+    <view style={{ flex: 1, height: 40 }} />
+    <view style={{ flex: 1, height: 40 }} />
+</view>
+```
 
-Elements nest exactly like web components — keys, conditionals and list rendering work unchanged from SignalX on the web.
+## text
+
+All text must live inside a `text` element — you cannot put a bare string in a `view`. Beyond the common attributes it supports truncation and native selection.
+
+- `number-of-lines` — truncate after N lines
+- `text-overflow` — `'clip'` or `'ellipsis'`
+- `text-selection` — long-press to select with the system menu (requires `flatten={false}`)
+- `custom-text-selection` / `custom-context-menu` — drive selection from your own UI / suppress the system menu
+- Events: `bindselectionchange`, `bindlayout` (frame, baseline and line metrics)
+
+```tsx
+<text number-of-lines={2} text-overflow="ellipsis">
+    A long paragraph that will be truncated to two lines with an ellipsis.
+</text>
+```
+
+```tsx
+<text flatten={false} text-selection bindselectionchange={onSelect}>
+    Long-press to select me.
+</text>
+```
+
+## image
+
+A native image element.
+
+- `src` — the image URI; `placeholder` — a URI shown while loading
+- `mode` — resize/scale mode: `'cover'`, `'contain'`, `'stretch'`, `'center'`, `'repeat'`, `'aspectFit'`, `'aspectFill'`
+- `alt`, `lazy-load`, `auto-size` (size the element to the image content)
+- Events: `bindload` / `binderror` (aliases `onLoad` / `onError`)
+
+```tsx
+<image
+    src="https://example.com/avatar.png"
+    placeholder="https://example.com/blur.png"
+    mode="aspectFill"
+    style={{ width: 64, height: 64 }}
+    bindload={onLoad}
+    binderror={onError}
+/>
+```
+
+## filter-image
+
+An image with a native filter (blur, brightness, etc.) applied.
+
+- `src`, `filter` (the filter type string), `mode` (`'cover'`, `'contain'`, `'stretch'`, `'center'`)
+- Events: `bindload` / `binderror`
+
+```tsx
+<filter-image src="https://example.com/photo.jpg" filter="blur" style={{ width: 200, height: 120 }} />
+```
+
+## scroll-view
+
+A plain scrolling container. It is not a recycler — every child is laid out, so use it for a bounded amount of content. For long, dynamic lists use [`list`](#list) instead.
+
+- Direction: `scroll-orientation` (`'vertical'` | `'horizontal'`), or the legacy `scroll-x` / `scroll-y`
+- `enable-scroll` — toggle scroll responsiveness at runtime (e.g. lock scrolling while a child gesture holds the touch)
+- `scroll-left`, `scroll-top` — programmatic offset
+- `upper-threshold` / `lower-threshold` — gate the edge events
+- `bounces` (iOS), `show-scrollbar`, `paging-enabled`
+- Events: `bindscroll`, `bindscrolltoupper`, `bindscrolltolower`
+
+```tsx
+<scroll-view
+    scroll-orientation="vertical"
+    lower-threshold={80}
+    bindscrolltolower={loadMore}
+    style={{ height: 400 }}
+>
+    <view style={{ height: 200 }} />
+    <view style={{ height: 200 }} />
+    <view style={{ height: 200 }} />
+</scroll-view>
+```
+
+UI methods such as `scrollBy`, `scrollTo` and `autoScroll` are reachable through a main-thread ref handle — see [Main-thread refs](#main-thread-refs).
+
+## list
+
+A managed native recycler. It is fundamentally different from `scroll-view`: the engine recycles and reuses cell views as they scroll, so it stays efficient over thousands of items.
+
+Two rules matter:
+
+1. A `list` only accepts `list-item` children. Conditional and text anchors inside a `list` are skipped to avoid a native crash, so do not put bare text or fragments directly inside it.
+2. Each `list-item` needs a stable `item-key`.
+
+List props:
+
+- `scroll-orientation` (`'vertical'` | `'horizontal'`)
+- `span-count` — number of grid columns
+- `list-type` — `'single'`, `'flow'` or `'waterfall'`
+- `item-snap` — `'start'`, `'center'`, `'end'` or `'none'`
+- `sticky-top` / `sticky-bottom`
+- Events: `bindscroll`, `bindscrolltoupper`, `bindscrolltolower`
+
+```tsx
+<list scroll-orientation="vertical" span-count={2} list-type="flow" style={{ flex: 1 }}>
+    <list-item item-key="a" item-type="row">
+        <text>First</text>
+    </list-item>
+    <list-item item-key="b" item-type="row">
+        <text>Second</text>
+    </list-item>
+</list>
+```
+
+### list-item
+
+The only valid direct child of `list` — one recycler cell.
+
+- `item-key` — the unique stable key the recycler diffs and reuses on; must be unique among siblings in the same `list`
+- `item-type` — views with the same type share a recycling pool
+- `full-span` — span all grid columns
+- `sticky-top` / `sticky-bottom`
+
+One sigx-specific note: unlike some React renderers that render cells on demand, the sigx renderer eagerly builds every `list-item` subtree up front, and the recycler pulls the already-built cell when it scrolls into view.
+
+## input
+
+A single-line native text field. It supports sigx two-way binding through `model`.
+
+- `value`, `placeholder`
+- `type` — `'text'`, `'number'`, `'password'`, `'digit'`, `'idcard'`
+- `maxlength`, `disabled`, `focus` (auto-focus)
+- `confirm-type` — the keyboard return key: `'send'`, `'search'`, `'next'`, `'go'`, `'done'`
+- `model` — two-way binding; emits `onUpdate:modelValue`
+- Events: `bindinput`, `bindblur`, `bindfocus`, `bindconfirm`
+
+```tsx
+<input
+    model={() => state.name}
+    placeholder="Your name"
+    confirm-type="done"
+    bindconfirm={submit}
+/>
+```
+
+There is one important behavior to know: the native field treats `value` as initial-only once the user has typed into it. The renderer handles programmatic writes after mount for you (it issues a native set-value call), and it deliberately skips both the initial mount and the echo of the user's own typing so the cursor and IME composition are never disturbed. In practice: prefer `model` and let it manage the value.
+
+## textarea
+
+A multi-line native text field. Same `model` two-way binding and the same value-echo handling as `input`.
+
+- `value`, `placeholder`, `maxlength`, `disabled`, `focus`
+- `auto-height` — grow the height to fit the content
+- Events: `bindinput`, `bindblur`, `bindfocus`
+
+There is no `confirm-type` or `bindconfirm` — a multi-line field has no single confirm action.
+
+```tsx
+<textarea model={() => state.notes} auto-height placeholder="Notes…" style={{ minHeight: 80 }} />
+```
+
+## svg
+
+A native SVG element. It does not accept JSX children — pass the markup as a string via `content`, or a URL via `src`.
+
+- `content` — inline SVG XML (the engine parses it)
+- `src` — a URL to an SVG
+- `width`, `height`, `viewBox` (sizing via `style` is preferred; `viewBox` only matters when `content` is omitted)
+
+```tsx
+<svg
+    content='<svg viewBox="0 0 24 24"><path d="…" fill="currentColor"/></svg>'
+    style={{ width: 24, height: 24 }}
+/>
+```
+
+## page
+
+The page root. The real root view is created once for you; if you wrap your own content in a second `page`, it is treated as a transparent `view` (a second native page would throw on some hosts). You almost never write `page` yourself — use `view` for your layout root.
+
+## Events
+
+Event handlers attach with one of two prefixes:
+
+- `bind*` — bubbling, non-capturing (e.g. `bindtap`)
+- `catch*` — stops propagation (e.g. `catchtap`)
+
+For convenience there are also `onX` aliases that map to the bubbling `bind` form: `onTap` is the same as `bindtap`. The common touch events available on every element are `tap`, `longpress`, `touchstart`, `touchmove`, `touchend`, `touchcancel` and `layoutchange`.
+
+```tsx
+<view bindtap={() => state.open = true}>
+    <text>Open</text>
+</view>
+
+<view catchtap={onInner}>
+    {/* a tap here will not reach an outer bindtap */}
+    <text>Stop here</text>
+</view>
+```
+
+Every handler has the signature `(event) => void`.
+
+### Main-thread events
+
+Plain `bind*` handlers run on the background thread, which means a touch round-trips across the thread boundary before your handler fires. For latency-sensitive interactions you can run a handler directly on the main thread with the `main-thread-bind*` / `main-thread-catch*` prefixes — these dispatch with zero thread crossing.
+
+```tsx
+<view main-thread-bindtap={onTapMT}>
+    <text>Instant</text>
+</view>
+```
+
+## Main-thread refs
+
+`scroll-view` (and any element) can expose a synchronous handle to its native element on the main thread via `main-thread:ref`. From a main-thread handler you can read and write styles directly, run an animation, or call a native UI method with `invoke`.
+
+```tsx
+const ref = useMainThreadRef(null);
+
+// later, inside a main-thread handler:
+ref.current?.invoke('scrollTo', { offset: 0, smooth: true });
+```
+
+The handle calls the Lynx engine directly with no cross-thread round-trip. The set of `invoke` methods is defined by the native engine per element — for example `scrollBy` / `scrollTo` / `autoScroll` on `scroll-view`.
+
+## A note on hybrid apps
+
+If a single codebase imports both the web (`@sigx/runtime-dom`) and Lynx runtime types, the two `input` definitions collide and TypeScript reports a merge error. Pick one platform per app, or alias the imports. The Lynx element types ship inside the runtime package — there is no separate types package — and activate the moment you import `@sigx/lynx`.
+
+## Next steps
+
+- Learn the [styling model](/lynx/docs/styling) — how `style` numbers, flex shorthand and `class` map to native
+- Review [reactivity](/lynx/docs/reactivity) — how signal changes patch exactly the views that read them
+- Browse the [module catalog](/lynx/modules) for higher-level components

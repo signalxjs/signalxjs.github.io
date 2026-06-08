@@ -8,16 +8,146 @@ order: 30
 
 # Using Linking
 
-<p class="lede">Deep links & URL schemes — the essentials.</p>
+<p class="lede">Open outbound URLs, read the URL that launched your app, and react to deep links while it runs.</p>
 
 ## Basic usage
 
+Import the `Linking` facade and call its static methods. `openURL` and `canOpenURL` cross the native bridge and return promises; `getInitialURL` reads a cached value synchronously.
+
 ```tsx
-import * as Linking from '@sigx/lynx-linking';
+import { Linking } from '@sigx/lynx-linking';
+
+// Open a URL with the system handler (browser, mail, dialer).
+await Linking.openURL('https://lynxjs.org');
+
+// Probe whether a scheme can be handled before offering it.
+if (await Linking.canOpenURL('mailto:hi@example.com')) {
+  await Linking.openURL('mailto:hi@example.com');
+}
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-linking */}
+`openURL` rejects on an invalid URL or when nothing can handle it, so wrap it in `try`/`catch`:
 
-## Notes
+```tsx
+try {
+  await Linking.openURL(userSuppliedUrl);
+} catch (err) {
+  console.warn('Could not open URL', err);
+}
+```
 
-openURL, getInitialURL and inbound URL events.
+## Handling cold-start deep links
+
+When the app is launched from a closed state by a deep link, the launch URL is available synchronously from `getInitialURL`. Read it once at startup; it returns `null` when the app started normally.
+
+```tsx
+import { Linking } from '@sigx/lynx-linking';
+
+const initial = Linking.getInitialURL();
+if (initial) {
+  handleDeepLink(initial);
+}
+```
+
+There is no bridge round-trip here — the value comes from a global the native host populates before your bundle runs, so it is safe to call during initial render.
+
+## Reacting to warm deep links
+
+While the app is running, incoming URLs arrive as events. Subscribe with `addEventListener` and keep the returned subscription so you can unsubscribe.
+
+```tsx
+import { Linking } from '@sigx/lynx-linking';
+import { onMounted, onUnmounted } from 'sigx';
+
+onMounted(() => {
+  const sub = Linking.addEventListener('url', ({ url }) => {
+    handleDeepLink(url);
+  });
+  onUnmounted(() => sub.remove());
+});
+```
+
+The only valid event `type` is `'url'`; passing anything else throws. On the web, SSR, or test environments — where there is no Lynx native host — `addEventListener` returns a no-op subscription, so this code is safe to run anywhere.
+
+## Parsing and building deep-link URLs
+
+`parse` and `createURL` are pure JS, so they work in tests and SSR without a native bridge.
+
+```tsx
+import { parse, createURL } from '@sigx/lynx-linking';
+
+const { scheme, hostname, path, queryParams } =
+  parse('myapp://user/42?ref=share');
+// scheme: 'myapp', hostname: 'user', path: '/42', queryParams: { ref: 'share' }
+
+const link = createURL('/profile/42', { ref: 'share' });
+// '/profile/42?ref=share'
+```
+
+`parse` lowercases the scheme, strips fragments, and percent-decodes query values (treating `+` as a space). A bare path (no scheme) is returned untouched in `path` and its query is not split out. `createURL` skips `undefined`/`null` values and joins with `&` if the path already contains a `?`.
+
+## Wiring deep links into the router
+
+If you use `@sigx/router`, the `useLinkingRouter` composable wires both cold-start and warm deep links straight into navigation. Import it from the `/router` subpath and call it once at your app root.
+
+```tsx
+import { useLinkingRouter } from '@sigx/lynx-linking/router';
+
+function App() {
+  useLinkingRouter({
+    prefixes: ['myapp://', 'https://your.domain'],
+  });
+  // ...
+}
+```
+
+It reads the initial URL on mount, subscribes for warm URLs, strips the first matching `prefix`, and calls `router.push()` with the remaining path and query. The listener is removed automatically on unmount. Pass `onURL` instead of relying on the default to handle URLs yourself (for example, an auth callback) — that skips the router push entirely.
+
+```tsx
+useLinkingRouter({ onURL: (url) => myAuthCallback(url) });
+```
+
+This subpath has optional peer dependencies on `@sigx/router` and `sigx`.
+
+## Android hardware back button
+
+`BackHandler` handles the Android hardware back press and lets you send the app to the background. Both behaviors are Android-only at runtime — on iOS the listener never fires and `exitApp` resolves as a no-op.
+
+```tsx
+import { BackHandler } from '@sigx/lynx-linking';
+
+const sub = BackHandler.addEventListener(() => {
+  if (router.canGoBack) {
+    router.pop();
+    return true; // handled
+  }
+  return false; // let the default back behavior run
+});
+
+// Later, to detach:
+sub.remove();
+```
+
+To back out of the app while keeping the JS bundle warm:
+
+```tsx
+await BackHandler.exitApp(); // Android only; no-op on iOS
+```
+
+`exitApp` calls `moveTaskToBack` rather than terminating the process. On iOS it is a no-op — the promise resolves with a value of shape `{ error: 'exitApp is not supported on iOS' }` rather than rejecting (Apple forbids programmatic termination).
+
+## Native setup notes
+
+Deep links require host configuration beyond installing the package:
+
+- Declare your scheme in `signalx.config.ts` (e.g. `scheme: 'myapp'`) and run `sigx prebuild`. The CLI adds the scheme to iOS `CFBundleURLSchemes`, adds an Android `<intent-filter>`, and wires the host to forward URLs into the module.
+- On iOS, `canOpenURL` silently returns `false` for non-`http(s)` schemes unless they are whitelisted in `LSApplicationQueriesSchemes` in `Info.plist`. Add `mailto:` and any third-party schemes you want to probe.
+- On Android, the Activity `launchMode` must be `singleTop` (or `singleTask`) so warm deep links reach the existing Activity via `onNewIntent`. The CLI templates set this.
+- Universal Links / App Links need extra host config (iOS Associated Domains + `apple-app-site-association`; Android `autoVerify` intent filter + `assetlinks.json`). Once set up, incoming `https` URLs flow through the same `addEventListener('url', …)` path.
+
+Use `Linking.isAvailable()` to check at runtime whether the native bridge module is registered in the current build.
+
+## See also
+
+- [Installation](/lynx/modules/linking/installation) — package and native setup.
+- [API reference](/lynx/modules/linking/api) — every export.

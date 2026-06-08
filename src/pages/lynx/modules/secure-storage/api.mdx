@@ -10,8 +10,157 @@ order: 40
 
 <p class="lede">Exports of `@sigx/lynx-secure-storage` v0.4.1.</p>
 
-## Exports
+The package has exactly one runtime export — `SecureStorage`, a frozen value-object (declared `as const`, not a class — never `new` it) — plus three TypeScript types. All methods run on both iOS and Android.
 
-{/* TODO: document the public API of @sigx/lynx-secure-storage */}
+```tsx
+import { SecureStorage } from '@sigx/lynx-secure-storage';
+import type {
+  SecureStorageSetOptions,
+  SecureStorageGetOptions,
+  SecureStorageBiometricPrompt,
+} from '@sigx/lynx-secure-storage';
+```
 
-See the package source for the complete typed surface.
+## SecureStorage
+
+The single exported object. Its shape:
+
+```ts
+const SecureStorage: {
+  set(key: string, value: string, opts?: SecureStorageSetOptions): Promise<void>;
+  get(key: string, opts?: SecureStorageGetOptions): Promise<string | null>;
+  delete(key: string): Promise<void>;
+  clear(): Promise<void>;
+  hasKey(key: string): Promise<boolean>;
+  isAvailable(): boolean;
+};
+```
+
+Encrypted at-rest key-value storage backed by the iOS Keychain and, on Android, the Keystore plus EncryptedSharedPreferences. Platform: both. Every method except `isAvailable` returns a Promise and rejects on native failure, with messages prefixed `[@sigx/lynx-secure-storage]`.
+
+## Methods
+
+### SecureStorage.set
+
+```ts
+set(key: string, value: string, opts?: SecureStorageSetOptions): Promise<void>
+```
+
+Store an encrypted string, overwriting any existing value for `key`.
+
+- **`key`** — non-empty string. Throws if empty or non-string.
+- **`value`** — the string to encrypt. Throws if non-string.
+- **`opts`** — optional [`SecureStorageSetOptions`](#securestoragesetoptions). With `requireBiometric: true`, every future `get` of this key prompts for biometrics; `set` itself never prompts.
+- **Returns** — `Promise<void>` that resolves on success and rejects on a native error.
+- **Platform** — both.
+
+### SecureStorage.get
+
+```ts
+get(key: string, opts?: SecureStorageGetOptions): Promise<string | null>
+```
+
+Read an encrypted string.
+
+- **`key`** — non-empty string. Throws if empty.
+- **`opts`** — optional [`SecureStorageGetOptions`](#securestoragegetoptions). Supply `biometricPrompt` when the key was stored with `requireBiometric: true`; the OS shows a prompt before returning.
+- **Returns** — `Promise<string | null>`: the decrypted value, or `null` if the key is absent. Rejects on a native error such as a cancelled biometric prompt (`userCancel`) or failed authentication (`authenticationFailed`).
+- **Platform** — both.
+
+### SecureStorage.delete
+
+```ts
+delete(key: string): Promise<void>
+```
+
+Delete a single key. A missing key is treated as success (no-op).
+
+- **`key`** — non-empty string. Throws if empty.
+- **Returns** — `Promise<void>`. Rejects only on a native error.
+- **Platform** — both.
+
+### SecureStorage.clear
+
+```ts
+clear(): Promise<void>
+```
+
+Delete every key owned by this module's service identifier. It does not touch other apps' Keychain items or other Lynx packages' preferences.
+
+- **Returns** — `Promise<void>`. Rejects on a native error.
+- **Platform** — both.
+
+### SecureStorage.hasKey
+
+```ts
+hasKey(key: string): Promise<boolean>
+```
+
+Check whether a key is present without decrypting it — no biometric prompt — so it is safe to call on every render.
+
+- **`key`** — string. Returns `false` for an empty key without calling native.
+- **Returns** — `Promise<boolean>`: `true` if the key exists. Rejects only on infrastructure failure.
+- **Platform** — both.
+
+### SecureStorage.isAvailable
+
+```ts
+isAvailable(): boolean
+```
+
+Synchronous (non-Promise) check of whether the native module is wired into the current build. Delegates to lynx-core's module-availability check.
+
+- **Returns** — `boolean`: `true` when the native `SecureStorage` module is registered.
+- **Platform** — both.
+
+## Types
+
+### SecureStorageSetOptions
+
+```ts
+interface SecureStorageSetOptions {
+  /**
+   * When true, the OS requires biometric authentication on every
+   * subsequent `get` of this key.
+   * - iOS: stored with kSecAccessControlBiometryCurrentSet.
+   * - Android: key generated with setUserAuthenticationRequired(true).
+   */
+  requireBiometric?: boolean;
+}
+```
+
+Options for [`set`](#securestorageset). `requireBiometric` gates this individual key behind the OS biometric prompt on read. Platform: both.
+
+### SecureStorageGetOptions
+
+```ts
+interface SecureStorageGetOptions {
+  /**
+   * Required when the key was stored with requireBiometric: true.
+   * Android needs the strings to render BiometricPrompt; iOS uses
+   * only `reason` (the prompt title is fixed).
+   */
+  biometricPrompt?: SecureStorageBiometricPrompt;
+}
+```
+
+Options for [`get`](#securestorageget). `biometricPrompt` supplies the strings shown on the OS prompt for biometric-gated keys. Platform: both.
+
+### SecureStorageBiometricPrompt
+
+```ts
+interface SecureStorageBiometricPrompt {
+  /** iOS: prompt text. Android: prompt subtitle. */
+  reason: string;
+  /** Android only — prompt title. Defaults to "Authenticate". */
+  title?: string;
+}
+```
+
+Strings shown on the biometric prompt. `reason` is required; if omitted or empty, both platforms default the subtitle to `"Authenticate to read secure data"`. `title` is Android-only (iOS ignores it) and defaults to `"Authenticate"`. Platform: both.
+
+## See also
+
+- [Usage guide](/lynx/modules/secure-storage/usage) — practical recipes and error handling.
+- [Storage](/lynx/modules/storage/overview) — plaintext key-value storage.
+- [Biometric](/lynx/modules/biometric/overview) — app-wide biometric unlock gate.

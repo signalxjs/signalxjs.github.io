@@ -8,16 +8,112 @@ order: 30
 
 # Using Location
 
-<p class="lede">GPS coordinates — the essentials.</p>
+<p class="lede">Request permission, then grab a one-shot GPS fix — the essentials.</p>
 
 ## Basic usage
 
+`@sigx/lynx-location` exposes a single `Location` namespace object. There is no provider to mount and no signal to subscribe to — every call returns a Promise that bridges to the native module.
+
 ```tsx
-import * as Location from '@sigx/lynx-location';
+import { Location } from '@sigx/lynx-location';
+
+const { status } = await Location.requestPermission();
+if (status === 'granted') {
+  const loc = await Location.getCurrentPosition({ accuracy: 'high', timeout: 10000 });
+  console.log(loc.latitude, loc.longitude, loc.accuracy);
+}
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-location */}
+Before any of this works you need the native module linked into your app. Install the package and run prebuild — see [Installation](/lynx/modules/location/installation) for the full setup.
+
+```bash
+pnpm add @sigx/lynx-location
+sigx prebuild   # auto-links the native module + injects permissions
+```
+
+`sigx prebuild` auto-discovers the package and injects the platform permission entries for you: the iOS usage descriptions (`NSLocationWhenInUseUsageDescription`) and the Android manifest permissions (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`). There is nothing to wire up by hand.
+
+## Requesting permission
+
+Location access is gated behind a runtime permission on both platforms. Call `requestPermission` to show the OS dialog, and inspect the returned `PermissionResponse` before reading a position.
+
+```tsx
+import { Location } from '@sigx/lynx-location';
+
+async function ensureLocationAccess() {
+  const { status, canAskAgain } = await Location.requestPermission();
+
+  if (status === 'granted') return true;
+
+  // The user dismissed the dialog or previously denied access.
+  // When canAskAgain is false the OS will not prompt again —
+  // the user must enable location in Settings.
+  if (!canAskAgain) {
+    console.warn('Location permission permanently denied — open Settings to enable it.');
+  }
+  return false;
+}
+```
+
+You can also read the current status without prompting — handy for deciding whether to show your own pre-permission explainer first.
+
+```tsx
+import { Location } from '@sigx/lynx-location';
+
+const { status } = await Location.getPermissionStatus();
+if (status === 'undetermined') {
+  // Show your own rationale, then call Location.requestPermission().
+}
+```
+
+The status mapping is normalized across platforms: `granted`, `denied`, `undetermined`, or `blocked`. `blocked` is the permanently-denied state (it pairs with `canAskAgain: false` — the OS will no longer prompt).
+
+## Getting the current position
+
+`getCurrentPosition` resolves with a single `LocationResult`. It rejects on timeout or when permission is denied, so wrap it in a try/catch.
+
+```tsx
+import { Location } from '@sigx/lynx-location';
+
+async function showMyLocation() {
+  const { status } = await Location.requestPermission();
+  if (status !== 'granted') return;
+
+  try {
+    const loc = await Location.getCurrentPosition({ accuracy: 'high', timeout: 10000 });
+    console.log(`lat ${loc.latitude}, lng ${loc.longitude} (±${loc.accuracy}m)`);
+  } catch (err) {
+    // Thrown on timeout or denied permission.
+    console.error('Could not get location:', err);
+  }
+}
+```
+
+`LocationOptions` are hints. `accuracy` accepts `'high'`, `'balanced'` (the default), or `'low'`, and `timeout` is in milliseconds. The `accuracy` field on the result tells you what the device actually achieved, in meters.
+
+## Guarding for the native module
+
+In builds where the native module may not be registered, check `isAvailable` first so you can degrade gracefully instead of throwing.
+
+```tsx
+import { Location } from '@sigx/lynx-location';
+
+if (Location.isAvailable()) {
+  const { status } = await Location.requestPermission();
+  // ...
+} else {
+  // Fall back to a manual address entry, IP geolocation, etc.
+}
+```
 
 ## Notes
 
-One-shot and watch APIs for device location.
+- **WhenInUse only.** This module requests foreground (WhenInUse) location. Background location and geofencing are not supported and need extra native setup outside this package.
+- **iOS simulator.** `getCurrentPosition` hangs until timeout unless you set a fake location via the simulator's *Features &rarr; Location* menu.
+- **Android returns a last-known fix.** On Android the current implementation returns the last-known location rather than triggering a fresh fix; the `accuracy` and `timeout` options are effectively ignored there.
+- **Permission helpers.** The Android prompt is provided by `@sigx/lynx-permissions`, which is auto-linked as a dependency — see [Permissions](/lynx/modules/permissions/overview).
+
+## See also
+
+- [API reference](/lynx/modules/location/api) — every export, typed.
+- [Installation](/lynx/modules/location/installation) — project setup.
