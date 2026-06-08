@@ -73,6 +73,33 @@
 .copyline code { color: var(--fg); }
 .copyline-icon { color: var(--fg-2); margin-left: 2px; }
 
+/* Package-manager variant: tabs row above the command line, in one box. */
+.copyline-pm {
+  display: inline-flex; flex-direction: column;
+  background: var(--bg-2); border: var(--hair) solid var(--line);
+  border-radius: var(--r-sm); overflow: hidden;
+}
+.copyline-tabs {
+  display: flex; gap: 2px;
+  padding: 4px 6px 0;
+  border-bottom: var(--hair) solid var(--line);
+}
+.copyline-tab {
+  padding: 5px 10px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 12px; color: var(--fg-3);
+  background: transparent; border: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+}
+.copyline-tab:hover { color: var(--fg-2); }
+.copyline-tab-active { color: var(--accent); border-bottom-color: var(--accent); }
+/* The command row sheds its own chrome — the wrapper is the box now. */
+.copyline-pm .copyline {
+  border: none; background: transparent; border-radius: 0; width: 100%;
+}
+.copyline-pm .copyline:hover { background: transparent; }
+.copyline-pm .copyline-icon { margin-left: auto; }
+
 /* ---------- Generic button (sx- prefixed; daisyUI owns .btn) ---------- */
 .sx-btn {
   display: inline-flex; align-items: center; gap: 8px; cursor: pointer;

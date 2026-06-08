@@ -391,6 +391,19 @@
         color: var(--accent);
         border-bottom-color: var(--accent);
     }
+
+    /* Package-manager switcher (npm/pnpm/yarn/bun) — compact so four tabs
+       fit in the terminal header; injected by PackageManagerSwitcher.ts. */
+    .code-window-pm-tabs {
+        margin-right: 0.25rem;
+    }
+
+    .code-window-pm-tabs .code-window-tab {
+        padding: 0.35rem 0.6rem;
+        font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+        font-size: 0.7rem;
+        text-transform: lowercase;
+    }
     
     /* Preview pane — same surface as the window body so the island
        reads as one window (design tokens, not daisyUI base). */

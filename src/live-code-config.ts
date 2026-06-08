@@ -41,4 +41,10 @@ if (typeof window !== 'undefined') {
     // handlers @sigx/live-code/client attaches right after this module.
     const { installPlaygroundLauncher } = await import('@/components/PlaygroundHost');
     installPlaygroundLauncher();
+
+    // Upgrade every install-command code window (```bash fences with a
+    // `pnpm add …` / `npm i …` / etc. line) with an npm/pnpm/yarn/bun tab
+    // strip. Pure DOM enhancement — no MDX changes, so it covers all pages.
+    const { installPackageManagerSwitcher } = await import('@/components/PackageManagerSwitcher');
+    installPackageManagerSwitcher();
 }
