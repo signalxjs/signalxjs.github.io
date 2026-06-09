@@ -42,9 +42,10 @@ if (typeof window !== 'undefined') {
     const { installPlaygroundLauncher } = await import('@/components/PlaygroundHost');
     installPlaygroundLauncher();
 
-    // Upgrade every install-command code window (```bash fences with a
-    // `pnpm add …` / `npm i …` / etc. line) with an npm/pnpm/yarn/bun tab
-    // strip. Pure DOM enhancement — no MDX changes, so it covers all pages.
-    const { installPackageManagerSwitcher } = await import('@/components/PackageManagerSwitcher');
-    installPackageManagerSwitcher();
+    // The npm/pnpm/yarn/bun switcher on install code windows now ships in
+    // `@sigx/ssg` (rendered server-side; auto-wired via the generated client
+    // entry). All we do here is keep it in sync, within a single tab, with the
+    // inline CopyLine widget's shared `pm` signal.
+    const { installPmSync } = await import('@/lib/pm-sync');
+    installPmSync();
 }

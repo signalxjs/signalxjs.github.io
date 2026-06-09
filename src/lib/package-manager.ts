@@ -2,9 +2,10 @@
  * Shared package-manager preference + command translation.
  *
  * One reactive, persisted choice of npm / pnpm / yarn / bun for the whole
- * site. Both the docs code-window switcher (PackageManagerSwitcher.ts, a
- * DOM enhancer) and the inline CopyLine widget read and write the same
- * `pm` signal, so picking a manager anywhere updates everywhere.
+ * site. The inline CopyLine widget reads and writes this `pm` signal; the
+ * code-window switcher now ships in `@sigx/ssg` (rendered server-side) and is
+ * bridged to this signal by `lib/pm-sync.ts` — both persist to the same
+ * `sigx-pm` key, so picking a manager anywhere updates everywhere.
  *
  * `parse` reduces a written command to a manager-agnostic shape; `render`
  * emits it for a target manager. Package arguments are never translated —
