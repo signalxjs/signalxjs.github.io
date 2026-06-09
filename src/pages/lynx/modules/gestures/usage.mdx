@@ -172,7 +172,7 @@ function Dot({ offset, pageWidth, index }: {
 }
 ```
 
-The `useSwiperDot*` hooks are headless: they return a `MainThreadRef` you spread onto a dot element and drive a single transform channel (opacity, scale, scaleX, width, translateX) from the live `offset`. For themed, ready-made indicators use `SwiperIndicator` from [DaisyUI](/lynx/modules/daisyui/overview).
+The `useSwiperDot*` hooks are headless: they return a `MainThreadRef` you spread onto a dot element and drive a single transform channel (opacity, scale, scaleX, width, translateX) from the live `offset`. For themed, ready-made indicators use `SwiperIndicator` from [`@sigx/lynx-zero`](/lynx/modules/zero/overview) (also re-exported from `@sigx/lynx-daisyui`).
 
 ## Pinch and rotate
 
@@ -202,6 +202,10 @@ Spread `handlers` onto the element's `bindtouch*` attributes. `state` is a react
 - **Pass main-thread locals through `runOnBackground` arguments, not closure capture** — the background thread only sees marshaled params; closure capture throws a `ReferenceError`.
 - **Object-typed `SharedValue`s coalesce by `===` identity**, so mutating a property won't publish. Use scalar shared values, or the 2D `translate` mapper.
 - `ScrollView` provides a `ScrollContext` so descendant `Draggable` / `Swipeable` auto-yield the native scroll during a gesture — no wiring required. Custom gesture components can opt in with `useScrollContext()`.
+
+## On the web
+
+When you run your app in the browser with `sigx run:web`, the gesture set degrades to pointer input: **tap, long-press and pan** are supported, so `Pressable`, `Draggable`, sheets and swipe-to-reveal work on web. Main-thread transforms driven by `useAnimatedStyle` fall back to inline styles. Develop touch-only gestures (pinch, rotate) against a device.
 
 ## Migration note
 

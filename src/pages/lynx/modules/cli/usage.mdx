@@ -27,6 +27,7 @@ sigx dev            # start the dev server, pick a device
 sigx prebuild       # render native ios/ and android/ projects + autolink
 sigx run:android    # build, install and launch on Android
 sigx run:ios        # build, install and launch on iOS (macOS only)
+sigx run:web        # build, serve and live-reload in the browser
 sigx build          # production rspeedy bundle
 sigx doctor         # environment health report
 ```
@@ -69,11 +70,14 @@ export default defineLynxConfig({
         },
         notificationIcon: 'assets/notification-icon.png',
         notificationColor: '#0D9488',
+        features: [{ name: 'android.hardware.camera', required: false }],
     },
     ios: {
         bundleIdentifier: 'com.mycompany.myapp',
         buildNumber: '2',
-        icon: { light: 'assets/icon.png', dark: 'assets/icon-dark.png' },
+        icon: { light: 'assets/icon.png', dark: 'assets/icon-dark.png', tinted: 'assets/icon-tinted.png' },
+        supportsTablet: true,
+        requiresFullScreen: false,
     },
 });
 ```
@@ -82,8 +86,11 @@ Notes:
 
 - Installed `@sigx/lynx-*` modules are **autolinked automatically** — you only list a module in `modules` when you need to pass it native config or restrict it to one platform. Use `excludeModules` to opt out of one.
 - The config file is evaluated at prebuild time, so you can read `process.env` for secrets like `android.googleMapsApiKey`.
-- Sensible defaults are applied for everything you omit: `version` `1.0.0`, `buildNumber` `1`, `orientation` `portrait`, both platforms, Android `minSdk` 24 / `targetSdk` 35, iOS `deploymentTarget` `15.0`. Missing icon or splash images fall back to bundled placeholders.
+- Sensible defaults are applied for everything you omit: `version` `1.0.0`, `buildNumber` `1`, `orientation` `portrait`, both platforms, Android `minSdk` 24 / `targetSdk` 35, iOS `deploymentTarget` `15.0`, `supportsTablet` `true`. Missing icon or splash images fall back to bundled placeholders.
 - When `applicationId` / `bundleIdentifier` are omitted, run and dev commands fall back to `com.sigx.<name>` (lowercased, non-alphanumerics stripped).
+- **App icons take appearance variants.** `ios.icon` accepts a `{ light, dark, tinted }` set for iOS's standard / dark / tinted home-screen modes (a string is shorthand for `light`). Android's `adaptiveIcon` takes `foreground` + `backgroundColor` + an optional `monochrome` layer (themed icons), and `notificationIcon` / `notificationColor` style the status-bar notification glyph. `splash` likewise takes a `dark` variant.
+- **Device support.** `ios.supportsTablet` toggles iPad support (Xcode's device family); `ios.requiresFullScreen` opts the iPad out of multitasking — only then may it follow the phone's orientation lock, otherwise iPad apps must allow all four orientations. `android.features` emits `<uses-feature>` manifest entries (`{ name, required }`) to declare hardware your app uses.
+- **Cleartext HTTP is debug-only.** Prebuild emits an Android network-security config that blocks cleartext (non-HTTPS) traffic in release builds and permits it only in the debug source set, so use `https://` for production endpoints.
 
 ## Running the dev server
 
@@ -155,6 +162,36 @@ Platform notes:
 - `run:ios` (and any iOS build) is **macOS only** and errors elsewhere.
 - Android needs the Android SDK + JDK + Gradle; `adb` is resolved from `ANDROID_HOME/platform-tools` and `PATH`. iOS needs Xcode, CocoaPods and `xcrun`/`devicectl`.
 - Run `sigx doctor` first to confirm your toolchain: it reports Node, your package manager, the Android SDK/JDK/ADB, iOS Xcode/CocoaPods and connected devices.
+
+## Running on the web
+
+`sigx run:web` is the browser peer of `run:android` / `run:ios`: it builds your app for the web target and serves it locally with live reload, so you can iterate on layout and logic without a simulator or device.
+
+```bash
+sigx run:web                 # build, serve and open the browser (default port 8900)
+sigx run:web --port 9000     # custom port
+sigx run:web --no-open       # don't auto-open a browser
+sigx run:web --no-watch      # build and serve once, no live reload
+sigx run:web --host          # expose on the LAN
+```
+
+It serves three things over one cross-origin-isolated HTTP server: a generated `<lynx-view>` host page, the upstream `@lynx-js/web-core` browser engine, and your app's own `dist/` bundle. Enable the web target by adding it to your build environments:
+
+```ts
+// lynx.config.ts
+import { defineConfig } from '@lynx-js/rspeedy';
+import { pluginSigxLynx } from '@sigx/lynx-plugin';
+
+export default defineConfig({
+    plugins: [pluginSigxLynx()],
+    environments: { lynx: {}, web: {} },
+});
+```
+
+Two things to know about the web target:
+
+- **Live reload is a full reload**, not hot-swap — a file change rebuilds the bundle and the page re-fetches it. Lynx's HMR transport is device-oriented and stays off for the web target (matching upstream).
+- **Gestures work in the browser.** Tap, long-press and pan map to pointer input, so `Pressable`, `Draggable`, sheets and swipe-to-reveal all behave on web; `useAnimatedStyle` animations fall back to inline styles.
 
 ## Keeping the module family in sync
 
