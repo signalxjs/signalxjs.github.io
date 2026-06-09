@@ -8,18 +8,22 @@
 
 import { component, onMounted } from 'sigx';
 import type { LayoutProps, LayoutSlots } from '@sigx/ssg';
+import { useRouter } from '@sigx/router';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { TableOfContents } from '@/components/TableOfContents';
 import { CommandPalette } from '@/components/CommandPalette';
 import { useCommandPalette } from '@/lib/useCommandPalette';
+import { installSpaLinks } from '@/lib/spaLinks';
 import { initializeTheme } from '@sigx/daisyui';
 
 export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props }) => {
     const cmd = useCommandPalette();
+    const router = useRouter();
 
     onMounted(() => {
         initializeTheme({ defaultTheme: 'dark' });
+        installSpaLinks(router);
     });
 
     return () => {
