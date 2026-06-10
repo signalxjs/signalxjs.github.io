@@ -64,7 +64,7 @@ const ProductSection = component(() => {
 Two rules to know:
 
 - **The provider component owns the instance** — it is disposed when the provider unmounts, not on `app.unmount()`.
-- **`defineProvide` creates the instance without arguments.** Parameterized setups and subtree provision don't mix: design stores meant for `defineProvide` to take no setup args, and seed the fresh instance through an action right after providing it:
+- **`defineProvide` creates the instance without arguments by default.** Its default factory calls the setup args-less (and beware: a custom `defineProvide(useFn, factory)` callback that calls the use-function would *resolve a shared instance*, not create a fresh one). The reliable pattern for per-subtree configuration is to design provided stores arg-less and seed the fresh instance through an action right after providing it:
 
 ```ts
 const filters = defineProvide(useFilterStore);
