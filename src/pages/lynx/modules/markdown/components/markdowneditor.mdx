@@ -1,0 +1,102 @@
+---
+title: "MarkdownEditor"
+description: "MarkdownEditor — true-WYSIWYG markdown editing on a native field"
+layout: module-docs
+category: ["Components", "Editing"]
+order: 102
+---
+
+# MarkdownEditor
+
+<p class="lede">True-WYSIWYG markdown editing on the native <code>&lt;sigx-richtext&gt;</code> element. Lightly controlled: markdown in via <code>value</code>, <code>onChange(markdown)</code> out.</p>
+
+## Import
+
+```tsx
+import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
+```
+
+`MarkdownEditor` lives on the `@sigx/lynx-markdown/editor` subpath. Importing the subpath turns the optional peers `@sigx/lynx-richtext` (the native element) and `@sigx/lynx-keyboard` into real, required dependencies — install both alongside the package.
+
+## Basic usage
+
+`value` is initial / lightly-controlled — an incoming value equal to the last emitted markdown is treated as the editor's own echo and ignored, so you can safely feed `onChange` output back in.
+
+```tsx
+import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
+
+function Composer() {
+  return (
+    <MarkdownEditor
+      value={'# Draft\n\nStart typing…'}
+      placeholder="Write something"
+      onChange={(markdown) => saveDraft(markdown)}
+    />
+  );
+}
+```
+
+## Toolbar
+
+Pass `toolbar` to mount the built-in [`EditorToolbar`](/lynx/modules/markdown/components/editortoolbar), or render your own toolbar standalone against the editor's controller.
+
+```tsx
+<MarkdownEditor value={draft} onChange={save} toolbar />
+```
+
+## Mentions and plugins
+
+Wire [`createMentionPlugin`](/lynx/modules/markdown/api#creatementionplugin) (or any `MarkdownEditorPlugin`) through the editor's plugin surface to add parser syntax, document mapping, serialization, and a trigger that opens a [`SuggestionPopup`](/lynx/modules/markdown/components/suggestionpopup) session.
+
+```tsx
+import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
+import { createMentionPlugin } from '@sigx/lynx-markdown';
+
+const mention = createMentionPlugin({
+  trigger: '@',
+  debounce: 150,
+  search: async (q) => (await searchDirectory(q)).map((p) => ({ id: p.id, label: p.name })),
+});
+
+function Composer() {
+  return <MarkdownEditor value={draft} onChange={save} plugins={[mention]} toolbar />;
+}
+```
+
+## Imperative control
+
+Grab the editor's [`MarkdownEditorController`](/lynx/modules/markdown/api#markdowneditorcontroller) via `controllerRef` to drive formatting, insertion, and fullscreen programmatically.
+
+| Method | Description |
+|--------|-------------|
+| `toggleBold()` / `toggleItalic()` / `toggleStrike()` / `toggleCode()` | Toggle inline marks on the selection. |
+| `setHeading(level)` | Set the block heading level (`0`–`6`; `0` clears). |
+| `setList(kind)` | `'bullet' \| 'ordered' \| 'task' \| 'none'`. |
+| `toggleQuote()` | Toggle a blockquote. |
+| `insertLink(href, text?)` / `insertText(text)` / `replaceRange(start, end, text)` | Insert or replace content. |
+| `insertChip(chip, replace?)` | Insert a mention/chip span. |
+| `clear()` | Empty the document. |
+| `openFullscreen()` / `closeFullscreen()` / `isFullscreen()` | Fullscreen control — restyles the same element in place, never re-parented. |
+
+## Native setup & gotchas
+
+These apply only to the editor subpath — the renderer needs none of them.
+
+- **`SafeAreaProvider` for the suggestion popup.** The popup's keyboard hook reads keyboard height via `@sigx/lynx-keyboard`'s `useKeyboard()`, which needs a `<SafeAreaProvider>` ancestor while the fullscreen overlay is open. Without one it reads height `0` (no crash, no warning).
+- **`ignore-focus` keeps the keyboard up.** The toolbar, popup, and fullscreen close affordance carry `ignore-focus` so taps never blur the editor.
+- **Fullscreen restyles in place.** Going fullscreen re-styles the same mounted element (a fixed inset overlay); it is never re-parented, which would recreate the native view and lose the document.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `value` | `string` | Initial markdown (lightly-controlled; echoes of the last emitted value are ignored). |
+| `onChange` | `(markdown: string) => void` | Fired with serialized markdown as the document changes. |
+| `placeholder` | `string` | Placeholder shown while empty. |
+| `minLines` / `maxLines` | `number` | Line bounds for the native field. |
+| `mode` | `MarkdownEditorMode` | Editor mode. |
+| `toolbar` | `boolean` | Mount the built-in `EditorToolbar`. |
+| `plugins` | `MarkdownEditorPlugin[]` | Trigger/inline plugins (e.g. mentions). |
+| `controllerRef` | `(c: MarkdownEditorController) => void` | Receives the imperative controller. |
+
+See the [API reference](/lynx/modules/markdown/api#markdowneditorprops) for the full prop list and the editor-subpath exports (`mdToDoc`, `docToMd`, plugin contract types).
