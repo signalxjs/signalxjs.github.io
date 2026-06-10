@@ -1,17 +1,14 @@
 ---
-title: API Reference
-description: "@sigx/server-renderer — streaming SSR and island hydration — API reference"
-layout: docs
-category: API Reference
-order: 10
+title: API reference
+description: "@sigx/server-renderer — every public export with signatures"
+layout: module-docs
+category: Reference
+order: 60
 ---
 
-# API Reference
+# API reference
 
-Every public export of `@sigx/server-renderer`, grouped by kind. The import path
-for each symbol is noted, since the package splits into three subpaths:
-`@sigx/server-renderer` (main), `@sigx/server-renderer/server`, and
-`@sigx/server-renderer/client`.
+<p class="lede">Every public export of `@sigx/server-renderer` v0.4.9, grouped by kind. The import path for each symbol is noted, since the package splits into three subpaths: `@sigx/server-renderer` (main), `@sigx/server-renderer/server`, and `@sigx/server-renderer/client`.</p>
 
 ## Render functions
 
@@ -241,11 +238,10 @@ function generateSignalKey(name: string | undefined, index: number): string
 
 ### ssrClientPlugin
 
-A sigx app `Plugin` (name `'@sigx/server-renderer/client'`) that adds
-`app.hydrate(container)` to the `App` instance. `hydrate()` resolves a string
-selector or `Element`, finds the root component + `AppContext`, and hydrates
-existing SSR DOM (or falls back to client-side `render()` when the container has no
-SSR content).
+A sigx app `Plugin` that adds `app.hydrate(container)` to the `App` instance.
+`hydrate()` resolves a string selector or `Element`, finds the root component +
+`AppContext`, and hydrates existing SSR DOM (or falls back to client-side
+`render()` when the container has no SSR content).
 
 ```ts
 const ssrClientPlugin: Plugin
@@ -265,9 +261,6 @@ Core hydration entry: normalizes `element` to a VNode, sets the current
 function hydrate(element: any, container: Element, appContext?: AppContext): void
 ```
 
-- **element** — the root element/VNode.
-- **container** — the SSR container element.
-- **appContext** — optional `AppContext` for DI.
 - Exported from `/client`.
 
 ### hydrateNode
@@ -282,10 +275,6 @@ fragments/components/elements.
 function hydrateNode(vnode: VNode, dom: Node | null, parent: Node): Node | null
 ```
 
-- **vnode** — the VNode to hydrate.
-- **dom** — the candidate DOM node (or `null`).
-- **parent** — the parent DOM node.
-- **Returns** — the next sibling DOM node, or `null`.
 - Exported from `/client`.
 
 ### hydrateComponent
@@ -300,12 +289,6 @@ strategy plugins for selective/island hydration.
 function hydrateComponent(vnode: VNode, dom: Node | null, parent: Node, serverState?: Record<string, any>, trailingMarker?: Comment | null): Node | null
 ```
 
-- **vnode** — the component VNode.
-- **dom** — the candidate DOM node.
-- **parent** — the parent DOM node.
-- **serverState** — optional server-captured signal state.
-- **trailingMarker** — optional precomputed trailing marker comment.
-- **Returns** — the next sibling DOM node, or `null`.
 - Exported from `/client`.
 
 ### registerClientPlugin
@@ -318,25 +301,15 @@ hydration. The mechanism behind selective/island/resumable hydration strategies.
 function registerClientPlugin(plugin: SSRPlugin): void
 ```
 
-- **plugin** — the `SSRPlugin` to register.
 - Exported from `/client`.
 
-### getClientPlugins
+### getClientPlugins / clearClientPlugins
 
-Return all currently registered client-side `SSRPlugin`s.
+Return all currently registered client-side `SSRPlugin`s, or clear them (useful in
+tests).
 
 ```ts
 function getClientPlugins(): SSRPlugin[]
-```
-
-- **Returns** — the registered client plugins.
-- Exported from `/client`.
-
-### clearClientPlugins
-
-Clear all registered client plugins (useful for testing).
-
-```ts
 function clearClientPlugins(): void
 ```
 
@@ -353,8 +326,6 @@ declaration-order drift between server/client builds silently mismatches state.
 function createRestoringSignal(serverState: Record<string, any>): SSRSignalFn
 ```
 
-- **serverState** — the server-captured signal state.
-- **Returns** — an `SSRSignalFn` that restores from state.
 - Exported from `/client`.
 
 ### setPendingServerState
@@ -367,30 +338,18 @@ context extension consumes and clears it.
 function setPendingServerState(state: Record<string, any> | null): void
 ```
 
-- **state** — the state to apply next, or `null` to clear.
 - Exported from `/client`.
 
-### getCurrentAppContext
+### getCurrentAppContext / setCurrentAppContext
 
-Get the `AppContext` tracked during hydration (for DI in deferred/island hydration
-callbacks).
+Get or set the `AppContext` tracked during hydration (for DI in deferred/island
+hydration callbacks).
 
 ```ts
 function getCurrentAppContext(): AppContext | null
-```
-
-- **Returns** — the current `AppContext`, or `null`.
-- Exported from `/client`.
-
-### setCurrentAppContext
-
-Set the current `AppContext` during hydration.
-
-```ts
 function setCurrentAppContext(ctx: AppContext | null): void
 ```
 
-- **ctx** — the `AppContext` to set, or `null`.
 - Exported from `/client`.
 
 ## Interfaces & types
@@ -533,10 +492,9 @@ interface StreamCallbacks {
 
 ### SSRHelper
 
-The `ssr` object injected into every `ComponentSetupContext` (via module
-augmentation of `@sigx/runtime-core`). `ssr.load(fn)` runs async data fetching on
-the server and is skipped on the client during hydration (state restored from
-server). `isServer`/`isHydrating` flags.
+The `ssr` object injected into every `ComponentSetupContext`. `ssr.load(fn)` runs
+async data fetching on the server and is skipped on the client during hydration
+(state restored from server). `isServer`/`isHydrating` flags.
 
 ```ts
 interface SSRHelper {
@@ -548,42 +506,11 @@ interface SSRHelper {
 
 - Exported as a type from the main entry.
 
-### ComponentFactory
+### HeadConfig & friends
 
-Minimal component-factory shape consumed by `hydrateComponent` (compatible with
-runtime-core's `ComponentFactory`).
-
-```ts
-interface ComponentFactory {
-  __setup: Function;
-  __name?: string;
-  __async?: boolean;
-}
-```
-
-- Exported as a type from `/client`.
-
-### InternalVNode
-
-VNode extended with internal hydration bookkeeping (subtree refs, reactive effect,
-props/slots). Exposed for plugin authors.
-
-```ts
-interface InternalVNode extends VNode {
-  _subTree?: VNode;
-  _subTreeRef?: { current: VNode | null };
-  _effect?: any;
-  _componentProps?: any;
-  _slots?: any;
-}
-```
-
-- Exported as a type from `/client`.
-
-### HeadConfig
-
-Config object passed to `useHead()`/`renderHeadToString()`. `titleTemplate` uses
-`%s` as the title placeholder.
+Config objects passed to `useHead()`/`renderHeadToString()`. `titleTemplate` uses
+`%s` as the title placeholder; meta is deduped by
+name/property/http-equiv/charset.
 
 ```ts
 interface HeadConfig {
@@ -597,59 +524,9 @@ interface HeadConfig {
 }
 ```
 
-- Exported as a type from the main entry.
-
-### HeadMeta
-
-A `<meta>` tag descriptor. Deduped by name/property/http-equiv/charset during
-`renderHeadToString()`.
-
-```ts
-interface HeadMeta {
-  name?: string;
-  property?: string;
-  'http-equiv'?: string;
-  charset?: string;
-  content?: string;
-  [key: string]: string | undefined;
-}
-```
-
-- Exported as a type from the main entry.
-
-### HeadLink
-
-A `<link>` tag descriptor.
-
-```ts
-interface HeadLink {
-  rel: string;
-  href?: string;
-  type?: string;
-  crossorigin?: string;
-  [key: string]: string | undefined;
-}
-```
-
-- Exported as a type from the main entry.
-
-### HeadScript
-
-A `<script>` tag descriptor; boolean attrs (`async`/`defer`) render as bare
-attributes, `innerHTML` becomes the script body.
-
-```ts
-interface HeadScript {
-  src?: string;
-  type?: string;
-  async?: boolean;
-  defer?: boolean;
-  innerHTML?: string;
-  [key: string]: string | boolean | undefined;
-}
-```
-
-- Exported as a type from the main entry.
+`HeadMeta`, `HeadLink` and `HeadScript` are the per-tag descriptors (boolean
+script attrs like `async`/`defer` render as bare attributes; `innerHTML` becomes
+the script body). All exported as types from the main entry.
 
 ### SSRSignalFn
 
@@ -675,27 +552,20 @@ type HydrateFn<TContainer = any> = (element: any, container: TContainer, appCont
 
 - Exported from `/client` alongside `ssrClientPlugin`.
 
+### ComponentFactory / InternalVNode
+
+`ComponentFactory` is the minimal component-factory shape consumed by
+`hydrateComponent`; `InternalVNode` is a `VNode` extended with internal hydration
+bookkeeping (subtree refs, reactive effect, props/slots), exposed for plugin
+authors. Both exported as types from `/client`.
+
 ## Module augmentations
 
 The package augments `@sigx/runtime-core` via `declare module` to integrate SSR
-into the core framework types. These are applied automatically on import:
+into the core framework types. These apply automatically on import: `getSSRProps`
+on directive definitions, `hydrate()` on `App` (via `ssrClientPlugin`), and the
+`ssr` helper on `ComponentSetupContext`.
 
-```ts
-// Adds getSSRProps to directive definitions (for SSR serialization)
-interface DirectiveDefinitionExtensions<T> {
-  getSSRProps?(binding: DirectiveBinding<T>): Record<string, any> | void;
-}
-
-// ssrClientPlugin adds hydrate() to App
-interface App<TContainer = any> {
-  hydrate?(container: TContainer): App<TContainer>;
-}
-
-// Adds the ssr helper (and internal state) to ComponentSetupContext
-interface ComponentSetupContext {
-  ssr: SSRHelper;
-  _signals?: Map<string, any>;
-  _serverState?: Record<string, any>;
-  _ssrLoads?: Promise<void>[];
-}
-```
+> The `client:*` directive types (`client:load`, `client:visible`, …) are **not**
+> part of this package — they ship with
+> [`@sigx/ssr-islands`](/server/packages/ssr-islands/api) via its `/jsx` subpath.

@@ -71,10 +71,10 @@ const RAW_PACKAGES: SigxPackage[] = [
       hue: 158, glyph: '❏', status: 'beta', version: '0.4.8',
       tag: 'Static site generation + MDX',
       blurb: 'File-based routing, MDX content collections and island hydration for content sites.' },
-    { id: 'server', npm: '@sigx/server-renderer', title: 'Server', cat: 'render', target: 'web',
+    { id: 'server', npm: '@sigx/server-renderer', title: 'Server', cat: 'render', target: 'web', kind: 'collection',
       hue: 210, glyph: '⊟', status: 'stable', version: '0.5.0',
-      tag: 'Streaming SSR & island hydration',
-      blurb: 'Render to a stream on the server and hydrate selectively with client:* directives.' },
+      tag: 'Streaming SSR, hydration & islands',
+      blurb: 'Render to an HTML string or stream on the server and hydrate on the client — plus the islands add-on for client:* selective hydration.' },
 
     // ---- Targets with their own framework package ----
     { id: 'lynx', npm: '@sigx/lynx', title: 'Lynx', cat: 'platform', target: 'lynx', kind: 'collection',
@@ -189,7 +189,7 @@ export function packageForCollection(collection?: string | null): SigxPackage | 
  */
 export function moduleForCollection(collection?: string | null): SigxModule | undefined {
     if (!collection) return undefined;
-    const m = collection.match(/^(?:lynx-mod|core-pkg)-(.+?)-(?:docs|api)$/);
+    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg)-(.+?)-(?:docs|api)$/);
     return m ? moduleById[m[1]] : undefined;
 }
 

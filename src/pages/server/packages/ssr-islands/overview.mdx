@@ -1,0 +1,84 @@
+---
+title: Overview
+description: "@sigx/ssr-islands — islands architecture and selective hydration for SignalX SSR"
+layout: module-docs
+category: Getting Started
+order: 10
+---
+
+# Islands
+
+<p class="lede">`@sigx/ssr-islands` adds islands architecture to SignalX SSR: ship a static, server-rendered page and hydrate only the interactive components, each on its own schedule, with optional per-island code splitting.</p>
+
+<p class="mod-meta-row">v0.4.2 <span class="mmr-dot" /> ESM-only <span class="mmr-dot" /> MIT</p>
+
+It is a **plugin on top of [`@sigx/server-renderer`](/server/packages/server-renderer/overview)**
+(installed automatically as a dependency). The base renderer hydrates the whole
+tree; islands lets you hydrate just the parts marked with `client:*` directives —
+everything else stays as cheap static HTML.
+
+## Why islands
+
+Most pages are mostly static. Hydrating the entire tree ships and runs JavaScript
+for content that never changes. With islands you opt **in** to interactivity per
+component:
+
+- A `client:visible` chart hydrates only when scrolled into view.
+- A `client:idle` widget waits for the browser to be idle.
+- The surrounding article ships zero client JS.
+
+## The three pieces
+
+Using islands always involves the same trio (from the package's own quick-start):
+
+```ts
+// 1. Server — register the plugin on your SSR instance
+import { createSSR } from '@sigx/server-renderer';
+import { islandsPlugin } from '@sigx/ssr-islands';
+
+const ssr = createSSR().use(islandsPlugin());
+const html = await ssr.render(<App />);
+```
+
+```ts
+// 2. Client — register island components, then hydrate them
+import { hydrateIslands, registerComponent } from '@sigx/ssr-islands';
+import { Counter } from './components/Counter';
+
+registerComponent('Counter', Counter);
+hydrateIslands();
+```
+
+```tsx
+// 3. JSX types — enable the client:* attributes
+import '@sigx/ssr-islands/jsx';
+
+<Counter client:visible />
+<Widget client:idle />
+```
+
+The server plugin intercepts components carrying a `client:*` directive, captures
+their signal state, and injects the `__SIGX_ISLANDS__` hydration data. On the
+client, `hydrateIslands()` reads that data and schedules each island according to
+its strategy.
+
+## Hydration strategies
+
+| Directive | Hydrates… |
+|---|---|
+| `client:load` | immediately on page load |
+| `client:idle` | during browser idle time (`requestIdleCallback`) |
+| `client:visible` | when the element scrolls into view (`IntersectionObserver`) |
+| `client:media` | when a media query matches (`client:media="(min-width: 768px)"`) |
+| `client:only` | mount fresh on the client — no SSR content rendered |
+
+See [Client directives](/server/packages/ssr-islands/client-directives) for the
+details of each.
+
+## Next steps
+
+- [Installation](/server/packages/ssr-islands/installation) — install, dependency, and the four subpaths.
+- [Client directives](/server/packages/ssr-islands/client-directives) — the five `client:*` strategies.
+- [Registry & code splitting](/server/packages/ssr-islands/registry-and-code-splitting) — register components eagerly or lazily for per-island chunks.
+- [Plugin setup](/server/packages/ssr-islands/plugin-setup) — `islandsPlugin()` options, manifests, and signal-state transfer.
+- [API reference](/server/packages/ssr-islands/api) — every export with signatures.

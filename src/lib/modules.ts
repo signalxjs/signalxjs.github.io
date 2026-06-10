@@ -17,7 +17,7 @@
 import type { PackageStatus } from './family';
 import { VERSIONS } from './versions.generated.ts';
 
-export type ModuleParent = 'lynx' | 'core';
+export type ModuleParent = 'lynx' | 'core' | 'server';
 
 export interface SigxModule {
     /** Stable id — also the route segment and collection infix. */
@@ -64,6 +64,9 @@ export const MODULE_CATEGORIES: Record<ModuleParent, { id: string; label: string
     ],
     core: [
         { id: 'packages', label: 'Core repo' },
+    ],
+    server: [
+        { id: 'packages', label: 'SSR packages' },
     ],
 };
 
@@ -299,14 +302,24 @@ const RAW_MODULES: SigxModule[] = [
       hue: 200, glyph: '◑', status: 'stable', version: '0.5.0', role: 'Umbrella', aliasFor: 'core',
       tag: 'The public umbrella package',
       blurb: 'The public umbrella package you import in web apps (reactivity + runtime-core + runtime-dom).' },
-    { id: 'server-renderer', parent: 'core', npm: '@sigx/server-renderer', name: 'Server Renderer', category: 'packages',
-      hue: 158, glyph: '⊟', status: 'stable', version: '0.5.0', role: 'SSR', aliasFor: 'server',
-      tag: 'SSR + hydration',
-      blurb: 'Render components to HTML on the server, then hydrate on the client.' },
     { id: 'vite', parent: 'core', npm: '@sigx/vite', name: 'Vite Plugin', category: 'packages',
       hue: 318, glyph: '◮', status: 'stable', version: '0.5.0', role: 'Tooling', aliasFor: 'vite',
       tag: 'Vite plugin & HMR',
       blurb: 'Vite plugin for dev and build with component HMR.' },
+
+    // ============ Server (SSR) packages ============
+    // `server` is a docs-only collection — there is no `@sigx/server`
+    // umbrella npm package. It groups the two SSR packages: the renderer
+    // (ships from signalxjs/core) and islands (ships from signalxjs/ssr-islands,
+    // depends on the renderer).
+    { id: 'server-renderer', parent: 'server', npm: '@sigx/server-renderer', name: 'Server Renderer', category: 'packages',
+      hue: 210, glyph: '⊟', status: 'stable', version: '0.5.0', role: 'Renderer',
+      tag: 'Streaming SSR & hydration',
+      blurb: 'Render components to an HTML string or stream on the server, hydrate the DOM on the client, manage the document head, and extend rendering through the plugin SPI.' },
+    { id: 'ssr-islands', parent: 'server', npm: '@sigx/ssr-islands', name: 'Islands', category: 'packages',
+      hue: 40, glyph: '❖', status: 'stable', version: '0.4.2', role: 'Islands',
+      tag: 'Selective hydration via client:*',
+      blurb: 'Islands architecture for SignalX SSR — hydrate only interactive components with client:load / idle / visible / media / only, with per-island code splitting. Layers on @sigx/server-renderer.' },
 ];
 
 /** Registry with live npm versions overlaid (falls back to the literal). */
@@ -365,7 +378,9 @@ export const modulesInCategory = (parent: ModuleParent, category: string): SigxM
 
 /** Route prefix of a module's docs pages (catalog pages live at the parent prefix). */
 export const moduleRoutePrefix = (m: SigxModule): string =>
-    m.parent === 'lynx' ? `/lynx/modules/${m.id}` : `/core/packages/${m.id}`;
+    m.parent === 'lynx' ? `/lynx/modules/${m.id}`
+        : m.parent === 'server' ? `/server/packages/${m.id}`
+        : `/core/packages/${m.id}`;
 
 /**
  * Docs collection name for a module, or undefined for `aliasFor` entries
@@ -377,4 +392,5 @@ export const moduleRoutePrefix = (m: SigxModule): string =>
 export const moduleDocsCollection = (m: SigxModule): string | undefined =>
     m.aliasFor ? undefined
         : m.parent === 'lynx' ? `lynx-mod-${m.id}-docs`
+        : m.parent === 'server' ? `server-pkg-${m.id}-docs`
         : `core-pkg-${m.id}-docs`;

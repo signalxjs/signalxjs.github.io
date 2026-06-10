@@ -66,6 +66,11 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                                 <Icon name="cube" size={15} /> Browse modules
                             </SxLink>
                         )}
+                        {pkg.id === 'server' && (
+                            <SxLink to="/server/packages" class={`sx-btn ${docs ? 'sx-btn-outline' : 'sx-btn-primary'}`}>
+                                <Icon name="cube" size={15} /> Browse packages
+                            </SxLink>
+                        )}
                         {api && (
                             <SxLink to={api} class="sx-btn sx-btn-outline">
                                 API reference
@@ -91,7 +96,7 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         {/* DaisyUI exists on two targets — link the native sibling (local, never a global mode) */}
                         {pkg.id === 'daisyui' && <SiblingTargetPill current="web" />}
                     </div>
-                    {!docs && (
+                    {!docs && pkg.kind !== 'collection' && (
                         <p class="lh-soon">Documentation for {pkg.title} is on its way — watch this space.</p>
                     )}
                 </section>
@@ -122,6 +127,18 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         </div>
                         <div class="lynx-mod-row">
                             {modulesByParent('core').map(moduleCard)}
+                        </div>
+                    </>
+                )}
+                {pkg.id === 'server' && (
+                    <>
+                        <div class="section-label">
+                            <span class="sl-text">SSR packages</span>
+                            <span class="sl-line" />
+                            <span class="sl-note">server is a collection — the renderer and the islands add-on</span>
+                        </div>
+                        <div class="lynx-mod-row">
+                            {modulesByParent('server').map(moduleCard)}
                         </div>
                     </>
                 )}

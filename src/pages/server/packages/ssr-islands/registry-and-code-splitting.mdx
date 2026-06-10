@@ -1,0 +1,107 @@
+---
+title: Registry & code splitting
+description: "Register island components eagerly or lazily, and split each island into its own chunk"
+layout: module-docs
+category: Guides
+order: 40
+---
+
+# Registry & code splitting
+
+<p class="lede">On the client, the islands runtime needs a way to find the component behind each `client:*` marker. The registry maps component names to factories — eagerly, or lazily for per-island code splitting.</p>
+
+## Eager registration
+
+The simplest setup: import the components and register them by name before calling
+`hydrateIslands()`.
+
+```ts
+import { registerComponent, hydrateIslands } from '@sigx/ssr-islands';
+import { Counter } from './components/Counter';
+
+registerComponent('Counter', Counter);
+hydrateIslands();
+```
+
+Register several at once with `registerComponents` — keys become the names:
+
+```ts
+import { registerComponents } from '@sigx/ssr-islands';
+import * as Components from './components';
+
+registerComponents(Components); // { Counter, Chart, … }
+```
+
+The name you register **must** match the component name the server serialized into
+the island data.
+
+> **Trade-off:** eager registration imports every island's code up front, so it is
+> all in the initial bundle — simple, but no code splitting.
+
+## Lazy registration & per-island chunks
+
+To download an island's code only when its strategy fires, register a **loader**
+instead of a component. The loader's `import()` runs on demand:
+
+```ts
+import { __registerIslandChunk } from '@sigx/ssr-islands/client';
+
+__registerIslandChunk('Counter', () => import('./Counter').then((m) => m.Counter));
+```
+
+A `client:visible` island registered this way downloads its chunk only when it
+scrolls into view.
+
+> **You rarely write this by hand.** The `sigxIslandsPlugin` Vite transform
+> generates these `__registerIslandChunk` calls automatically from your islands,
+> keyed by a stable file-path id. Hand-write loaders only for components the
+> transform doesn't cover.
+
+### Resolution order
+
+When an island needs its component, the runtime resolves it in order:
+
+1. **Eager registry** — already loaded via `registerComponent`.
+2. **Lazy registry** — registered via `__registerIslandChunk`.
+3. **Direct chunk URL** — from the SSR manifest (`IslandInfo.chunkUrl`), see
+   [Plugin setup](/server/packages/ssr-islands/plugin-setup).
+
+`loadIslandComponent(info)` runs this full resolution (with in-flight dedup);
+`resolveComponent(name)` checks the eager then lazy registries and caches the
+result for instant subsequent lookups.
+
+## Prefetching
+
+For deferred islands, warm the browser cache early with
+`<link rel="modulepreload">` so the chunk is ready before the strategy fires:
+
+```ts
+import { prefetchIslandChunks, getIslandData } from '@sigx/ssr-islands';
+
+// On DOMContentLoaded — prefetch all deferred islands' chunks
+prefetchIslandChunks(getIslandData());
+```
+
+Pass a list of strategies to limit which islands are prefetched (default: all
+deferred strategies).
+
+## The registry class
+
+For advanced cases, `HydrationRegistry` is the class behind the module-level
+helpers — useful when you want an isolated registry instance:
+
+```ts
+import { HydrationRegistry } from '@sigx/ssr-islands';
+
+const registry = new HydrationRegistry()
+    .register('Counter', Counter)
+    .registerLazy('Chart', () => import('./Chart').then((m) => m.Chart));
+
+await registry.resolve('Chart'); // ComponentFactory | undefined
+```
+
+## Next steps
+
+- [Plugin setup](/server/packages/ssr-islands/plugin-setup) — manifests, options, and signal-state transfer.
+- [Client directives](/server/packages/ssr-islands/client-directives) — pair lazy chunks with `client:visible`.
+- [API reference](/server/packages/ssr-islands/api)

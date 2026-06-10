@@ -112,10 +112,9 @@ export default defineSSGConfig({
             path: '/ssg/docs',
             showDrafts: 'dev',
         },
-        'server-docs': {
-            path: '/server/docs',
-            showDrafts: 'dev',
-        },
+        // `server` is a collection — its two packages (server-renderer,
+        // ssr-islands) are documented via the `server-pkg-*` collections
+        // injected by `...moduleCollections` below.
         'vite-docs': {
             path: '/vite/docs',
             showDrafts: 'dev',

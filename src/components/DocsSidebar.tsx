@@ -24,17 +24,20 @@ type DocsSidebarProps =
     & Define.Event<'close', void>;
 
 /** "All Lynx modules · 32" / "All Core packages · 6" catalog link. */
+const CATALOG_LABEL: Record<ModuleParent, string> = {
+    lynx: 'All Lynx modules',
+    core: 'All Core packages',
+    server: 'All Server packages',
+};
 const CatalogLink = component<Define.Prop<'parent', ModuleParent, true> & Define.Event<'pick', void>>(
     ({ props, emit }) => () => (
         <SxLink
-            to={props.parent === 'lynx' ? '/lynx/modules' : '/core/packages'}
+            to={props.parent === 'lynx' ? '/lynx/modules' : `/${props.parent}/packages`}
             class="side-catalog-link"
             onClick={() => emit('pick')}
         >
             <Icon name="cube" size={15} />
-            <span class="scl-label">
-                {props.parent === 'lynx' ? 'All Lynx modules' : 'All Core packages'}
-            </span>
+            <span class="scl-label">{CATALOG_LABEL[props.parent]}</span>
             <span class="scl-count mono">{modulesByParent(props.parent).length}</span>
         </SxLink>
     ),
