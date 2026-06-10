@@ -18,7 +18,7 @@ import { Stack } from '@sigx/lynx-navigation';
 
 ## Basic usage
 
-Mount a `Stack` inside a [`NavigationRoot`](/lynx/modules/navigation/api#navigationroot) — the root creates the navigator state, the stack renders its screens. Drop a [`<Header />`](/lynx/modules/navigation/components/header) into the stack's `default` slot for the headless default header bar.
+Mount a `Stack` inside a [`NavigationRoot`](/lynx/modules/navigation/components/navigationroot) — the root creates the navigator state, the stack renders its screens. Drop a [`<Header />`](/lynx/modules/navigation/components/header) into the stack's `default` slot for the headless default header bar.
 
 ```tsx
 import { z } from 'zod';
@@ -76,7 +76,7 @@ export const Main = () => (
 );
 ```
 
-Inside a tab, a `card` push (`nav.push('tripDetail', { tripId })`) stays in that tab's stack, while a `modal` push escalates to root and overlays the tab bar. See [Tabs](/lynx/modules/navigation/api#tabs) for the full pattern.
+Inside a tab, a `card` push (`nav.push('tripDetail', { tripId })`) stays in that tab's stack, while a `modal` push escalates to root and overlays the tab bar. See [Tabs](/lynx/modules/navigation/components/tabs) for the full pattern.
 
 ## Bounding retained screens
 
@@ -105,7 +105,7 @@ Inside a tab, a `card` push (`nav.push('tripDetail', { tripId })`) stays in that
 
 ## See also
 
-- [Screen](/lynx/modules/navigation/api#screen) — declarative per-screen options and header slot fills.
+- [Screen](/lynx/modules/navigation/components/screen) — declarative per-screen options and header slot fills.
 - [Header](/lynx/modules/navigation/components/header) — the default navigator header chrome.
-- [API reference](/lynx/modules/navigation/api#stack) — full signature and the `Nav` handle from [`useNav`](/lynx/modules/navigation/api#usenav).
+- [API reference](/lynx/modules/navigation/api) — full signature and the `Nav` handle from [`useNav`](/lynx/modules/navigation/api#usenav).
 - [Usage](/lynx/modules/navigation/usage) — the complete typed-routes setup pattern.

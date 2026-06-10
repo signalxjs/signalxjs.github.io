@@ -8,7 +8,7 @@ order: 101
 
 # Map
 
-<p class="lede">Native map view that renders Apple Maps (`MKMapView`) on iOS and Google Maps on Android, with any number of <a href="/lynx/modules/maps/components/map-marker">MapMarker</a> children as pins. Works on both platforms; Android needs a Google Maps API key.</p>
+<p class="lede">Native map view that renders Apple Maps (`MKMapView`) on iOS and Google Maps on Android, with any number of <a href="/lynx/modules/maps/components/mapmarker">MapMarker</a> children as pins. Works on both platforms; Android needs a Google Maps API key.</p>
 
 ## Import
 
@@ -143,13 +143,13 @@ All props are optional. `region` and a marker's `coordinate` are passed as objec
 | `onRegionChange` | `(e: MapRegionChangeEvent) => void` | Handler for region-change events; payload on `e.detail`. |
 | `onPress` | `(e: MapPressEvent) => void` | Handler for map-press events; payload on `e.detail`. |
 | `onMarkerPress` | `(e: MapMarkerPressEvent) => void` | Handler for marker-press events; payload on `e.detail`. |
-| `children` | `unknown` | The [`MapMarker`](/lynx/modules/maps/components/map-marker) pins. |
+| `children` | `unknown` | The [`MapMarker`](/lynx/modules/maps/components/mapmarker) pins. |
 
 ### Slots
 
 | Slot | Description |
 |------|-------------|
-| `default` | Any number of [`MapMarker`](/lynx/modules/maps/components/map-marker) children rendered as pins. |
+| `default` | Any number of [`MapMarker`](/lynx/modules/maps/components/mapmarker) children rendered as pins. |
 
 ### Events
 
@@ -163,6 +163,6 @@ Each event object has a `type` discriminant and a `detail` payload.
 
 ## See also
 
-- [`MapMarker`](/lynx/modules/maps/components/map-marker) — the pin children rendered inside a `Map`.
+- [`MapMarker`](/lynx/modules/maps/components/mapmarker) — the pin children rendered inside a `Map`.
 - [Usage guide](/lynx/modules/maps/usage) — list rendering, Android API key, and installation.
 - [API reference](/lynx/modules/maps/api) — every export with full signatures and types.

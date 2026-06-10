@@ -43,7 +43,7 @@ Their prop types and related APIs remain documented below.
 
 ### VideoPlayerProps
 
-Props type for [`VideoPlayer`](#videoplayer). Every prop is optional (the third `Define.Prop` type argument is `false` = not required). Shared across platforms.
+Props type for [`VideoPlayer`](/lynx/modules/video/components/videoplayer). Every prop is optional (the third `Define.Prop` type argument is `false` = not required). Shared across platforms.
 
 ```ts
 export type VideoPlayerProps =
@@ -96,7 +96,7 @@ export type VideoResizeMode = 'contain' | 'cover' | 'stretch';
 
 ### VideoPlayerAttributes
 
-Low-level JSX intrinsic attribute interface for the raw `<video-player>` element — the native attribute surface, with kebab-case attrs and `bind*` event handlers. Registered globally as `JSX.IntrinsicElements['video-player']`. Most apps use the [`VideoPlayer`](#videoplayer) wrapper instead, which exposes camelCase prop names. Shared (JSX intrinsic).
+Low-level JSX intrinsic attribute interface for the raw `<video-player>` element — the native attribute surface, with kebab-case attrs and `bind*` event handlers. Registered globally as `JSX.IntrinsicElements['video-player']`. Most apps use the [`VideoPlayer`](/lynx/modules/video/components/videoplayer) wrapper instead, which exposes camelCase prop names. Shared (JSX intrinsic).
 
 ```ts
 export interface VideoPlayerAttributes extends LynxCommonAttributes {

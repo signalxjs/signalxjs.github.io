@@ -39,7 +39,7 @@ function AllEmoji({ onPick }: { onPick: (glyph: string) => void }) {
 
 ## Driving it from a context
 
-`EmojiGrid` is one of the parts `EmojiPicker` composes. To build a custom surface, wire it against a context from [`createEmojiContext`](/lynx/modules/emoji/api#createemojicontext) (or one read from an [`EmojiProvider`](/lynx/modules/emoji/api#emojiprovider) via `useEmojiContext`). The `skinTone` store gives you the sticky grid-wide `tone`, and `recents.push` records a pick — here a recents strip:
+`EmojiGrid` is one of the parts `EmojiPicker` composes. To build a custom surface, wire it against a context from [`createEmojiContext`](/lynx/modules/emoji/api#createemojicontext) (or one read from an [`EmojiProvider`](/lynx/modules/emoji/components/emojiprovider) via `useEmojiContext`). The `skinTone` store gives you the sticky grid-wide `tone`, and `recents.push` records a pick — here a recents strip:
 
 ```tsx
 import { EmojiGrid, createEmojiContext, enData } from '@sigx/lynx-emoji';
@@ -60,7 +60,7 @@ function RecentStrip() {
 }
 ```
 
-The `tone` prop selects which skin-tone variant a cell renders; `glyphForTone(datum, tone)` is what resolves it internally, falling back to the base glyph for non-tonal emoji. Long-press a tonal emoji and `onPickTone` fires with that datum so you can open a [`SkinTonePopover`](/lynx/modules/emoji/api#skintonepopover).
+The `tone` prop selects which skin-tone variant a cell renders; `glyphForTone(datum, tone)` is what resolves it internally, falling back to the base glyph for non-tonal emoji. Long-press a tonal emoji and `onPickTone` fires with that datum so you can open a [`SkinTonePopover`](/lynx/modules/emoji/components/skintonepopover).
 
 ## Custom cells
 

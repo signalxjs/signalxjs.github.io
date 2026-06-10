@@ -18,7 +18,7 @@ import { Header } from '@sigx/lynx-navigation';
 
 `Header` takes no props. It reads the focused screen's chrome from the same reactive source you'd use to build a custom bar — [`useScreenChrome()`](/lynx/modules/navigation/api#usescreenchrome) — so it is mounted once and switches content as the focused entry changes.
 
-If the focused entry registered a full-replacement [`<Screen.Header>`](/lynx/modules/navigation/api#screenheader) slot, `Header` renders that. Otherwise it renders three regions:
+If the focused entry registered a full-replacement [`<Screen.Header>`](/lynx/modules/navigation/components/screen) slot, `Header` renders that. Otherwise it renders three regions:
 
 - **`headerLeft`** — a back button when [`nav.canGoBack`](/lynx/modules/navigation/api#nav) is true, or a screen-supplied `<Screen.HeaderLeft>`.
 - **title** — the screen's `options.title`, falling back to the route name.
@@ -26,7 +26,7 @@ If the focused entry registered a full-replacement [`<Screen.Header>`](/lynx/mod
 
 ## Basic Usage
 
-`Header` is chrome rendered in a stack's nav scope, so it goes in the `default` slot of a [`Stack`](/lynx/modules/navigation/api#stack), as a sibling of the navigated screens:
+`Header` is chrome rendered in a stack's nav scope, so it goes in the `default` slot of a [`Stack`](/lynx/modules/navigation/components/stack), as a sibling of the navigated screens:
 
 ```tsx
 import { defineRoutes, NavigationRoot, Stack, Header } from '@sigx/lynx-navigation';
@@ -79,7 +79,7 @@ export const Main = () => (
 
 ## Customizing the title and actions
 
-`Header` has no props — you steer it from each screen with [`<Screen>`](/lynx/modules/navigation/api#screen) and its compound slot fills. Set the title with `<Screen>`'s `title` (or [`useScreenOptions`](/lynx/modules/navigation/api#usescreenoptions)), and fill the left/right regions with `<Screen.HeaderLeft>` / `<Screen.HeaderRight>`:
+`Header` has no props — you steer it from each screen with [`<Screen>`](/lynx/modules/navigation/components/screen) and its compound slot fills. Set the title with `<Screen>`'s `title` (or [`useScreenOptions`](/lynx/modules/navigation/api#usescreenoptions)), and fill the left/right regions with `<Screen.HeaderLeft>` / `<Screen.HeaderRight>`:
 
 ```tsx
 import { Screen, useParams, useScreenOptions } from '@sigx/lynx-navigation';
@@ -121,11 +121,11 @@ To replace the whole bar for one screen, register a `<Screen.Header>` slot — `
 
 | Slot source | Description |
 |------|-------------|
-| [`Screen.Header`](/lynx/modules/navigation/api#screenheader) | Full header replacement — renders in place of the default left/title/right layout. |
-| [`Screen.HeaderLeft`](/lynx/modules/navigation/api#screenheaderleft) | Left-region content (e.g. a back-arrow override). |
-| [`Screen.HeaderRight`](/lynx/modules/navigation/api#screenheaderright) | Right-region content (e.g. action buttons). |
+| [`Screen.Header`](/lynx/modules/navigation/components/screen) | Full header replacement — renders in place of the default left/title/right layout. |
+| [`Screen.HeaderLeft`](/lynx/modules/navigation/components/screen) | Left-region content (e.g. a back-arrow override). |
+| [`Screen.HeaderRight`](/lynx/modules/navigation/components/screen) | Right-region content (e.g. action buttons). |
 
 ## See also
 
-- [API reference](/lynx/modules/navigation/api#header) — every export, signature and type.
+- [API reference](/lynx/modules/navigation/api) — every export, signature and type.
 - [Usage](/lynx/modules/navigation/usage) — per-screen options and custom headers.

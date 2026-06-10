@@ -48,7 +48,7 @@ Their prop types and related APIs remain documented below.
 
 ### `MapProps`
 
-Props for [`Map`](#map). All props are optional (each `Define.Prop`'s third type argument is `false`).
+Props for [`Map`](/lynx/modules/maps/components/map). All props are optional (each `Define.Prop`'s third type argument is `false`).
 
 ```ts
 export type MapProps =
@@ -71,13 +71,13 @@ export type MapProps =
 - **`onRegionChange`** — handler receiving a [`MapRegionChangeEvent`](#mapregionchangeevent).
 - **`onPress`** — handler receiving a [`MapPressEvent`](#mappressevent).
 - **`onMarkerPress`** — handler receiving a [`MapMarkerPressEvent`](#mapmarkerpressevent).
-- **`children`** — the [`MapMarker`](#mapmarker) pins.
+- **`children`** — the [`MapMarker`](/lynx/modules/maps/components/mapmarker) pins.
 
 Platform note: event handlers receive typed event objects whose payload is on `.detail`.
 
 ### `MapMarkerProps`
 
-Props for [`MapMarker`](#mapmarker). Only `coordinate` is required (its `Define.Prop` third argument is `true`).
+Props for [`MapMarker`](/lynx/modules/maps/components/mapmarker). Only `coordinate` is required (its `Define.Prop` third argument is `true`).
 
 ```ts
 export type MapMarkerProps =
@@ -112,7 +112,7 @@ export interface MapRegion {
 
 ### `MapCoordinate`
 
-A single geographic point. Used by [`MapMarker`](#mapmarker)'s `coordinate` and inside press / marker-press event details.
+A single geographic point. Used by [`MapMarker`](/lynx/modules/maps/components/mapmarker)'s `coordinate` and inside press / marker-press event details.
 
 ```ts
 export interface MapCoordinate {
@@ -237,7 +237,7 @@ declare global {
 }
 ```
 
-These are the native-facing tags the [`Map`](#map) and [`MapMarker`](#mapmarker) components render to. Most code should use the components; the intrinsics and their attribute types are documented for completeness. Element availability at runtime requires `sigx prebuild` to have run after adding the dependency (the autolinker emits the iOS `LynxConfig` registration and Android `Behavior` attachment that bind the tags to native UI classes).
+These are the native-facing tags the [`Map`](/lynx/modules/maps/components/map) and [`MapMarker`](/lynx/modules/maps/components/mapmarker) components render to. Most code should use the components; the intrinsics and their attribute types are documented for completeness. Element availability at runtime requires `sigx prebuild` to have run after adding the dependency (the autolinker emits the iOS `LynxConfig` registration and Android `Behavior` attachment that bind the tags to native UI classes).
 
 ### `SigxMapAttributes`
 

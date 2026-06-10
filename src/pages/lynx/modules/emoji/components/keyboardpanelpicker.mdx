@@ -72,7 +72,7 @@ function ThemedPanel({ open, insert }: { open: boolean; insert: (g: string) => v
 
 ## Sharing recents with other surfaces
 
-With an [`EmojiProvider`](/lynx/modules/emoji/api#emojiprovider) in scope the panel needs no `data` prop — it reads the shared dataset, search index, recents list and skin-tone preference, so a composer panel and a [`SheetPicker`](/lynx/modules/emoji/components/sheetpicker) stay in sync:
+With an [`EmojiProvider`](/lynx/modules/emoji/components/emojiprovider) in scope the panel needs no `data` prop — it reads the shared dataset, search index, recents list and skin-tone preference, so a composer panel and a [`SheetPicker`](/lynx/modules/emoji/components/sheetpicker) stay in sync:
 
 ```tsx
 import { EmojiProvider, KeyboardPanelPicker, enData } from '@sigx/lynx-emoji';
@@ -126,7 +126,7 @@ function Composer({ insert }: { insert: (glyph: string) => void }) {
 
 ## See also
 
-- [API reference](/lynx/modules/emoji/api#keyboardpanelpicker) — the typed `KeyboardPanelPickerProps`.
+- [API reference](/lynx/modules/emoji/api#keyboardpanelpickerprops) — the typed `KeyboardPanelPickerProps`.
 - [Usage](/lynx/modules/emoji/usage#a-chat-composer-keyboard-panel) — the full chat-composer guide.
 - [SheetPicker](/lynx/modules/emoji/components/sheetpicker) — bottom-sheet presentation for one-off / reaction pickers.
 - [Keyboard](/lynx/modules/keyboard/overview) — `useKeyboard` / `KeyboardStickyView`, used by this panel.
