@@ -6,11 +6,13 @@ category: Getting Started
 order: 10
 ---
 
+import { PkgVersion } from '@/components/PkgVersion';
+
 # Server Renderer
 
 <p class="lede">`@sigx/server-renderer` renders your SignalX component tree to HTML on the server — as a string or a stream — then re-attaches reactivity in the browser by hydrating the existing DOM instead of re-creating it.</p>
 
-<p class="mod-meta-row">v0.4.9 <span class="mmr-dot" /> ESM-only <span class="mmr-dot" /> MIT</p>
+<p class="mod-meta-row"><PkgVersion npm="@sigx/server-renderer" /> <span class="mmr-dot" /> ESM-only <span class="mmr-dot" /> MIT</p>
 
 It is the **base SSR package**: the renderer and hydrator are deliberately
 *strategy-agnostic* — they know nothing about islands, selective hydration, or

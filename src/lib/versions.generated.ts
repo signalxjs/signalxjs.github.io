@@ -64,6 +64,7 @@ export const VERSIONS: Record<string, string> = {
     "@sigx/runtime-dom": "0.5.0",
     "@sigx/server-renderer": "0.5.0",
     "@sigx/ssg": "0.6.0",
+    "@sigx/ssr-islands": "0.4.2",
     "@sigx/store": "0.5.0",
     "@sigx/terminal": "0.4.4",
     "@sigx/vite": "0.5.0",
