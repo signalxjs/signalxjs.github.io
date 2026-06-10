@@ -50,8 +50,14 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                 <section class="landing-hero">
                     <div class="lh-deco" />
                     <div class="lh-badge">
-                        <span class="lhb-tile">{pkg.glyph}</span> {pkg.npm}
-                        <span class="lhb-dot">·</span> v{pkg.version}
+                        <span class="lhb-tile">{pkg.glyph}</span>{' '}
+                        {/* `server` is a docs-only collection — no umbrella npm package
+                            or single version; show the package count instead. */}
+                        {pkg.id === 'server' ? (
+                            <>Collection <span class="lhb-dot">·</span> {modulesByParent('server').length} packages</>
+                        ) : (
+                            <>{pkg.npm} <span class="lhb-dot">·</span> v{pkg.version}</>
+                        )}
                     </div>
                     <h1>{pkg.title}</h1>
                     <p class="lh-tag">{pkg.blurb}</p>
