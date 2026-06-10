@@ -8,47 +8,76 @@ order: 10
 
 # API Reference
 
-All exports come from the single entry point:
+The package ships two entry points:
 
 ```ts
-import { defineStore } from '@sigx/store';
+import { defineStore, storeToSignals, onStoreCreated } from '@sigx/store';
+import { persist } from '@sigx/store/persist';
 ```
-
-`defineStore` is the only value export. The remaining entries below are TypeScript types and interfaces that describe the shapes `defineStore` works with.
 
 ## Functions
 
 ### defineStore
 
-Defines a store factory. Returns a factory function; calling it creates a store instance.
+Defines a store factory. Returns a factory function; calling it creates (or resolves, per the lifetime) a store instance.
 
 ```ts
-function defineStore<
-    TState extends object,
-    TGetters extends object,
-    TActions extends { [key: string]: any },
-    TEvents extends Record<string, ReturnType<typeof toSubscriber<any>>>,
-    InferReturnSetup extends IReturnSetupStore<TState, TGetters, TActions, TEvents>
->(
+function defineStore<TReturn extends object, TArgs extends unknown[] = []>(
     name: string,
-    setup: (ctx: SetupStoreContext) => InferReturnSetup,
-    lifetime?: InstanceLifetimes
-): ReturnType<typeof defineFactory<InferReturnSetup>>;
-
-// Overloads add 1..5 extra setup params forwarded through the factory call:
-// defineStore<..., T1>(name, setup: (ctx, param1: T1) => InferReturnSetup, lifetime?)
-//   => ReturnType<typeof defineFactory<InferReturnSetup, T1>>
+    setup: (ctx: SetupStoreContext, ...args: TArgs) => TReturn,
+    lifetime?: Lifetime
+): (...args: TArgs) => UnwrapStore<TReturn>;
 ```
 
 **Parameters**
 
-- `name` — a debug/instance-name prefix. If the setup return omits its own `name`, the instance name becomes `${name}_${guid}`.
-- `setup` — builds the store via the provided `SetupStoreContext`. May accept up to five extra parameters after `ctx`; those are forwarded when the returned factory is called. Must return an object matching `IReturnSetupStore` (`{ state?, get?, actions?, events?, name? }`).
-- `lifetime` — controls instance sharing. Defaults to `InstanceLifetimes.Scoped`.
+- `name` — the logical store name. Instance ids are `${name}#${n}` (e.g. `'todos#1'`); the name is also the default persistence key suffix and the prefix of the store's topic namespaces.
+- `setup` — builds the store via the provided `SetupStoreContext` and **must return an object**. Extra setup parameters are tuple-typed with full inference (any arity) and are forwarded when the returned factory is called.
+- `lifetime` — `'singleton' | 'scoped' | 'transient'` (from `@sigx/runtime-core`, honored since core `0.5.0`). Defaults to `'scoped'`.
 
 **Returns**
 
-A factory function (commonly assigned to a `useXxxStore` const). Calling it creates a store instance shaped like the setup return plus a `dispose` method (`{ ...setupReturn, dispose }`). Instances created inside a component auto-dispose on unmount (the effect scope is stopped and all event topics are destroyed). There is no `useStore` export — the factory is named by you.
+A factory function (commonly assigned to a `useXxxStore` const). Calling it yields an `UnwrapStore<TReturn>` — the flat store surface: returned key signals read/write as plain values, returned computeds read as plain read-only values, actions and everything else pass through, and `$`-meta (`$id`, `$patch`, `$events`, `$dispose`) rides on the side. Instances created inside a component dispose with it per the lifetime rules. There is no `useStore` export — the factory is named by you.
+
+Assigning to a `$`-prefixed key on the instance throws, as does assigning to a computed key. Spread and `Object.keys` over the instance see only your returned keys, never `$`-meta.
+
+### storeToSignals
+
+Destructuring-safe views of a store: key signals for state keys, read-only signal views for computeds. Functions and `$`-meta are skipped.
+
+```ts
+function storeToSignals<TReturn extends object>(store: UnwrapStore<TReturn>): {
+    /* state keys */    K: KeySignal<V>;
+    /* computed keys */ K: { readonly value: V };
+};
+```
+
+- `store` — a store instance created by `defineStore` (anything else throws).
+- Returns an object of `{ value }` views you can destructure without losing reactivity.
+
+```ts
+const { todos, remaining } = storeToSignals(store);
+todos.value.push(item);   // still reactive
+remaining.value;          // read-only
+```
+
+### onStoreCreated
+
+Register a global plugin that runs for every store instance, synchronously after its setup returns. Plugins run in registration order; a throwing plugin is isolated (logged via `console.error`) and cannot break store creation.
+
+```ts
+function onStoreCreated(plugin: (ctx: StorePluginContext) => void): Subscription;
+```
+
+- `plugin` — receives a `StorePluginContext` per instance.
+- Returns a `Subscription` whose `unsubscribe()` stops future invocations.
+
+```ts
+onStoreCreated(({ name, instanceId, instance, onDeactivated }) => {
+    const sub = wireUpLogging(instanceId, instance);
+    onDeactivated(() => sub.unsubscribe());
+});
+```
 
 ## Interfaces
 
@@ -58,138 +87,173 @@ The context object passed to the `defineStore` setup function. Extends runtime-c
 
 ```ts
 interface SetupStoreContext extends SetupFactoryContext {
-    defineState<
-        TState extends object,
-        TEvents extends Record<string, Topic<any>> = Record<string, Topic<any>>
-    >(state: TState): {
+    /** The logical store name passed to defineStore (e.g. 'todos'). */
+    readonly storeName: string;
+    /** The friendly instance id (e.g. 'todos#1'). */
+    readonly instanceId: string;
+    defineState<TState extends object>(state: TState): {
+        /** The deep reactive proxy — mutate freely inside the setup/actions. */
         state: TState;
-        events: StoreEvents<TState, TEvents>;
-        mutate: {
-            [K in keyof TState]: MutateFn<TState[K]>;
-        };
+        /** Spreadable per-key signals; the ones you return become public state. */
+        signals: { [K in keyof TState]-?: KeySignal<TState[K]> };
+        /** Per-key change events (lazy: watchers run only while subscribed). */
+        events: { [K in keyof TState]-?: StateKeyEvent<TState[K]> };
+        /** Atomic multi-key update; flushes reactivity once. Errors propagate. */
+        patch: Patch<TState>;
     };
-    defineActions<TActions extends { [key: string]: any }>(
+    defineActions<TActions extends Record<string, (...args: any[]) => any>>(
         actions: TActions
-    ): StoreReturnDefineAction<TActions>;
+    ): StoreActions<TActions>;
+    /** Typed custom events; namespaced `${id}.events`, destroyed with the store. */
+    defineEvents<EventMap extends Record<string, any>>(): { [K in keyof EventMap]: Topic<EventMap[K]> };
 }
 ```
 
-- `defineState(state)` — creates reactive, signal-backed state and returns `{ state, events, mutate }`. Each state property gets an `onMutated{Key}` event and a `mutate.{key}` helper. Deep watching is on, so nested object changes also trigger events.
-- `defineActions(actions)` — wraps action functions with dispatch lifecycle events; see `StoreReturnDefineAction`.
-- Inherited from `SetupFactoryContext`: `onDeactivated(fn)`, `subscriptions: SubscriptionHandler`, `overrideDispose(fn)`.
+- `defineState(state)` — creates deep reactive, signal-backed state and returns `{ state, signals, events, patch }`.
+- `defineActions(actions)` — wraps action functions with `pending` and dispatch lifecycle events; see `StoreAction`.
+- `defineEvents<EventMap>()` — a typed topic group (core `createTopicGroup`) keyed by your event map.
+- Inherited from `SetupFactoryContext`: `onDeactivated(fn)`, `subscriptions`, `overrideDispose(fn)`.
 
-### IReturnSetupStore
+### StoreMeta
 
-The shape the `defineStore` setup function must return. All fields are optional.
+The `$`-meta every store instance carries. `$patch` and `$events` are typed from the **returned** key signals only (`PublicState<TReturn>`).
 
 ```ts
-interface IReturnSetupStore<
-    TState,
-    TGetters,
-    TActions extends { [key: string]: Function },
-    TEvents
-> {
-    state?: TState;
-    get?: TGetters;
-    actions?: StoreReturnDefineAction<TActions>;
-    events?: TEvents;
-    name?: string;
-}
+type StoreMeta<TReturn extends object> = {
+    /** Friendly instance id, e.g. 'todos#1'. */
+    readonly $id: string;
+    /** Atomic update across the store's public state keys. */
+    $patch: Patch<PublicState<TReturn>>;
+    /** Per-key change events for the public state keys. */
+    $events: { [K in keyof PublicState<TReturn>]: StateKeyEvent<PublicState<TReturn>[K]> };
+    $dispose(): void;
+};
 ```
 
-- `state` — the reactive state object (from `defineState`).
-- `get` — computed/getter object (build with `computed` from `sigx`).
-- `actions` — the wrapped actions returned by `defineActions`.
-- `events` — custom event topics.
-- `name` — overrides the auto-generated `${name}_${guid}` instance name.
+`$patch` throws on a state key that is not part of the public surface. `$events` watchers are refCounted — they run only while subscribed and never fire immediately on subscribe.
+
+### StorePluginContext
+
+What an `onStoreCreated` plugin receives per store instance.
+
+```ts
+type StorePluginContext = {
+    /** The logical store name passed to defineStore. */
+    name: string;
+    /** The instance id, e.g. 'todos#1'. */
+    instanceId: string;
+    /** The raw setup return (any shape — duck-type as needed). */
+    instance: object;
+    /** Tie plugin resources to the store instance's lifetime. */
+    onDeactivated(fn: () => void): void;
+};
+```
 
 ## Types
 
-### StoreEvents
+### UnwrapStore
 
-Maps each state key to an `onMutated{Key}` subscriber, intersected with any custom topic events.
-
-```ts
-type StoreEvents<TState extends object, TEvents extends Record<string, Topic<any>> = {}> = {
-    [K in keyof TState as `onMutated${Capitalize<string & K>}`]: ReturnType<typeof toSubscriber<TState[K]>>;
-} & TEvents;
-```
-
-For state `{ count: 0 }` you get `onMutatedCount`. Each entry is a subscriber `{ subscribe(handler: (value) => void): Subscription }` that fires with the new value whenever the property changes — on both direct assignment and via `mutate` (deep watch).
-
-### StoreReturnDefineAction
-
-The return type of `defineActions`. The original action functions stay callable (`& TAction`); calling them publishes lifecycle events.
+The flat store surface a factory call returns. Key signals unwrap to mutable plain values, computeds unwrap to read-only plain values, everything else passes through, intersected with `StoreMeta`.
 
 ```ts
-type StoreReturnDefineAction<TAction extends { [key: string]: any }> = {
-    onDispatching: {
-        [k in keyof TAction]: {
-            subscribe(fn: MapActionOnDispatching<TAction[k]>): Subscription;
-        };
-    };
-    onDispatched: {
-        [k in keyof TAction]: {
-            subscribe(fn: MapActionOnDispatched<TAction[k]>): Subscription;
-        };
-    };
-    onFailure: {
-        [k in keyof TAction]: {
-            subscribe(fn: MapActionOnFailure<TAction[k]>): Subscription;
-        };
-    };
-} & TAction;
+type UnwrapStore<TReturn extends object> =
+    { /* key signals  */ [K]: V }            // read/write
+  & { /* computeds    */ readonly [K]: V }   // read-only
+  & { /* the rest     */ [K]: TReturn[K] }   // actions, topics, helpers…
+  & StoreMeta<TReturn>;
 ```
 
-- `onDispatching.<action>.subscribe(fn)` — fires before the action body, with the original args.
-- `onDispatched.<action>.subscribe(fn)` — fires after the action, with `(result, ...args)` (after the promise resolves for async actions).
-- `onFailure.<action>.subscribe(fn)` — fires if the action throws, with `(failureReason, ...args)`. The error is caught, logged via `console.error`, and the call returns `undefined` (no re-throw).
+### PublicState
+
+The keys of the setup return that are key signals — the store's public state. Drives the typing of `$patch` and `$events`.
+
+```ts
+type PublicState<TReturn> = {
+    [K in keyof TReturn as TReturn[K] extends KeySignal<any> ? K : never]:
+        TReturn[K] extends KeySignal<infer V> ? V : never;
+};
+```
+
+### KeySignal
+
+A signal-shaped, spreadable view over one state key (branded; produced by `defineState`'s `signals`). Spread these into your setup return to make keys public.
+
+```ts
+type KeySignal<T> = {
+    value: T;
+};
+```
+
+### StateKeyEvent
+
+A per-key change event. Callbacks receive the new and previous values.
+
+```ts
+type StateKeyEvent<T> = {
+    subscribe(fn: (value: T, prev: T | undefined) => void): Subscription;
+};
+```
+
+### Patch
+
+The atomic update function returned by `defineState` (over the full slice) and exposed as `$patch` (over the public state). Both forms flush reactivity once.
+
+```ts
+type Patch<TState extends object> = {
+    (partial: Partial<TState>): void;
+    (mutator: (state: TState) => void): void;
+};
+```
+
+### StoreAction
+
+A wrapped store action: callable with the exact original signature, plus a reactive in-flight flag and per-action lifecycle event subscribers.
+
+```ts
+type StoreAction<F extends (...args: any[]) => any> = F & {
+    /** Reactive: true while any invocation of this action is in flight. */
+    readonly pending: boolean;
+    onDispatching: { subscribe(fn: (...args: Parameters<F>) => void): Subscription };
+    onDispatched: { subscribe(fn: (result: Awaited<ReturnType<F>>, ...args: Parameters<F>) => void): Subscription };
+    onFailure: { subscribe(fn: (error: unknown, ...args: Parameters<F>) => void): Subscription };
+};
+```
+
+Semantics:
+
+- `onDispatching` fires before the action body, with the original args.
+- `onDispatched` fires after the action with `(result, ...args)`; for async actions, after the promise resolves, with the **resolved value**.
+- `onFailure` fires on a sync throw or an async rejection, with `(error, ...args)`.
+- Sync errors **re-throw** to the caller; async actions return the **original promise** (rejections are observable by the caller, while fire-and-forget calls produce no unhandled-rejection noise).
+- `pending` is count-based across overlapping invocations.
+
+> Write actions as single-signature functions (union parameters instead of overloads) so these derived types stay exact.
+
+### StoreActions
+
+The return type of `defineActions` — each function wrapped as a `StoreAction`.
+
+```ts
+type StoreActions<T extends Record<string, (...args: any[]) => any>> = {
+    [K in keyof T]: StoreAction<T[K]>;
+};
+```
 
 ## Supporting types
 
-These types come from the dependencies `@sigx/store` is built on. They appear in the signatures above.
+These come from `@sigx/runtime-core` and appear in the signatures above.
 
-### MutateFn
+### Lifetime
 
-Drives the `mutate` helpers returned by `defineState`.
-
-```ts
-type MutateFn<T> = (value: T | ((prev: T) => T)) => void;
-// mutate is typed as: { [K in keyof TState]: MutateFn<TState[K]> }
-```
-
-Call `mutate.count(42)` to set, or `mutate.count(prev => prev + 1)` to update from the previous value. Errors thrown in an updater are caught and logged; the state is left unchanged on error.
-
-### Action event mappers
-
-Internal mapped types used to type the action lifecycle subscribers.
+The `lifetime` argument to `defineStore`. Defaults to `'scoped'`. (Replaces the old `InstanceLifetimes` enum.)
 
 ```ts
-type MapActionOnDispatching<T extends Function> =
-    T extends (...args: infer U) => any ? (...args: U) => void : never;
-
-type MapActionOnDispatched<T extends Function> =
-    T extends (...args: infer U) => Promise<infer Y> | infer Y ? (result: Y, ...args: U) => void : never;
-
-type MapActionOnFailure<T extends Function> =
-    T extends (...args: infer U) => any ? (failureReason: any, ...args: U) => void : never;
-```
-
-### InstanceLifetimes
-
-The `lifetime` argument to `defineStore` (from `@sigx/runtime-core`). Defaults to `Scoped`.
-
-```ts
-enum InstanceLifetimes {
-    Transient = 0,
-    Scoped = 1,
-    Singleton = 2,
-}
+type Lifetime = 'singleton' | 'scoped' | 'transient';
 ```
 
 ### Topic and Subscription
 
-Event primitives from `@sigx/runtime-core`. Every `subscribe()` returns a `Subscription`.
+Event primitives from `@sigx/runtime-core` (Topic v2 — see the [runtime-core API](/core/packages/runtime-core/api#messaging)). Every `subscribe()` returns a `Subscription`.
 
 ```ts
 interface Subscription {
@@ -197,6 +261,11 @@ interface Subscription {
 }
 
 interface Topic<T> {
+    readonly namespace?: string;
+    readonly name?: string;
+    readonly subscriberCount: number;
+    readonly hasSubscribers: boolean;
+    readonly disposed: boolean;
     publish(data: T): void;
     subscribe(handler: (data: T) => void): Subscription;
     destroy(): void;
@@ -215,8 +284,78 @@ interface SetupFactoryContext {
 }
 ```
 
+## @sigx/store/persist
+
+The persistence subpath entry. See the [Persistence guide](/store/docs/persistence) for behavior and examples.
+
+### persist
+
+Persist a state slice to storage and rehydrate it on store creation. Call inside a store setup.
+
+```ts
+function persist<TState extends object>(
+    ctx: SetupStoreContext,
+    slice: { state: TState; patch: Patch<TState> },
+    options?: PersistOptions<TState>
+): PersistHandle;
+```
+
+- `ctx` — the setup context (used for the default key and disposal wiring).
+- `slice` — the `{ state, patch }` pair from `defineState`.
+- `options` — a `PersistOptions<TState>` bag (all fields optional).
+- Returns a `PersistHandle`.
+
+Hydration is one atomic `patch()`; saving is a deep watch over the picked keys, debounced, and paused until hydration completes; storage failures are logged and never crash the store; everything is cleaned up on store disposal. With no storage available (SSR), persist is a no-op and `hydrated` is immediately `true`.
+
+### StorageLike
+
+Minimal storage contract — satisfied by `localStorage`, `sessionStorage`, and async stores like React Native's AsyncStorage (Promise-returning methods).
+
+```ts
+interface StorageLike {
+    getItem(key: string): string | null | Promise<string | null>;
+    setItem(key: string, value: string): void | Promise<void>;
+    removeItem?(key: string): void | Promise<void>;
+}
+```
+
+### PersistOptions
+
+```ts
+interface PersistOptions<TState extends object> {
+    /** Storage key. Defaults to `sigx:<storeName>` — pass one explicitly when persisting multiple slices. */
+    key?: string;
+    /** Defaults to globalThis.localStorage. Absent storage (SSR) → no-op. */
+    storage?: StorageLike;
+    /** Persist (and hydrate) only these keys. Default: all slice keys. */
+    pick?: (keyof TState)[];
+    serialize?(snapshot: Partial<TState>): string;
+    deserialize?(raw: string): unknown;
+    /** Schema version stored alongside the data. */
+    version?: number;
+    /** Convert data persisted under an older version. Receives the raw deserialized payload. */
+    migrate?(persisted: unknown, fromVersion: number): Partial<TState>;
+    /** Debounce for writes, in ms. Default 0 (write on every change flush). */
+    debounce?: number;
+}
+```
+
+### PersistHandle
+
+```ts
+interface PersistHandle {
+    /** Plain readonly view: true once hydration has completed. */
+    hydrated: { readonly value: boolean };
+    /** Resolves when hydration has completed (immediately for sync/no storage). */
+    whenHydrated: Promise<void>;
+    /** Remove the persisted entry from storage. */
+    clear(): Promise<void>;
+}
+```
+
 ## See also
 
 - [Getting Started](/store/docs/getting-started)
 - [Defining a Store](/store/docs/defining-a-store)
 - [Using Stores in Components](/store/docs/using-in-components)
+- [Persistence](/store/docs/persistence)

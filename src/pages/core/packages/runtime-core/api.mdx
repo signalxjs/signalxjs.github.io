@@ -18,7 +18,7 @@ All examples assume a named import from the package root:
 import { component, defineApp } from '@sigx/runtime-core';
 ```
 
-The package also exposes `./jsx-runtime` and `./jsx-dev-runtime` subpaths (both aliasing the main build) for TSX transpilation via `jsxImportSource`, and a separate `./internals` entry for renderer authors.
+The package also exposes `./jsx-runtime` and `./jsx-dev-runtime` subpaths (both aliasing the main build) for TSX transpilation via `jsxImportSource`, a separate `./internals` entry for renderer authors, and an `./inspect` entry with the inspection-only topic registry for tooling (see [Inspection](#inspection-sigxruntime-coreinspect)).
 
 ## Component system
 
@@ -433,22 +433,27 @@ function useAppContext(): AppContext | null;
 
 ### defineFactory
 
-Create a factory with managed subscriptions and disposal. Parameterless factories become injectables; parameterized ones return plain creators. Auto-disposes via `onUnmounted` when used in a component (unless you call `overrideDispose`).
+Create a factory with managed subscriptions, disposal, and a real instance lifetime. Parameterless factories become injectables; parameterized ones return `FactoryFunction` creators (still usable with `defineProvide`).
 
 ```ts
 function defineFactory<R>(
   setup: (ctx: SetupFactoryContext, ...args: unknown[]) => R,
-  lifetime: InstanceLifetimes,
+  lifetime: Lifetime,
   typeIdentifier?: guid
-): InjectableFunction<R & { dispose?: () => void }>;
-function defineFactory<R, T1>(setup: (ctx: SetupFactoryContext, p1: T1) => R, lifetime: InstanceLifetimes, id?: guid): (p1: T1) => R;
+): InjectableFunction<R & { dispose: () => void }>;
+function defineFactory<R, T1>(setup: (ctx: SetupFactoryContext, p1: T1) => R, lifetime: Lifetime, id?: guid): FactoryFunction<[T1], R & { dispose: () => void }>;
 // ...overloads up to 5 parameters
 ```
 
-- `setup` — receives a `SetupFactoryContext` and any creator arguments.
-- `lifetime` — an `InstanceLifetimes` value (currently informational).
+- `setup` — receives a `SetupFactoryContext` and any creator arguments. Must return an object or function (primitives throw).
+- `lifetime` — a `Lifetime` string literal; **honored** since core `0.5.0`:
+  - `'singleton'` — one instance per `AppContext`, created on first resolution and disposed on `app.unmount()`. Outside any app context, one instance per JS realm.
+  - `'scoped'` — the nearest instance provided via `defineProvide` in the component tree; falls back to the app-context instance when no provider exists.
+  - `'transient'` — a new instance per call, auto-disposed with the calling component (or manually via `dispose()`).
 - `typeIdentifier` — optional `guid` identity.
-- Returns an `InjectableFunction` (parameterless) or a plain creator (parameterized).
+- Returns an `InjectableFunction` (parameterless) or a `FactoryFunction` creator (parameterized).
+
+`dispose` is attached as a non-enumerable property (a setup-returned `dispose` is delegated to) and is idempotent. Parameterized non-transient factories honor arguments at first creation only — later calls resolve the existing shared instance.
 
 ### SubscriptionHandler
 
@@ -492,14 +497,53 @@ function isDirective(value: any): value is DirectiveDefinition;
 
 ### createTopic
 
-Create a simple in-memory pub/sub `Topic<T>`. `subscribe()` auto-unsubscribes via `onUnmounted` when called inside a component.
+Create an in-memory pub/sub `Topic<T>`. `subscribe()` auto-unsubscribes via `onUnmounted` when called inside a component.
 
 ```ts
-function createTopic<T>(_options?: { namespace?: string; name?: string }): Topic<T>;
+function createTopic<T>(options?: CreateTopicOptions): Topic<T>;
+
+interface CreateTopicOptions {
+  /** Tooling metadata; topics WITH a namespace register in the inspection registry. */
+  namespace?: string;
+  /** Tooling metadata. */
+  name?: string;
+  /** Called when subscriberCount transitions 0 → 1 (refCount pattern). */
+  onActivate?(): void;
+  /** Called when subscriberCount transitions back to 0 (last unsubscribe or destroy). */
+  onDeactivate?(): void;
+}
 ```
 
-- `_options` — optional `{ namespace?, name? }` metadata.
+- `options` — metadata plus refCount lifecycle hooks.
 - Returns a `Topic<T>`.
+
+Behavior contract (Topic v2):
+
+- `publish` **isolates subscriber errors** — a throwing handler is logged via `console.error` and neither skips later subscribers nor propagates into the publisher. Publishing to a destroyed topic is a no-op.
+- `subscribe` **throws on a destroyed topic** (previously it silently re-attached a handler that could never be cleaned up).
+- `onActivate` / `onDeactivate` fire on the 0 → 1 and → 0 subscriber transitions, letting producers pay for work only while observed (e.g. `@sigx/store` runs its per-key state watchers only while the key's event has subscribers). Hook errors are isolated.
+- Topics created **with** a `namespace` register in the inspection registry (see [Inspection](#inspection-sigxruntime-coreinspect)); `destroy()` unregisters.
+
+### createTopicGroup
+
+Create a typed group of topics keyed by an event map — mitt-level DX on the `Topic` primitive. Topics are created lazily per key on first access and are namespaced/registered like any other topic.
+
+```ts
+function createTopicGroup<EventMap extends Record<string, any>>(options?: { namespace?: string }): {
+  topics: { [K in keyof EventMap]: Topic<EventMap[K]> };
+  destroy(): void;
+};
+```
+
+- `options` — optional `{ namespace? }` applied to every created topic.
+- Returns `{ topics, destroy }`; `destroy()` destroys all created topics. Accessing a key on a destroyed group throws.
+
+```ts
+const group = createTopicGroup<{ loggedIn: User; loggedOut: void }>({ namespace: 'auth#1.events' });
+group.topics.loggedIn.publish(user);       // payload type-checked
+group.topics.loggedIn.subscribe(u => {});  // u: User
+group.destroy();
+```
 
 ### toSubscriber
 
@@ -511,6 +555,51 @@ function toSubscriber<T>(topic: Topic<T>): { subscribe: (handler: (data: T) => v
 
 - `topic` — the topic to wrap.
 - Returns an object exposing only `subscribe`.
+
+## Inspection (@sigx/runtime-core/inspect)
+
+A separate `./inspect` package entry exposing the **inspection-only** topic registry for tooling (devtools, diagnostics). The DX contract: **typed application code holds `Topic<T>` references; strings are tooling metadata.** The registry is deliberately `Topic<unknown>`-typed and realm-global — do not use it as an app-level lookup mechanism; share typed topic references instead. Only topics created with a `namespace` register; `destroy()` unregisters.
+
+```ts
+import { getTopic, listTopics, subscribeTopics, onTopicCreated } from '@sigx/runtime-core/inspect';
+```
+
+Patterns use `*` wildcards matched over `${namespace}.${name}` (e.g. `'todos#1.*'`, `'*.actions.*'`).
+
+### getTopic
+
+```ts
+function getTopic(namespace: string, name: string): Topic<unknown> | undefined;
+```
+
+Look up a live registered topic by exact namespace and name.
+
+### listTopics
+
+```ts
+function listTopics(pattern?: string): Topic<unknown>[];
+```
+
+List live registered topics, optionally filtered by a `*`-wildcard pattern.
+
+### subscribeTopics
+
+```ts
+function subscribeTopics(
+  pattern: string,
+  handler: (data: unknown, meta: { namespace: string; name: string }) => void
+): Subscription;
+```
+
+Subscribe to every registered topic matching a pattern — both topics that already exist **and** topics created later. One `Subscription` tears everything down. Auto-unsubscribes on component unmount when called inside a setup.
+
+### onTopicCreated
+
+```ts
+function onTopicCreated(handler: (topic: Topic<unknown>) => void): Subscription;
+```
+
+Register a handler for every topic that registers from now on. Handler errors are isolated. Auto-unsubscribes on component unmount when called inside a setup.
 
 ## Utilities
 
@@ -563,18 +652,14 @@ Tuple of valid client directive names for selective hydration.
 const CLIENT_DIRECTIVES: readonly ['client:load', 'client:idle', 'client:visible', 'client:media', 'client:only'];
 ```
 
-## Enums
+## Lifetimes
 
-### InstanceLifetimes
+### Lifetime
 
-Lifetime options for `defineFactory`. Currently informational — passed but not enforced in the read implementation.
+Lifetime options for `defineFactory` (and consumers like `@sigx/store`'s `defineStore`). A string-literal union — it replaces the old `InstanceLifetimes` enum, and it is enforced (see [defineFactory](#definefactory) for the semantics of each value).
 
 ```ts
-enum InstanceLifetimes {
-  Transient = 0,
-  Scoped = 1,
-  Singleton = 2,
-}
+type Lifetime = 'singleton' | 'scoped' | 'transient';
 ```
 
 ## Internal
@@ -830,12 +915,16 @@ interface InjectableFunction<T> {
   _factory: () => T;
   _token: symbol;
 }
+type FactoryFunction<TArgs extends unknown[], TInstance> =
+  ((...args: TArgs) => TInstance) & { _factory: () => TInstance; _token: symbol };
 interface SetupFactoryContext {
   onDeactivated(fn: () => void): void;
   subscriptions: SubscriptionHandler;
   overrideDispose(onDispose: (fn: () => void) => void): void;
 }
 ```
+
+`FactoryFunction` is what a parameterized `defineFactory` returns — callable with the setup's params and carrying the provide metadata so it works with `defineProvide` / `app.defineProvide`.
 
 ### Subscription / Topic / ModelProcessor / ComponentPlugin / hydration types
 
@@ -844,6 +933,12 @@ Messaging, plugin, and hydration types. `ModelProcessor` and `ComponentPlugin` a
 ```ts
 interface Subscription { unsubscribe(): void; }
 interface Topic<T> {
+  /** Tooling metadata (set via createTopic options). */
+  readonly namespace?: string;
+  readonly name?: string;
+  readonly subscriberCount: number;
+  readonly hasSubscribers: boolean;
+  readonly disposed: boolean;
   publish(data: T): void;
   subscribe(handler: (data: T) => void): Subscription;
   destroy(): void;

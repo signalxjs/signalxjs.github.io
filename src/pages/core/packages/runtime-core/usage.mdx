@@ -122,6 +122,41 @@ const Consumer = component(() => {
 
 `defineProvide` must run during `setup` — calling it elsewhere throws `SIGX200`. Because an unprovided injectable falls back to a process-wide global singleton, prefer explicit `defineProvide` in SSR so state does not leak across requests.
 
+For services that need managed disposal and a real lifetime, use `defineFactory(setup, lifetime)` with a `Lifetime` string literal: `'singleton'` (one instance per app, disposed on `app.unmount()`), `'scoped'` (nearest `defineProvide` in the tree, falling back to the app instance), or `'transient'` (a new instance per call, disposed with the calling component). This is the machinery `@sigx/store`'s `defineStore` lifetimes are built on.
+
+## Messaging with topics
+
+`createTopic<T>()` gives you a small in-memory pub/sub primitive. Publishing is error-isolated (a throwing subscriber is logged and never breaks the publisher or its siblings), subscribing inside a component auto-unsubscribes on unmount, and subscribing to a destroyed topic throws.
+
+```ts
+import { createTopic } from '@sigx/runtime-core';
+
+const userLoggedIn = createTopic<{ id: string }>({
+  namespace: 'auth', name: 'loggedIn',   // tooling metadata (devtools discovery)
+  onActivate: () => startPolling(),       // first subscriber arrived
+  onDeactivate: () => stopPolling(),      // last subscriber left
+});
+
+const sub = userLoggedIn.subscribe(user => console.log(user.id));
+userLoggedIn.publish({ id: 'u1' });
+sub.unsubscribe();
+```
+
+The `onActivate` / `onDeactivate` hooks fire on the 0 → 1 and → 0 subscriber transitions, so producers can pay for upstream work only while someone is listening. `topic.hasSubscribers` lets a publisher skip building payloads nobody will see.
+
+For a typed set of related events, `createTopicGroup<EventMap>({ namespace })` creates topics lazily per event key and destroys them together:
+
+```ts
+import { createTopicGroup } from '@sigx/runtime-core';
+
+const events = createTopicGroup<{ saved: { at: number }; cleared: void }>({ namespace: 'editor' });
+events.topics.saved.subscribe(({ at }) => console.log('saved at', at));
+events.topics.saved.publish({ at: Date.now() });
+events.destroy();
+```
+
+Topics created with a `namespace` also register in the inspection registry at `@sigx/runtime-core/inspect` (`getTopic`, `listTopics`, `subscribeTopics`, `onTopicCreated`) — a string-addressed, `Topic<unknown>`-typed surface meant for devtools and diagnostics. Typed code should hold and share `Topic<T>` references; the strings are tooling metadata, not an app-level lookup mechanism.
+
 ## Two-way binding with models
 
 A `Model<T>` unifies reading (`.value` get), writing (`.value` set routes through the update handler), and forwarding (`.binding`). At the JSX level the runtime accepts a getter, a `[obj, 'key']` tuple, or a forwarded model on the `model` prop; named models use `model:name` and emit `update:name`.

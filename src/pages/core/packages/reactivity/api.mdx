@@ -91,16 +91,16 @@ export function untrack<T>(fn: () => T): T;
 Create a scope object to run reactive work and dispose it in bulk.
 
 ```ts
-export function effectScope(_detached?: boolean): {
+export function effectScope(detached?: boolean): {
   run<T>(fn: () => T): T | undefined;
   stop(fromParent?: boolean): void;
 };
 ```
 
-- `_detached` — currently unused.
-- Returns an object with `run(fn)` (executes `fn` within the scope, returning its result or `undefined` if the scope is stopped) and `stop()` (deactivates the scope).
+- `detached` — when `true`, the scope is not collected by (and not stopped with) a surrounding parent scope.
+- Returns an object with `run(fn)` (executes `fn` within the scope, returning its result or `undefined` if the scope is stopped) and `stop()` (disposes everything created inside `run()`).
 
-Note: in this version the scope does not auto-collect effects created inside `run()`, so `stop()` only flips the scope's active flag — it does not dispose inner effects. Stop effects and watches individually for now.
+`stop()` disposes the effects and watchers created inside `run()`. Nested scopes are stopped with their parent unless created detached (`effectScope(true)`).
 
 ### watch
 
@@ -131,6 +131,46 @@ export function toRaw<T>(observed: T): T;
 
 - `observed` — a reactive proxy (or any value).
 - Returns the underlying raw object, recursively unwrapped; returns the value unchanged if it is not a proxy.
+
+### toSignal
+
+Create a signal-shaped view over one property of a reactive object. Unlike destructuring (which snapshots the value), the returned object reads and writes through to the source, so tracking and triggering work.
+
+```ts
+export function toSignal<T extends object, K extends SignalKey<T>>(
+  source: T,
+  key: K
+): PropertySignal<T[K]>;
+```
+
+- `source` — a reactive object (e.g. from `signal({...})`).
+- `key` — the property to view. Any string key except `$set`.
+- Returns a `PropertySignal<T[K]>` — a `{ value }` box delegating to the source.
+
+```ts
+const state = signal({ count: 0 });
+const count = toSignal(state, 'count');
+count.value++; // triggers effects watching state.count
+```
+
+Writes go through `Reflect.set`, so a rejected write (read-only property, refusing proxy) throws instead of failing silently.
+
+### toSignals
+
+Create signal-shaped views for every own enumerable property of a reactive object, so it can be destructured without losing reactivity.
+
+```ts
+export function toSignals<T extends object>(source: T): ToSignals<T>;
+```
+
+- `source` — a reactive object.
+- Returns a `ToSignals<T>` — one `PropertySignal` per own enumerable string key (`$set` excluded).
+
+```ts
+const state = signal({ count: 0, name: 'Ada' });
+const { count, name } = toSignals(state);
+count.value++; // still reactive
+```
 
 ### isReactive
 
@@ -218,6 +258,24 @@ export type Signal<T> = T & {
 ```
 
 Type of an object/array signal: the original shape `T` plus a `$set(newValue)` method for replacing the whole object reactively.
+
+### PropertySignal
+
+```ts
+export type PropertySignal<T> = { value: T };
+```
+
+A signal-shaped live view over a single property of a reactive object, returned by `toSignal`. Reads and writes delegate to the source, so reactivity is preserved.
+
+### ToSignals
+
+```ts
+export type ToSignals<T extends object> = {
+  [K in keyof T as K extends SignalKey<T> ? K : never]: PropertySignal<T[K]>;
+};
+```
+
+Return type of `toSignals` — per-key `PropertySignal` views. `SignalKey<T>` is the (non-exported) constraint behind both functions: string keys of `T` excluding `$set`. At runtime, views exist only for keys `Object.keys` yields (own enumerable string keys).
 
 ### EffectFn
 

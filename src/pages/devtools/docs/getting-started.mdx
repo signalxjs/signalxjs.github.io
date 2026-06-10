@@ -18,8 +18,9 @@ import { PrereqCallout } from '@/components/PrereqCallout';
 extension see inside a running SignalX app. Install it as a plugin and it attaches
 to the framework's global devtools hook, then streams two families of events to a
 panel: component lifecycle (mount, update, unmount, error) and reactivity primitives
-(signal, computed, effect create/update/dispose). It can also observe `@sigx/store`
-dispatches/mutations and `@sigx/router` navigations.
+(signal, computed, effect create/update/dispose). It also observes `@sigx/store`
+activity — stores are discovered automatically through the core inspection registry —
+and `@sigx/router` navigations.
 
 Everything the plugin sends over the wire is JSON-serializable. It never puts a DOM
 node or a live reactive proxy on the wire — large or reactive values are inspected on
@@ -49,14 +50,16 @@ defineApp(<App />)
     .mount('#app');
 ```
 
-To see store and router activity in the panel timeline, pass them in:
+Store activity needs no wiring at all: every `@sigx/store` instance — existing and
+future — is discovered automatically through the core inspection registry
+(`@sigx/runtime-core/inspect`) and streamed as `store:action`, `store:mutation`, and
+`store:event` timeline events. To also see router navigations, pass the router in:
 
 ```tsx
 import { defineApp } from 'sigx';
 import { devtools } from '@sigx/devtools';
 import { createRouter } from '@sigx/router';
 import { App } from './App';
-import { counterStore } from './stores/counter';
 
 const router = createRouter({ routes: [/* ... */] });
 
@@ -64,7 +67,6 @@ defineApp(<App />)
     .use(router)
     .use(devtools({
         appName: 'my-app',
-        stores: [counterStore],
         router,
     }))
     .mount('#app');

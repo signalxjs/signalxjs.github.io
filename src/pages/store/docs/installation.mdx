@@ -16,20 +16,25 @@ order: 20
 npm install @sigx/store
 ```
 
-The package is ESM-only. Its single entry point is `@sigx/store`, exporting `defineStore` and its supporting types.
+The package is ESM-only and ships two entry points:
+
+- `@sigx/store` — `defineStore`, `storeToSignals`, `onStoreCreated`, and their supporting types.
+- `@sigx/store/persist` — the `persist` composable and its types (see [Persistence](/store/docs/persistence)).
 
 ## Dependencies
 
 `@sigx/store` bundles its reactive runtime as ordinary dependencies, so you do not need to install them separately:
 
-- `@sigx/runtime-core` (`^0.4.3`) — factory/DI runtime and topic/subscription primitives.
-- `@sigx/reactivity` (`^0.4.3`) — the signal core the state is built on.
+- `@sigx/runtime-core` (`^0.5.0`) — factory/DI runtime (real lifetimes) and topic/subscription primitives.
+- `@sigx/reactivity` (`^0.5.0`) — the signal core the state is built on.
 
 You use the store alongside the `sigx` component package, which provides `component`, `render`, `signal`, and `computed`. Install that as part of your SignalX app if you have not already:
 
 ```bash
 npm install sigx
 ```
+
+> Store `0.5.0` requires core `0.5.0` — that is the release where factory lifetimes (`'singleton' | 'scoped' | 'transient'`) are actually implemented, along with the Topic v2 events the store's lazy `$events` are built on.
 
 ## Project setup
 
@@ -50,13 +55,13 @@ import { component, render } from 'sigx';
 import { defineStore } from '@sigx/store';
 
 const usePing = defineStore('ping', ({ defineState }) => {
-    const { state } = defineState({ message: 'store is working' });
-    return { state };
+    const { signals } = defineState({ message: 'store is working' });
+    return { ...signals };
 });
 
 const App = component(() => {
     const store = usePing();
-    return () => <p>{store.state.message}</p>;
+    return () => <p>{store.message}</p>;
 });
 
 render(<App />, '#app');
@@ -65,5 +70,5 @@ render(<App />, '#app');
 ## Next steps
 
 - [Getting Started](/store/docs/getting-started) — the core mental model and a counter example.
-- [Defining a Store](/store/docs/defining-a-store) — state, actions, getters, and events.
+- [Defining a Store](/store/docs/defining-a-store) — state, actions, derived values, and events.
 - [Using Stores in Components](/store/docs/using-in-components) — sharing, lifetimes, and cleanup.

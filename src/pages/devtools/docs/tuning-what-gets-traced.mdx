@@ -42,20 +42,20 @@ app.use(devtools({ includeReactivity: false }));
 
 ## Observing stores
 
-Pass each store you want to trace in the `stores` array. The observer subscribes to the
-store's action topics (dispatching, dispatched, failure) and its mutation topics, then
-emits `store:action` and `store:mutation` events.
+Stores are observed automatically: the plugin subscribes to wildcard patterns on the
+core inspection registry (`@sigx/runtime-core/inspect`), where every `@sigx/store`
+instance registers its state, action, and custom-event topics. Stores that already
+exist and stores created later are both picked up — no per-store wiring. The
+`includeStores` option (default `true`) turns this off:
 
 ```tsx
 import { defineApp } from 'sigx';
 import { devtools } from '@sigx/devtools';
 import { App } from './App';
-import { cartStore } from './stores/cart';
-import { userStore } from './stores/user';
 
 defineApp(<App />)
     .use(devtools({
-        stores: [cartStore, userStore],
+        includeStores: false, // drop store:action / store:mutation / store:event
     }))
     .mount('#app');
 ```
@@ -63,10 +63,12 @@ defineApp(<App />)
 Each action dispatch is reported in three phases that share one `actionId`:
 `dispatching` then either `dispatched` (with the serialized `result` and `durationMs`)
 or `failed` (with a serialized `error`). Mutations carry the changed `key` and the new
-`value` serialized inline.
+`value` serialized inline. Store custom events (`defineEvents`) arrive as `store:event`
+with the event key and serialized payload.
 
-Any `@sigx/store` result satisfies the duck-typed shape the observer expects, so you
-register the store instance directly — no adapter needed.
+Note that observing a store activates its refCount state watchers — state observation
+is pay-when-observed by design, so the watchers run only while devtools (or another
+subscriber) is attached.
 
 ## Observing the router
 
@@ -120,7 +122,6 @@ import { defineApp } from 'sigx';
 import { devtools } from '@sigx/devtools';
 import { createRouter } from '@sigx/router';
 import { App } from './App';
-import { cartStore } from './stores/cart';
 
 const router = createRouter({ routes: [/* ... */] });
 
@@ -128,7 +129,7 @@ defineApp(<App />)
     .use(router)
     .use(devtools({
         appName: 'shop',
-        stores: [cartStore],
+        includeStores: true,   // the default — stores auto-discovered
         router,
         includeReactivity: true,
         throttleMs: 32,

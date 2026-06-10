@@ -30,6 +30,7 @@ import type {
     ReactivePrimitiveKind,
     StoreActionEvent,
     StoreMutationEvent,
+    StoreCustomEvent,
     RouterNavEvent,
     SerializedValue,
     AppId,
@@ -58,7 +59,9 @@ SignalX `Plugin` (name `'sigx-devtools'`) whose `install()`:
   (signal/computed/effect create/update/dispose) to the panel;
 - wires panel request handling (`get:apps`, `get:tree`, `get:value`,
   `get:reactive-value`, `get:reactives`, `highlight`, `unhighlight`);
-- optionally attaches store and router observers when `stores`/`router` are supplied;
+- discovers and observes `@sigx/store` instances through the core inspection registry
+  (`@sigx/runtime-core/inspect`) unless `includeStores: false`, and attaches the router
+  observer when `router` is supplied;
 - emits a `hello` event with `PROTOCOL_VERSION` and the agent version (`'0.0.3'`) once
   the wire is up.
 
@@ -133,8 +136,8 @@ export interface DevtoolsOptions {
     transport?: Transport;
     /** App name shown in the panel. Defaults to 'sigx-app'. */
     appName?: string;
-    /** Stores to observe for action and mutation events. */
-    stores?: DevtoolsObservableStore[];
+    /** Whether to discover and observe @sigx/store instances through the core inspection registry. Default true. */
+    includeStores?: boolean;
     /** Router instance to observe for navigation events. */
     router?: DevtoolsObservableRouter;
     /** Whether to subscribe to reactivity (signal/effect/computed) events at all. Default true. */
@@ -146,12 +149,17 @@ export interface DevtoolsOptions {
 
 The options bag for `devtools()`. All fields are optional.
 
-The `stores` and `router` element types (`DevtoolsObservableStore` and
-`DevtoolsObservableRouter`) are private internal interfaces and are not exported, but
-they define the runtime shape your values must satisfy: a store must expose `name?`,
-`actions?`, and `events?` topics, and a router must expose a reactive `currentRoute`
-getter with `{ path; params?; query? }`. Any `@sigx/store` result and `@sigx/router`
-instance already satisfy these shapes.
+`includeStores` (default `true`) controls store observation: stores register their
+state/action/event topics in the core inspection registry
+(`@sigx/runtime-core/inspect`), so existing **and** future store instances are picked
+up automatically — there is no per-store wiring (the former `stores` array is gone).
+Observation activates the stores' refCount state watchers — state tracing is
+pay-when-observed.
+
+The `router` element type (`DevtoolsObservableRouter`) is a private internal interface
+and is not exported, but it defines the runtime shape your value must satisfy: a
+reactive `currentRoute` getter with `{ path; params?; query? }`. Any `@sigx/router`
+instance already satisfies it.
 
 ### WebSocketTransportOptions
 
@@ -208,6 +216,7 @@ export type PageEvent =
     | { t: 'reactive:disposed';  payload: { id: number } }
     | { t: 'store:action';       payload: StoreActionEvent }
     | { t: 'store:mutation';     payload: StoreMutationEvent }
+    | { t: 'store:event';        payload: StoreCustomEvent }
     | { t: 'router:nav';         payload: RouterNavEvent }
     | { t: 'value:resolved';     payload: { ref: ValueRef; value: SerializedValue } };
 ```
@@ -342,9 +351,27 @@ export interface StoreMutationEvent {
 }
 ```
 
-Wire shape for a store state mutation. The store names its mutation topics
-`onMutated${Key}`; the observer strips the prefix and lowercases the first character to
-recover `key`. The value is serialized inline.
+Wire shape for a store state mutation. The store publishes per-key change topics in
+its `${storeId}.state` namespace (topic name = state key, payload `{ value, prev }`);
+the observer forwards the key and the serialized new value inline. `storeName` carries
+the store's instance id (e.g. `'todos#1'`).
+
+### StoreCustomEvent
+
+```ts
+export interface StoreCustomEvent {
+    storeName: string;
+    /** Event key as declared in the store's event map. */
+    event: string;
+    /** Serialized event payload. */
+    data: SerializedValue;
+    at: number;
+}
+```
+
+Wire shape for store custom events (`defineEvents` topics, published in the store's
+`${storeId}.events` namespace). Additive over protocol v1 — panels that don't know
+`store:event` ignore it.
 
 ### RouterNavEvent
 

@@ -1,0 +1,120 @@
+---
+title: Persistence
+description: "Persist store state to localStorage or any sync/async storage with @sigx/store/persist"
+layout: docs
+category: Guides
+order: 50
+---
+
+# Persistence
+
+`@sigx/store/persist` is a composable that persists a state slice to storage and rehydrates it when the store is created. Call it inside a store setup, passing the setup context and the `{ state, patch }` pair from `defineState`:
+
+```ts
+import { defineStore } from '@sigx/store';
+import { persist } from '@sigx/store/persist';
+
+const useSettings = defineStore('settings', (ctx) => {
+    const { state, signals, patch } = ctx.defineState({ theme: 'dark', locale: 'en' });
+
+    const { hydrated } = persist(ctx, { state, patch });
+
+    return { ...signals, hydrated };
+}, 'singleton');
+```
+
+With no options, this persists every key of the slice to `localStorage` under the key `sigx:settings` (`sigx:<storeName>`), hydrates on store creation, and saves on every change.
+
+## How it behaves
+
+- **Hydration is one atomic `patch()`** — a single reactivity flush applies the stored values over the defaults.
+- **Saving is a deep watch** over the picked keys, optionally debounced — direct mutation, `patch`, and `$patch` all trigger it.
+- **Saving is paused until hydration completes**, so async hydration can never be overwritten by the defaults racing it to storage.
+- **No storage available (SSR)** — `persist` is a no-op: the store renders with defaults, never writes, and `hydrated` is immediately `true`.
+- **Failures never break the store** — a corrupted entry, a throwing `migrate`, or a quota error is logged and the store continues from defaults (the next successful write self-heals the stored entry).
+- **Everything is cleaned up** when the store is disposed; pending async hydration of a disposed store is discarded.
+
+## Options
+
+```ts
+persist(ctx, { state, patch }, {
+    key: 'sigx:settings',     // storage key — default `sigx:<storeName>`
+    storage: localStorage,    // any StorageLike — default globalThis.localStorage
+    pick: ['theme'],          // persist (and hydrate) only these keys — default: all
+    version: 2,               // schema version stored alongside the data
+    migrate(persisted, fromVersion) {
+        // convert data persisted under an older version
+        return { theme: (persisted as any).colourScheme ?? 'dark' };
+    },
+    debounce: 250,            // ms debounce for writes — default 0
+    serialize: (snapshot) => JSON.stringify(snapshot),  // optional custom codec
+    deserialize: (raw) => JSON.parse(raw),
+});
+```
+
+`storage` accepts anything matching the minimal `StorageLike` contract — `getItem` / `setItem` (and optional `removeItem`) returning values either synchronously or as promises. `localStorage`, `sessionStorage`, and async stores like React Native's AsyncStorage all qualify:
+
+```ts
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+persist(ctx, { state, patch }, { storage: AsyncStorage, pick: ['theme'] });
+```
+
+> The default key uses the **logical store name**, not the instance id, so persistence survives across instances. With `'transient'` stores, multiple live instances would fight over one key — pass explicit `key`s there.
+
+## The handle: hydrated, whenHydrated, clear
+
+`persist` returns a `PersistHandle`:
+
+- `hydrated` — a `{ readonly value: boolean }` view that flips to `true` once hydration completes (immediately for sync or absent storage). Return it from the setup to gate UI on it.
+- `whenHydrated` — a promise that resolves when hydration completes; useful with async storage.
+- `clear()` — removes the persisted entry from storage.
+
+```tsx
+const useSettings = defineStore('settings', (ctx) => {
+    const { state, signals, patch } = ctx.defineState({ theme: 'dark' });
+    const { hydrated, whenHydrated, clear } = persist(ctx, { state, patch }, {
+        storage: AsyncStorage,
+    });
+
+    const actions = ctx.defineActions({
+        async reset() {
+            await clear();
+            patch({ theme: 'dark' });
+        },
+    });
+
+    return { ...signals, ...actions, hydrated };
+});
+
+// in a component:
+const store = useSettings();
+return () => store.hydrated.value
+    ? <ThemePicker theme={store.theme} />
+    : <Spinner />;
+```
+
+## Versioning and migration
+
+Data is stored in an envelope `{ v, data }`. When the stored `v` differs from your `version` and a `migrate` function is provided, `migrate(persisted, fromVersion)` receives the raw deserialized payload and returns the slice to apply. Without `migrate`, the stored data is applied as-is (only the picked keys are ever applied).
+
+## Multiple slices
+
+`persist` works per slice, so a store with multiple `defineState` calls can persist them independently — pass an explicit `key` for each:
+
+```ts
+const usePrefs = defineStore('prefs', (ctx) => {
+    const ui = ctx.defineState({ sidebar: 'open' });
+    const drafts = ctx.defineState({ text: '' });
+
+    persist(ctx, ui, { key: 'sigx:prefs:ui' });
+    persist(ctx, drafts, { key: 'sigx:prefs:drafts', debounce: 500 });
+
+    return { ...ui.signals, ...drafts.signals };
+});
+```
+
+## Next steps
+
+- [Defining a Store](/store/docs/defining-a-store) — state, actions, derived values, and events.
+- [API Reference](/store/docs/api#sigxstorepersist) — `persist`, `StorageLike`, `PersistOptions`, and `PersistHandle` signatures.

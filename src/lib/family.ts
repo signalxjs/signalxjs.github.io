@@ -54,7 +54,7 @@ export interface SigxPackage {
 const RAW_PACKAGES: SigxPackage[] = [
     // ---- Foundation: reactivity & state ----
     { id: 'core', npm: 'sigx', title: 'Core', cat: 'core', target: 'foundation', kind: 'collection',
-      hue: 285, glyph: '◇', status: 'stable', version: '0.4.9',
+      hue: 285, glyph: '◇', status: 'stable', version: '0.5.0',
       tag: 'Signals, effects & the component model',
       blurb: 'Fine-grained reactivity with signals and effects, plus a tiny TSX component runtime.' },
     { id: 'router', npm: '@sigx/router', title: 'Router', cat: 'core', target: 'foundation',
@@ -62,7 +62,7 @@ const RAW_PACKAGES: SigxPackage[] = [
       tag: 'Type-safe routing with SSR',
       blurb: 'Nested routes, navigation guards and reactive params — isomorphic by default.' },
     { id: 'store', npm: '@sigx/store', title: 'Store', cat: 'core', target: 'foundation',
-      hue: 78, glyph: '▦', status: 'stable', version: '0.4.4',
+      hue: 78, glyph: '▦', status: 'stable', version: '0.5.0',
       tag: 'Centralized state on signals',
       blurb: 'Predictable, derived state for larger apps — built on the same reactive core.' },
 
@@ -72,7 +72,7 @@ const RAW_PACKAGES: SigxPackage[] = [
       tag: 'Static site generation + MDX',
       blurb: 'File-based routing, MDX content collections and island hydration for content sites.' },
     { id: 'server', npm: '@sigx/server-renderer', title: 'Server', cat: 'render', target: 'web',
-      hue: 210, glyph: '⊟', status: 'stable', version: '0.4.9',
+      hue: 210, glyph: '⊟', status: 'stable', version: '0.5.0',
       tag: 'Streaming SSR & island hydration',
       blurb: 'Render to a stream on the server and hydrate selectively with client:* directives.' },
 
@@ -102,7 +102,7 @@ const RAW_PACKAGES: SigxPackage[] = [
       tag: 'Scaffold & manage projects',
       blurb: 'npm create @sigx@latest — project scaffolding, plugin discovery and platform commands.' },
     { id: 'vite', npm: '@sigx/vite', title: 'Vite', cat: 'tooling', target: 'web',
-      hue: 318, glyph: '◮', status: 'stable', version: '0.4.9',
+      hue: 318, glyph: '◮', status: 'stable', version: '0.5.0',
       tag: 'Vite plugin & HMR',
       blurb: 'First-class Vite integration — HMR for components, optimized production builds.' },
     { id: 'devtools', npm: '@sigx/devtools', title: 'DevTools', cat: 'tooling', target: 'foundation',
