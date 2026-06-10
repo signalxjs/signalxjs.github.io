@@ -1,0 +1,141 @@
+---
+title: "WebView"
+description: "WebView — @sigx/lynx-webview component"
+layout: module-docs
+category: ["Components", "Web"]
+order: 101
+---
+
+# WebView
+
+<p class="lede">Native web view that embeds web content in your app — `WKWebView` on iOS, `android.webkit.WebView` on Android. Load a remote URL or inline HTML, react to load and error events, and pass messages both ways between the page and your app.</p>
+
+## Import
+
+```tsx
+import { WebView } from '@sigx/lynx-webview';
+```
+
+Importing the package entry also registers the underlying `sigx-webview` JSX intrinsic, so the component is the only import you need. There is no manual native setup — `sigx prebuild` auto-links the module once you add the dependency.
+
+## Basic Usage
+
+Set `src` to a remote URL and listen for the load lifecycle with `onLoad` / `onError`. `src` accepts `http(s):` and `about:blank` URLs only — `javascript:` and `file:` schemes are refused.
+
+```tsx
+import { WebView } from '@sigx/lynx-webview';
+
+<WebView
+  src="https://example.com"
+  onLoad={(e) => console.log('loaded', e.detail.url)}
+  onError={(e) => console.warn('failed', e.detail.message)}
+/>;
+```
+
+To render local or richer markup, use `html` instead. Inline HTML loads with a null base URL, so the page is fully sandboxed and relative URLs do not resolve. Set `src` or `html`, but not both — setting both is undefined behavior.
+
+```tsx
+import { WebView } from '@sigx/lynx-webview';
+
+<WebView html="<h1>Hello from sigx-lynx</h1>" />;
+```
+
+## Load and Error Events
+
+`onLoad` fires once the main-frame navigation finishes; `onError` fires when the main frame fails (DNS, TLS, or unreachable host). Subresource failures — a missing favicon, a 404 image — are suppressed, so `onError` only signals a genuinely failed page.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { signal } from '@sigx/core';
+import { WebView } from '@sigx/lynx-webview';
+
+const Screen = component(() => {
+  const status = signal<'loading' | 'ready' | 'failed'>('loading');
+
+  return () => (
+    <view>
+      <WebView
+        src="https://en.wikivoyage.org/wiki/Lisbon"
+        style={{ width: '100%', height: '100%' }}
+        onLoad={(e) => {
+          console.log('finished', e.detail.url);
+          status.set('ready');
+        }}
+        onError={(e) => {
+          console.warn('failed for', e.detail.url, '-', e.detail.message);
+          status.set('failed');
+        }}
+      />
+    </view>
+  );
+});
+```
+
+## Messaging
+
+The native side injects a bridge user-script at document start. The page can call `window.sigx.postMessage(payload)`, which surfaces on `onMessage` as `e.detail.data`. The value is always a string on the wire — objects are JSON-stringified before delivery, so parse structured payloads on the receiving side.
+
+```tsx
+import { WebView } from '@sigx/lynx-webview';
+
+<WebView
+  html={pageHtml}
+  onMessage={(e) => {
+    const data = JSON.parse(e.detail.data);
+    // data.click === 'hi'
+  }}
+/>;
+```
+
+For the reverse direction (app to page), capture the native element with `mtRef` and call [`WebViewMethods.postMessage`](/lynx/modules/webview/api#postmessage); the page receives it through `window.sigx.onmessage`.
+
+## Driving It Imperatively
+
+Pass a `MainThreadRef` through `mtRef` to capture the native element, then drive navigation with the [`WebViewMethods`](/lynx/modules/webview/api#webviewmethods) wrappers (`goBack`, `goForward`, `reload`, `stopLoading`, `canGoBack`, `canGoForward`, `injectJavaScript`, `postMessage`). Each method accepts `el | null` and no-ops when null.
+
+```tsx
+import { useMainThreadRef, type MainThread } from '@sigx/lynx';
+import { WebView } from '@sigx/lynx-webview';
+
+const ref = useMainThreadRef<MainThread.Element | null>(null);
+
+const onBack = () => {
+  'main thread';
+  ref.current?.invoke('goBack', {});
+};
+
+<WebView mtRef={ref} id="my-webview" src="https://example.com" />;
+<view main-thread:bindtap={onBack}><text>Back</text></view>;
+```
+
+See the [usage guide](/lynx/modules/webview/usage#driving-the-webview-imperatively) for background-thread (`SelectorQuery`) and `runOnMainThread` patterns.
+
+## Props
+
+All props are optional. See [`WebViewProps`](/lynx/modules/webview/api#webviewprops) for the full type.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `src` | `string` | URL to load; restricted to `http(s):` / `about:blank`. Mutually exclusive with `html`. Maps to `src`. |
+| `html` | `string` | Inline HTML, rendered with a null base URL (fully sandboxed; relative URLs do not resolve). |
+| `userAgent` | `string` | Overrides the WebView's User-Agent string. Maps to `user-agent`. |
+| `debug` | `boolean` | Enables the platform web inspector. Maps to `enable-debug`. On Android this is process-wide. |
+| `class` | `string` | Standard Lynx layout class. |
+| `style` | `string \| Record<string, string \| number>` | Standard Lynx layout style. |
+| `mtRef` | [`WebViewRef`](/lynx/modules/webview/api#webviewref) | Captures the native element for the imperative methods. |
+| `onLoad` | `(e: WebViewLoadEvent) => void` | Lifecycle callback; maps to `bindload`. |
+| `onError` | `(e: WebViewErrorEvent) => void` | Lifecycle callback; maps to `binderror`. |
+| `onMessage` | `(e: WebViewMessageEvent) => void` | Messaging callback; maps to `bindmessage`. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onLoad` | `(e: WebViewLoadEvent) => void` | Fired once the main-frame navigation finishes. `e.detail.url` is the final loaded URL. |
+| `onError` | `(e: WebViewErrorEvent) => void` | Fired on main-frame load failure. `e.detail.url` is the failing URL; `e.detail.message` is the platform's localized description. |
+| `onMessage` | `(e: WebViewMessageEvent) => void` | Fired when the page calls `window.sigx.postMessage(payload)`. `e.detail.data` is the (string) payload. |
+
+## See also
+
+- [API reference](/lynx/modules/webview/api) — every export with its full signature.
+- [Usage guide](/lynx/modules/webview/usage) — practical patterns and platform notes.

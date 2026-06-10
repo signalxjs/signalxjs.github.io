@@ -1,0 +1,139 @@
+---
+title: "MapMarker"
+description: "MapMarker — @sigx/lynx-maps component"
+layout: module-docs
+category: ["Components", "Map"]
+order: 102
+---
+
+# MapMarker
+
+<p class="lede">A pin rendered inside a <a href="/lynx/modules/maps/components/map">Map</a>. You give it a required <code>coordinate</code>, optionally a <code>title</code>/<code>description</code> callout and an <code>id</code>, and it draws the platform default pin on iOS (Apple Maps) and Android (Google Maps).</p>
+
+## Import
+
+```tsx
+import { MapMarker } from '@sigx/lynx-maps';
+```
+
+## Basic usage
+
+`MapMarker` is only meaningful as a child of [`Map`](/lynx/modules/maps/components/map). Place one (or many) inside the map and give each a `coordinate`. `title` and `description` populate the callout shown when the marker is tapped, and `id` lets the parent map's `onMarkerPress` identify which pin was pressed:
+
+```tsx
+import { Map, MapMarker } from '@sigx/lynx-maps';
+
+const region = {
+  latitude: 59.3293,
+  longitude: 18.0686,
+  latitudeDelta: 0.1,
+  longitudeDelta: 0.1,
+};
+
+export function MapScreen() {
+  return (
+    <Map region={region} mapType="standard" class="flex-1">
+      <MapMarker
+        coordinate={{ latitude: 59.3293, longitude: 18.0686 }}
+        title="Stockholm"
+        description="Sweden's capital"
+        id="sthlm"
+      />
+    </Map>
+  );
+}
+```
+
+A marker's `coordinate` is a single [`MapCoordinate`](/lynx/modules/maps/api#mapcoordinate) point (`{ latitude, longitude }`). You pass it as an object; the component JSON-stringifies it before it crosses the Lynx bridge — you never stringify anything yourself.
+
+## Rendering a list of markers
+
+Markers are plain children, so you can map your data straight into them. Give each one a stable `id` so press handling can tell them apart:
+
+```tsx
+import { Map, MapMarker } from '@sigx/lynx-maps';
+import type { MapMarkerPressEvent } from '@sigx/lynx-maps';
+
+const region = {
+  latitude: 48.8566,
+  longitude: 2.3522,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
+
+const places = [
+  { id: 'eiffel', name: 'Eiffel Tower', lat: 48.8584, lng: 2.2945 },
+  { id: 'louvre', name: 'Louvre', lat: 48.8606, lng: 2.3376 },
+  { id: 'notre-dame', name: 'Notre-Dame', lat: 48.852968, lng: 2.349902 },
+];
+
+export function ParisMap() {
+  return (
+    <Map
+      region={region}
+      class="flex-1"
+      onMarkerPress={(e: MapMarkerPressEvent) => console.log('selected', e.detail.id)}
+    >
+      {places.map((p) => (
+        <MapMarker
+          coordinate={{ latitude: p.lat, longitude: p.lng }}
+          title={p.name}
+          id={p.id}
+        />
+      ))}
+    </Map>
+  );
+}
+```
+
+## Identifying a pressed marker
+
+Marker presses are handled on the parent [`Map`](/lynx/modules/maps/components/map) via `onMarkerPress`, not on the marker itself. The handler receives a [`MapMarkerPressEvent`](/lynx/modules/maps/api#mapmarkerpressevent) whose payload is on `event.detail` — the pressed marker's `id` and its `coordinate`. Note that `e.detail.id` is the **empty string** when the marker had no `id` prop, so set a distinct `id` on each marker you want to identify. It is also the only way to disambiguate two markers that share a coordinate:
+
+```tsx
+import { signal } from '@sigx/core';
+import { Map, MapMarker } from '@sigx/lynx-maps';
+import type { MapMarkerPressEvent } from '@sigx/lynx-maps';
+
+const region = {
+  latitude: 51.5074,
+  longitude: -0.1278,
+  latitudeDelta: 0.15,
+  longitudeDelta: 0.15,
+};
+
+export function EventfulMap() {
+  const selected = signal('');
+
+  function handleMarkerPress(e: MapMarkerPressEvent) {
+    // id is the empty string when the marker had no id set.
+    selected.set(e.detail.id || '(unnamed)');
+  }
+
+  return (
+    <Map region={region} onMarkerPress={handleMarkerPress} class="flex-1">
+      <MapMarker coordinate={{ latitude: 51.5074, longitude: -0.1278 }} id="london" title="London" />
+    </Map>
+  );
+}
+```
+
+v1 markers are deliberately minimal: the platform default pin only. Custom marker icons, draggable pins, and custom callout views are not available yet.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `coordinate` | [`MapCoordinate`](/lynx/modules/maps/api#mapcoordinate) | **Required.** The pin's location (`{ latitude, longitude }`). Passed as an object; the component JSON-stringifies it on the wire. |
+| `title` | `string` | Optional. Populates the callout shown when the marker is tapped. |
+| `description` | `string` | Optional. Secondary callout text. |
+| `id` | `string` | Optional. Surfaced as `event.detail.id` on the parent map's `onMarkerPress`; the empty string when not set. |
+
+`MapMarker` has no slots and no events of its own — taps are surfaced through the parent [`Map`](/lynx/modules/maps/components/map)'s `onMarkerPress`. It renders to the native `<sigx-map-marker>` intrinsic, which forwards `id` as the `marker-id` attribute (see [`SigxMapMarkerAttributes`](/lynx/modules/maps/api#sigxmapmarkerattributes)).
+
+## See also
+
+- [`Map`](/lynx/modules/maps/components/map) — the container component; markers are its children, and it owns `onMarkerPress`.
+- [`MapMarkerProps`](/lynx/modules/maps/api#mapmarkerprops) — the full prop type.
+- [`MapMarkerPressEvent`](/lynx/modules/maps/api#mapmarkerpressevent) — the event payload delivered to the parent map's `onMarkerPress`.
+- [Usage guide](/lynx/modules/maps/usage) — full maps walkthrough.

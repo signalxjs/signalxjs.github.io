@@ -1,0 +1,100 @@
+---
+title: "Row"
+description: "Row — @sigx/lynx-zero component"
+layout: module-docs
+category: ["Components", "Layout"]
+order: 103
+---
+
+# Row
+
+<p class="lede">Flex-row layout primitive — a DS-neutral container that lays its children out horizontally (`flexDirection: row`), with shared box-model, spacing, and alignment props. It ships no class names and resolves `background` through the color contract, so a semantic token like `base-100` or `primary` works under whatever theme is active.</p>
+
+## Import
+
+```tsx
+import { Row } from '@sigx/lynx-zero';
+```
+
+## Basic Usage
+
+`Row` arranges its children along the horizontal axis. Use `gap` to space them, `align` for cross-axis alignment, and `justify` for main-axis distribution. The `background` prop accepts a semantic color token, so it recolors with the active theme:
+
+```tsx
+import { Row, Spacer } from '@sigx/lynx-zero';
+
+function Toolbar() {
+  return (
+    <Row gap={8} align="center" padding={12} background="base-100" borderRadius={12}>
+      <text>Title</text>
+      <Spacer />
+      <text>Action</text>
+    </Row>
+  );
+}
+```
+
+## Alignment and Distribution
+
+`align` controls the cross axis (`flex-start` / `center` / `flex-end` / `stretch` / `baseline`), while `justify` distributes children along the main axis (`flex-start` / `center` / `flex-end` / `space-between` / `space-around` / `space-evenly`). Set `wrap` to let children flow onto multiple lines:
+
+```tsx
+import { Row } from '@sigx/lynx-zero';
+
+function Header() {
+  return (
+    <Row gap={12} align="center" justify="space-between">
+      <view class="text-base-content text-lg">Dashboard</view>
+      <view class="text-primary">Settings</view>
+    </Row>
+  );
+}
+```
+
+## Spacing and Sizing
+
+`padding` and `margin` accept a single number (applied to all sides) or a `{ x, y, top, right, bottom, left }` object. `flex` lets the row grow to fill its parent — written in long form under the hood (`flexGrow` / `flexShrink` / `flexBasis: 0` / `minHeight: 0`) to avoid Lynx's flex-collapse on nested chains:
+
+```tsx
+import { Row } from '@sigx/lynx-zero';
+
+function Banner() {
+  return (
+    <Row flex={1} gap={16} padding={{ x: 16, y: 12 }} background="primary" borderRadius={8}>
+      <view class="text-primary-content">Left</view>
+      <view class="text-primary-content">Right</view>
+    </Row>
+  );
+}
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `gap` | `number` | Space between children along the row. |
+| `align` | `'flex-start' \| 'center' \| 'flex-end' \| 'stretch' \| 'baseline'` | Cross-axis alignment of children. |
+| `justify` | `'flex-start' \| 'center' \| 'flex-end' \| 'space-between' \| 'space-around' \| 'space-evenly'` | Main-axis distribution of children. |
+| `wrap` | `boolean` | Allow children to wrap onto multiple lines. |
+| `padding` | `SpacingValue` | Inner spacing: a number for all sides, or a `{ x, y, top, right, bottom, left }` object. |
+| `margin` | `SpacingValue` | Outer spacing: a number for all sides, or a `{ x, y, top, right, bottom, left }` object. |
+| `width` | `number \| string` | Explicit width. |
+| `height` | `number \| string` | Explicit height. |
+| `flex` | `number` | Flex grow factor (written long-form to avoid Lynx flex-collapse). |
+| `background` | `BackgroundValue` | A semantic color token (e.g. `base-100`, `primary`) or any raw CSS color string. |
+| `borderRadius` | `number` | Corner radius. |
+| `class` | `string` | Extra CSS classes appended after the computed ones. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Row content laid out horizontally. |
+
+## See also
+
+- [Col](/lynx/modules/zero/components/col) — the same prop set, laid out vertically.
+- [Center](/lynx/modules/zero/components/center) — centers children on both axes.
+- [Spacer](/lynx/modules/zero/components/spacer) — fixed or flexible gap between children.
+- [ScrollView](/lynx/modules/zero/components/scrollview) — scrollable container.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

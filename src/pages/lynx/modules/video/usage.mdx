@@ -10,7 +10,7 @@ order: 30
 
 <p class="lede">Drop a native video player into your layout tree with a single component. It draws decoded frames inside its own box, plays declaratively from props, and reports back through typed events.</p>
 
-`@sigx/lynx-video` exposes one component, [`VideoPlayer`](/lynx/modules/video/api#videoplayer), a typed sigx-lynx wrapper over the native `<video-player>` element. On iOS it drives an `AVPlayer` inside an `AVPlayerLayer`; on Android it drives an androidx.media3 `ExoPlayer` inside a `PlayerView`. Prefer the component over the raw intrinsic — it maps friendly camelCase props onto the native attribute surface for you.
+`@sigx/lynx-video` exposes one component, [`VideoPlayer`](/lynx/modules/video/components/videoplayer), a typed sigx-lynx wrapper over the native `<video-player>` element. On iOS it drives an `AVPlayer` inside an `AVPlayerLayer`; on Android it drives an androidx.media3 `ExoPlayer` inside a `PlayerView`. Prefer the component over the raw intrinsic — it maps friendly camelCase props onto the native attribute surface for you.
 
 Run `sigx prebuild` once after adding the dependency. Prebuild auto-discovers the package, registers the `<video-player>` UI element on both platforms, and pulls in the media3 Gradle deps on Android. The element is unavailable until prebuild has run.
 

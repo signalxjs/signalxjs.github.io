@@ -1,0 +1,92 @@
+---
+title: "SheetPicker"
+description: "SheetPicker — @sigx/lynx-emoji component"
+layout: module-docs
+category: ["Components", "Pickers"]
+order: 103
+---
+
+# SheetPicker
+
+<p class="lede">An overlay presentation of the emoji picker: a bottom sheet over a dimmed backdrop, ideal for a reaction picker or one-off use. A backdrop tap closes it; taps on the sheet itself do not propagate. Mount it near the screen root so its `position:absolute` covers the screen, and it renders `display:none` while closed. For a chat composer, prefer [`KeyboardPanelPicker`](/lynx/modules/emoji/components/keyboardpanelpicker) instead, which occupies the soft keyboard's space.</p>
+
+## Import
+
+```tsx
+import { SheetPicker } from '@sigx/lynx-emoji';
+```
+
+## Basic Usage
+
+`SheetPicker` accepts every [`EmojiPickerProps`](/lynx/modules/emoji/api#emojipickerprops) field except `style` and `onPick`, plus `open`, `onClose`, `height` and `sheetClass`. Give it a dataset (or render it inside an [`EmojiProvider`](/lynx/modules/emoji/components/emojiprovider)), drive `open` with a signal, and handle picks via `onPick`:
+
+```tsx
+import { SheetPicker, enData } from '@sigx/lynx-emoji';
+import { signal } from '@sigx/reactivity';
+
+function ReactionSheet({ react }: { react: (glyph: string) => void }) {
+    const open = signal(false);
+
+    return (
+        <SheetPicker
+            open={open.value}
+            height={420}
+            data={enData}
+            onClose={() => { open.value = false; }}
+            onPick={({ glyph }) => { react(glyph); open.value = false; }}
+        />
+    );
+}
+```
+
+`height` is the sheet height in px (default `420`). The `onPick` payload is an [`EmojiPickEvent`](/lynx/modules/emoji/api#emojipickevent) carrying the `datum`, the tone-resolved `glyph` to insert, and the active `tone`.
+
+## Sharing recents with other surfaces
+
+With an `EmojiProvider` in scope the sheet needs no `data` prop — it reads the shared dataset, search index, recents list and skin-tone preference, keeping them in sync with any other picker surface (a composer panel, say):
+
+```tsx
+import { EmojiProvider, SheetPicker, enData } from '@sigx/lynx-emoji';
+import { signal } from '@sigx/reactivity';
+
+function Reactions({ react }: { react: (glyph: string) => void }) {
+    const open = signal(false);
+
+    return (
+        <EmojiProvider data={enData}>
+            <SheetPicker
+                open={open.value}
+                sheetClass="rounded-t-2xl"
+                onClose={() => { open.value = false; }}
+                onPick={({ glyph }) => { react(glyph); open.value = false; }}
+            />
+        </EmojiProvider>
+    );
+}
+```
+
+Pass `sheetClass` for extra classes on the sheet surface, and `classes` (an [`EmojiSlotClasses`](/lynx/modules/emoji/api#emojislotclasses) map) or the render props to theme the picker itself.
+
+## Props
+
+`SheetPicker` is `Omit<EmojiPickerProps, 'style' | 'onPick'>` plus the sheet-specific props below. The inherited picker props (`data`, `columns`, `showRecents`, `showSearch`, `searchPlaceholder`, `emptyLabel`, `cellSize`, `classes`, `class`, `renderCell`, `renderCategoryTab`, `renderSearchInput`) are documented under [`EmojiPickerProps`](/lynx/modules/emoji/api#emojipickerprops).
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `open` | `boolean` | Required. Whether the sheet is shown. Renders `display:none` when `false`. |
+| `onClose` | `() => void` | Called when the backdrop is tapped. |
+| `height` | `number` | Sheet height in px. Default `420`. |
+| `sheetClass` | `string` | Extra classes for the sheet surface. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onPick` | `(event: EmojiPickEvent) => void` | Fired when an emoji is picked. Carries the `datum`, the tone-resolved `glyph` to insert, and the active `tone`. |
+
+## See also
+
+- [KeyboardPanelPicker](/lynx/modules/emoji/components/keyboardpanelpicker) — the keyboard-space presentation, preferred for a chat composer.
+- [EmojiPicker](/lynx/modules/emoji/components/emojipicker) — the headless picker surface the sheet wraps.
+- [API reference](/lynx/modules/emoji/api#sheetpickerprops) — `SheetPickerProps`, fully typed.
+- [Usage](/lynx/modules/emoji/usage#a-bottom-sheet-picker) — the bottom-sheet guide.

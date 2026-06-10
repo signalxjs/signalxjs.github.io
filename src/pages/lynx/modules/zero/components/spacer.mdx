@@ -1,0 +1,79 @@
+---
+title: "Spacer"
+description: "Spacer — @sigx/lynx-zero component"
+layout: module-docs
+category: ["Components", "Layout"]
+order: 106
+---
+
+# Spacer
+
+<p class="lede">A DS-neutral spacing element: a fixed square of <code>size</code> (width and height), or a flexible filler (<code>flex: 1</code>) that pushes siblings apart when <code>size</code> is omitted.</p>
+
+## Import
+
+```tsx
+import { Spacer } from '@sigx/lynx-zero';
+```
+
+## Basic usage
+
+`Spacer` is one of Zero's [layout primitives](/lynx/modules/zero/api) — flex structure built on Lynx views, with no class names of its own. Pass a `size` to render a fixed square gap (the same value for width and height):
+
+```tsx
+import { Col, Spacer } from '@sigx/lynx-zero';
+
+function Stack() {
+  return (
+    <Col>
+      <view class="text-base-content">Top</view>
+      <Spacer size={16} />
+      <view class="text-base-content">Bottom</view>
+    </Col>
+  );
+}
+```
+
+## Flexible filler
+
+Omit `size` and `Spacer` becomes a flexible filler (`flex: 1`), absorbing the leftover space along the main axis. Drop one between siblings in a [`Row`](/lynx/modules/zero/api) to push them to opposite ends:
+
+```tsx
+import { Row, Spacer } from '@sigx/lynx-zero';
+
+function Toolbar() {
+  return (
+    <Row gap={8} align="center" padding={12} background="base-100" borderRadius={12}>
+      <view class="text-base-content">Title</view>
+      <Spacer />
+      <view class="text-base-content">Action</view>
+    </Row>
+  );
+}
+```
+
+> For the gaps *between* children, prefer the `gap` prop on [`Row`](/lynx/modules/zero/api) / [`Col`](/lynx/modules/zero/api). Reach for `Spacer` when you need an asymmetric push (a flexible filler) or a one-off fixed gap that differs from the container's `gap`.
+
+## Extra classes
+
+Like every Zero primitive, `Spacer` accepts `class` for arbitrary extra utilities appended after its computed style:
+
+```tsx
+import { Spacer } from '@sigx/lynx-zero';
+
+<Spacer size={24} class="bg-base-200" />
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `size` | `number` | Fixed square size applied to both width and height. Omit it to make the spacer a flexible filler (`flex: 1`) that fills the remaining space along the main axis. |
+| `class` | `string` | Extra CSS classes, appended after the computed ones. |
+
+`Spacer` has no default slot, and emits no events.
+
+## See also
+
+- [API reference](/lynx/modules/zero/api) — every `@sigx/lynx-zero` export, signature and type.
+- [Usage](/lynx/modules/zero/usage) — the layout primitives (`Row`, `Col`, `Center`, `Spacer`, `ScrollView`) in context.

@@ -43,26 +43,17 @@ import type {
 
 Unless noted, the runtime exports (`RichTextInput`, `RichTextMethods`) require the native element and work on **iOS + Android only**. The helper functions and the types are platform-shared. Importing the package entry also registers the `sigx-richtext` tag in the JSX namespace.
 
-## Component
+## Components
 
-### `RichTextInput`
+Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/richtext/components) catalog:
 
-The typed SignalX wrapper over the native `sigx-richtext` element — a generic attributed-text input that knows nothing about markdown. It decodes native events into typed shapes (`RichDoc`, `SelectionState`) before they reach your handlers, and delivers the element handle through `onElement` so you can issue commands.
+- [**RichTextInput**](/lynx/modules/richtext/components/richtextinput) — the typed SignalX wrapper over the native `sigx-richtext` element, a generic attributed-text input that decodes native events into typed shapes and delivers the element handle for commands.
 
-Created via `component<RichTextInputProps>(...)`; its concrete type is `ComponentFactory<RichTextInputProps, void, {}>` (from `@sigx/runtime-core`).
-
-```ts
-const RichTextInput: ComponentFactory<RichTextInputProps, void, {}>
-```
-
-- **Props** — see [`RichTextInputProps`](#richtextinputprops). All props are optional.
-- **Renders** — an internal `sigx-richtext` element with kebab-case attributes (`min-height`, `max-height`, `font-size`, `text-color`, `accent-color`, `placeholder-color`, `confirm-type`, `auto-focus`) and `bind*` event wiring (`bindchange`, `bindselection`, `bindheightchange`, `bindfocus`, `bindblur`). A `RichDoc` passed to `value` is stringified to JSON automatically.
-
-Platform notes: iOS + Android only. Backed by `UITextView` (iOS) / `EditText` (Android); it renders nothing meaningful under pure web/SSR. Most consumers use this component rather than the raw [`sigx-richtext`](#sigxrichtextattributes) tag.
+Their prop types and related APIs remain documented below.
 
 ### `RichTextInputProps`
 
-The prop type for [`RichTextInput`](#richtextinput). Every prop is optional.
+The prop type for [`RichTextInput`](/lynx/modules/richtext/components/richtextinput). Every prop is optional.
 
 ```ts
 type RichTextInputProps =
@@ -535,4 +526,4 @@ interface SigxRichTextAttributes extends LynxCommonAttributes {
 - The remaining attributes mirror the [component props](#richtextinputprops) in kebab-case.
 - The `bind*` handlers receive the raw event types above.
 
-Platform notes: iOS + Android native element. Most consumers use the typed [`RichTextInput`](#richtextinput) component instead of this raw tag. `LynxCommonAttributes` and `LynxEventHandler` come from `@sigx/lynx-runtime`.
+Platform notes: iOS + Android native element. Most consumers use the typed [`RichTextInput`](/lynx/modules/richtext/components/richtextinput) component instead of this raw tag. `LynxCommonAttributes` and `LynxEventHandler` come from `@sigx/lynx-runtime`.

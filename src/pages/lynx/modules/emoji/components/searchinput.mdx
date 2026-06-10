@@ -1,0 +1,80 @@
+---
+title: "SearchInput"
+description: "SearchInput — @sigx/lynx-emoji component"
+layout: module-docs
+category: ["Components", "Parts"]
+order: 107
+---
+
+# SearchInput
+
+<p class="lede">The headless search field for the emoji picker — a bare two-way-bound native <code>&lt;input&gt;</code> (<code>confirm-type="search"</code>) with a neutral border/padding fallback that drops the moment you give it a <code>class</code>. It is one of the parts <a href="/lynx/modules/emoji/api">EmojiPicker</a> assembles, exposed for custom layouts.</p>
+
+## Import
+
+```tsx
+import { SearchInput } from '@sigx/lynx-emoji';
+```
+
+## Basic Usage
+
+`SearchInput` is a thin wrapper over a native `<input>` with a two-way string model binding. Bind it to a signal and pass the query into your search index. The default placeholder is `Search emoji`.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { SearchInput, buildSearchIndex, enData } from '@sigx/lynx-emoji';
+
+export const Search = component(({ signal }) => {
+  const state = signal({ query: '' });
+  const index = buildSearchIndex(enData);
+
+  return () => {
+    const hits = index.search(state.query); // EmojiDatum[], best match first
+    return (
+      <view>
+        <SearchInput value={state.query} />
+        {/* render `hits` in a grid below */}
+      </view>
+    );
+  };
+});
+```
+
+The `value` model is two-way: typing updates the bound signal, and assigning the signal updates the field.
+
+## Styling
+
+The field is headless — beyond a neutral inline border/padding fallback it has no styling of its own, and that fallback is dropped as soon as you supply a `class`. Pass a custom placeholder and class to skin it:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { SearchInput } from '@sigx/lynx-emoji';
+
+export const ThemedSearch = component(({ signal }) => {
+  const state = signal({ query: '' });
+
+  return () => (
+    <SearchInput
+      value={state.query}
+      placeholder="Search reactions…"
+      class="emoji-search"
+    />
+  );
+});
+```
+
+Inside a full `EmojiPicker`, the equivalent slot is themed through the `search` / `searchWrap` keys of the `EmojiSlotClasses` map (or replaced wholesale with the `renderSearchInput` render prop) — see [Theming](/lynx/modules/emoji/usage#theming). Use `SearchInput` directly only when you are [composing the parts](/lynx/modules/emoji/usage#composing-the-parts) into a custom layout.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `value` | `string` | Two-way model binding (`Define.Model<string>`) for the current query — typing updates it, assigning it updates the field. |
+| `placeholder` | `string` | Placeholder text shown when the field is empty. Default `Search emoji`. |
+| `class` | `string` | CSS classes for the field; supplying any class drops the neutral inline border/padding fallback. |
+
+## See also
+
+- [API reference](/lynx/modules/emoji/api) — `SearchInputProps` and every other export, typed.
+- [EmojiGrid](/lynx/modules/emoji/components/emojigrid) — the recycled glyph grid you pair with search results.
+- [Usage — Composing the parts](/lynx/modules/emoji/usage#composing-the-parts) — wiring `SearchInput`, `EmojiGrid` and friends against a shared context.

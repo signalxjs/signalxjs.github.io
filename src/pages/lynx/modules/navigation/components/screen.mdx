@@ -1,0 +1,111 @@
+---
+title: "Screen"
+description: "Screen — @sigx/lynx-navigation component"
+layout: module-docs
+category: ["Components", "Screens"]
+order: 105
+---
+
+# Screen
+
+<p class="lede">Declarative per-screen configuration for a stack route — set the title, header and gesture options, sheet snap points, and fill the header slots, all from inside the route component itself.</p>
+
+## Import
+
+```tsx
+import { Screen } from '@sigx/lynx-navigation';
+```
+
+## Basic Usage
+
+`Screen` declares the options for the route it is rendered in. It must mount inside a route component rendered by a [`Stack`](/lynx/modules/navigation/api) (i.e. inside an entry scope) or it throws. It only patches the keys you pass, then renders its `default` slot inline:
+
+```tsx
+import { Screen } from '@sigx/lynx-navigation';
+
+export const Settings = () => (
+  <Screen title="Settings" headerShown>
+    <view>{/* screen body */}</view>
+  </Screen>
+);
+```
+
+For a title that depends on reactive state, pass a function (or use [`useScreenOptions`](/lynx/modules/navigation/api) for the imperative, tracked form):
+
+```tsx
+import { Screen, useParams } from '@sigx/lynx-navigation';
+
+export const Profile = () => {
+  const { id } = useParams('profile');
+  return (
+    <Screen title={() => `User ${id}`} gestureEnabled>
+      <view>{/* … */}</view>
+    </Screen>
+  );
+};
+```
+
+## Header slots
+
+The compound sub-components fill the header for the current entry. `Screen.Header` replaces the whole header; `Screen.HeaderLeft` and `Screen.HeaderRight` fill the sides (e.g. a back-arrow override or action buttons). Each renders `null` and writes its `default` slot into the entry's screen registry, so the default [`Header`](/lynx/modules/navigation/api) (or a `useScreenChrome`-based custom bar) picks them up:
+
+```tsx
+import { Screen } from '@sigx/lynx-navigation';
+
+export const EditPost = () => (
+  <Screen title="Edit post" headerShown>
+    <Screen.HeaderRight>
+      <text bindtap={save}>Save</text>
+    </Screen.HeaderRight>
+    <view>{/* editor */}</view>
+  </Screen>
+);
+```
+
+`Screen.TabBarItem` registers a scoped tab-bar item; its `default` slot is a function receiving `{ active }`. The built-in `TabBar` does not read it yet — it is exposed for custom `renderTab` consumers.
+
+## Sheet screens
+
+For a route presented as a `sheet`, the `snapPoints` / `initialSnapIndex` / `backdropDismiss` props configure the partial-height bottom sheet. `snapPoints` are fractions of screen height (0–1, ascending):
+
+```tsx
+import { Screen } from '@sigx/lynx-navigation';
+
+export const FilterSheet = () => (
+  <Screen snapPoints={[0.4, 0.9]} initialSnapIndex={0} backdropDismiss>
+    <view>{/* filter controls */}</view>
+  </Screen>
+);
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `title` | `string \| (() => string)` | Header title. A function is re-evaluated reactively. |
+| `headerShown` | `boolean` | Whether the header is shown (default `true`). |
+| `gestureEnabled` | `boolean` | Whether the back / dismiss gesture is enabled (default `true`). |
+| `snapPoints` | `readonly number[]` | Sheet presentations: snap heights as fractions of screen height (0–1, ascending; default `[0.5]`). |
+| `initialSnapIndex` | `number` | Sheet presentations: index into `snapPoints` to open at (default: last / most open). |
+| `backdropDismiss` | `boolean` | Sheet presentations: whether tapping the backdrop dismisses (default `true`). |
+| `slots` | `Partial<{ default: () => JSXElement \| JSXElement[] \| null }>` | The screen body, rendered inline. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The screen body, rendered inline beneath the configured options. |
+
+### Compound sub-components
+
+| Component | Description |
+|-----------|-------------|
+| `Screen.Header` | Full header replacement. Renders `null` and writes its `default` slot to the entry's `slots.header`. |
+| `Screen.HeaderLeft` | Left-side header content (e.g. a back-arrow override). Writes `slots.headerLeft`. |
+| `Screen.HeaderRight` | Right-side header content (e.g. action buttons). Writes `slots.headerRight`. |
+| `Screen.TabBarItem` | Scoped tab-bar item; its `default` slot is a function receiving `{ active }`. Exposed for custom `renderTab` consumers. |
+
+## See also
+
+- [API reference](/lynx/modules/navigation/api) — `ScreenOptions`, `ScreenSlotFills`, `useScreenOptions`, `useScreenChrome`.
+- [Usage](/lynx/modules/navigation/usage) — per-screen options and custom headers in context.

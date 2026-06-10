@@ -1,0 +1,125 @@
+---
+title: "Drawer"
+description: "Drawer — @sigx/lynx-navigation component"
+layout: module-docs
+category: ["Components", "Navigators"]
+order: 103
+---
+
+# Drawer
+
+<p class="lede">A minimal off-canvas drawer navigator: a `sidebar` slot rendered absolutely on the left and a `default` slot for the main content, toggled imperatively through the `useDrawer()` handle it provides.</p>
+
+## Import
+
+```tsx
+import { Drawer } from '@sigx/lynx-navigation';
+```
+
+## Basic usage
+
+`Drawer` lays out its `sidebar` slot absolutely on the left (shown / hidden via `display`) and renders its `default` slot — usually a [`Stack`](/lynx/modules/navigation/api) — as the main content. It must mount inside a [`NavigationRoot`](/lynx/modules/navigation/api). Gesture-open and slide-in animation are deferred to apps; open and close the drawer imperatively with [`useDrawer()`](#the-usedrawer-handle).
+
+```tsx
+import {
+    defineRoutes,
+    NavigationRoot,
+    Drawer,
+    Stack,
+    Header,
+} from '@sigx/lynx-navigation';
+import { Sidebar } from './Sidebar';
+import { Home } from './screens/Home';
+
+export const routes = defineRoutes({
+    home: { component: Home },
+});
+
+declare module '@sigx/lynx-navigation' {
+    interface Register {
+        routes: typeof routes;
+    }
+}
+
+export const App = () => (
+    <NavigationRoot routes={routes} initialRoute="home">
+        <Drawer>
+            <Drawer.sidebar>
+                <Sidebar />
+            </Drawer.sidebar>
+            <Stack>
+                <Header />
+            </Stack>
+        </Drawer>
+    </NavigationRoot>
+);
+```
+
+Pass `initialOpen` to start with the drawer open:
+
+```tsx
+<Drawer initialOpen>
+    <Drawer.sidebar>
+        <Sidebar />
+    </Drawer.sidebar>
+    <Stack>
+        <Header />
+    </Stack>
+</Drawer>
+```
+
+## The useDrawer handle
+
+`Drawer` provides `useDrawer()` to its subtree — a reactive `DrawerNav` handle with `isOpen` plus `open()`, `close()` and `toggle()` mutators. Calling it outside a `Drawer` throws. Use it to wire a hamburger button in your header and a backdrop / close control in the sidebar:
+
+```tsx
+import { useDrawer } from '@sigx/lynx-navigation';
+
+// In a header, anywhere inside the Drawer subtree:
+export const MenuButton = () => {
+    const drawer = useDrawer();
+    return <text bindtap={() => drawer.toggle()}>☰</text>;
+};
+
+// In the sidebar, react to open state and close on selection:
+export const Sidebar = () => {
+    const drawer = useDrawer();
+    return (
+        <view>
+            <text>Open: {String(drawer.isOpen)}</text>
+            <text bindtap={() => drawer.close()}>Close</text>
+        </view>
+    );
+};
+```
+
+`isOpen` is reactive, so reading it inside a component re-renders when the drawer opens or closes.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `initialOpen` | `boolean` | Whether the drawer starts open. Defaults to closed. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `sidebar` | The sidebar JSX, laid out absolutely on the left and toggled via `display`. |
+| `default` | The main content, usually a [`Stack`](/lynx/modules/navigation/api). |
+
+### useDrawer — DrawerNav
+
+`Drawer` provides the `DrawerNav` handle accessed via [`useDrawer()`](/lynx/modules/navigation/api). Read getters are reactive; mutators commit immediately.
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `isOpen` | `boolean` | Reactive read of whether the drawer is currently open. |
+| `open` | `() => void` | Opens the drawer. |
+| `close` | `() => void` | Closes the drawer. |
+| `toggle` | `() => void` | Toggles the drawer between open and closed. |
+
+## See also
+
+- [API reference](/lynx/modules/navigation/api) — every export, signature and type, including `useDrawer` and `DrawerNav`.
+- [Usage](/lynx/modules/navigation/usage) — practical guides and complete examples.

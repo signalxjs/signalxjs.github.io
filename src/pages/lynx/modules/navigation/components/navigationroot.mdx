@@ -1,0 +1,118 @@
+---
+title: "NavigationRoot"
+description: "NavigationRoot — @sigx/lynx-navigation component"
+layout: module-docs
+category: ["Components", "Screens"]
+order: 104
+---
+
+# NavigationRoot
+
+<p class="lede">The root of a navigator subtree. It creates a fresh, isolated navigator from your typed <code>routes</code> and provides it to everything below — every <a href="/lynx/modules/navigation/components/stack">Stack</a>, <a href="/lynx/modules/navigation/api">hook</a> and <a href="/lynx/modules/navigation/components/link">Link</a> in the tree reads from this one root.</p>
+
+## Import
+
+```tsx
+import { NavigationRoot } from '@sigx/lynx-navigation';
+```
+
+## Basic usage
+
+Describe your routes with [`defineRoutes`](/lynx/modules/navigation/api), augment the package's `Register` interface so every hook and component infers route names and params globally, then mount `NavigationRoot` with a [`Stack`](/lynx/modules/navigation/components/stack) inside it. The `default` slot of `Stack` is the chrome rendered inside the stack's nav scope — drop a `<Header />` there for the headless default header bar.
+
+```tsx
+import { z } from 'zod';
+import {
+    defineRoutes,
+    NavigationRoot,
+    Stack,
+    Header,
+} from '@sigx/lynx-navigation';
+import { Home } from './screens/Home';
+import { Profile } from './screens/Profile';
+
+export const routes = defineRoutes({
+    home: { component: Home },
+    profile: {
+        component: Profile,
+        params: z.object({ id: z.string() }),
+        search: z.object({ tab: z.string().optional() }),
+        path: '/users/:id',
+    },
+});
+
+// Drives ALL global type inference for useNav / useParams / <Link>.
+declare module '@sigx/lynx-navigation' {
+    interface Register {
+        routes: typeof routes;
+    }
+}
+
+export const App = () => (
+    <NavigationRoot routes={routes} initialRoute="home">
+        <Stack>
+            <Header />
+        </Stack>
+    </NavigationRoot>
+);
+```
+
+`initialRoute` defaults to the first route key and throws if it is not in `routes`. `NavigationRoot` provides the navigator to its subtree, so [`useNav`](/lynx/modules/navigation/api) inside it reads and mutates this root's stack.
+
+## Seeding the initial entry
+
+`initialParams` / `initialSearch` seed the params and search of the first entry. This is handy when the entry route declares a schema:
+
+```tsx
+export const App = () => (
+    <NavigationRoot
+        routes={routes}
+        initialRoute="profile"
+        initialParams={{ id: 'alice' }}
+        initialSearch={{ tab: 'posts' }}
+    >
+        <Stack>
+            <Header />
+        </Stack>
+    </NavigationRoot>
+);
+```
+
+## Platform behavior and testing
+
+`NavigationRoot` auto-wires the Android hardware back button by default. Set `hardwareBack={false}` to opt out — then call [`useHardwareBack()`](/lynx/modules/navigation/api) yourself where you want it. `edgeSwipeEnabled` (iOS) controls interactive edge-swipe back.
+
+In tests, pass `animated={false}` so navigations commit synchronously — test runtimes have no main-thread worklet runtime, so slide transitions never complete on their own:
+
+```tsx
+import { NavigationRoot, Stack } from '@sigx/lynx-navigation';
+
+// Navigations commit immediately; act(() => nav.push(...)) re-renders at once.
+<NavigationRoot routes={routes} initialRoute="home" animated={false}>
+    <Stack />
+</NavigationRoot>;
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `routes` | `RouteMap` | **Required.** The typed route registry from `defineRoutes` to build this navigator from. |
+| `initialRoute` | `RouteId` | Route the stack starts on. Defaults to the first route key; throws if not in `routes`. |
+| `initialParams` | `Record<string, unknown>` | Params seeded onto the initial entry. Default `{}`. |
+| `initialSearch` | `Record<string, unknown>` | Search seeded onto the initial entry. Default `{}`. |
+| `animated` | `boolean` | Whether navigations animate. Default `true`; set `false` in tests so they commit synchronously. |
+| `edgeSwipeEnabled` | `boolean` | Enables iOS interactive edge-swipe back. Default `true`. |
+| `hardwareBack` | `boolean` | Auto-wires the Android hardware back button. Default `true`; set `false` to wire it yourself with `useHardwareBack()`. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The navigator subtree — typically a [`Stack`](/lynx/modules/navigation/components/stack), [`Tabs`](/lynx/modules/navigation/components/tabs) or [`Drawer`](/lynx/modules/navigation/components/drawer), plus chrome. Rendered inside the provided navigator scope. |
+
+## See also
+
+- [Usage](/lynx/modules/navigation/usage) — practical guides and complete examples.
+- [API reference](/lynx/modules/navigation/api) — every export, signature and type.
+- [Stack](/lynx/modules/navigation/components/stack) — the stack navigator mounted inside a root.

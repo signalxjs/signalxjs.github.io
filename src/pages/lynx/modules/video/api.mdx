@@ -33,23 +33,17 @@ import type {
 
 ## Components
 
-### VideoPlayer
+Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/video/components) catalog:
 
-The recommended entry point — a typed sigx-lynx component wrapping the native `<video-player>` intrinsic. On iOS it wraps an `AVPlayer` inside an `AVPlayerLayer`; on Android it wraps an androidx.media3 `ExoPlayer` inside a `PlayerView`. It participates in Lynx's layout tree like any other view — give it a width/height (or `aspectRatio`) and it draws decoded frames there. Prefer it over the raw `<video-player>` intrinsic. Available on iOS and Android (native UI).
+- [**VideoPlayer**](/lynx/modules/video/components/videoplayer) — typed sigx-lynx component wrapping the native `<video-player>` intrinsic (iOS `AVPlayer`, Android androidx.media3 `ExoPlayer`).
 
-```ts
-export const VideoPlayer: component<VideoPlayerProps>(({ props }) => () => JSX.Element)
-```
-
-It accepts the props described by [`VideoPlayerProps`](#videoplayerprops), maps camelCase React-style props onto the native element's kebab/bind attributes (`resizeMode` → `resize-mode`, `onLoad` → `bindload`, `onEnd` → `bindend`, `onError` → `binderror`, `onTimeUpdate` → `bindtimeupdate`), and returns a render function so signals and props read inside it stay reactive.
-
-**v1 is declarative-only.** Imperative methods (`seek`, `getStatus`) are not implemented — drive playback through the `playing` and `src` props.
+Their prop types and related APIs remain documented below.
 
 ## Types
 
 ### VideoPlayerProps
 
-Props type for [`VideoPlayer`](#videoplayer). Every prop is optional (the third `Define.Prop` type argument is `false` = not required). Shared across platforms.
+Props type for [`VideoPlayer`](/lynx/modules/video/components/videoplayer). Every prop is optional (the third `Define.Prop` type argument is `false` = not required). Shared across platforms.
 
 ```ts
 export type VideoPlayerProps =
@@ -102,7 +96,7 @@ export type VideoResizeMode = 'contain' | 'cover' | 'stretch';
 
 ### VideoPlayerAttributes
 
-Low-level JSX intrinsic attribute interface for the raw `<video-player>` element — the native attribute surface, with kebab-case attrs and `bind*` event handlers. Registered globally as `JSX.IntrinsicElements['video-player']`. Most apps use the [`VideoPlayer`](#videoplayer) wrapper instead, which exposes camelCase prop names. Shared (JSX intrinsic).
+Low-level JSX intrinsic attribute interface for the raw `<video-player>` element — the native attribute surface, with kebab-case attrs and `bind*` event handlers. Registered globally as `JSX.IntrinsicElements['video-player']`. Most apps use the [`VideoPlayer`](/lynx/modules/video/components/videoplayer) wrapper instead, which exposes camelCase prop names. Shared (JSX intrinsic).
 
 ```ts
 export interface VideoPlayerAttributes extends LynxCommonAttributes {

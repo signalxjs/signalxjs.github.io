@@ -1,0 +1,131 @@
+---
+title: "Header"
+description: "Header — @sigx/lynx-navigation component"
+layout: module-docs
+category: ["Components", "Chrome"]
+order: 106
+---
+
+# Header
+
+<p class="lede">The headless default navigator header chrome. Drop it inside a <code>Stack</code> to get a back button, the screen title and any per-screen header content — reactively switched as you navigate, with zero styling of its own.</p>
+
+## Import
+
+```tsx
+import { Header } from '@sigx/lynx-navigation';
+```
+
+`Header` takes no props. It reads the focused screen's chrome from the same reactive source you'd use to build a custom bar — [`useScreenChrome()`](/lynx/modules/navigation/api#usescreenchrome) — so it is mounted once and switches content as the focused entry changes.
+
+If the focused entry registered a full-replacement [`<Screen.Header>`](/lynx/modules/navigation/components/screen) slot, `Header` renders that. Otherwise it renders three regions:
+
+- **`headerLeft`** — a back button when [`nav.canGoBack`](/lynx/modules/navigation/api#nav) is true, or a screen-supplied `<Screen.HeaderLeft>`.
+- **title** — the screen's `options.title`, falling back to the route name.
+- **`headerRight`** — a screen-supplied `<Screen.HeaderRight>`.
+
+## Basic Usage
+
+`Header` is chrome rendered in a stack's nav scope, so it goes in the `default` slot of a [`Stack`](/lynx/modules/navigation/components/stack), as a sibling of the navigated screens:
+
+```tsx
+import { defineRoutes, NavigationRoot, Stack, Header } from '@sigx/lynx-navigation';
+import { Home } from './screens/Home';
+import { Profile } from './screens/Profile';
+
+export const routes = defineRoutes({
+    home: { component: Home },
+    profile: { component: Profile },
+});
+
+declare module '@sigx/lynx-navigation' {
+    interface Register {
+        routes: typeof routes;
+    }
+}
+
+export const App = () => (
+    <NavigationRoot routes={routes} initialRoute="home">
+        <Stack>
+            <Header />
+        </Stack>
+    </NavigationRoot>
+);
+```
+
+## Per-tab headers
+
+Because `Header` reads the navigator scope it is mounted in, give each tab its own `Stack` and `<Header />` so every tab keeps an independent title and back stack:
+
+```tsx
+import { Tabs, TabBar, Stack, Header } from '@sigx/lynx-navigation';
+
+export const Main = () => (
+    <Tabs initialTab="trips">
+        <Tabs.Screen name="trips" label="Trips">
+            <Stack initialRoute="tripsHome">
+                <Header />
+            </Stack>
+        </Tabs.Screen>
+        <Tabs.Screen name="account" label="Account">
+            <Stack initialRoute="accountHome">
+                <Header />
+            </Stack>
+        </Tabs.Screen>
+        <TabBar />
+    </Tabs>
+);
+```
+
+## Customizing the title and actions
+
+`Header` has no props — you steer it from each screen with [`<Screen>`](/lynx/modules/navigation/components/screen) and its compound slot fills. Set the title with `<Screen>`'s `title` (or [`useScreenOptions`](/lynx/modules/navigation/api#usescreenoptions)), and fill the left/right regions with `<Screen.HeaderLeft>` / `<Screen.HeaderRight>`:
+
+```tsx
+import { Screen, useParams, useScreenOptions } from '@sigx/lynx-navigation';
+
+export const EditPost = () => {
+    const { id } = useParams('editPost');
+
+    // Tracked: re-merges whenever a read signal changes.
+    useScreenOptions(() => ({ title: `Post ${id}` }));
+
+    return (
+        <Screen headerShown>
+            <Screen.HeaderRight>
+                <text bindtap={save}>Save</text>
+            </Screen.HeaderRight>
+            <view>{/* body */}</view>
+        </Screen>
+    );
+};
+```
+
+To replace the whole bar for one screen, register a `<Screen.Header>` slot — `Header` renders it verbatim in place of the default left/title/right layout. Set `headerShown={false}` on a screen to hide the bar entirely for that entry.
+
+## Theming
+
+`Header` is intentionally unstyled. For a themed bar that reads the same `useScreenChrome()` data, use `NavHeader` from [`@sigx/lynx-daisyui`](/lynx/modules/daisyui/overview). To build your own, read [`useScreenChrome()`](/lynx/modules/navigation/api#usescreenchrome) directly (`title`, `headerShown`, `canGoBack`, `pop()`, plus the `header` / `headerLeft` / `headerRight` slot fills) instead of mounting `Header`.
+
+## Props
+
+`Header` accepts no props — all of its content is derived reactively from the focused screen's chrome.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| — | — | `Header` takes no props. Its content comes from the focused entry's [`ScreenChrome`](/lynx/modules/navigation/api#screenchrome) (title, `canGoBack`, and any `header` / `headerLeft` / `headerRight` slot fills). |
+
+### Slots
+
+`Header` exposes no slots of its own. Header content is contributed per-screen through `Screen`'s compound sub-components:
+
+| Slot source | Description |
+|------|-------------|
+| [`Screen.Header`](/lynx/modules/navigation/components/screen) | Full header replacement — renders in place of the default left/title/right layout. |
+| [`Screen.HeaderLeft`](/lynx/modules/navigation/components/screen) | Left-region content (e.g. a back-arrow override). |
+| [`Screen.HeaderRight`](/lynx/modules/navigation/components/screen) | Right-region content (e.g. action buttons). |
+
+## See also
+
+- [API reference](/lynx/modules/navigation/api) — every export, signature and type.
+- [Usage](/lynx/modules/navigation/usage) — per-screen options and custom headers.

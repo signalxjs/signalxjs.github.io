@@ -1,0 +1,95 @@
+---
+title: "StatusBarSync"
+description: "StatusBarSync — @sigx/lynx-zero component"
+layout: module-docs
+category: ["Components", "Theme"]
+order: 102
+---
+
+# StatusBarSync
+
+<p class="lede">A side-effect-only component that keeps the OS status / navigation bar tint legible against the active global theme — light theme to dark icons, dark theme to light icons. It renders a zero-size placeholder and is meant to be mounted once inside your root [`ThemeProvider`](/lynx/modules/zero/components/themeprovider).</p>
+
+## Import
+
+```tsx
+import { StatusBarSync } from '@sigx/lynx-zero';
+```
+
+## Basic Usage
+
+`StatusBarSync` reads the global [`themeController`](/lynx/modules/zero/api#themecontroller) `name` and pushes a legible OS status/nav-bar tint via `@sigx/lynx-appearance`. Because it binds to the global controller, mount it once inside the **root** `ThemeProvider` (depth 0) — the provider that binds the global singleton theme state:
+
+```tsx
+import { ThemeProvider, StatusBarSync } from '@sigx/lynx-zero';
+
+function App() {
+  return (
+    <ThemeProvider initial="my-light">
+      <StatusBarSync />
+      {/* app tree */}
+    </ThemeProvider>
+  );
+}
+```
+
+It renders a zero-size view, so its position in the tree doesn't affect layout — place it anywhere under the root provider.
+
+## Following the system scheme
+
+When the provider follows the OS light/dark setting (via a `light` / `dark` pair instead of a pinned `initial`), `StatusBarSync` tracks the active theme reactively and re-tints the bars whenever the scheme flips:
+
+```tsx
+import { ThemeProvider, StatusBarSync } from '@sigx/lynx-zero';
+
+function App() {
+  return (
+    <ThemeProvider light="my-light" dark="my-dark">
+      <StatusBarSync />
+      {/* recolors — and re-tints the OS bars — when the OS scheme flips */}
+    </ThemeProvider>
+  );
+}
+```
+
+The same applies to headless `themeController.set()` / `toggle()` mutations: because `StatusBarSync` binds to the global controller, any theme change made from boot code, a store or a service updates the OS bar tint without re-rendering your tree.
+
+## In a full layout
+
+A typical root mounts `StatusBarSync` alongside the layout primitives, all under one `ThemeProvider`:
+
+```tsx
+import { ThemeProvider, StatusBarSync, Col, Row, Center, Spacer } from '@sigx/lynx-zero';
+
+function App() {
+  return (
+    <ThemeProvider initial="brand-light">
+      <StatusBarSync />
+      <Col flex={1} gap={16} padding={20} background="base-100">
+        <Row gap={12} align="center" justify="space-between">
+          <view class="text-base-content text-lg">Dashboard</view>
+          <Spacer size={8} />
+        </Row>
+        <Center flex={1} background="base-200" borderRadius={12}>
+          <view class="text-base-content">Centered content</view>
+        </Center>
+      </Col>
+    </ThemeProvider>
+  );
+}
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `matchBackground` | `boolean` | Reserved no-op (future Android `base-100` bar background). Currently has no effect. |
+
+`StatusBarSync` has no slots and emits no events — it is purely a side effect that mirrors the global theme variant onto the OS bars. Platform: iOS and Android.
+
+## See also
+
+- [ThemeProvider](/lynx/modules/zero/components/themeprovider) — applies a theme's CSS vars to a subtree; mount `StatusBarSync` inside the root one.
+- [themeController](/lynx/modules/zero/api#themecontroller) — the global theme controller `StatusBarSync` binds to.
+- [useTheme](/lynx/modules/zero/api#usetheme) — read and mutate the active theme.
+- [API reference](/lynx/modules/zero/api) — every export of `@sigx/lynx-zero`.

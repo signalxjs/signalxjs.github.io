@@ -1,0 +1,131 @@
+---
+title: "VideoPlayer"
+description: "VideoPlayer — @sigx/lynx-video component"
+layout: module-docs
+category: ["Components", "Media"]
+order: 101
+---
+
+# VideoPlayer
+
+<p class="lede">Native video player — a typed sigx-lynx wrapper over the `<video-player>` intrinsic that draws decoded frames inside its own layout box. On iOS it drives an `AVPlayer` in an `AVPlayerLayer`; on Android an androidx.media3 `ExoPlayer` in a `PlayerView`. v1 is declarative-only: you drive playback through the `src` and `playing` props.</p>
+
+## Import
+
+```tsx
+import { VideoPlayer } from '@sigx/lynx-video';
+```
+
+Importing the package entry also auto-applies the JSX augmentation that registers the `<video-player>` intrinsic, so you never import that directly. Run `sigx prebuild` once after adding the dependency — the element is unavailable until prebuild has registered it on both platforms.
+
+## Basic usage
+
+Give the player a `src` and a size, then let `autoplay` start it once the asset is ready. Because the component body returns a render function, signals and props read inside it stay reactive. The player must be given a size — set `width`/`height` or an `aspectRatio` via `style`.
+
+```tsx
+import { VideoPlayer } from '@sigx/lynx-video';
+
+function ClipScreen() {
+  return () => (
+    <VideoPlayer
+      src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+      autoplay
+      resizeMode="contain"
+      style={{ width: '100%', aspectRatio: 16 / 9 }}
+    />
+  );
+}
+```
+
+`resizeMode` controls how the frame fits the box: `contain` letterboxes, `cover` fills and crops, `stretch` distorts to fill.
+
+## Controlling play and pause declaratively
+
+There is no imperative API in v1 — no `seek` or `getStatus`. The `playing` prop is a declarative play/pause toggle; when both `playing` and `autoplay` are set, `playing` wins.
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { VideoPlayer } from '@sigx/lynx-video';
+
+const Player = component(() => {
+  const playing = signal(false);
+
+  return () => (
+    <view style={{ width: '100%' }}>
+      <VideoPlayer
+        src="file:///clips/intro.mp4"
+        playing={playing()}
+        loop
+        muted
+        style={{ width: '100%', aspectRatio: 16 / 9 }}
+      />
+      <text bindtap={() => playing.set(!playing())}>
+        {playing() ? 'Pause' : 'Play'}
+      </text>
+    </view>
+  );
+});
+```
+
+`loop` restarts the clip natively at end-of-clip, so `onEnd` does not fire while looping. `muted` mutes audio independently of `volume` (it sets the effective volume to 0 without losing the stored value). Setting `src` reloads the player; clearing it (empty or undefined) stops playback and releases the asset.
+
+## Reading duration and tracking progress
+
+Listen for `onLoad` to learn an asset's duration and natural dimensions once metadata resolves. For live progress, `onTimeUpdate` broadcasts the current position roughly four times a second.
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { VideoPlayer } from '@sigx/lynx-video';
+
+const Progress = component(() => {
+  const durationMs = signal(0);
+  const positionMs = signal(0);
+
+  return () => (
+    <view>
+      <VideoPlayer
+        src="https://example.com/talk.mp4"
+        autoplay
+        onLoad={(e) => durationMs.set(e.detail.durationMs)}
+        onTimeUpdate={(e) => positionMs.set(e.detail.positionMs)}
+        style={{ width: '100%', aspectRatio: 16 / 9 }}
+      />
+      <text>{Math.round((positionMs() / (durationMs() || 1)) * 100)}%</text>
+    </view>
+  );
+});
+```
+
+`onTimeUpdate` fires every 250ms and crosses the native bridge on each call, so use it sparingly — for per-frame animation, read the duration once via `onLoad` and animate locally. `durationMs` is `0` for live or indeterminate-duration streams.
+
+## Props
+
+Every prop is optional. See the [API reference](/lynx/modules/video/api#videoplayerprops) for the full type.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `src` | `string` | URL or `file://` URI of the asset. Also accepts `http://` and absolute paths starting with `/` (local file). Setting it reloads the player; clearing it stops playback and releases the asset. |
+| `poster` | `string` | Image shown before the first frame. iOS loads it async; on Android it is a no-op stub in v1. |
+| `autoplay` | `boolean` | Begin playback once the asset is ready. Default `false`. |
+| `playing` | `boolean` | Declarative play/pause toggle. Overrides `autoplay` when both are set. |
+| `loop` | `boolean` | Restart at end-of-clip, handled natively. Default `false`. Suppresses `onEnd`. |
+| `muted` | `boolean` | Mute audio independently of `volume`. Default `false`. |
+| `volume` | `number` | Audio volume, clamped to `0..1`. Default `1`. |
+| `controls` | `boolean` | Show the platform default controls overlay. Default `false`. |
+| `resizeMode` | `'contain' \| 'cover' \| 'stretch'` | How the frame fits the box ([`VideoResizeMode`](/lynx/modules/video/api#videoresizemode)). Default `contain`. |
+| `class` | `string` | Standard CSS classes. |
+| `style` | `string \| Record<string, string \| number>` | Standard styling. The player must be given a size. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onLoad` | `(e: VideoLoadEvent) => void` | Fires once asset metadata is available. `e.detail` has `durationMs`, `width`, `height`. See [`VideoLoadEvent`](/lynx/modules/video/api#videoloadevent). |
+| `onEnd` | `(e: VideoEndEvent) => void` | Fires when playback reaches the end of the clip. Does not fire when `loop` is `true`. See [`VideoEndEvent`](/lynx/modules/video/api#videoendevent). |
+| `onError` | `(e: VideoErrorEvent) => void` | Fires on a non-recoverable load or playback error. `e.detail.message` is a human-readable string. See [`VideoErrorEvent`](/lynx/modules/video/api#videoerrorevent). |
+| `onTimeUpdate` | `(e: VideoTimeUpdateEvent) => void` | Fires ~4x/sec while playing with `e.detail.positionMs`. Crosses the bridge on each call — use sparingly. See [`VideoTimeUpdateEvent`](/lynx/modules/video/api#videotimeupdateevent). |
+
+## See also
+
+- [API reference](/lynx/modules/video/api) — every export and its signature.
+- [Usage](/lynx/modules/video/usage) — practical guides and examples.

@@ -1,0 +1,100 @@
+---
+title: "ScrollView"
+description: "ScrollView — @sigx/lynx-gestures component"
+layout: module-docs
+category: ["Components", "Scroll"]
+order: 104
+---
+
+# ScrollView
+
+<p class="lede">A <code>scroll-view</code> wrapper that mirrors its live scroll position into <code>SharedValue</code>s and provides a <code>ScrollContext</code> so descendant gesture components auto-coordinate — yielding the native pan during a child gesture, all on the main thread.</p>
+
+## Import
+
+```tsx
+import { ScrollView } from '@sigx/lynx-gestures';
+```
+
+## Basic usage
+
+`ScrollView` renders a native `scroll-view` and writes its scroll position each frame into the `offsetX` / `offsetY` `SharedValue`s you pass. Allocate them with `useSharedValue` and read them reactively on the background thread:
+
+```tsx
+import { ScrollView } from '@sigx/lynx-gestures';
+import { useSharedValue } from '@sigx/lynx';
+
+function FeedScroller() {
+    const offsetY = useSharedValue(0);
+
+    return (
+        <view>
+            <ScrollView offsetY={offsetY} style={{ height: '600px' }}>
+                <view>{/* tall content */}</view>
+            </ScrollView>
+            <text>Scrolled: {offsetY.value.toFixed(0)}px</text>
+        </view>
+    );
+}
+```
+
+`scroll-orientation` defaults to `'vertical'`; pass `'horizontal'` for a horizontal scroller. `offsetX` / `offsetY` are written each scroll frame on the main thread.
+
+## Coordinating descendant gestures
+
+A `ScrollView` provides a `ScrollContext` that descendant [`Draggable`](/lynx/modules/gestures/components/draggable) and [`Swipeable`](/lynx/modules/gestures/components/swipeable) read automatically — they yield the native scroll during a child gesture, so dragging a row doesn't fight the scroll. No wiring is required. `enable-scroll` defaults to `true` and is AND-combined with the descendant-driven dragging flag, so children can lock scroll mid-drag.
+
+```tsx
+import { ScrollView, Draggable } from '@sigx/lynx-gestures';
+import { useSharedValue } from '@sigx/lynx';
+
+function ReorderableList({ rows }: { rows: string[] }) {
+    const offsetY = useSharedValue(0);
+
+    return (
+        <ScrollView offsetY={offsetY} style={{ height: '600px' }}>
+            {rows.map((row) => (
+                <Draggable axis="y" edgeScroll={{ threshold: 50, maxSpeed: 800 }}>
+                    <view style={{ padding: '16px' }}>
+                        <text>{row}</text>
+                    </view>
+                </Draggable>
+            ))}
+        </ScrollView>
+    );
+}
+```
+
+Here each `Draggable`'s `edgeScroll` auto-scrolls the parent `ScrollView` when a drag nears its viewport edge. Custom gesture components can opt into the same auto-yield coordination with [`useScrollContext()`](/lynx/modules/gestures/api), which returns the `ScrollContext` or `null` when no parent `ScrollView` is in scope.
+
+## Locking scroll
+
+Set `enable-scroll={false}` to disable scrolling — for example while a modal overlay is open. Because the flag is AND-combined with the descendant dragging flag, an active child drag also locks scroll automatically without any extra prop.
+
+```tsx
+<ScrollView offsetY={offsetY} enable-scroll={!locked.value}>
+    {/* content */}
+</ScrollView>
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `offsetX` | `SharedValue<number>` | Live horizontal scroll position, written each scroll frame on the main thread. |
+| `offsetY` | `SharedValue<number>` | Live vertical scroll position, written each scroll frame on the main thread. |
+| `scroll-orientation` | `'vertical' \| 'horizontal'` | Scroll axis. Defaults to `'vertical'`. |
+| `enable-scroll` | `boolean` | Whether scrolling is enabled. Defaults to `true`, and is AND-combined with the descendant-driven dragging flag (children can lock scroll mid-drag). |
+| `class` | `string` | Extra CSS classes on the underlying `scroll-view`. |
+| `style` | `Record<string, string \| number>` | Inline style for the underlying `scroll-view`. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Scrollable content. |
+
+## See also
+
+- [`Draggable`](/lynx/modules/gestures/components/draggable) and [`Swipeable`](/lynx/modules/gestures/components/swipeable) — auto-coordinate with a parent `ScrollView`.
+- [API reference](/lynx/modules/gestures/api) — `ScrollViewProps`, `ScrollContext` and `useScrollContext`, typed.

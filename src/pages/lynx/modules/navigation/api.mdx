@@ -163,139 +163,18 @@ Accesses the enclosing `Drawer` navigator: `{ isOpen, open(), close(), toggle() 
 
 ## Components
 
-### NavigationRoot
+Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/navigation/components) catalog:
 
-```ts
-const NavigationRoot: component<{
-    routes: RouteMap;            // required
-    initialRoute?: RouteId;      // default: first route key
-    initialParams?: Record<string, unknown>;   // default: {}
-    initialSearch?: Record<string, unknown>;    // default: {}
-    animated?: boolean;          // default: true (set false in tests)
-    edgeSwipeEnabled?: boolean;  // default: true (iOS)
-    hardwareBack?: boolean;      // default: true (Android auto-wire)
-}>
-```
+- [**Stack**](/lynx/modules/navigation/components/stack) — the stack navigator; renders the enclosing stack in bound mode or mints a fresh nested navigator (per-tab back-stacks) in nested-owner mode.
+- [**Tabs**](/lynx/modules/navigation/components/tabs) — a persistent tab navigator hosting `<Tabs.Screen>`; tab bodies stay mounted to preserve per-tab state, and it provides `useTabs()`.
+- [**Drawer**](/lynx/modules/navigation/components/drawer) — a minimal off-canvas drawer navigator with a `sidebar` and `default` slot; provides `useDrawer()`.
+- [**NavigationRoot**](/lynx/modules/navigation/components/navigationroot) — the root of a navigator subtree; creates and provides a fresh navigator state from `routes` (isolated per root).
+- [**Screen**](/lynx/modules/navigation/components/screen) — declarative per-screen options and slot fills, plus its `Screen.Header` / `Screen.HeaderLeft` / `Screen.HeaderRight` / `Screen.TabBarItem` sub-components.
+- [**Header**](/lynx/modules/navigation/components/header) — the headless default navigator header chrome (back button, title, header slots), switching content reactively.
+- [**TabBar**](/lynx/modules/navigation/components/tabbar) — the headless default chrome for `Tabs`; unstyled buttons with accessibility wiring, overridable via `renderTab`.
+- [**Link**](/lynx/modules/navigation/components/link) — declarative navigation, the JSX flavor of `nav.push`, with the same per-route conditional typing.
 
-Root of a navigator subtree. Creates a fresh navigator state from `routes` and provides it (isolated per root). Throws if `initialRoute` is not in `routes`. Renders its `default` slot. Set `animated={false}` so navigations commit synchronously in tests.
-
-### Stack
-
-```ts
-const Stack: component<{
-    initialRoute?: string;
-    initialParams?: Record<string, unknown>;
-    initialSearch?: Record<string, unknown>;
-    maxRetainedScreens?: number;  // default: all, capped at MAX_LAYERS = 24
-}>
-```
-
-The stack navigator. In **bound mode** (no `initialRoute`) it renders the enclosing navigator's stack. In **nested-owner mode** (`initialRoute='…'`) it mints a fresh nested navigator (per-tab stacks); `useNav()` inside returns the nested nav and `nav.parent` is the enclosing one. `card` pushes stay local; `modal` / `fullScreen` / `transparent-modal` / `sheet` escalate to root; `replace` is strictly local. `maxRetainedScreens` bounds covered-card retention. The `default` slot is chrome rendered inside this stack's nav scope (e.g. a per-stack `<Header />`).
-
-### Screen
-
-```ts
-const Screen: ((props: {
-    title?: string | (() => string);
-    headerShown?: boolean;
-    gestureEnabled?: boolean;
-    snapPoints?: readonly number[];
-    initialSnapIndex?: number;
-    backdropDismiss?: boolean;
-    slots?: Partial<{ default: () => JSXElement | JSXElement[] | null }>;
-}) => JSXElement) & {
-    Header: ComponentFactory;
-    HeaderLeft: ComponentFactory;
-    HeaderRight: ComponentFactory;
-    TabBarItem: ComponentFactory;
-};
-```
-
-Declarative per-screen options plus slot fills, via `ScreenOptions` (title, `headerShown`, `gestureEnabled`, and the sheet props `snapPoints` / `initialSnapIndex` / `backdropDismiss`). Renders its `default` slot inline. Must mount inside a route component rendered by `Stack` (inside an `EntryScope`) or it throws; only patches the keys actually passed.
-
-### Screen.Header
-
-```ts
-Screen.Header: ComponentFactory<Define.Slot<'default'>>
-```
-
-Full header replacement. Renders `null` and writes its `default` slot into the entry's screen registry (`slots.header`).
-
-### Screen.HeaderLeft
-
-```ts
-Screen.HeaderLeft: ComponentFactory<Define.Slot<'default'>>
-```
-
-Left-side header content (e.g. a back-arrow override). Writes `slots.headerLeft` into the entry registry.
-
-### Screen.HeaderRight
-
-```ts
-Screen.HeaderRight: ComponentFactory<Define.Slot<'default'>>
-```
-
-Right-side header content (e.g. action buttons). Writes `slots.headerRight` into the entry registry.
-
-### Screen.TabBarItem
-
-```ts
-Screen.TabBarItem: ComponentFactory<Define.Slot<'default'>>
-```
-
-Scoped tab-bar item; its `default` slot is a function receiving `{ active }`. The built-in `TabBar` does not read this yet — it is exposed for custom `renderTab` consumers.
-
-### Header
-
-```ts
-const Header: component  // no props
-```
-
-The headless default navigator header chrome. If the focused entry set a `<Screen.Header>` slot it renders that; otherwise it renders `headerLeft` (a back button when `nav.canGoBack`), the title (`options.title` or the route name) and `headerRight`. Mounted once and reactively switches content. For a themed bar use `NavHeader` from [`@sigx/lynx-daisyui`](/lynx/modules/daisyui/overview) (same `useScreenChrome()` data source).
-
-### Tabs
-
-```ts
-const Tabs: component<{ initialTab?: string }> & {
-    Screen: component<{
-        name: string;            // required
-        icon?: IconSpec | JSXElement;
-        label?: string;
-        accessibilityLabel?: string;
-    }>;
-};
-```
-
-A persistent tab navigator. `<Tabs initialTab>` hosts `<Tabs.Screen name label icon accessibilityLabel>`. Tab bodies stay mounted (inactive ones `display:none`), preserving per-tab state. Drop a `<Stack initialRoute>` inside a `<Tabs.Screen>` for per-tab back-stacks. Provides `useTabs()`. The `Tabs.Screen` `name` is captured once at setup (remount to rename).
-
-### TabBar
-
-```ts
-const TabBar: component<{
-    renderTab?: (info: TabInfo, ctx: TabRenderContext) => JSXElement;
-}>
-```
-
-The headless default chrome for `Tabs` — unstyled buttons with accessibility wiring (label, element, trait, status, an opacity active marker, tap to switch). Pass `renderTab` to fully override per-item rendering. For a themed bar use `NavTabBar` from `@sigx/lynx-daisyui`.
-
-### Drawer
-
-```ts
-const Drawer: component<{
-    initialOpen?: boolean;
-    // slots: 'sidebar' and 'default'
-}>
-```
-
-A minimal off-canvas drawer navigator. The `sidebar` slot is the sidebar JSX (laid out absolutely on the left, toggled via display); the `default` slot is the main content (usually a `Stack`). Provides `useDrawer()`. Gesture-open and slide-in animation are deferred to apps.
-
-### Link
-
-```ts
-const Link: (props: LinkProps) => unknown
-```
-
-Declarative navigation — the JSX flavor of `nav.push`. Props (`LinkProps`): `to` (route name), `params` (required if and only if the route has a params schema), `search?`, `replace?` (uses `nav.replace`) and `children`. Same per-route conditional typing as `nav.push`. Wraps a native `<view>` firing push / replace on `bindtap`.
+Their prop types and related APIs remain documented below.
 
 ## Constants
 

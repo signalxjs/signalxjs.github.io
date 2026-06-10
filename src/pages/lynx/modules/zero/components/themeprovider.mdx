@@ -1,0 +1,111 @@
+---
+title: "ThemeProvider"
+description: "ThemeProvider — @sigx/lynx-zero component"
+layout: module-docs
+category: ["Components", "Theme"]
+order: 101
+---
+
+# ThemeProvider
+
+<p class="lede">Wraps a subtree and applies the active theme's palette as real, inheritable CSS custom properties (via the Lynx <code>setProperty</code> runtime API), so descendants inherit the theme's color, radius, and text tokens. Mount it once near the root of your app.</p>
+
+## Import
+
+```tsx
+import { ThemeProvider } from '@sigx/lynx-zero';
+```
+
+## Basic Usage
+
+A theme is a named palette registered at module load with [`registerTheme`](/lynx/modules/zero/api). Pin a single theme with `initial`, then mount the provider once near the root. The root provider (depth 0) binds the global singleton theme state, so headless [`themeController`](/lynx/modules/zero/api) mutations render and the OS bars track it.
+
+```tsx
+import { ThemeProvider, StatusBarSync } from '@sigx/lynx-zero';
+
+function App() {
+  return (
+    <ThemeProvider initial="my-light">
+      <StatusBarSync />
+      {/* app tree */}
+    </ThemeProvider>
+  );
+}
+```
+
+## Following the system scheme
+
+To track the OS light/dark setting, give the provider a `light` / `dark` pair instead of a pinned `initial` — the subtree recolors automatically when the OS scheme flips.
+
+```tsx
+import { ThemeProvider } from '@sigx/lynx-zero';
+
+function App() {
+  return (
+    <ThemeProvider light="my-light" dark="my-dark">
+      {/* recolors automatically when the OS scheme flips */}
+    </ThemeProvider>
+  );
+}
+```
+
+## Nested providers and font scale
+
+Nested providers are content sub-scopes — they recolor only their own subtree, which is handy for a preview pane or a deliberately inverted section. `fontScale` seeds the initial text-scale multiplier, re-emitting the `--text-*` ramp at `defaultPx * scale`.
+
+```tsx
+import { ThemeProvider, Col, Center } from '@sigx/lynx-zero';
+
+function PreviewPane() {
+  return (
+    <Col flex={1} background="base-100">
+      {/* this section is themed independently of the root */}
+      <ThemeProvider initial="my-dark" fontScale={1.2}>
+        <Center flex={1} background="base-200" borderRadius={12}>
+          <view class="text-base-content">Inverted preview</view>
+        </Center>
+      </ThemeProvider>
+    </Col>
+  );
+}
+```
+
+Read and mutate the active theme inside the provider with [`useTheme`](/lynx/modules/zero/api), which returns the nearest provider's controller (falling back to the global one).
+
+```tsx
+import { useTheme } from '@sigx/lynx-zero';
+
+function ThemeToggle() {
+  const theme = useTheme();
+  return (
+    <view bindtap={() => theme.toggle()}>
+      <view class="text-base-content">Theme: {theme.name}</view>
+    </view>
+  );
+}
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `initial` | `ThemeName` | Pins a theme, ignoring the system scheme. |
+| `light` | `ThemeName` | Theme used for the light scheme while following the system. |
+| `dark` | `ThemeName` | Theme used for the dark scheme while following the system. |
+| `fontScale` | `number` | Seeds the initial text-scale multiplier (re-emits the `--text-*` ramp at `defaultPx * scale`). |
+| `class` | `string` | Arbitrary extra classes, appended after the theme class. |
+| `style` | `Record<string, string \| number>` | Extra Lynx style entries applied to the host `<view>`. |
+
+`ThemeName` is `string & {}` — a plain string a DS layers a literal union on top of for autocomplete; multi-class names (e.g. `'daisy-light daisy-rounded'`) are accepted.
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The themed subtree; descendants inherit the applied `--color-*` / `--radius-*` / `--text-*` custom properties. |
+
+## See also
+
+- [StatusBarSync](/lynx/modules/zero/components/statusbarsync) — keeps the OS status/nav-bar tint legible against the active theme; mount once inside the root provider.
+- [API reference](/lynx/modules/zero/api) — `useTheme`, `themeController`, the theme registry and color helpers.
+- [Usage](/lynx/modules/zero/usage) — the theme engine end to end, including per-screen theming.

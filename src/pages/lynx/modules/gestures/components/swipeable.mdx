@@ -1,0 +1,145 @@
+---
+title: "Swipeable"
+description: "Swipeable — @sigx/lynx-gestures component"
+layout: module-docs
+category: ["Components", "Drag & swipe"]
+order: 103
+---
+
+# Swipeable
+
+<p class="lede">A horizontal swipe-to-reveal container built on <code>Gesture.Pan().axis('x')</code>. The pan tracking and foreground transform run on Lynx's main thread, so the row stays locked to the frame rate; on release it snaps to closed, open-left or open-right and emits <code>swipeOpen</code> / <code>swipeClose</code> to the background thread.</p>
+
+## Import
+
+```tsx
+import { Swipeable } from '@sigx/lynx-gestures';
+```
+
+## Basic usage
+
+The row content goes in the default slot. The reveal panels are render-prop functions passed to `leftActions` / `rightActions` — supply only the side(s) you want. On release the foreground snaps open once the drag passes `snapThreshold`, otherwise it springs back closed.
+
+```tsx
+import { Swipeable } from '@sigx/lynx-gestures';
+
+function InboxRow() {
+    return (
+        <Swipeable
+            rightActionsWidth={100}
+            snapThreshold={60}
+            rightActions={() => (
+                <view style={{ backgroundColor: 'crimson', justifyContent: 'center' }}>
+                    <text style={{ color: 'white' }}>Delete</text>
+                </view>
+            )}
+            onSwipeOpen={(e) => console.log('opened', e.side)}
+            onSwipeClose={() => console.log('closed')}
+        >
+            <view style={{ padding: '16px' }}>
+                <text>Swipe me left</text>
+            </view>
+        </Swipeable>
+    );
+}
+```
+
+The `swipeOpen` payload's `side` is `'left'` or `'right'` (a [`SwipeSide`](/lynx/modules/gestures/api)).
+
+## Actions on both sides
+
+Provide both `leftActions` and `rightActions` to reveal a panel in either direction, and size each independently with `leftActionsWidth` / `rightActionsWidth`. `snapDuration` controls how long the snap animation takes, and `foregroundStyle` styles the sliding foreground layer.
+
+```tsx
+import { Swipeable } from '@sigx/lynx-gestures';
+
+function MessageRow() {
+    return (
+        <Swipeable
+            leftActionsWidth={120}
+            rightActionsWidth={100}
+            snapThreshold={60}
+            snapDuration={200}
+            foregroundStyle={{ backgroundColor: 'white' }}
+            leftActions={() => (
+                <view style={{ backgroundColor: 'seagreen', justifyContent: 'center' }}>
+                    <text style={{ color: 'white' }}>Archive</text>
+                </view>
+            )}
+            rightActions={() => (
+                <view style={{ backgroundColor: 'crimson', justifyContent: 'center' }}>
+                    <text style={{ color: 'white' }}>Delete</text>
+                </view>
+            )}
+            onSwipeOpen={(e) => console.log('opened toward', e.side)}
+        >
+            <view style={{ padding: '16px' }}>
+                <text>Swipe either way</text>
+            </view>
+        </Swipeable>
+    );
+}
+```
+
+## Coordinating with a scrolling list
+
+Inside a list, wrap the rows in [`ScrollView`](/lynx/modules/gestures/api) from the same package. It provides a `ScrollContext` that descendant `Swipeable`s read automatically — they yield the native scroll while a horizontal swipe is in progress, so vertical scrolling and swipe-to-reveal don't fight each other. No extra wiring is required.
+
+```tsx
+import { ScrollView, Swipeable } from '@sigx/lynx-gestures';
+
+function Inbox({ rows }: { rows: string[] }) {
+    return (
+        <ScrollView>
+            {rows.map((label) => (
+                <Swipeable
+                    rightActionsWidth={100}
+                    rightActions={() => (
+                        <view style={{ backgroundColor: 'crimson', justifyContent: 'center' }}>
+                            <text style={{ color: 'white' }}>Delete</text>
+                        </view>
+                    )}
+                >
+                    <view style={{ padding: '16px' }}>
+                        <text>{label}</text>
+                    </view>
+                </Swipeable>
+            ))}
+        </ScrollView>
+    );
+}
+```
+
+> Keep the foreground `style` / `foregroundStyle` structurally stable across renders — a background `SET_STYLE` on the swiped element can clobber the main-thread transform writes.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `leftActionsWidth` | `number` | Width in CSS pixels of the left reveal panel. Default `100`. |
+| `rightActionsWidth` | `number` | Width in CSS pixels of the right reveal panel. Default `100`. |
+| `snapThreshold` | `number` | Drag distance past which the row snaps open on release rather than closed. Default `60`. |
+| `snapDuration` | `number` | Duration in ms of the snap animation. Default `200`. |
+| `leftActions` | `() => unknown` | Render-prop for the panel revealed when swiping right. Omit to disable the left side. |
+| `rightActions` | `() => unknown` | Render-prop for the panel revealed when swiping left. Omit to disable the right side. |
+| `foregroundStyle` | `Record<string, string \| number>` | Inline style applied to the sliding foreground layer. |
+| `class` | `string` | Extra CSS classes on the container. |
+| `style` | `Record<string, string \| number>` | Inline style on the container. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The row's foreground content that slides to reveal the action panels. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onSwipeOpen` | `(e: { side: SwipeSide }) => void` | Fired when the row snaps open. `side` is `'left'` or `'right'`. |
+| `onSwipeClose` | `() => void` | Fired when the row snaps back closed. |
+
+## See also
+
+- [Draggable](/lynx/modules/gestures/components/draggable) — free-axis dragging built on `Gesture.Pan()`.
+- [API reference](/lynx/modules/gestures/api) — `SwipeableProps`, `SwipeSide` and every other export, typed.

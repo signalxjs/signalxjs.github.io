@@ -1,0 +1,155 @@
+---
+title: "RichTextInput"
+description: "RichTextInput — @sigx/lynx-richtext component"
+layout: module-docs
+category: ["Components", "Editor"]
+order: 101
+---
+
+# RichTextInput
+
+<p class="lede">The typed SignalX wrapper over the native <code>sigx-richtext</code> element — a generic attributed-text input that decodes native events into typed shapes (<code>RichDoc</code>, <code>SelectionState</code>) before they reach your handlers, and delivers the element handle through <code>onElement</code> so you can drive it with commands. iOS + Android only.</p>
+
+## Import
+
+```tsx
+import { RichTextInput } from '@sigx/lynx-richtext';
+```
+
+The field renders an internal `sigx-richtext` element (backed by `UITextView` on iOS / `EditText` on Android) and knows nothing about markdown — it reads a flat [`RichDoc`](/lynx/modules/richtext/api#richdoc) model back out of its own text storage after each edit. It renders nothing meaningful under pure web/SSR; develop against a simulator or device.
+
+## Basic usage
+
+Capture the element handle through `onElement`, then pass it to every [`RichTextMethods`](/lynx/modules/richtext/api#richtextmethods) command. Commands are fire-and-forget — state flows back through `onChange` / `onSelection`, which are the editor's single source of truth:
+
+```tsx
+import { RichTextInput, RichTextMethods, type RichTextHandle } from '@sigx/lynx-richtext';
+
+function Composer() {
+  let el: RichTextHandle = null;
+
+  return (
+    <RichTextInput
+      placeholder="Write something…"
+      minHeight={40}
+      maxHeight={160}
+      onElement={(handle) => { el = handle; }}
+      onChange={(doc, isComposing) => {
+        // doc is a decoded RichDoc; do not echo writes while isComposing is true.
+      }}
+      onSelection={(sel) => {
+        // sel.activeFormats drives toolbar active state.
+      }}
+      onHeightChange={(height) => {
+        // auto-grow: apply height to the surrounding layout.
+      }}
+    />
+  );
+}
+
+// Issue commands separately; a null/undefined handle no-ops silently.
+RichTextMethods.toggleFormat(el, 'bold');
+RichTextMethods.setBlockType(el, 'heading', 2);
+RichTextMethods.insertText(el, '🎉');
+```
+
+## Driving a formatting toolbar
+
+`onSelection` delivers a [`SelectionState`](/lynx/modules/richtext/api#selectionstate) whose `activeFormats` and `activeBlock` reflect what covers the caret (or the typing attributes when collapsed). Mirror that into your toolbar and call back into `RichTextMethods` — you never track formatting yourself:
+
+```tsx
+import { RichTextInput, RichTextMethods, type RichTextHandle, type SelectionState } from '@sigx/lynx-richtext';
+
+function ToolbarComposer() {
+  let el: RichTextHandle = null;
+  let active: SelectionState['activeFormats'] = [];
+
+  return (
+    <view>
+      <RichTextInput
+        accentColor="#2563eb"
+        minHeight={48}
+        onElement={(handle) => { el = handle; }}
+        onSelection={(sel) => { active = sel.activeFormats; }}
+      />
+      <view bindtap={() => RichTextMethods.toggleFormat(el, 'bold')}>
+        <text>{active.includes('bold') ? 'Bold (on)' : 'Bold'}</text>
+      </view>
+      <view bindtap={() => RichTextMethods.setBlockType(el, 'bullet')}>
+        <text>Bullet list</text>
+      </view>
+    </view>
+  );
+}
+```
+
+## Programmatic content
+
+The `value` prop sets the **initial** document only — once the user has edited (or after any applied `setDocument`), it is ignored. Use [`RichTextMethods.setDocument`](/lynx/modules/richtext/api#richtextmethodssetdocument) for later replacement. A `RichDoc` passed to `value` is JSON-stringified for you; always pass an explicit `editable` boolean (`editable={undefined}` historically coerced to `false` on Android):
+
+```tsx
+import { RichTextInput, RichTextMethods, emptyDoc, type RichDoc, type RichTextHandle } from '@sigx/lynx-richtext';
+
+function DraftComposer(props: { initial: RichDoc }) {
+  let el: RichTextHandle = null;
+  let latest: RichDoc = props.initial;
+
+  function send() {
+    // Hand `latest` to your transport, then clear the field.
+    RichTextMethods.setDocument(el, emptyDoc());
+  }
+
+  return (
+    <view>
+      <RichTextInput
+        value={props.initial}
+        editable={true}
+        onElement={(handle) => { el = handle; }}
+        onChange={(doc, isComposing) => {
+          if (isComposing) return; // do not snapshot mid-composition
+          latest = doc;
+        }}
+      />
+      <view bindtap={send}>
+        <text>Send</text>
+      </view>
+    </view>
+  );
+}
+```
+
+## Props
+
+Every prop is optional. See [`RichTextInputProps`](/lynx/modules/richtext/api#richtextinputprops) for the full type.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `value` | `RichDoc \| string` | Initial document — a [`RichDoc`](/lynx/modules/richtext/api#richdoc) or JSON string. Initial-only; use [`setDocument`](/lynx/modules/richtext/api#richtextmethodssetdocument) for later replacement. A `RichDoc` is JSON-stringified for you. |
+| `placeholder` | `string` | Placeholder text shown when the field is empty. |
+| `editable` | `boolean` | Whether the field accepts edits. Defaults to `true`; pass an explicit boolean. |
+| `minHeight` | `number` | Minimum frame height in px (auto-grow lower bound). |
+| `maxHeight` | `number` | Maximum frame height in px; clamps the frame and enables internal scrolling past the ceiling. |
+| `fontSize` | `number` | Base font size in px; headings scale from it. |
+| `textColor` | `string` | Text color (hex `#RGB` / `#RRGGBB` / `#RRGGBBAA`, leading `#` optional). |
+| `accentColor` | `string` | Caret tint and link color (hex). |
+| `placeholderColor` | `string` | Placeholder text color (hex). |
+| `confirmType` | `'send' \| 'search' \| 'next' \| 'go' \| 'done'` | Keyboard return-key style. |
+| `autoFocus` | `boolean` | Raises the keyboard on mount. |
+| `class` | `string` | Standard styling class. |
+| `style` | `string \| Record<string, string \| number>` | Standard inline style. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onElement` | `(el: RichTextHandle) => void` | Receives the [`RichTextHandle`](/lynx/modules/richtext/api#richtexthandle) for command calls. |
+| `onChange` | `(doc: RichDoc, isComposing: boolean) => void` | Fired after every edit with a decoded [`RichDoc`](/lynx/modules/richtext/api#richdoc). Do not echo writes while `isComposing` is `true`. |
+| `onSelection` | `(sel: SelectionState) => void` | Caret/selection moved; drives toolbar active state and popup anchoring via [`SelectionState`](/lynx/modules/richtext/api#selectionstate). |
+| `onHeightChange` | `(height: number, lines: number) => void` | Intrinsic content height changed (auto-grow). |
+| `onFocus` | `() => void` | Fired when the field gains focus. |
+| `onBlur` | `() => void` | Fired when the field loses focus. |
+
+## See also
+
+- [API reference](/lynx/modules/richtext/api) — every export with signatures, including [`RichTextMethods`](/lynx/modules/richtext/api#richtextmethods) and the document/event types.
+- [Usage](/lynx/modules/richtext/usage) — links, mention chips, building a `RichDoc` by hand, and the IME/echo contract.

@@ -1,0 +1,135 @@
+---
+title: "EmojiPicker"
+description: "EmojiPicker — @sigx/lynx-emoji component"
+layout: module-docs
+category: ["Components", "Pickers"]
+order: 101
+---
+
+# EmojiPicker
+
+<p class="lede">The full headless emoji picker: a search row, a category tab bar, a recycled glyph grid, a skin-tone long-press popover and a persistent recents tab. Unstyled beyond neutral inline fallbacks — theme it via <code>classes</code>, render props or a themed wrapper. Pure JS, identical on iOS and Android.</p>
+
+## Import
+
+```tsx
+import { EmojiPicker } from '@sigx/lynx-emoji';
+```
+
+## Basic usage
+
+Give `EmojiPicker` a dataset and an `onPick` handler. Because it is a flex column, it must live in a bounded-height container — without a concrete height ceiling it resolves to zero height and nothing renders. The `enData` binding is the bundled English dataset (re-exported from the root); pass your own locale from `@sigx/lynx-emoji/data/<locale>` to tree-shake it away.
+
+```tsx
+import { EmojiPicker, enData } from '@sigx/lynx-emoji';
+
+function ReactionPicker({ onInsert }: { onInsert: (glyph: string) => void }) {
+  return (
+    <view style={{ height: '360px' }}>
+      <EmojiPicker
+        data={enData}
+        onPick={({ glyph }) => onInsert(glyph)}
+      />
+    </view>
+  );
+}
+```
+
+The `onPick` payload is an [`EmojiPickEvent`](/lynx/modules/emoji/api) carrying the `datum`, the tone-resolved `glyph` to insert, and the active `tone`. `data` is optional with an [`EmojiProvider`](/lynx/modules/emoji/api) in scope and required without — it is fixed at mount, and the picker throws if neither a `data` prop nor a provider is available.
+
+## Layout and labels
+
+`columns`, `cellSize`, `showRecents`, `showSearch`, `searchPlaceholder` and `emptyLabel` tune the surface without touching the theme. The grid defaults to `8` columns of `26`px cells; `emptyLabel` shows when the current slice is empty.
+
+```tsx
+import { EmojiPicker, enData } from '@sigx/lynx-emoji';
+
+function CompactPicker({ onInsert }: { onInsert: (glyph: string) => void }) {
+  return (
+    <view style={{ height: '320px' }}>
+      <EmojiPicker
+        data={enData}
+        columns={9}
+        cellSize={24}
+        showRecents
+        searchPlaceholder="Find an emoji"
+        emptyLabel="No matches"
+        onPick={({ glyph }) => onInsert(glyph)}
+      />
+    </view>
+  );
+}
+```
+
+## Theming
+
+The picker is headless with neutral inline-style fallbacks only. There are two theming surfaces: the `classes` slot map ([`EmojiSlotClasses`](/lynx/modules/emoji/api), 13 slots — `root`, `search`, `grid`, `cell`, and so on) and the three render props (`renderCell`, `renderCategoryTab`, `renderSearchInput`). When a class is supplied for a slot, that slot's inline fallback style is dropped. `@sigx/lynx-daisyui` ships a ready-made skin.
+
+```tsx
+import { EmojiPicker, enData } from '@sigx/lynx-emoji';
+import { EmojiPickerSheet, emojiClasses } from '@sigx/lynx-daisyui';
+
+function Themed({ insert }: { insert: (glyph: string) => void }) {
+  return (
+    <view style={{ height: '360px' }}>
+      <EmojiPicker
+        data={enData}
+        classes={emojiClasses}
+        onPick={({ glyph }) => insert(glyph)}
+      />
+    </view>
+  );
+}
+```
+
+A theme package can also extend props onto `EmojiPickerProps` by augmenting the empty `EmojiPropsExtensions` interface (the `declare module '@sigx/lynx-emoji'` pattern).
+
+## Sharing recents across surfaces
+
+With no provider in scope, `EmojiPicker` builds a private context from its `data` prop. When more than one picker surface exists, wrap them in an [`EmojiProvider`](/lynx/modules/emoji/api) so they share one dataset, search index, recents list and skin-tone preference. The provider wins over a local `data` prop, so the surfaces below need no `data` of their own.
+
+```tsx
+import { EmojiProvider, EmojiPicker, enData } from '@sigx/lynx-emoji';
+
+function Pickers({ insert }: { insert: (glyph: string) => void }) {
+  return (
+    <EmojiProvider data={enData} recentsCap={48}>
+      <view style={{ height: '360px' }}>
+        <EmojiPicker onPick={({ glyph }) => insert(glyph)} />
+      </view>
+    </EmojiProvider>
+  );
+}
+```
+
+For chat-composer and bottom-sheet presentations, prefer the [`KeyboardPanelPicker`](/lynx/modules/emoji/api) and [`SheetPicker`](/lynx/modules/emoji/api) wrappers, which size themselves and accept every `EmojiPickerProps` field except `style` and `onPick`.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `data` | `EmojiData` | Locale dataset, fixed at mount. Optional with an `EmojiProvider` in scope, required without. Default: `enData` when imported. |
+| `columns` | `number` | Grid columns. Default `8`. |
+| `showRecents` | `boolean` | Show the persistent recents tab. Default `true`. |
+| `showSearch` | `boolean` | Show the search row. Default `true`. |
+| `searchPlaceholder` | `string` | Placeholder text for the search field. |
+| `emptyLabel` | `string` | Shown when the current slice is empty. |
+| `cellSize` | `number` | Glyph cell size in px. Default `26`. |
+| `classes` | `EmojiSlotClasses` | Per-slot class overrides (13 slots); supplying a slot class drops its inline fallback. |
+| `class` | `string` | Extra classes on the picker root. |
+| `style` | `Record<string, string \| number>` | Inline style on the picker root. |
+| `renderCell` | `EmojiRenderCell` | Replaces a grid cell's content: `(datum, glyph) => JSXElement`. |
+| `renderCategoryTab` | `EmojiRenderCategoryTab` | Replaces a category tab's content: `(tab, glyph, active) => JSXElement`. |
+| `renderSearchInput` | `EmojiRenderSearchInput` | Replaces the whole search row, driven by an `EmojiSearchApi`. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onPick` | `(event: EmojiPickEvent) => void` | Fired when an emoji is picked. The payload carries `datum`, the tone-resolved `glyph` to insert, and the active `tone`. |
+
+## See also
+
+- [API reference](/lynx/modules/emoji/api) — every export, typed (`EmojiPickerProps`, `EmojiPickEvent`, the render-prop and theming types).
+- [Usage](/lynx/modules/emoji/usage) — guides and complete examples, including the keyboard panel, bottom sheet and markdown integration.
+- [EmojiProvider](/lynx/modules/emoji/api) — share recents and skin tones across multiple picker surfaces.

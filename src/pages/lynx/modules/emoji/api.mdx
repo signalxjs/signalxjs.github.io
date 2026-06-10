@@ -16,81 +16,21 @@ The package is named-exports only; there is no default export at the root. Three
 
 ## Components
 
-### EmojiPicker
+Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/emoji/components) catalog:
 
-The full headless picker: search row, category tab bar, recycled glyph grid, skin-tone long-press popover and a persistent recents tab. Unstyled beyond neutral inline fallbacks — theme via `classes` / render props or a themed wrapper. Must be given a bounded-height container (it is a flex column). Builds a private context from its `data` prop, or consumes an `<EmojiProvider>` if one is in scope (the provider wins). Throws if neither a `data` prop nor a provider is available. Platform: both.
+- [**EmojiPicker**](/lynx/modules/emoji/components/emojipicker) — the full headless picker: search row, category tab bar, recycled glyph grid, skin-tone popover and a persistent recents tab.
+- [**KeyboardPanelPicker**](/lynx/modules/emoji/components/keyboardpanelpicker) — chat-composer wrapper: a panel occupying exactly the soft keyboard's space, so toggling emoji and keyboard does not shift the composer.
+- [**SheetPicker**](/lynx/modules/emoji/components/sheetpicker) — overlay wrapper: a bottom sheet over a dimmed backdrop, for a reaction picker or one-off use.
+- [**EmojiGrid**](/lynx/modules/emoji/components/emojigrid) — the headless grid: a native `<list>` recycler in flow layout, so only on-screen cells exist regardless of count.
+- [**EmojiCell**](/lynx/modules/emoji/components/emojicell) — one grid cell: a `Pressable` glyph; tap picks, long-press emits `pickTone` when the emoji has uniform tone variants.
+- [**CategoryTabBar**](/lynx/modules/emoji/components/categorytabbar) — the headless category jump bar: a horizontal scroll-view row of glyph tabs that filter which category the grid shows.
+- [**SearchInput**](/lynx/modules/emoji/components/searchinput) — the headless search field: a bare two-way-bound `<input>` with a neutral fallback border when no `class` is given.
+- [**SkinTonePopover**](/lynx/modules/emoji/components/skintonepopover) — the skin-tone chooser: a centered overlay row of the base glyph plus its five uniform variants, shown on cell long-press.
+- [**EmojiProvider**](/lynx/modules/emoji/components/emojiprovider) — optional app-level provider that shares one dataset, search index, recents list and skin-tone preference across every picker surface via DI.
 
-```ts
-export const EmojiPicker: Component<EmojiPickerProps>;
-```
-
-### EmojiGrid
-
-The headless grid: a native `<list>` recycler in flow layout, so only on-screen cells exist regardless of count. `class` / `style` land on a self-measuring wrapper that pins the list to a concrete px height (flex / percent on the native list resolve to zero). First paint is one frame after mount. Platform: both.
-
-```ts
-export const EmojiGrid: Component<EmojiGridProps>;
-```
-
-### EmojiCell
-
-One grid cell: a `Pressable` glyph, accessibility-labeled with `datum.n`. Tap picks; long-press emits `pickTone`, but only when the emoji has uniform tone variants (`datum.s`). Platform: both.
-
-```ts
-export const EmojiCell: Component<EmojiCellProps>;
-```
-
-### CategoryTabBar
-
-The headless category jump bar: a horizontal scroll-view row of glyph tabs. Selecting a tab switches which category the grid shows (filter-based — no scroll-position sync, to stay headless and cheap). Platform: both.
-
-```ts
-export const CategoryTabBar: Component<CategoryTabBarProps>;
-```
-
-### SearchInput
-
-The headless search field: a bare two-way-bound `<input>` (`confirm-type="search"`). A neutral border / padding fallback applies only when no `class` is given; the default placeholder is `Search emoji`. Platform: both.
-
-```ts
-export const SearchInput: Component<SearchInputProps>;
-```
-
-### SkinTonePopover
-
-The skin-tone chooser: a centered overlay row of the base glyph plus its five uniform variants, shown on cell long-press. Selecting one both inserts and sets the sticky preference. A backdrop tap dismisses. Rendered `position:absolute` within the picker root (no portal / caret math). Platform: both.
-
-```ts
-export const SkinTonePopover: Component<SkinTonePopoverProps>;
-```
-
-## Wrappers
-
-### KeyboardPanelPicker
-
-Chat-composer presentation: a panel occupying exactly the soft keyboard's space, so toggling emoji and keyboard does not shift the composer. Place it as the last child of a `<KeyboardStickyView>`; the keyboard height comes from `useKeyboard()` (needs a `<SafeAreaProvider>` ancestor) and the largest height seen is remembered. Renders `display:none` when closed. Accepts every `EmojiPickerProps` field except `style` and `onPick`. Platform: both.
-
-```ts
-export const KeyboardPanelPicker: Component<KeyboardPanelPickerProps>;
-```
-
-### SheetPicker
-
-Overlay presentation: a bottom sheet over a dimmed backdrop, for a reaction picker or one-off use (for a chat composer prefer `KeyboardPanelPicker`). A backdrop tap closes; sheet taps do not propagate. Mount it near the screen root so its `position:absolute` covers the screen. Renders `display:none` when closed. Platform: both.
-
-```ts
-export const SheetPicker: Component<SheetPickerProps>;
-```
+Their prop types and related APIs remain documented below.
 
 ## State
-
-### EmojiProvider
-
-Optional app-level provider that shares one dataset, search index, recents list and skin-tone preference across every picker surface via DI. Renders no element of its own (only its default slot). Use it when more than one surface exists so recents stay in sync without each re-hydrating. Platform: both.
-
-```ts
-export const EmojiProvider: Component<EmojiProviderProps>;
-```
 
 ### createEmojiContext
 

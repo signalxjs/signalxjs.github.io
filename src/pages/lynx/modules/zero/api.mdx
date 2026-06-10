@@ -16,6 +16,20 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 Most exports live on the main barrel. The Tailwind preset is a **subpath-only** export (`@sigx/lynx-zero/preset`), and `useScreenTheme` is exposed from its own subpath (`@sigx/lynx-zero/screen-theme`) because it depends on the optional `@sigx/lynx-navigation` peer.
 
+## Components
+
+Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/zero/components) catalog:
+
+- [**ThemeProvider**](/lynx/modules/zero/components/themeprovider) — applies a theme's CSS vars to a subtree; the root provider binds the global singleton, nested providers are content sub-scopes.
+- [**StatusBarSync**](/lynx/modules/zero/components/statusbarsync) — side-effect-only component that keeps the OS status / navigation bar tint legible against the active global theme.
+- [**Row**](/lynx/modules/zero/components/row) — flex-row container (`flexDirection: row`).
+- [**Col**](/lynx/modules/zero/components/col) — flex-column container (`flexDirection: column`).
+- [**Center**](/lynx/modules/zero/components/center) — flex container centering its children on both axes.
+- [**Spacer**](/lynx/modules/zero/components/spacer) — spacing element: a fixed square of `size`, or `flex: 1` to fill when `size` is omitted.
+- [**ScrollView**](/lynx/modules/zero/components/scrollview) — scrollable container over the Lynx `<scroll-view>`.
+
+Their prop types and related APIs remain documented below.
+
 ## Entry points
 
 ```ts
@@ -274,14 +288,6 @@ Provides a `TabsSelection` for the subtree. Call it from the DS `Tabs` container
 
 The theme runtime and registry. `ThemeProvider` applies a theme's CSS vars to a subtree; `themeController` / `useTheme` read and mutate the active theme; the registry functions register, derive and inspect themes; and the color helpers resolve the palette to concrete literals for native widgets that cannot read CSS vars.
 
-### ThemeProvider
-
-```ts
-const ThemeProvider: Component<ThemeProviderProps>;
-```
-
-Wraps children in `<view class={theme}>` and applies the theme CSS vars (via the Lynx `setProperty` runtime API), so descendants inherit `--color-*` / `--radius-*` / `--text-*`. The root provider (depth 0) binds the global singleton; nested providers are content sub-scopes. Platform: iOS and Android.
-
 ### ThemeProviderProps
 
 ```ts
@@ -296,14 +302,6 @@ type ThemeProviderProps =
 ```
 
 ThemeProvider props. `initial` pins a theme (ignoring the system); `light` / `dark` are the choices used while following the system; `fontScale` seeds the initial text-scale multiplier.
-
-### StatusBarSync
-
-```ts
-const StatusBarSync: Component<StatusBarSyncProps>;
-```
-
-Side-effect-only component that keeps the OS status / navigation bar tint legible against the active **global** theme (light theme to dark icons, dark to light). Renders a zero-size placeholder; mount once inside `ThemeProvider`. Platform: iOS and Android.
 
 ### StatusBarSyncProps
 
@@ -572,14 +570,6 @@ Pins the **global** theme while a navigation screen is focused, and restores it 
 
 Flexbox containers and a spacer, built on Lynx views, that consume the shared box-model / spacing helpers. Each accepts `class` for arbitrary extra utilities.
 
-### Row
-
-```ts
-const Row: Component<RowProps>;
-```
-
-Flex-row container (`flexDirection: row`). Platform: iOS and Android.
-
 ### RowProps
 
 ```ts
@@ -601,14 +591,6 @@ type RowProps =
 
 Row props.
 
-### Col
-
-```ts
-const Col: Component<ColProps>;
-```
-
-Flex-column container (`flexDirection: column`). Platform: iOS and Android.
-
 ### ColProps
 
 ```ts
@@ -616,14 +598,6 @@ type ColProps = /* identical shape to RowProps */;
 ```
 
 Col props — identical shape to `RowProps`.
-
-### Center
-
-```ts
-const Center: Component<CenterProps>;
-```
-
-Flex container centering its children on both axes (`justifyContent` + `alignItems` center). Platform: iOS and Android.
 
 ### CenterProps
 
@@ -640,14 +614,6 @@ type CenterProps =
 
 Center props.
 
-### Spacer
-
-```ts
-const Spacer: Component<SpacerProps>;
-```
-
-Spacing element: a fixed square of `size` (width + height), or `flex: 1` to fill when `size` is omitted. Platform: iOS and Android.
-
 ### SpacerProps
 
 ```ts
@@ -657,14 +623,6 @@ type SpacerProps =
 ```
 
 Spacer props (no default slot).
-
-### ScrollView
-
-```ts
-const ScrollView: Component<ScrollViewProps>;
-```
-
-Scrollable container over the Lynx `<scroll-view>`; `direction` defaults to vertical, setting `scroll-orientation` / `scroll-x` / `scroll-y` accordingly. Platform: iOS and Android.
 
 ### ScrollViewProps
 

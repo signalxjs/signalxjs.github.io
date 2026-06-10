@@ -1,0 +1,62 @@
+---
+title: "Link"
+description: "Link — @sigx/lynx-navigation component"
+layout: module-docs
+category: ["Components", "Linking"]
+order: 108
+---
+
+# Link
+
+<p class="lede">Declarative navigation — the JSX flavor of <code>nav.push</code>. Render a <code>&lt;Link to="…"&gt;</code> and a tap pushes (or replaces) that route, with the same per-route param inference as the imperative <a href="/lynx/modules/navigation/api">Nav</a> API.</p>
+
+## Import
+
+```tsx
+import { Link } from '@sigx/lynx-navigation';
+```
+
+## Basic usage
+
+`Link` wraps a native `<view>` that fires `nav.push` on `bindtap`. The `to` prop is a registered route name, and — exactly like [`nav.push`](/lynx/modules/navigation/api) — `params` is required if and only if that route declares a `params` schema. Route names, params and search are all inferred from your augmented `Register` route map, so a wrong route name or a missing/extra param is a TypeScript error.
+
+```tsx
+import { Link } from '@sigx/lynx-navigation';
+
+// `profile` declares a params schema → `params` is required.
+<Link to="profile" params={{ id: 'alice' }} search={{ tab: 'about' }}>
+  Open Alice
+</Link>;
+
+// `home` has no params schema → `params` is forbidden.
+<Link to="home">Go home</Link>;
+```
+
+## Replacing instead of pushing
+
+Pass `replace` to navigate with `nav.replace` rather than `nav.push` — useful for "reset" style links that should not add a back-stack entry.
+
+```tsx
+import { Link } from '@sigx/lynx-navigation';
+
+<Link to="home" replace>Reset</Link>;
+```
+
+Because `Link` resolves the navigator from context, it must be rendered inside a [`NavigationRoot`](/lynx/modules/navigation/api) subtree — see [Usage](/lynx/modules/navigation/usage) for the full setup.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `to` | `RouteId` | The target route name. Must be a registered route; inferred from your augmented `Register` route map. |
+| `params` | `RouteParams<K>` | Route params. Required exactly when the route `to` declares a `params` schema; forbidden otherwise. |
+| `search` | `RouteSearch<K>` | Optional typed search / query params for the route. |
+| `replace` | `boolean` | Navigate with `nav.replace` instead of `nav.push` (no new back-stack entry). |
+| `children` | `unknown` | The link content rendered inside the native `<view>`. |
+
+The full prop type is [`LinkProps`](/lynx/modules/navigation/api) — `LinkPropsByRoute & { replace?: boolean; children?: unknown }`, where `LinkPropsByRoute` conditionally requires `params` per route. It mirrors the per-route overloads of [`Nav.push`](/lynx/modules/navigation/api).
+
+## See also
+
+- [Usage](/lynx/modules/navigation/usage) — the typed-routes setup and the imperative `useNav` API.
+- [API reference](/lynx/modules/navigation/api) — `Link`, `LinkProps`, `Nav` and every related type.

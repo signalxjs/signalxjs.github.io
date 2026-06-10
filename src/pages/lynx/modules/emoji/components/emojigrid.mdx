@@ -1,0 +1,113 @@
+---
+title: "EmojiGrid"
+description: "EmojiGrid — @sigx/lynx-emoji component"
+layout: module-docs
+category: ["Components", "Parts"]
+order: 104
+---
+
+# EmojiGrid
+
+<p class="lede">The headless recycled glyph grid — a native <code>&lt;list&gt;</code> recycler in flow layout, so only the on-screen cells exist regardless of how many emoji you feed it. One of the parts <a href="/lynx/modules/emoji/components/emojipicker">EmojiPicker</a> is assembled from, for when you want a custom layout.</p>
+
+## Import
+
+```tsx
+import { EmojiGrid } from '@sigx/lynx-emoji';
+```
+
+## Basic usage
+
+`EmojiGrid` takes a flat array of `EmojiDatum` and renders them as a tappable recycler. Because flex / percent heights on the native list resolve to zero, `class` and `style` land on a self-measuring wrapper that pins the list to a concrete px height — first paint is one frame after mount. `onPick` fires on tap; `onPickTone` fires on long-press of a tonal emoji (one that has uniform skin-tone variants).
+
+```tsx
+import { EmojiGrid, enData } from '@sigx/lynx-emoji';
+
+function AllEmoji({ onPick }: { onPick: (glyph: string) => void }) {
+    return (
+        <view style={{ height: '320px' }}>
+            <EmojiGrid
+                emojis={enData.emojis}
+                columns={8}
+                cellSize={26}
+                onPick={(datum) => onPick(datum.e)}
+            />
+        </view>
+    );
+}
+```
+
+## Driving it from a context
+
+`EmojiGrid` is one of the parts `EmojiPicker` composes. To build a custom surface, wire it against a context from [`createEmojiContext`](/lynx/modules/emoji/api#createemojicontext) (or one read from an [`EmojiProvider`](/lynx/modules/emoji/components/emojiprovider) via `useEmojiContext`). The `skinTone` store gives you the sticky grid-wide `tone`, and `recents.push` records a pick — here a recents strip:
+
+```tsx
+import { EmojiGrid, createEmojiContext, enData } from '@sigx/lynx-emoji';
+
+function RecentStrip() {
+    const ctx = createEmojiContext(enData, { recentsCap: 16 });
+    const tone = ctx.skinTone.state.tone;
+
+    return (
+        <EmojiGrid
+            emojis={ctx.recents.recents}
+            tone={tone}
+            columns={8}
+            cellSize={26}
+            onPick={(datum) => ctx.recents.push(datum)}
+        />
+    );
+}
+```
+
+The `tone` prop selects which skin-tone variant a cell renders; `glyphForTone(datum, tone)` is what resolves it internally, falling back to the base glyph for non-tonal emoji. Long-press a tonal emoji and `onPickTone` fires with that datum so you can open a [`SkinTonePopover`](/lynx/modules/emoji/components/skintonepopover).
+
+## Custom cells
+
+Pass `renderCell` to replace a cell's content (it renders inside the cell's `Pressable`), and `cellClass` to theme each cell:
+
+```tsx
+import { EmojiGrid, enData } from '@sigx/lynx-emoji';
+import { Text } from '@sigx/lynx-heroui';
+
+function LabeledGrid() {
+    return (
+        <view style={{ height: '320px' }}>
+            <EmojiGrid
+                emojis={enData.emojis}
+                cellClass="emoji-cell"
+                renderCell={(datum, glyph) => <Text>{glyph}</Text>}
+                onPick={(datum) => console.log(datum.n)}
+            />
+        </view>
+    );
+}
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `emojis` | `EmojiDatum[]` | **Required.** The emoji to render, as a flat array (e.g. a category slice, search hits, or recents). |
+| `tone` | `SkinTone` | Skin tone applied grid-wide; `0` is the base glyph, `1..5` are light to dark. Default `0`. |
+| `columns` | `number` | Number of columns in the flow layout. Default `8`. |
+| `cellSize` | `number` | Cell edge length in px. Default `26`. |
+| `class` | `string` | Classes on the self-measuring wrapper that pins the list height. |
+| `cellClass` | `string` | Classes applied to each cell. |
+| `renderCell` | `EmojiRenderCell` | `(datum, glyph) => JSXElement` — replaces a cell's content (rendered inside the cell's `Pressable`). |
+| `style` | `Record<string, string \| number>` | Inline style on the wrapper. |
+
+`SkinTone`, `EmojiDatum` and `EmojiRenderCell` are documented in the [API reference](/lynx/modules/emoji/api).
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onPick` | `(datum: EmojiDatum) => void` | Fired on tap, with the tapped emoji. |
+| `onPickTone` | `(datum: EmojiDatum) => void` | Fired on long-press of a tonal emoji (one with uniform tone variants, `datum.s`), to open a skin-tone chooser. |
+
+## See also
+
+- [EmojiPicker](/lynx/modules/emoji/components/emojipicker) — the full picker that composes this grid.
+- [API reference](/lynx/modules/emoji/api#emojigridprops) — `EmojiGridProps`, typed.
+- [Usage](/lynx/modules/emoji/usage#composing-the-parts) — composing the headless parts.

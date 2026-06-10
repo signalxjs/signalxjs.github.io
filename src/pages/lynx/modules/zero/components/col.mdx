@@ -1,0 +1,89 @@
+---
+title: "Col"
+description: "Col — @sigx/lynx-zero component"
+layout: module-docs
+category: ["Components", "Layout"]
+order: 104
+---
+
+# Col
+
+<p class="lede">DS-neutral flex-column container (`flexDirection: column`). One of Zero's layout primitives — it stacks its children vertically and resolves `background` through the semantic color contract, so a token like `base-100` or `primary` works under whatever theme is active.</p>
+
+## Import
+
+```tsx
+import { Col } from '@sigx/lynx-zero';
+```
+
+## Basic Usage
+
+`Col` lays its children out in a column. Use `gap` for spacing between children, `align` / `justify` to position them on the cross / main axis, and the box-model props (`padding`, `margin`, `background`, `borderRadius`, `width`, `height`, `flex`) to shape the container. `background` accepts a semantic color token or any raw CSS color string.
+
+```tsx
+import { Col } from '@sigx/lynx-zero';
+
+function Card() {
+  return (
+    <Col gap={4} padding={{ x: 16, y: 12 }} background="base-200" borderRadius={12}>
+      <text>Title</text>
+      <text>Body copy</text>
+    </Col>
+  );
+}
+```
+
+`padding` and `margin` accept a single number (applied to all sides) or a `{ x, y, top, right, bottom, left }` object.
+
+## Filling and aligning
+
+Pass `flex` to make a `Col` grow inside a parent flex chain, and use `align` / `justify` to position its children. The primitives write flex in long form (`flexGrow` / `flexShrink` / `flexBasis: 0` / `minHeight: 0`) under the hood, because Lynx expands `flex: 1` to `flex: 1 1 auto`, which collapses a nested flex chain.
+
+```tsx
+import { Col, Row, Spacer } from '@sigx/lynx-zero';
+
+function Sidebar() {
+  return (
+    <Col flex={1} gap={12} padding={16} background="base-100">
+      <Row align="center" justify="space-between">
+        <text>Menu</text>
+      </Row>
+      <Spacer />
+      <text>Footer</text>
+    </Col>
+  );
+}
+```
+
+`Col` shares the exact prop set of [`Row`](/lynx/modules/zero/components/row) — only the flex direction differs. For both-axis centering reach for [`Center`](/lynx/modules/zero/components/center); for vertical scrolling wrap your `Col` in [`ScrollView`](/lynx/modules/zero/components/scrollview).
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `gap` | `number` | Space between children, in px. |
+| `align` | `'flex-start' \| 'center' \| 'flex-end' \| 'stretch' \| 'baseline'` | Cross-axis (horizontal) alignment of children. |
+| `justify` | `'flex-start' \| 'center' \| 'flex-end' \| 'space-between' \| 'space-around' \| 'space-evenly'` | Main-axis (vertical) distribution of children. |
+| `wrap` | `boolean` | Allow children to wrap onto multiple lines. |
+| `padding` | `SpacingValue` | Inner padding — a number for all sides, or a `{ x, y, top, right, bottom, left }` object. |
+| `margin` | `SpacingValue` | Outer margin — same shape as `padding`. |
+| `width` | `number \| string` | Container width. |
+| `height` | `number \| string` | Container height. |
+| `flex` | `number` | Flex grow factor (written long-form to avoid Lynx flex-collapse). |
+| `background` | `BackgroundValue` | A semantic [color token](/lynx/modules/zero/api) (e.g. `base-100`, `primary`) or any raw CSS color string. |
+| `borderRadius` | `number` | Corner radius, in px. |
+| `class` | `string` | Extra CSS classes appended after the computed ones. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The column's children, laid out top to bottom. |
+
+## See also
+
+- [`Row`](/lynx/modules/zero/components/row) — flex-row container with the identical prop set.
+- [`Center`](/lynx/modules/zero/components/center) — centers children on both axes.
+- [`Spacer`](/lynx/modules/zero/components/spacer) — fixed or flexible spacing element.
+- [`ScrollView`](/lynx/modules/zero/components/scrollview) — scrollable container.
+- [API reference](/lynx/modules/zero/api) — `ColProps`, `SpacingValue`, `BackgroundValue` and the color contract.

@@ -1,0 +1,132 @@
+---
+title: "KeyboardPanelPicker"
+description: "KeyboardPanelPicker — @sigx/lynx-emoji component"
+layout: module-docs
+category: ["Components", "Pickers"]
+order: 102
+---
+
+# KeyboardPanelPicker
+
+<p class="lede">A chat-composer presentation of the emoji picker: a panel that occupies exactly the soft keyboard's space, so toggling between emoji and keyboard never shifts the composer. It renders <code>display:none</code> when closed and remembers the largest keyboard height it has seen.</p>
+
+## Import
+
+```tsx
+import { KeyboardPanelPicker } from '@sigx/lynx-emoji';
+```
+
+## Basic usage
+
+Place `KeyboardPanelPicker` as the last child of a `<KeyboardStickyView>`, under the input row. The keyboard height comes from `useKeyboard()`, which needs a `<SafeAreaProvider>` ancestor. Drive its visibility with the required `open` prop and listen for picks with `onPick`:
+
+```tsx
+import { KeyboardPanelPicker, enData } from '@sigx/lynx-emoji';
+import { KeyboardStickyView } from '@sigx/lynx-keyboard';
+import { signal } from '@sigx/reactivity';
+
+function ChatComposer({ insert }: { insert: (glyph: string) => void }) {
+    const emojiOpen = signal(false);
+
+    return (
+        <KeyboardStickyView>
+            <view style={{ flexDirection: 'row' }}>
+                {/* text input + a button that toggles emojiOpen.value */}
+            </view>
+            <KeyboardPanelPicker
+                open={emojiOpen.value}
+                data={enData}
+                fallbackHeight={300}
+                onPick={({ glyph }) => insert(glyph)}
+            />
+        </KeyboardStickyView>
+    );
+}
+```
+
+`fallbackHeight` (default 300) is used before the keyboard has ever opened, so the panel has a sensible size on first toggle. Unlike a bare [`EmojiPicker`](/lynx/modules/emoji/components/emojipicker), the panel sizes itself — you do not need to wrap it in a bounded-height container.
+
+## Inherited picker props
+
+`KeyboardPanelPicker` accepts every [`EmojiPickerProps`](/lynx/modules/emoji/api#emojipickerprops) field **except `style` and `onPick`** (it owns both). That includes the data, layout and theming surface — `columns`, `cellSize`, `showSearch`, `showRecents`, `searchPlaceholder`, `emptyLabel`, the `classes` slot map, and the `renderCell` / `renderCategoryTab` / `renderSearchInput` render props. Theme it the same way you would an inline picker:
+
+```tsx
+import { KeyboardPanelPicker, enData } from '@sigx/lynx-emoji';
+import { emojiClasses } from '@sigx/lynx-daisyui';
+import { KeyboardStickyView } from '@sigx/lynx-keyboard';
+
+function ThemedPanel({ open, insert }: { open: boolean; insert: (g: string) => void }) {
+    return (
+        <KeyboardStickyView>
+            <KeyboardPanelPicker
+                open={open}
+                data={enData}
+                columns={9}
+                classes={emojiClasses}
+                onPick={({ glyph }) => insert(glyph)}
+            />
+        </KeyboardStickyView>
+    );
+}
+```
+
+## Sharing recents with other surfaces
+
+With an [`EmojiProvider`](/lynx/modules/emoji/components/emojiprovider) in scope the panel needs no `data` prop — it reads the shared dataset, search index, recents list and skin-tone preference, so a composer panel and a [`SheetPicker`](/lynx/modules/emoji/components/sheetpicker) stay in sync:
+
+```tsx
+import { EmojiProvider, KeyboardPanelPicker, enData } from '@sigx/lynx-emoji';
+import { KeyboardStickyView } from '@sigx/lynx-keyboard';
+import { signal } from '@sigx/reactivity';
+
+function Composer({ insert }: { insert: (glyph: string) => void }) {
+    const open = signal(false);
+
+    return (
+        <EmojiProvider data={enData} recentsCap={48}>
+            <KeyboardStickyView>
+                <KeyboardPanelPicker
+                    open={open.value}
+                    onPick={({ glyph }) => insert(glyph)}
+                />
+            </KeyboardStickyView>
+        </EmojiProvider>
+    );
+}
+```
+
+## Props
+
+`KeyboardPanelPicker` is `Omit<EmojiPickerProps, 'style' | 'onPick'>` plus the three fields below. See [`EmojiPickerProps`](/lynx/modules/emoji/api#emojipickerprops) for the full inherited set.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `open` | `boolean` | **Required.** Whether the panel is shown. When `false` it renders `display:none`. |
+| `fallbackHeight` | `number` | Panel height (px) used before the keyboard has ever opened. Default `300`. |
+| `data` | `EmojiData` | Locale dataset, fixed at mount. Optional with an `<EmojiProvider>` in scope, required without. |
+| `columns` | `number` | Grid column count. Default `8`. |
+| `cellSize` | `number` | Glyph cell size in px. Default `26`. |
+| `showRecents` | `boolean` | Whether the persistent recents tab is shown. Default `true`. |
+| `showSearch` | `boolean` | Whether the search row is shown. Default `true`. |
+| `searchPlaceholder` | `string` | Placeholder for the search field. |
+| `emptyLabel` | `string` | Shown when the current category slice is empty. |
+| `classes` | `EmojiSlotClasses` | Per-slot class overrides (13 slots) — the theming surface. |
+| `class` | `string` | Class on the picker root. |
+| `renderCell` | `EmojiRenderCell` | Replace a grid cell's content. |
+| `renderCategoryTab` | `EmojiRenderCategoryTab` | Replace a category tab's content. |
+| `renderSearchInput` | `EmojiRenderSearchInput` | Replace the whole search row. |
+
+> `style` and `onPick` from `EmojiPickerProps` are intentionally excluded — the wrapper controls the panel's box, and `onPick` is redeclared as the event below.
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onPick` | `(event: EmojiPickEvent) => void` | Fired when an emoji is chosen. The [`EmojiPickEvent`](/lynx/modules/emoji/api#emojipickevent) carries the `datum`, the tone-resolved `glyph` to insert, and the active `tone`. |
+
+## See also
+
+- [API reference](/lynx/modules/emoji/api#keyboardpanelpickerprops) — the typed `KeyboardPanelPickerProps`.
+- [Usage](/lynx/modules/emoji/usage#a-chat-composer-keyboard-panel) — the full chat-composer guide.
+- [SheetPicker](/lynx/modules/emoji/components/sheetpicker) — bottom-sheet presentation for one-off / reaction pickers.
+- [Keyboard](/lynx/modules/keyboard/overview) — `useKeyboard` / `KeyboardStickyView`, used by this panel.

@@ -1,0 +1,83 @@
+---
+title: "ScrollView"
+description: "ScrollView — @sigx/lynx-zero component"
+layout: module-docs
+category: ["Components", "Layout"]
+order: 107
+---
+
+# ScrollView
+
+<p class="lede">Scrollable container over the Lynx native `<scroll-view>`. It scrolls vertically by default, switches to horizontal with a single `direction` prop, and accepts the shared box-model sizing (`height` / `width` / `flex`) — pair it with a layout primitive like <a href="/lynx/modules/zero/components/col">Col</a> to scroll a stack of content.</p>
+
+## Import
+
+```tsx
+import { ScrollView } from '@sigx/lynx-zero';
+```
+
+## Basic Usage
+
+`ScrollView` wraps the native `scroll-view` and defaults to vertical scrolling. Give it a bound (`flex`, or an explicit `height`) and put the scrollable content in the default slot — typically a <a href="/lynx/modules/zero/components/col">Col</a> so the children stack:
+
+```tsx
+import { ScrollView, Col } from '@sigx/lynx-zero';
+
+function Feed({ items }: { items: string[] }) {
+  return (
+    <ScrollView direction="vertical" flex={1} showScrollbar={false}>
+      <Col gap={8} padding={16}>
+        {items.map((label) => <text key={label}>{label}</text>)}
+      </Col>
+    </ScrollView>
+  );
+}
+```
+
+## Horizontal scrolling
+
+Set `direction="horizontal"` to flip the scroll axis (`ScrollView` sets `scroll-orientation` / `scroll-x` / `scroll-y` accordingly). Pair it with a <a href="/lynx/modules/zero/components/row">Row</a> so the children lay out along the scroll axis:
+
+```tsx
+import { ScrollView, Row, Center } from '@sigx/lynx-zero';
+
+function Carousel({ cards }: { cards: string[] }) {
+  return (
+    <ScrollView direction="horizontal" height={140} bounces>
+      <Row gap={12} padding={12}>
+        {cards.map((label) => (
+          <Center key={label} width={120} height={116} background="base-200" borderRadius={12}>
+            <text>{label}</text>
+          </Center>
+        ))}
+      </Row>
+    </ScrollView>
+  );
+}
+```
+
+`showScrollbar` toggles the native scroll indicator, and `bounces` controls the platform overscroll bounce. Like the other layout primitives, `class` appends arbitrary extra utilities after the computed styles.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `direction` | `'vertical' \| 'horizontal'` | Scroll axis. Defaults to vertical; sets `scroll-orientation` / `scroll-x` / `scroll-y` on the native view. |
+| `height` | `number \| string` | Fixed height of the scroll container. |
+| `width` | `number \| string` | Fixed width of the scroll container. |
+| `flex` | `number` | Flex grow factor — use `flex={1}` to fill the remaining space in a parent flex chain. |
+| `showScrollbar` | `boolean` | Whether to show the native scroll indicator. |
+| `bounces` | `boolean` | Whether the platform overscroll bounce is enabled. |
+| `class` | `string` | Extra CSS classes appended after the computed ones. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The scrollable content. |
+
+## See also
+
+- [Row](/lynx/modules/zero/components/row) and [Col](/lynx/modules/zero/components/col) — flex containers to lay out the scrolled content.
+- [API reference](/lynx/modules/zero/api) — `ScrollViewProps` and every other Zero export.
+- [Usage](/lynx/modules/zero/usage) — the layout primitives in context.

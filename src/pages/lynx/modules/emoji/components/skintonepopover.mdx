@@ -1,0 +1,104 @@
+---
+title: "SkinTonePopover"
+description: "SkinTonePopover — @sigx/lynx-emoji component"
+layout: module-docs
+category: ["Components", "Parts"]
+order: 108
+---
+
+# SkinTonePopover
+
+<p class="lede">The skin-tone chooser: a centered overlay row of an emoji's base glyph plus its five uniform tone variants, shown when a tonal cell is long-pressed. Selecting one inserts that variant and sets the sticky, grid-wide tone preference; a backdrop tap dismisses. It renders <code>position:absolute</code> within the picker root — no portal or caret math.</p>
+
+## Import
+
+```tsx
+import { SkinTonePopover } from '@sigx/lynx-emoji';
+```
+
+## Basic usage
+
+`SkinTonePopover` is one of the headless parts `EmojiPicker` is assembled from. Use it directly when you build a custom picker layout: long-press a cell to capture the `EmojiDatum`, render the popover for it, and apply the chosen tone to your grid. The `datum` must have `s` variants (long-press only fires for tonal emoji), and `toneLabels` is the dataset's `data.skinTones` array (localized labels, indexed tone-1).
+
+```tsx
+import { component } from '@sigx/lynx';
+import {
+  EmojiGrid,
+  SkinTonePopover,
+  glyphForTone,
+  createEmojiContext,
+  enData,
+} from '@sigx/lynx-emoji';
+import type { EmojiDatum, SkinTone } from '@sigx/lynx-emoji';
+
+export const CustomGrid = component(({ signal }) => {
+  const ctx = createEmojiContext(enData);
+  const state = signal<{ toned: EmojiDatum | null }>({ toned: null });
+
+  return () => (
+    <view style={{ height: '320px' }}>
+      <EmojiGrid
+        emojis={ctx.data.emojis}
+        tone={ctx.skinTone.state.tone}
+        onPick={(datum) => ctx.recents.push(datum)}
+        onPickTone={(datum) => { state.toned = datum; }}
+      />
+      {state.toned && (
+        <SkinTonePopover
+          datum={state.toned}
+          toneLabels={ctx.data.skinTones}
+          activeTone={ctx.skinTone.state.tone}
+          onSelect={(tone: SkinTone) => {
+            ctx.skinTone.set(tone);
+            state.toned = null;
+          }}
+          onClose={() => { state.toned = null; }}
+        />
+      )}
+    </view>
+  );
+});
+```
+
+`onSelect` carries the picked `SkinTone` (`0` is the base glyph; `1..5` are light to dark). Call `skinTone.set(tone)` to apply it grid-wide and persist it, then resolve each cell's glyph with [`glyphForTone(datum, tone)`](/lynx/modules/emoji/api). `onClose` fires on a backdrop tap without a selection.
+
+## Theming
+
+The popover is headless with neutral inline fallbacks only. `backdropClass` styles the dismiss layer, `class` the row container, and `cellClass` each variant swatch — these are the same three slots `EmojiPicker` exposes through its `classes` map as `popoverBackdrop`, `popover` and `popoverCell` (see [`EmojiSlotClasses`](/lynx/modules/emoji/api)).
+
+```tsx
+<SkinTonePopover
+  datum={datum}
+  toneLabels={data.skinTones}
+  activeTone={tone}
+  backdropClass="bg-black/40"
+  class="rounded-box bg-base-100 p-2"
+  cellClass="p-1"
+  onSelect={(t) => skinTone.set(t)}
+  onClose={() => dismiss()}
+/>
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `datum` | `EmojiDatum` | The tonal emoji to choose a variant for. Required; must have uniform tone variants (`datum.s`). |
+| `toneLabels` | `string[]` | Localized skin-tone labels (`data.skinTones`), indexed tone-1. Required. |
+| `activeTone` | `SkinTone` | The currently selected tone (`0` base, `1..5` light to dark) to highlight. |
+| `backdropClass` | `string` | Class for the dismiss backdrop layer. |
+| `class` | `string` | Class for the popover row container. |
+| `cellClass` | `string` | Class for each variant swatch cell. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onSelect` | `(tone: SkinTone) => void` | Fired when a tone variant is chosen. Inserts the variant and is where you call `skinTone.set(tone)` to make the preference sticky. |
+| `onClose` | `() => void` | Fired when the backdrop is tapped to dismiss without a selection. |
+
+## See also
+
+- [Usage › Skin tones](/lynx/modules/emoji/usage) — the sticky, grid-wide tone model.
+- [API reference](/lynx/modules/emoji/api) — `SkinTonePopoverProps`, `SkinTone`, `glyphForTone` and the rest, typed.
+- [EmojiGrid](/lynx/modules/emoji/components/emojigrid) — emits `pickTone` on long-press of a tonal cell.

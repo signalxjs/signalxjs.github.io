@@ -1,0 +1,91 @@
+---
+title: "EmojiProvider"
+description: "EmojiProvider — @sigx/lynx-emoji component"
+layout: module-docs
+category: ["Components", "State"]
+order: 109
+---
+
+# EmojiProvider
+
+<p class="lede">Optional app-level provider that shares one dataset, search index, recents list and skin-tone preference across every picker surface via DI. It renders no element of its own — only its default slot — so wrap it around the surfaces that should stay in sync.</p>
+
+## Import
+
+```tsx
+import { EmojiProvider } from '@sigx/lynx-emoji';
+```
+
+## Basic usage
+
+`EmojiPicker` works standalone — with no provider in scope it builds a private context from its own `data` prop. Add an `EmojiProvider` when more than one picker surface exists (a composer panel and a reaction sheet, say): the surfaces below it then share one dataset, one search index, one recents list and one skin-tone preference, so recents stay in sync without each surface re-hydrating from storage. The provider also wins over a local `data` prop, so the nested surfaces need no `data` of their own.
+
+```tsx
+import { EmojiProvider, KeyboardPanelPicker, SheetPicker, enData } from '@sigx/lynx-emoji';
+import { signal } from '@sigx/reactivity';
+
+function Composer({ insert }: { insert: (glyph: string) => void }) {
+    const panelOpen = signal(false);
+    const sheetOpen = signal(false);
+
+    return (
+        <EmojiProvider data={enData} recentsCap={48}>
+            {/* picker surfaces below need no data prop — they read the provider */}
+            <KeyboardPanelPicker
+                open={panelOpen.value}
+                onPick={({ glyph }) => insert(glyph)}
+            />
+            <SheetPicker
+                open={sheetOpen.value}
+                onClose={() => { sheetOpen.value = false; }}
+                onPick={({ glyph }) => insert(glyph)}
+            />
+        </EmojiProvider>
+    );
+}
+```
+
+`recentsCap` sets the LRU cap (default 32). Recents persist as base glyphs under `@sigx/lynx-emoji:recents` (debounced 250ms) and the sticky skin-tone preference under `@sigx/lynx-emoji:skin-tone` — both via the optional `@sigx/lynx-storage` peer. The `data` prop is fixed at mount.
+
+## Reading the shared context
+
+`EmojiProvider` installs its context (dataset + search index + recents store + skin-tone store) via `defineProvide`. Downstream, [`useEmojiContext`](/lynx/modules/emoji/api#useemojicontext) returns that instance — or `null` outside a provider, so branch on `null` when you read it directly. This is how you compose the headless parts ([`EmojiGrid`](/lynx/modules/emoji/components/emojigrid), [`SearchInput`](/lynx/modules/emoji/components/searchinput), and friends) against shared state.
+
+```tsx
+import { EmojiGrid, useEmojiContext, glyphForTone } from '@sigx/lynx-emoji';
+
+function RecentStrip() {
+    const ctx = useEmojiContext();
+    if (!ctx) return null; // rendered outside an <EmojiProvider>
+
+    return (
+        <EmojiGrid
+            emojis={ctx.recents.recents}
+            tone={ctx.skinTone.state.tone}
+            columns={8}
+            onPick={(datum) => ctx.recents.push(datum)}
+        />
+    );
+}
+```
+
+The same context can be built standalone with [`createEmojiContext`](/lynx/modules/emoji/api#createemojicontext) when you don't want a provider in the tree — that is exactly what `EmojiProvider` installs and what a lone `<EmojiPicker data={…}>` creates for itself.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `data` | `EmojiData` | The locale dataset shared across every surface below the provider. Required; fixed at mount. |
+| `recentsCap` | `number` | Max recents kept and persisted (LRU cap). Default `32`. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The provider's children. `EmojiProvider` renders no element of its own — only this slot. |
+
+## See also
+
+- [Usage](/lynx/modules/emoji/usage) — sharing recents across surfaces and the full picker guide.
+- [API reference](/lynx/modules/emoji/api#emojiproviderprops) — `EmojiProviderProps`, `createEmojiContext`, `useEmojiContext` and `EmojiContextValue`, typed.
+- [EmojiPicker](/lynx/modules/emoji/components/emojipicker) — the full picker surface that consumes the provider.
