@@ -190,14 +190,18 @@ function prefetchIslandChunks(islands: Record<string, IslandInfo>, strategies?: 
 
 ### getIslandData / getIslandServerState / invalidateIslandCache
 
-Read the parsed `__SIGX_ISLANDS__` data, look up a component's captured server
-state by id, or invalidate the cached island data.
+Read the parsed `__SIGX_ISLANDS__` data, look up a rendered component's captured
+server state by its numeric render id, or invalidate the cached island data.
 
 ```ts
 function getIslandData(): Record<string, IslandInfo>
 function getIslandServerState(componentId: number): Record<string, any> | undefined
 function invalidateIslandCache(): void
 ```
+
+> The `componentId` parameter here is the **numeric** id assigned to a component
+> during render — not `IslandInfo.componentId`, which is a separate **string**
+> identifier (path- or name-based) used to resolve the component on the client.
 
 ## Server utilities
 
