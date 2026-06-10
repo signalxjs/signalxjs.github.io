@@ -109,9 +109,10 @@ interface SetupStoreContext extends SetupFactoryContext {
 }
 ```
 
-- `defineState(state)` — creates deep reactive, signal-backed state and returns `{ state, signals, events, patch }`.
+- `storeName` / `instanceId` — the logical name and the friendly per-instance id; composables use them for defaults (e.g. `persist`'s `sigx:<storeName>` key).
+- `defineState(state)` — creates deep reactive, signal-backed state and returns `{ state, signals, events, patch }`. Can be called multiple times for independent slices.
 - `defineActions(actions)` — wraps action functions with `pending` and dispatch lifecycle events; see `StoreAction`.
-- `defineEvents<EventMap>()` — a typed topic group (core `createTopicGroup`) keyed by your event map.
+- `defineEvents<EventMap>()` — a typed topic group (core `createTopicGroup`) keyed by your event map. Topics are created lazily per key on first access, namespaced `${instanceId}.events`, and destroyed with the store.
 - Inherited from `SetupFactoryContext`: `onDeactivated(fn)`, `subscriptions`, `overrideDispose(fn)`.
 
 ### StoreMeta
@@ -130,7 +131,7 @@ type StoreMeta<TReturn extends object> = {
 };
 ```
 
-`$patch` throws on a state key that is not part of the public surface. `$events` watchers are refCounted — they run only while subscribed and never fire immediately on subscribe.
+`$patch` throws on a state key that is not part of the public surface. `$events` watchers are refCounted — they run only while subscribed and never fire immediately on subscribe. The full `$`-meta surface per instance: **`$id`** (readonly string), **`$patch`** (object or mutator form, one flush), **`$events`** (per-public-key `StateKeyEvent`s), **`$dispose()`** (stop state watchers, destroy every topic). Assigning to any `$`-prefixed key throws; spread and `Object.keys` over the instance never see `$`-meta.
 
 ### StorePluginContext
 
@@ -353,9 +354,37 @@ interface PersistHandle {
 }
 ```
 
+## Errors
+
+Everything the package throws is prefixed `[@sigx/store]` and includes the instance id where one exists. The catalog:
+
+| Thrown message | When |
+|---|---|
+| `[@sigx/store] <id>: the store setup must return an object.` | The `defineStore` setup returned `null` or a non-object. |
+| `[@sigx/store] <id>: "<key>" is store meta and cannot be assigned.` | Assignment to any `$`-prefixed key on the instance (`store.$id = …`). |
+| `[@sigx/store] <id>: "<key>" is a computed value and is read-only.` | Assignment to a returned computed (`store.total = 0`). |
+| `[@sigx/store] <id>: $patch received unknown state key "<key>".` | Object-form `$patch` with a key that is not public state. |
+| `[@sigx/store] <id>: $patch draft has no state key "<key>".` | Mutator-form `$patch` reading or writing a non-public key on the draft. |
+| `[@sigx/store] storeToSignals expects a store instance created by defineStore.` | `storeToSignals` called with anything that isn't a store instance. |
+
+Beyond these, errors thrown by *your* code propagate per the documented semantics: action errors re-throw (sync) or reject the returned promise (async), and errors inside a `patch`/`$patch` mutator propagate to the caller.
+
+The following failures are **logged via `console.error`, never thrown** — they are isolation points where third-party or environmental failures must not break the store:
+
+| Logged message | When |
+|---|---|
+| `[@sigx/store] <id>: error in onStoreCreated plugin: …` | A registered plugin threw; store creation continues. |
+| `[@sigx/store] <id>: error settling action "<name>": …` | A subscriber/effect threw inside the internal async settle handlers. |
+| `[@sigx/store] persist("<key>"): hydration failed, continuing with defaults: …` | Corrupted entry, throwing `deserialize`/`migrate`/`patch` during hydration. |
+| `[@sigx/store] persist("<key>"): storage read failed, continuing with defaults: …` | `getItem` threw synchronously. |
+| `[@sigx/store] persist("<key>"): hydration failed: …` | Async `getItem` rejected. |
+| `[@sigx/store] persist("<key>"): write failed: …` | `setItem` threw or rejected (quota, privacy mode, broken backend). |
+
 ## See also
 
 - [Getting Started](/store/docs/getting-started)
-- [Defining a Store](/store/docs/defining-a-store)
-- [Using Stores in Components](/store/docs/using-in-components)
-- [Persistence](/store/docs/persistence)
+- [Defining a Store](/store/docs/defining-a-store) — the conceptual hub
+- [Actions & Async](/store/docs/actions-and-async) · [Events & Observability](/store/docs/events-and-observability) · [Lifetimes & DI](/store/docs/lifetimes-and-di)
+- [Using Stores in Components](/store/docs/using-in-components) · [Persistence](/store/docs/persistence)
+- [Composables & Plugins](/store/docs/composables-and-plugins) · [TypeScript](/store/docs/typescript) · [Patterns](/store/docs/patterns)
+- [Migrating from 0.4](/store/docs/migrating-from-0-4)

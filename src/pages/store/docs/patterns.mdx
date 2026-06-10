@@ -1,0 +1,204 @@
+---
+title: Patterns
+description: "Multi-slice stores, composition, optimistic updates, request races, and undo"
+layout: docs
+category: Guides
+order: 70
+---
+
+# Patterns
+
+Recipes that fall out of the primitives — each one is plain store code, no extra API. Format: the problem, the solution, and the caveats that bite in practice.
+
+## Multi-slice stores
+
+**Problem:** one store has grown two unrelated groups of state — say UI preferences and a draft document — and you want to patch, watch, and persist them independently without splitting into two stores.
+
+**Solution:** call `defineState` more than once. Each call is an independent slice with its own `state`, `patch`, and `events`; spread both `signals` into the return:
+
+```ts
+import { defineStore } from '@sigx/store';
+import { persist } from '@sigx/store/persist';
+
+const useEditorStore = defineStore('editor', (ctx) => {
+    const ui = ctx.defineState({ sidebar: 'open', zoom: 1 });
+    const doc = ctx.defineState({ text: '', savedAt: '' });
+
+    // independent persistence per slice — explicit keys required:
+    persist(ctx, ui, { key: 'sigx:editor:ui' });
+    persist(ctx, doc, { key: 'sigx:editor:doc', debounce: 500 });
+
+    const actions = ctx.defineActions({
+        resetView() { ui.patch({ sidebar: 'open', zoom: 1 }); },   // slice-local patch
+    });
+
+    return { ...ui.signals, ...doc.signals, ...actions };
+});
+```
+
+**Caveats:**
+
+- The instance surface is still flat — `store.$patch({ zoom: 2, text: 'hi' })` works **across** slices (each key routes to its owning slice, in one atomic flush). Slices organize the *setup*, not the consumer.
+- Returned key names must be unique across slices — a later spread silently shadows an earlier one.
+- Each `persist` call needs an explicit `key`; the default `sigx:<storeName>` would collide. See [Persistence](/store/docs/persistence#multiple-slices).
+
+## Store composition (stores using stores)
+
+**Problem:** the cart store needs the session store's user id. You don't want components to glue them together on every use.
+
+**Solution:** call the other store's use-function inside your setup — a factory call is valid anywhere, including another factory's setup:
+
+```ts
+const useSessionStore = defineStore('session', sessionSetup, 'singleton');
+
+const useCartStore = defineStore('cart', ({ defineState, defineActions }) => {
+    const session = useSessionStore();              // resolve the dependency
+
+    const { state, signals } = defineState({ items: [] as Item[] });
+
+    const actions = defineActions({
+        async checkout() {
+            await api.checkout(session.userId, state.items);
+            state.items = [];
+        },
+    });
+
+    return { ...signals, ...actions };
+});
+```
+
+**Caveats — all about [lifetimes](/store/docs/lifetimes-and-di):**
+
+- **The inner store resolves when the outer setup runs** — for a shared outer store, that's its *first creation*, and the result is captured for the outer's whole life. A `'scoped'` inner store resolves against whatever component tree (and `defineProvide` overrides) surrounded that first call — later overrides won't reach an already-created outer store.
+- **Lifetime mismatch:** composing a long-lived outer (`'singleton'`) with a shorter-lived inner is the dangerous direction. Inner `'singleton'`/`'scoped'` deps from a shared outer are the safe, boring default.
+- **A `'transient'` inner store is owned by whoever created it** — resolved during the outer setup inside a component, it disposes with that *component*, not with the outer store. If the outer store should own it, say so explicitly:
+
+```ts
+const inner = useScratchStore();                  // 'transient'
+ctx.onDeactivated(() => inner.$dispose());        // die together
+```
+
+## Optimistic update with rollback
+
+**Problem:** toggling a todo should feel instant, but the server may reject it — the UI must snap back.
+
+**Solution:** patch optimistically before the request; keep a snapshot; roll back from an `onFailure` subscriber ([error semantics](/store/docs/actions-and-async#error-semantics) guarantee it fires on rejection):
+
+```ts
+const useTodoStore = defineStore('todos', ({ defineState, defineActions }) => {
+    const { state, signals, patch } = defineState({ todos: [] as Todo[] });
+
+    let snapshot: Todo[] = [];
+
+    const actions = defineActions({
+        async toggle(id: number) {
+            snapshot = state.todos.map(t => ({ ...t }));        // capture BEFORE the patch
+            patch(s => {
+                const todo = s.todos.find(t => t.id === id);
+                if (todo) todo.done = !todo.done;               // optimistic
+            });
+            await api.toggle(id);                               // rejection → onFailure
+        },
+    });
+
+    actions.toggle.onFailure.subscribe(() => {
+        patch({ todos: snapshot });                             // rollback, one flush
+    });
+
+    return { ...signals, ...actions };
+});
+```
+
+**Caveats:**
+
+- One `snapshot` variable assumes **non-overlapping** invocations — a second `toggle` before the first settles overwrites the snapshot, and a late failure rolls back too much. Disable the control on `store.toggle.pending`, or keep a `Map<id, snapshot>` keyed per call.
+- Snapshot *deeply* (note the `.map(t => ({ ...t }))`) — the optimistic patch mutates in place, and a shallow copy would share the mutated objects.
+- The rollback patch is atomic — subscribers and renders see one flush, not a flicker through intermediate states.
+
+## Request de-duplication and latest-wins
+
+**Problem:** every component calling `store.load()` triggers its own fetch; and when calls *do* overlap with different arguments, a slow early response can overwrite a fast late one.
+
+**Solution (de-dup):** share the in-flight promise in a private variable. Callers all await the same request; `pending` still drives the UI:
+
+```ts
+let inflight: Promise<void> | null = null;
+
+const actions = defineActions({
+    load() {
+        inflight ??= api.fetchAll()
+            .then(data => { state.items = data; })
+            .finally(() => { inflight = null; });
+        return inflight;
+    },
+});
+```
+
+**Solution (latest wins):** stamp each invocation with an id; only the latest may write:
+
+```ts
+let requestId = 0;
+
+const actions = defineActions({
+    async search(query: string) {
+        const id = ++requestId;
+        const results = await api.search(query);
+        if (id !== requestId) return;        // superseded — drop silently
+        state.results = results;
+    },
+});
+```
+
+**Caveats:**
+
+- Don't check `store.load.pending` *inside* the action body for de-dup — the current invocation already counts, so it's always `true` there. `pending` is for callers; the private promise is the guard.
+- In the de-dup form, a rejection still reaches every awaiting caller and fires `onFailure` once per `load()` call that joined the shared promise.
+- The latest-wins drop is invisible to `onDispatched` — the superseded call still "succeeds" (it returns normally). If observers must distinguish applied from dropped, publish a [custom event](/store/docs/events-and-observability#custom-events-with-defineevents) on apply.
+
+## Undo (a sketch)
+
+**Problem:** cheap undo for a single piece of state, without a command architecture.
+
+**Solution:** `$events` hands you `(value, prev)` for every change — record `prev`, and undo by writing it back. A flag keeps the undo write itself out of history:
+
+```ts
+const useDraftStore = defineStore('draft', ({ defineState, defineActions }) => {
+    const { state, signals, events } = defineState({ text: '' });
+
+    const history: string[] = [];
+    let undoing = false;
+
+    events.text.subscribe((value, prev) => {
+        if (undoing || prev === undefined) return;
+        history.push(prev);
+        if (history.length > 100) history.shift();
+    });
+
+    const actions = defineActions({
+        undo() {
+            const prev = history.pop();
+            if (prev === undefined) return;
+            undoing = true;
+            try { state.text = prev; }
+            finally { undoing = false; }
+        },
+    });
+
+    return { ...signals, ...actions };
+});
+```
+
+**Caveats:**
+
+- `history` is deliberately a plain (non-reactive) array — pushing to it doesn't trigger renders. If the UI needs a live `canUndo`, mirror the depth into a state key (`state.undoDepth = history.length`) inside the subscriber and the action.
+
+- **This works as written for primitives and replaced references only.** For object/array keys mutated *in place* (`state.todos.push(...)`), the deep watcher reports the **same object** as both `value` and `prev` — there is no old copy to record. Either replace immutably (`state.todos = [...state.todos, item]`) or snapshot `value` yourself on every event and push the *previous snapshot*.
+- State events flush per reactivity flush, not per assignment — a `patch` touching `text` produces one history entry, but several plain assignments in one synchronous block may too. Good enough for a sketch; group explicitly (wrap edits in `patch`) when granularity matters.
+- Redo is the same machinery with a second stack — push the undone value onto it inside `undo()`, clear it on any organic change.
+
+## Next steps
+
+- [Actions & Async](/store/docs/actions-and-async) — `pending`, error semantics, and cancellation, which these recipes build on.
+- [Lifetimes & DI](/store/docs/lifetimes-and-di) — the resolution rules behind the composition caveats.
+- [Events & Observability](/store/docs/events-and-observability) — what `$events` delivers, exactly.
+- [TypeScript](/store/docs/typescript) — keeping all of the above fully inferred.

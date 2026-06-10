@@ -16,32 +16,9 @@ import { PrereqCallout } from '@/components/PrereqCallout';
     { name: 'Components', path: '/core/docs/components' },
 ]} />
 
-`@sigx/store` provides centralized, reactive state built on the same signal core that powers your components. You define a store once with `defineStore`, describe its state, actions, and derived values inside a setup function, and then call the returned factory anywhere to get a live, reactive instance.
+`@sigx/store` is centralized, reactive state built on the same signal core that powers your components — with a surface that is **flat and signal-first**. You describe state, actions, and derived values in one setup function; whatever you return *becomes* the store. State reads and writes as plain values (`store.count`), computeds read as plain read-only values (`store.total`), actions are called directly (`store.increment()`) — and any of them read inside a render function re-renders that component automatically. No selector layer, no manual subscriptions, no `.value` at the call site.
 
-The store surface is **flat and signal-first**: whatever your setup returns becomes the store. Returned state keys read and write as plain values (`store.count`), returned computeds read as plain read-only values (`store.total`), and actions are called directly (`store.increment()`). Reading any of them inside a component's render function makes that component re-render automatically when the value changes — no selector layer, no manual subscriptions.
-
-## Why a store?
-
-- **Centralized state** shared across components instead of prop-drilling.
-- **Signal-backed reactivity** so reads in render functions update automatically.
-- **A flat, fully-typed surface** — public state is exactly the signals you return.
-- **Actions** with a reactive `pending` flag and lifecycle events (`onDispatching`, `onDispatched`, `onFailure`) riding on each action function.
-- **Per-key change events** (`store.$events.count`) that cost nothing until someone subscribes.
-- **Atomic multi-key updates** via `patch` / `$patch` (one reactivity flush).
-- **Real lifetimes** (`'singleton' | 'scoped' | 'transient'`) and automatic cleanup — a store created inside a component disposes on unmount.
-- **Built-in persistence** at the `@sigx/store/persist` subpath.
-
-## Installation
-
-```bash
-npm install @sigx/store
-```
-
-See [Installation](/store/docs/installation) for dependencies and project wiring.
-
-## Your first store
-
-Define a store with `defineStore(name, setup)`. The `setup` function receives a context object that includes `defineState` and `defineActions`. Whatever you return becomes the store's surface — spread the `signals` from `defineState` to make those keys public state.
+Here is the whole thing, live — edit it:
 
 ```tsx preview code live
 import { component, render } from 'sigx';
@@ -75,41 +52,116 @@ const Counter = component(() => {
 render(<Counter />, "#sandbox");
 ```
 
-## How it fits together
+That's `defineStore(name, setup)`: the setup receives a context with `defineState` and `defineActions`, and the spread `signals` you return become the store's public state. Calling the returned factory anywhere yields a live instance.
 
-- `defineStore(name, setup, lifetime?)` returns a **factory function**. By convention it is assigned to a `useXxxStore` const, but it is an ordinary function — calling it creates (or resolves) an instance. There is no `useStore` export.
-- Inside `setup`, `defineState(obj)` returns `{ state, signals, events, patch }`. `state` is the deep reactive object you mutate inside the setup and actions; `signals` are spreadable per-key views — **the keys you return become the store's public state**, unreturned keys stay private.
-- `defineActions(obj)` wraps your functions. Each returned action is callable with its original signature and carries a reactive `pending` flag plus `onDispatching` / `onDispatched` / `onFailure` event subscribers.
-- The store instance is an **unwrap proxy**: returned key signals read/write as plain values, returned `computed(...)` values read as plain read-only values, everything else passes through.
-- Store meta lives behind `$`: `$id`, `$patch`, `$events`, `$dispose`.
-- Calling the factory inside a `component(...)` setup ties the instance to the component lifecycle: it auto-disposes on unmount.
+## Async without the boilerplate
 
-## Reading and writing state
+Real stores talk to servers. Every action carries a reactive **`pending`** flag — `true` while any invocation is in flight — so a save button or spinner is one property read, with no `isLoading` flags to maintain by hand. Try adding a todo (the action fakes a 700 ms API call):
 
-On the instance, returned state keys are plain values — read them and assign to them directly. Inside the setup, mutate `state` (it is deeply reactive) or use `patch` for an atomic multi-key update.
+```tsx preview code live
+import { component, render, computed } from 'sigx';
+import { defineStore } from '@sigx/store';
 
-```ts
-const store = useCounterStore();
+const useTodoStore = defineStore('todos', ({ defineState, defineActions }) => {
+    const { state, signals, patch } = defineState({
+        todos: [
+            { id: 1, text: 'Read the store docs', done: true },
+            { id: 2, text: 'Build something', done: false },
+        ],
+        nextId: 3,
+        draft: '',
+    });
 
-store.count;          // read (reactive when read in a render/effect)
-store.count = 5;      // write — same as setting state.count inside the setup
+    const remaining = computed(() => state.todos.filter(t => !t.done).length);
 
-store.$patch({ count: 0 });           // atomic multi-key update (object form)
-store.$patch(s => { s.count += 2; }); // ...or mutator form
+    const actions = defineActions({
+        async add(text: string) {
+            await new Promise(resolve => setTimeout(resolve, 700)); // pretend API call
+            patch(s => {
+                s.todos.push({ id: s.nextId, text, done: false });
+                s.nextId++;
+            });
+        },
+        toggle(id: number) {
+            const todo = state.todos.find(t => t.id === id);
+            if (todo) todo.done = !todo.done;
+        },
+    });
 
-store.$events.count.subscribe((value, prev) => {
-    console.log('count went from', prev, 'to', value);
+    return { ...signals, ...actions, remaining };
 });
+
+const Todos = component(() => {
+    const store = useTodoStore();
+
+    const submit = () => {
+        const text = store.draft.trim();
+        if (!text) return;
+        store.draft = '';
+        store.add(text);
+    };
+
+    return () => (
+        <div class="space-y-3">
+            <div class="flex gap-2">
+                <input
+                    class="input input-bordered input-sm flex-1"
+                    placeholder="What needs doing?"
+                    value={store.draft}
+                    onInput={(e) => { store.draft = (e.target as HTMLInputElement).value; }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+                />
+                <button class="btn btn-primary btn-sm" onClick={submit} disabled={store.add.pending}>
+                    {store.add.pending ? 'Adding…' : 'Add'}
+                </button>
+            </div>
+            <ul class="space-y-1">
+                {store.todos.map(todo => (
+                    <li class="flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            class="checkbox checkbox-sm"
+                            checked={todo.done}
+                            onChange={() => store.toggle(todo.id)}
+                        />
+                        <span class={todo.done ? 'line-through opacity-60' : ''}>{todo.text}</span>
+                    </li>
+                ))}
+            </ul>
+            <p class="text-sm opacity-70">{store.remaining} remaining</p>
+        </div>
+    );
+});
+
+render(<Todos />, "#sandbox");
 ```
 
-Per-key events are **lazy**: the deep watcher behind `$events.count` only runs while someone is subscribed, and it does not fire immediately on subscribe.
+Notice what you *didn't* write: no loading flag, no try/finally to reset it, no selector to subscribe the list. `store.add.pending` is count-based across overlapping calls, the `computed` unwraps as a plain `store.remaining`, and `patch` applies the multi-key update in a single reactivity flush.
 
-> One convention to internalize early: **don't destructure the store**. `const { count } = store` snapshots the current value and loses reactivity. Either keep reads on the store (`store.count`) or use [`storeToSignals`](/store/docs/using-in-components#destructuring-safely-with-storetosignals) for destructuring-safe signal views.
+## The mental model in five lines
+
+- `defineStore(name, setup, lifetime?)` returns a **factory function**. By convention it's named `useXxxStore`, but it's an ordinary function — calling it creates (or resolves, per the lifetime) an instance. There is no `useStore` export.
+- Inside `setup`, `defineState(obj)` returns `{ state, signals, events, patch }`. Mutate `state` freely (it's deeply reactive); **the `signals` keys you return become the store's public state** — unreturned keys stay private.
+- `defineActions(obj)` wraps your functions; each keeps its exact signature and carries `pending` plus `onDispatching` / `onDispatched` / `onFailure` events.
+- The instance is an **unwrap proxy**: signals and computeds read as plain values; meta lives behind `$` (`$id`, `$patch`, `$events`, `$dispose`).
+- Created inside a component, an instance is tied to the component lifecycle and disposes on unmount.
+
+> One convention to internalize early: **don't destructure the store**. `const { count } = store` snapshots the value and loses reactivity. Keep reads on the store (`store.count`) or use [`storeToSignals`](/store/docs/using-in-components#destructuring-safely-with-storetosignals).
+
+## What makes this store different
+
+- **A flat, fully-typed surface.** Public state is exactly the signals you return — `$patch` and `$events` are typed from them, action signatures flow through unchanged. See [TypeScript](/store/docs/typescript).
+- **`pending` built in.** Every action knows when it's in flight, with sound error semantics (sync errors re-throw; async calls return the original promise). See [Actions & Async](/store/docs/actions-and-async).
+- **Lazy events.** Per-key change events (`store.$events.count`) cost nothing until someone subscribes — the deep watcher behind a key only runs while it has subscribers. See [Events & Observability](/store/docs/events-and-observability).
+- **Real lifetimes.** `'singleton' | 'scoped' | 'transient'` are honored by the core DI layer, with `defineProvide` subtree overrides and automatic disposal. See [Lifetimes & DI](/store/docs/lifetimes-and-di).
+- **Persistence in the box.** `@sigx/store/persist` handles sync and async storage, versioned migrations, and hydration races. See [Persistence](/store/docs/persistence).
+- **Devtools auto-discovery.** Every store's state, action, and custom events are registered topics in the core inspection registry — tooling can find and tap them by wildcard, no wiring. See [Events & Observability](/store/docs/events-and-observability).
+- **Composable and pluggable.** Setup composables (like `persist`) and the global `onStoreCreated` hook cover cross-cutting concerns. See [Composables & Plugins](/store/docs/composables-and-plugins).
 
 ## Next steps
 
 - [Installation](/store/docs/installation) — install command, dependencies, and project setup.
-- [Defining a Store](/store/docs/defining-a-store) — state, actions, derived values, and events in depth.
-- [Using Stores in Components](/store/docs/using-in-components) — sharing state, lifetimes, and cleanup.
-- [Persistence](/store/docs/persistence) — persist state slices with `@sigx/store/persist`.
+- [Defining a Store](/store/docs/defining-a-store) — the conceptual hub: state, actions, derived values, events.
+- [Using Stores in Components](/store/docs/using-in-components) — rendering reactivity, sharing, cleanup.
+- [Patterns](/store/docs/patterns) — multi-slice stores, composition, optimistic updates, undo/redo.
 - [API Reference](/store/docs/api) — every export with signatures.

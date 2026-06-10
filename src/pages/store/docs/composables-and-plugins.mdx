@@ -1,0 +1,151 @@
+---
+title: Composables & Plugins
+description: "Reusable setup composables and global onStoreCreated plugins"
+layout: docs
+category: Guides
+order: 60
+---
+
+# Composables & Plugins
+
+There are two ways to package store behavior for reuse, and they sit at different altitudes:
+
+- **Setup composables** — plain functions you call *inside* a store's setup, with the setup context. Per-store, opt-in, fully typed against that store's state. [`persist`](/store/docs/persistence) is one.
+- **Global plugins** — functions registered once with `onStoreCreated`, running for **every** store instance. Untyped by design, ideal for infrastructure: logging, devtools, metrics.
+
+## Setup composables
+
+A composable is just a function whose first parameter is the `SetupStoreContext`. That context is what makes composables possible — it carries everything a reusable behavior needs:
+
+- `storeName` / `instanceId` — stable identity for storage keys, log labels, registry lookups.
+- `onDeactivated(fn)` — tie any resource to the store's disposal.
+- `subscriptions` — a handler that batch-unsubscribes on disposal (`ctx.subscriptions.add(fn)`).
+- `defineState` / `defineActions` / `defineEvents` — composables can even contribute state or events of their own.
+
+### Case study: `persist`
+
+The persistence composable shows the full shape — context first, then the data it operates on, then options; resources registered for cleanup; a handle returned for the setup to use or expose:
+
+```ts
+import { defineStore } from '@sigx/store';
+import { persist } from '@sigx/store/persist';
+
+const useSettings = defineStore('settings', (ctx) => {
+    const { state, signals, patch } = ctx.defineState({ theme: 'dark' });
+
+    const { hydrated } = persist(ctx, { state, patch });   // ← the composable
+
+    return { ...signals, hydrated };
+}, 'singleton');
+```
+
+Internally, `persist` uses the context for everything it can't do alone: `ctx.storeName` provides the default storage key (`sigx:settings`), and `ctx.onDeactivated` stops its save watcher and cancels its debounce timer when the store is disposed. The setup decides what (if anything) to expose — here, the `hydrated` flag.
+
+That's the contract to copy: **a composable takes `ctx`, registers its cleanup through `ctx`, and returns a handle.**
+
+### Writing your own
+
+A polling composable that re-runs an action on an interval, pauses on demand, and dies with the store:
+
+```ts
+import type { SetupStoreContext } from '@sigx/store';
+
+export function autoRefresh(ctx: SetupStoreContext, action: () => unknown, ms: number) {
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const start = () => {
+        if (timer) return;
+        timer = setInterval(() => action(), ms);
+    };
+    const stop = () => {
+        if (timer) clearInterval(timer);
+        timer = null;
+    };
+
+    ctx.onDeactivated(stop);   // never outlive the store
+    start();
+    return { start, stop };
+}
+```
+
+And in a store:
+
+```ts
+const useFeedStore = defineStore('feed', (ctx) => {
+    const { state, signals } = ctx.defineState({ posts: [] as Post[] });
+    const actions = ctx.defineActions({
+        async load() { state.posts = await api.posts(); },
+    });
+
+    const refresh = autoRefresh(ctx, actions.load, 30_000);
+
+    return { ...signals, ...actions, pauseRefresh: refresh.stop, resumeRefresh: refresh.start };
+});
+```
+
+Because composables run inside the setup, they get the **typed** slice (`state`, `patch`, the actions) — generic over the store's actual state shape, like `persist<TState>` is. A composable that needs to react to changes can subscribe to the slice's `events` (which cover *all* keys, including private ones — see [Events & Observability](/store/docs/events-and-observability#state-events-events-vs-watch)).
+
+## Global plugins with `onStoreCreated`
+
+`onStoreCreated(plugin)` registers a function that runs for **every store instance**, synchronously after its setup returns. Register plugins once, at app bootstrap, before stores are created:
+
+```ts
+import { onStoreCreated } from '@sigx/store';
+
+const sub = onStoreCreated(({ name, instanceId, instance, onDeactivated }) => {
+    // runs for every instance of every store
+});
+
+sub.unsubscribe();   // stops future invocations (existing wiring stays)
+```
+
+The plugin context per instance:
+
+- `name` — the logical store name (`'todos'`).
+- `instanceId` — the friendly id (`'todos#1'`).
+- `instance` — the **raw setup return**, not the unwrap proxy. Key signals appear as `{ value }` objects here; duck-type for what you need.
+- `onDeactivated(fn)` — tie plugin resources to that instance's lifetime.
+
+Three guarantees worth knowing:
+
+- **Registration order** — plugins run in the order they were registered.
+- **Error isolation** — a throwing plugin is logged (`console.error`) and skipped; it cannot break store creation or the other plugins.
+- **Synchronous timing** — the store factory hasn't returned yet, so the plugin observes the instance before any caller does.
+
+### Example: a universal change logger
+
+Because every store event is a registered topic namespaced under the instance id ([the inspection registry](/store/docs/events-and-observability#the-inspection-registry)), one wildcard subscription per store logs everything — state changes, action dispatches, custom events:
+
+```ts
+import { onStoreCreated } from '@sigx/store';
+import { subscribeTopics } from '@sigx/runtime-core/inspect';
+
+onStoreCreated(({ instanceId, onDeactivated }) => {
+    const sub = subscribeTopics(`${instanceId}.*`, (data, { namespace, name }) => {
+        console.debug(`[${namespace}] ${name}`, data);
+    });
+    onDeactivated(() => sub.unsubscribe());
+});
+```
+
+No store opted in, none had to change — and the `onDeactivated` hook keeps the tap from outliving any instance. This is essentially how devtools integrations attach.
+
+> One caveat: subscribing to a store's *state* topics activates their refCount watchers — observed keys are no longer free. Fine for development tooling; think twice before shipping an always-on subscriber to production.
+
+## Which one do I want?
+
+| | Setup composable | `onStoreCreated` plugin |
+|---|---|---|
+| Scope | one store, explicitly opted in | every store instance, globally |
+| Typing | full — generic over the slice | untyped `instance` (duck-typing) |
+| Can add state/actions/events | yes (it has the setup context) | no — observe and attach only |
+| Cleanup hook | `ctx.onDeactivated` | `onDeactivated` in the plugin context |
+| Examples | persistence, polling, form bindings | logging, devtools, metrics, error reporting |
+
+Rule of thumb: if the behavior is part of *what the store is*, it's a composable; if it's part of *how your app observes stores*, it's a plugin.
+
+## Next steps
+
+- [Persistence](/store/docs/persistence) — the `persist` composable in full.
+- [Events & Observability](/store/docs/events-and-observability) — the registry plugins build on.
+- [API Reference](/store/docs/api#onstorecreated) — `onStoreCreated` and `StorePluginContext` signatures.

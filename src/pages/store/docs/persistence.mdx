@@ -3,7 +3,7 @@ title: Persistence
 description: "Persist store state to localStorage or any sync/async storage with @sigx/store/persist"
 layout: docs
 category: Guides
-order: 50
+order: 55
 ---
 
 # Persistence
@@ -25,13 +25,68 @@ const useSettings = defineStore('settings', (ctx) => {
 
 With no options, this persists every key of the slice to `localStorage` under the key `sigx:settings` (`sigx:<storeName>`), hydrates on store creation, and saves on every change.
 
+## See it survive a reload
+
+Type something below, then **reload this page** — the text comes back. The sandbox can only import the package root, so this demo hand-wires the few lines `persist()` does for you (hydrate with one atomic `patch`, save on change, same `{ v, data }` envelope); in your app the whole block below the comment is one `persist(ctx, { state, patch })` call.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { defineStore } from '@sigx/store';
+
+const KEY = 'sigx:persist-demo';
+
+const useNoteStore = defineStore('persist-demo', (ctx) => {
+    const { state, signals, events, patch } = ctx.defineState({ note: '' });
+
+    // --- in a real app, replace everything down to the actions with:
+    // const { hydrated } = persist(ctx, { state, patch });
+
+    // hydrate: one atomic patch over the defaults
+    try {
+        const raw = localStorage.getItem(KEY);
+        if (raw) patch(JSON.parse(raw).data);
+    } catch { /* corrupted entry → keep defaults */ }
+
+    // save on change (persist uses a deep watch; a key event works here)
+    events.note.subscribe((value) => {
+        localStorage.setItem(KEY, JSON.stringify({ v: 1, data: { note: value } }));
+    });
+
+    const actions = ctx.defineActions({
+        reset() { state.note = ''; },
+    });
+
+    return { ...signals, ...actions };
+});
+
+const Demo = component(() => {
+    const store = useNoteStore();
+    return () => (
+        <div class="space-y-2">
+            <input
+                class="input input-bordered w-full"
+                placeholder="Type something, then reload the page…"
+                value={store.note}
+                onInput={(e) => { store.note = (e.target as HTMLInputElement).value; }}
+            />
+            <p class="text-xs opacity-70">
+                Stored under <code>sigx:persist-demo</code> in localStorage — open devtools and watch it update as you type.
+            </p>
+            <button class="btn btn-ghost btn-sm" onClick={() => store.reset()}>reset</button>
+        </div>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
 ## How it behaves
 
 - **Hydration is one atomic `patch()`** — a single reactivity flush applies the stored values over the defaults.
 - **Saving is a deep watch** over the picked keys, optionally debounced — direct mutation, `patch`, and `$patch` all trigger it.
-- **Saving is paused until hydration completes**, so async hydration can never be overwritten by the defaults racing it to storage.
-- **No storage available (SSR)** — `persist` is a no-op: the store renders with defaults, never writes, and `hydrated` is immediately `true`.
-- **Failures never break the store** — a corrupted entry, a throwing `migrate`, or a quota error is logged and the store continues from defaults (the next successful write self-heals the stored entry).
+- **Saving is paused until hydration completes**, so async hydration can never be overwritten by the defaults racing it to storage (see [the hydration race](#the-hydration-race) below).
+- **No storage available (SSR)** — `persist` is a no-op: the store renders with defaults, never writes, and `hydrated` is immediately `true`. (Merely *accessing* `localStorage` can throw in some privacy modes — that is treated as "no storage" too.)
+- **Failures never break the store** — a corrupted entry, a throwing `migrate`, or a quota error is logged and the store continues from defaults (see [failure isolation](#failure-isolation)).
 - **Everything is cleaned up** when the store is disposed; pending async hydration of a disposed store is discarded.
 
 ## Options
@@ -52,13 +107,7 @@ persist(ctx, { state, patch }, {
 });
 ```
 
-`storage` accepts anything matching the minimal `StorageLike` contract — `getItem` / `setItem` (and optional `removeItem`) returning values either synchronously or as promises. `localStorage`, `sessionStorage`, and async stores like React Native's AsyncStorage all qualify:
-
-```ts
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-persist(ctx, { state, patch }, { storage: AsyncStorage, pick: ['theme'] });
-```
+`storage` accepts anything matching the minimal `StorageLike` contract — `getItem` / `setItem` (and optional `removeItem`) returning values either synchronously or as promises. `localStorage`, `sessionStorage`, and async stores like React Native's AsyncStorage all qualify.
 
 > The default key uses the **logical store name**, not the instance id, so persistence survives across instances. With `'transient'` stores, multiple live instances would fight over one key — pass explicit `key`s there.
 
@@ -68,35 +117,120 @@ persist(ctx, { state, patch }, { storage: AsyncStorage, pick: ['theme'] });
 
 - `hydrated` — a `{ readonly value: boolean }` view that flips to `true` once hydration completes (immediately for sync or absent storage). Return it from the setup to gate UI on it.
 - `whenHydrated` — a promise that resolves when hydration completes; useful with async storage.
-- `clear()` — removes the persisted entry from storage.
+- `clear()` — removes the persisted entry from storage (a promise; resolves when the storage's `removeItem` settles).
+
+## Versioning and migration — a worked example
+
+Data is stored in an envelope `{ v, data }`. When the stored `v` differs from your current `version` and a `migrate` function is provided, `migrate(persisted, fromVersion)` receives the deserialized payload's data and returns the slice to apply. Without `migrate`, the stored data is applied as-is (only the picked keys are ever applied, so renamed keys simply drop).
+
+Suppose v1 of your app persisted a boolean dark-mode flag, and v2 redesigns it as a theme string:
+
+```ts
+// v1 shipped with:
+const { state, signals, patch } = ctx.defineState({ darkMode: false });
+persist(ctx, { state, patch }, { version: 1 });
+// → localStorage["sigx:settings"] = '{"v":1,"data":{"darkMode":true}}'
+```
+
+```ts
+// v2 changes the shape — and migrates old entries on first load:
+const { state, signals, patch } = ctx.defineState({
+    theme: 'light' as 'light' | 'dark' | 'system',
+});
+
+persist(ctx, { state, patch }, {
+    version: 2,
+    migrate(persisted, fromVersion) {
+        if (fromVersion === 1) {
+            const old = persisted as { darkMode?: boolean };
+            return { theme: old.darkMode ? 'dark' : 'light' };
+        }
+        return {};   // unknown / ancient version → keep defaults
+    },
+});
+// first load:  reads v1 envelope → migrate({darkMode:true}, 1) → theme: 'dark'
+// first write: '{"v":2,"data":{"theme":"dark"}}'  ← entry is now upgraded
+```
+
+Details worth knowing:
+
+- `migrate` runs **only** when the stored version differs from `version` — steady-state loads skip it entirely.
+- Data persisted before you adopted versioning (no envelope) arrives with `fromVersion: 0` and the raw payload as `persisted`.
+- The returned partial passes through `pick` filtering like any hydration, then applies as one atomic `patch`.
+- A **throwing `migrate` is not fatal**: the error is logged, the store starts from defaults, and the next write replaces the old entry with current-version data — migration failures self-heal.
+
+## Async storage (React Native and friends)
+
+Anything Promise-returning that satisfies `StorageLike` works unchanged — React Native's AsyncStorage is the canonical case. The differences from `localStorage` are *when* hydration completes and what your UI does until then:
 
 ```tsx
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { defineStore } from '@sigx/store';
+import { persist } from '@sigx/store/persist';
+
 const useSettings = defineStore('settings', (ctx) => {
-    const { state, signals, patch } = ctx.defineState({ theme: 'dark' });
+    const { state, signals, patch } = ctx.defineState({
+        theme: 'dark' as 'dark' | 'light',
+        locale: 'en',
+    });
+
     const { hydrated, whenHydrated, clear } = persist(ctx, { state, patch }, {
         storage: AsyncStorage,
     });
 
     const actions = ctx.defineActions({
-        async reset() {
+        async resetToDefaults() {
             await clear();
-            patch({ theme: 'dark' });
+            patch({ theme: 'dark', locale: 'en' });
         },
     });
 
     return { ...signals, ...actions, hydrated };
-});
-
-// in a component:
-const store = useSettings();
-return () => store.hydrated.value
-    ? <ThemePicker theme={store.theme} />
-    : <Spinner />;
+}, 'singleton');
 ```
 
-## Versioning and migration
+With sync storage, hydration happens during the `persist()` call and `hydrated.value` is already `true` when your setup returns. With AsyncStorage, the store is created **immediately with defaults**, and the stored values patch in when the `getItem` promise resolves. Gate any UI that must not flash defaults on `hydrated`:
 
-Data is stored in an envelope `{ v, data }`. When the stored `v` differs from your `version` and a `migrate` function is provided, `migrate(persisted, fromVersion)` receives the raw deserialized payload and returns the slice to apply. Without `migrate`, the stored data is applied as-is (only the picked keys are ever applied).
+```tsx
+const Settings = component(() => {
+    const store = useSettings();
+    return () => store.hydrated.value
+        ? <ThemePicker theme={store.theme} />
+        : <Spinner />;
+});
+```
+
+`hydrated` is a plain `{ readonly value }` view — reading `store.hydrated.value` in render re-renders when it flips. For imperative flows (e.g. deciding an initial route after settings load), `await whenHydrated` instead:
+
+```ts
+const store = useSettings();
+await whenHydrated;            // resolves once stored values are applied
+navigate(store.locale === 'en' ? '/home' : `/${store.locale}/home`);
+```
+
+`whenHydrated` always resolves — even when the read fails (the failure is logged and the store proceeds with defaults), so awaiting it can never hang your app on a broken storage backend.
+
+## The hydration race
+
+There is a classic bug in hand-rolled async persistence: the store is created with defaults, a save-on-change watcher starts immediately, something touches the state (or an eager watcher fires) — and the *defaults* get written to storage **before** the async read of the previous session's data comes back. The stored data is gone; the read then either applies stale data over fresher writes or gets discarded.
+
+`persist` makes this impossible by ordering, not by luck:
+
+1. On creation it starts the read (`getItem`) — but does **not** start the save watcher.
+2. Until hydration completes, every would-be write is skipped (`hydrated` is still `false`).
+3. When the read resolves, the stored values apply as one atomic `patch`, `hydrated` flips, **and only then** does the deep save watcher start.
+
+So writes physically cannot precede hydration, and the hydration patch itself doesn't echo back into a save (the watcher starts after it). The cost of this guarantee is the thing to remember: **state changed before hydration completes is not saved, and persisted keys are overwritten by the stored values when hydration lands**. If users can interact before hydration, gate that UI on `hydrated` — that's exactly what the flag is for.
+
+## Failure isolation
+
+Persistence is a convenience layer; it must never take the store down with it. Every failure path is contained:
+
+- **Corrupted data self-heals.** Bad JSON, a throwing `deserialize`, a throwing `migrate`, or a patch that throws: the error is logged (`[@sigx/store] persist("<key>"): hydration failed, continuing with defaults`), the store starts from defaults, `hydrated` still flips, and saving starts — the next successful write replaces the corrupted entry.
+- **Write failures are logged, not thrown.** Quota exceeded, privacy-mode restrictions, a rejecting async `setItem`: the app keeps running from memory (`persist("<key>"): write failed`). Sync throws and async rejections are both caught — a failed save never surfaces as an unhandled rejection.
+- **Read failures don't block.** A sync `getItem` throw or an async `getItem` rejection is logged; the store proceeds with defaults and `whenHydrated` resolves rather than hanging.
+- **No storage at all** (SSR, or environments where touching `localStorage` throws): `persist` is a clean no-op — defaults, no writes, `hydrated` immediately `true`.
+- **Disposal wins races.** If the store is disposed while an async read is still in flight, the late result is discarded — no patches and no watchers on a dead store.
 
 ## Multiple slices
 
@@ -116,5 +250,6 @@ const usePrefs = defineStore('prefs', (ctx) => {
 
 ## Next steps
 
+- [Composables & Plugins](/store/docs/composables-and-plugins) — `persist` is the case study for writing your own setup composables.
 - [Defining a Store](/store/docs/defining-a-store) — state, actions, derived values, and events.
 - [API Reference](/store/docs/api#sigxstorepersist) — `persist`, `StorageLike`, `PersistOptions`, and `PersistHandle` signatures.

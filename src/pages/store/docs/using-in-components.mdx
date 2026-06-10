@@ -3,16 +3,22 @@ title: Using Stores in Components
 description: "Read store state in render, share instances, and control lifetimes"
 layout: docs
 category: Guides
-order: 40
+order: 50
 ---
 
 # Using Stores in Components
 
-A store factory returns a live instance with a flat, signal-backed surface. When you read `store.x` inside a component's render function, SignalX tracks the dependency and re-renders that component whenever the value changes. This guide covers reading, async actions, sharing, lifetimes, and cleanup.
+A store factory returns a live instance with a flat, signal-backed surface. When you read `store.x` inside a component's render function, SignalX tracks the dependency and re-renders that component whenever the value changes. This guide covers the rendering model, the destructuring footgun, component-scoped stores, and cleanup.
 
-## Reading state in render
+## How rendering reactivity works
 
-Call the factory inside a `component(...)` setup and reference the store in the returned render function. State keys and computeds read as plain values — no manual subscription is needed for rendering.
+The store instance is an unwrap proxy: reading `store.count` reads the underlying key signal, and reading `store.total` reads the underlying computed. Reactivity then follows the normal SignalX rules — what matters is **where** the read happens:
+
+- **Inside a render function** (`return () => <... {store.count} ...>`): the read is tracked. That component — and only that component — re-renders when `count` changes. There is no store-level subscription; granularity is per read, per component.
+- **Inside an effect or `watch`**: tracked the same way; the effect re-runs on change.
+- **In the component setup body** (outside the returned render function): the read is a one-time snapshot. `const n = store.count` in setup gives you the value at mount time and never updates — by design, just like reading a signal's `.value` outside a reactive context.
+
+So the rule of thumb is simple: *keep reads on the store object, inside the render function*. The proxy does the unwrapping; the signal core does the tracking.
 
 ```tsx preview code live
 import { component, render } from 'sigx';
@@ -38,9 +44,7 @@ const Counter = component(() => {
 render(<Counter />, "#sandbox");
 ```
 
-## Derived values in render
-
-Returned computeds unwrap on the instance — read them like plain (read-only) values. They update automatically as the underlying state changes.
+Returned computeds work the same — read them like plain (read-only) values and they update as the underlying state changes:
 
 ```tsx preview code live
 import { component, render, computed } from 'sigx';
@@ -86,41 +90,92 @@ const Cart = component(() => {
 render(<Cart />, "#sandbox");
 ```
 
-## Async actions and `pending`
+## The destructuring footgun
 
-Every action carries a reactive `pending` flag — `true` while any invocation of that action is in flight. Read it in render to drive spinners and disabled states.
+The one way to lose reactivity is to **destructure state off the store**. `const { count } = store` reads through the unwrap proxy *at that moment* — you get a plain number, not a signal, and it will never update. The same applies to computeds.
+
+When you want destructured locals, use `storeToSignals`: it returns signal views (`{ value }`) for every state key and computed, safe to pull apart. See the difference live — click increment and watch the first row stay frozen:
 
 ```tsx preview code live
 import { component, render } from 'sigx';
-import { defineStore } from '@sigx/store';
+import { defineStore, storeToSignals } from '@sigx/store';
 
-const useSaveStore = defineStore('saver', ({ defineState, defineActions }) => {
-    const { state, signals } = defineState({ savedAt: '' });
+const useSharedCounter = defineStore('shared-counter', ({ defineState, defineActions }) => {
+    const { state, signals } = defineState({ count: 0 });
     const actions = defineActions({
-        async save() {
-            await new Promise(resolve => setTimeout(resolve, 1200));
-            state.savedAt = new Date().toLocaleTimeString();
-        },
+        increment() { state.count++; },
     });
     return { ...signals, ...actions };
-});
+}, 'singleton');
 
-const Saver = component(() => {
-    const store = useSaveStore();
+const BrokenDestructure = component(() => {
+    const store = useSharedCounter();
+    const { count } = store; // ✗ snapshot: plain number, taken once at setup
     return () => (
-        <div class="flex items-center gap-3">
-            <button class="btn btn-primary" onClick={() => store.save()} disabled={store.save.pending}>
-                {store.save.pending ? 'Saving…' : 'Save'}
-            </button>
-            {store.savedAt && <span class="text-sm">last saved {store.savedAt}</span>}
+        <div class="flex items-center gap-2">
+            <span class="badge badge-error">broken</span>
+            <code>const {'{ count }'} = store</code> → {count}
         </div>
     );
 });
 
-render(<Saver />, "#sandbox");
+const SafeDestructure = component(() => {
+    const store = useSharedCounter();
+    const { count } = storeToSignals(store); // ✔ signal view, still reactive
+    return () => (
+        <div class="flex items-center gap-2">
+            <span class="badge badge-success">works</span>
+            <code>storeToSignals(store)</code> → {count.value}
+        </div>
+    );
+});
+
+const App = component(() => {
+    const store = useSharedCounter();
+    return () => (
+        <div class="space-y-2">
+            <button class="btn btn-primary btn-sm" onClick={() => store.increment()}>
+                increment (store.count = {store.count})
+            </button>
+            <BrokenDestructure />
+            <SafeDestructure />
+        </div>
+    );
+});
+
+render(<App />, "#sandbox");
 ```
 
-Async actions return the **original promise**, so `await store.save()` observes rejections; un-awaited (fire-and-forget) calls never surface unhandled-rejection noise — failures still reach `onFailure` subscribers.
+### Destructuring safely with storeToSignals
+
+```tsx
+import { storeToSignals } from '@sigx/store';
+
+const store = useTodoStore();
+const { todos, remaining } = storeToSignals(store);
+
+todos.value.push({ id: 1, text: 'hi', done: false }); // still reactive
+remaining.value;                                       // read-only computed view
+```
+
+Actions don't need this — they are plain functions and can be referenced freely (`const { add } = store` is fine for an action, though calling through the store keeps things uniform). `storeToSignals` skips functions and `$`-meta entirely; how its return type is inferred is covered in [TypeScript](/store/docs/typescript).
+
+## Async actions and `pending`
+
+Every action carries a reactive `pending` flag — `true` while any invocation of that action is in flight. Read it in render to drive spinners and disabled states:
+
+```tsx
+const Saver = component(() => {
+    const store = useSaveStore();
+    return () => (
+        <button onClick={() => store.save()} disabled={store.save.pending}>
+            {store.save.pending ? 'Saving…' : 'Save'}
+        </button>
+    );
+});
+```
+
+Async actions return the **original promise**, so `await store.save()` observes rejections; un-awaited (fire-and-forget) calls never surface unhandled-rejection noise — failures still reach `onFailure` subscribers. Overlap counting, optimistic updates, and race patterns are covered in [Actions & Async](/store/docs/actions-and-async).
 
 ## Reacting to specific changes
 
@@ -137,34 +192,7 @@ const sub = store.$events.count.subscribe((value, prev) => {
 sub.unsubscribe();
 ```
 
-These events are lazy — the deep watcher behind a key only runs while it has subscribers, and nothing fires at subscribe time.
-
-Subscribe to action lifecycle events the same way for cross-cutting concerns like logging or analytics — the events ride on the action function itself:
-
-```tsx
-store.save.onFailure.subscribe((error, ...args) => {
-    reportError(error, args);
-});
-store.save.onDispatched.subscribe((result) => {
-    toast('Saved!');
-});
-```
-
-## Destructuring safely with storeToSignals
-
-**Don't destructure the store directly** — `const { todos } = store` reads through the unwrap proxy and snapshots the current value, losing reactivity. When you want destructured locals, use `storeToSignals`, which returns signal views (`{ value }`) for every state key and computed:
-
-```tsx
-import { storeToSignals } from '@sigx/store';
-
-const store = useTodoStore();
-const { todos, remaining } = storeToSignals(store);
-
-todos.value.push({ id: 1, text: 'hi', done: false }); // still reactive
-remaining.value;                                       // read-only computed view
-```
-
-Actions don't need this — they are plain functions and can be referenced freely (`const { add } = store` is fine for an action, though calling through the store keeps things uniform).
+These events are lazy — the deep watcher behind a key only runs while it has subscribers, and nothing fires at subscribe time. Action lifecycle events (`store.save.onFailure`, …) work the same way for cross-cutting concerns like logging. The full event model — state events vs. action events vs. custom events, and devtools discovery — is in [Events & Observability](/store/docs/events-and-observability).
 
 ## Sharing one instance vs. fresh instances
 
@@ -180,32 +208,51 @@ const useAppStore = defineStore('app', setup, 'singleton');
 - `'scoped'` (default) — the nearest instance provided via `defineProvide` in the component tree; falls back to the app-context instance when no provider exists.
 - `'transient'` — a new instance every time the factory is called, auto-disposed with the calling component.
 
-Pick `'singleton'` when several components must read and write the same state. Pick `'transient'` when each component should own an isolated copy.
+Pick `'singleton'` when several components must read and write the same state. Pick `'transient'` when each component should own an isolated copy. For the full decision guide — including parameterized stores (arguments honored at **first creation only** for non-transient lifetimes) and the SSR app-per-request contract — see [Lifetimes & DI](/store/docs/lifetimes-and-di).
 
-## Parameterized stores
+## Component-scoped stores with defineProvide
 
-A setup can accept any number of extra parameters after the context — they are tuple-typed with full inference (no fixed arity ceiling). Those parameters are forwarded through the factory call, letting you seed a store per instance.
+A `'scoped'` store resolves to the nearest provided instance up the component tree. `defineProvide(useXxxStore)` creates a **fresh instance owned by the current component** and provides it to the subtree — every descendant that calls the factory gets *that* instance instead of the app-wide one:
 
 ```tsx
+import { component, defineProvide } from 'sigx';
 import { defineStore } from '@sigx/store';
 
-const useListStore = defineStore('list', ({ defineState }, initialItems: string[]) => {
-    const { signals } = defineState({ items: initialItems });
-    return { ...signals };
-}, 'transient');
+const usePanelStore = defineStore('panel', ({ defineState, defineActions }) => {
+    const { state, signals } = defineState({ expanded: false });
+    const actions = defineActions({
+        toggle() { state.expanded = !state.expanded; },
+    });
+    return { ...signals, ...actions };
+}); // 'scoped' by default
 
-// create instances seeded with different data
-const left = useListStore(['a', 'b']);
-const right = useListStore(['x', 'y', 'z']);
+const Panel = component(() => {
+    // This Panel owns its instance; children resolve it automatically.
+    const store = defineProvide(usePanelStore);
+    return () => (
+        <section>
+            <PanelHeader />
+            {store.expanded && <PanelBody />}
+        </section>
+    );
+});
+
+const PanelHeader = component(() => {
+    const store = usePanelStore(); // the nearest Panel's instance
+    return () => <button onClick={() => store.toggle()}>toggle</button>;
+});
 ```
 
-> For non-`'transient'` lifetimes, arguments are honored at **first creation only** — later calls resolve the existing shared instance.
+Mount three `<Panel />`s and you get three independent stores; each disposes when its panel unmounts. This is the middle ground between a shared singleton and a per-call transient: shared *within a subtree*, isolated *between subtrees*. `defineProvide` also accepts a custom factory (`defineProvide(useXxxStore, () => instance)`) when you need to pre-configure the instance — details in [Lifetimes & DI](/store/docs/lifetimes-and-di).
 
-## Cleanup and lifetime
+## Cleanup on unmount
 
-When you create a store instance **inside a component**, it is tied to that component's lifecycle (per the lifetime rules above). On unmount the instance disposes: its state watchers stop and all event topics are destroyed, so `$events` and action events stop firing.
+When you create a store instance **inside a component**, it is tied to a lifecycle per the lifetime rules:
 
-If you create an instance **outside** a component, dispose it yourself when you are done:
+- `'transient'` instances and `defineProvide`d instances dispose with the component that created them.
+- `'singleton'` and app-level `'scoped'` instances are app-owned — they dispose on `app.unmount()`, not when the first component that touched them unmounts.
+
+Disposal stops the state watchers and destroys all the instance's event topics, so `$events` and action events stop firing. If you create an instance **outside** a component (scripts, tests), dispose it yourself:
 
 ```ts
 const store = useCounterStore();
@@ -219,6 +266,7 @@ Each instance has a friendly id, `store.$id` (e.g. `'counter#1'`) — handy in l
 
 ## Next steps
 
-- [Defining a Store](/store/docs/defining-a-store) — state, derived values, actions, and events in depth.
+- [Actions & Async](/store/docs/actions-and-async) — `pending`, lifecycle events, optimistic updates, races.
+- [Lifetimes & DI](/store/docs/lifetimes-and-di) — lifetimes in practice, `defineProvide`, parameterized stores, SSR.
 - [Persistence](/store/docs/persistence) — persist state slices with `@sigx/store/persist`.
 - [API Reference](/store/docs/api) — full signatures for every export.

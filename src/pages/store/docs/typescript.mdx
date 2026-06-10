@@ -1,0 +1,166 @@
+---
+title: TypeScript
+description: "The store typing contract — inference, action signatures, $patch/$events keys, and policies"
+layout: docs
+category: Guides
+order: 65
+---
+
+# TypeScript
+
+`@sigx/store` is inference-first: you never write a generic to define or use a store. The contract is that **the setup return drives every type downstream** — the store surface, `$patch`, `$events`, `storeToSignals`, and the per-action subscriber signatures. This page pins that contract down and explains the two deliberate policies behind it.
+
+## The store surface is computed from the setup return
+
+A factory call returns `UnwrapStore<TReturn>`, where `TReturn` is whatever your setup returned. Conceptually, `UnwrapStore` sorts the return's keys into three buckets:
+
+- **Key signals** (the `signals` you spread from `defineState`) become **read/write plain values**: `store.count: number`.
+- **Computeds** become **read-only plain values**: `store.total: number`, and `store.total = 0` is a type error (and a runtime error).
+- **Everything else** — actions, topics, helpers, the `hydrated` handle from [persist](/store/docs/persistence) — passes through unchanged.
+
+On top of that sits `StoreMeta`: `$id`, `$patch`, `$events`, `$dispose`. You never name `UnwrapStore` yourself; it's what `useMyStore()` infers.
+
+```ts
+const useCart = defineStore('cart', ({ defineState, defineActions }) => {
+    const { state, signals } = defineState({ items: [] as Item[], coupon: '' });
+    const total = computed(() => state.items.reduce((s, i) => s + i.price, 0));
+    const actions = defineActions({
+        add(item: Item) { state.items.push(item); },
+    });
+    const { items } = signals;                  // expose items, keep coupon private
+    return { items, ...actions, total };
+});
+
+const store = useCart();
+store.items;        // Item[]           — read/write
+store.total;        // number           — read-only
+store.add;          // (item: Item) => void, plus pending/events
+store.coupon;       // ✗ type error — not returned, not on the store
+```
+
+## `$patch` and `$events` follow the *returned* keys
+
+`PublicState<TReturn>` extracts only the keys whose values are key signals — that's the store's public state, and it is exactly what `$patch` and `$events` are typed over:
+
+```ts
+store.$patch({ items: [] });          // ✔ returned key signal
+store.$patch({ coupon: 'X' });        // ✗ type error — private (not returned)
+store.$patch({ total: 0 });           // ✗ type error — computed, not state
+store.$patch({ anything: 1 });        // ✗ type error — unknown key
+
+store.$events.items;                  // ✔ StateKeyEvent<Item[]>
+store.$events.coupon;                 // ✗ type error
+```
+
+The mutator form is typed the same way — `store.$patch(s => { ... })` gives `s` only the public keys. The runtime agrees with the types: an unknown key in `$patch` **throws**, it isn't silently added. Private keys aren't second-class inside the setup, though — `defineState`'s own `patch` and `events` cover the whole slice; it's only the *instance* surface that's restricted to what you returned.
+
+Key signals are **branded**: a hand-rolled `{ value: 0 }` is not a `KeySignal` and won't become public state or appear in `$patch`/`$events`. Only the `signals` produced by `defineState` qualify.
+
+## Action signatures are preserved exactly
+
+`defineActions` wraps each function as `StoreAction<F> = F & { pending, onDispatching, onDispatched, onFailure }` — an intersection with the original `F`, so the call signature is your signature, unchanged: parameter names, optionals, rest args, return type.
+
+### What subscribers receive
+
+The three subscriber types are derived from `F`:
+
+```ts
+onDispatching:  (...args: Parameters<F>) => void
+onDispatched:   (result: Awaited<ReturnType<F>>, ...args: Parameters<F>) => void
+onFailure:      (error: unknown, ...args: Parameters<F>) => void
+```
+
+So for `async save(draft: Draft): Promise<SaveResult>`:
+
+```ts
+store.save.onDispatching.subscribe((draft) => { /* draft: Draft */ });
+store.save.onDispatched.subscribe((result, draft) => { /* result: SaveResult — resolved, not the promise */ });
+store.save.onFailure.subscribe((error, draft) => { /* error: unknown */ });
+```
+
+`Awaited<ReturnType<F>>` is why async `onDispatched` is typed (and [behaves](/store/docs/actions-and-async#the-lifecycle-events)) as the **resolved value**. `error` is `unknown` — the only honest type for a caught value; narrow it yourself.
+
+## Policy: single-signature actions
+
+Write each action as **one** function signature; model variants with union parameter types, not overloads:
+
+```ts
+// ✔ one signature — subscribers see (id: number | string)
+load(id: number | string) { /* ... */ }
+
+// ✗ overloads — subscribers would see only (id: string)
+function load(id: number): void;
+function load(id: string): void;
+```
+
+The reason is mechanical: TypeScript's `Parameters<F>` and `ReturnType<F>` resolve an overloaded function type to its **last** overload only. The action would still be *callable* through every overload, but `onDispatching`/`onDispatched`/`onFailure` would be typed against just one of them — silently wrong for the rest. A union signature keeps the call site and the subscribers in agreement.
+
+## Generic actions: subscribers see the constraint
+
+An action can be generic, and its **call** sites keep full per-call inference:
+
+```ts
+const actions = defineActions({
+    upsert<T extends Entity>(entity: T): T { /* ... */ return entity; },
+});
+
+const user = store.upsert(someUser);     // T = User → user: User
+const order = store.upsert(someOrder);   // T = Order → order: Order
+```
+
+The subscribers, however, are typed at the **constraint**:
+
+```ts
+store.upsert.onDispatched.subscribe((result, entity) => {
+    // result: Entity, entity: Entity — not User or Order
+});
+```
+
+That's not a limitation to work around; it's the only sound typing. A subscriber is one persistent callback observing *every* invocation — `upsert(user)` and `upsert(order)` alike. No single type argument describes all calls, so the only type guaranteed for each of them is the upper bound, `Entity`. (An unconstrained `<T>` degrades to `unknown` — constrain your generics if subscribers should get something useful.)
+
+## Setup parameters are tuple-typed
+
+Extra setup parameters after the context infer as a tuple with no arity ceiling, and the factory demands exactly them:
+
+```ts
+const useList = defineStore('list',
+    ({ defineState }, items: string[], cap?: number) => { /* ... */ },
+'transient');
+
+useList(['a'], 10);   // ✔
+useList(['a']);       // ✔ (cap optional)
+useList();            // ✗ type error — items required
+```
+
+(For non-`'transient'` lifetimes, remember the args are only *used* on first creation — see [Lifetimes & DI](/store/docs/lifetimes-and-di#parameterized-stores-first-creation-wins).)
+
+## `storeToSignals` infers from the store
+
+The store instance carries its setup-return type as a phantom type parameter, so `storeToSignals(store)` needs no annotation and returns precisely typed views: a writable `KeySignal<V>` per public state key, a `{ readonly value: V }` per computed. Actions and `$`-meta are excluded — at the type level and at runtime.
+
+```ts
+const { items, total } = storeToSignals(store);
+items.value.push(item);   // ✔ KeySignal<Item[]> — still reactive
+total.value;              // ✔ number
+total.value = 0;          // ✗ type error — readonly view
+```
+
+See [Using Stores in Components](/store/docs/using-in-components#destructuring-safely-with-storetosignals) for when to reach for it.
+
+## Quick reference
+
+| You wrote | The type system gives you |
+|---|---|
+| returned `signals.x` (from `defineState({ x: ... })`) | `store.x` read/write; key in `$patch` and `$events` |
+| unreturned state key | absent from the store, `$patch`, `$events` |
+| returned `computed(...)` | `store.y` read-only; **not** in `$patch`/`$events` |
+| action `f(a: A): Promise<R>` | `store.f(a)` exact; subscribers `(...[A])`, `(R, A)`, `(unknown, A)` |
+| overloaded action | subscribers typed from the last overload only — don't |
+| generic action `<T extends C>` | exact calls; constraint-typed (`C`) subscribers |
+| setup `(ctx, ...args)` | factory requires exactly `...args` (tuple-inferred) |
+
+## Next steps
+
+- [Defining a Store](/store/docs/defining-a-store) — the public/private state split in practice.
+- [Actions & Async](/store/docs/actions-and-async) — the runtime semantics behind the subscriber types.
+- [API Reference](/store/docs/api#types) — `UnwrapStore`, `PublicState`, `StoreAction`, and friends in full.
