@@ -23,7 +23,7 @@ type DocsSidebarProps =
     & Define.Prop<'collection', string, false>
     & Define.Event<'close', void>;
 
-/** "All Lynx modules · 32" / "All Core packages · 6" catalog link. */
+/** "All Lynx modules · 32" / "All Core packages · 6" / "All Server packages · 2" catalog link. */
 const CATALOG_LABEL: Record<ModuleParent, string> = {
     lynx: 'All Lynx modules',
     core: 'All Core packages',

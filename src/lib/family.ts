@@ -182,7 +182,8 @@ export function packageForCollection(collection?: string | null): SigxPackage | 
 
 /**
  * Resolve a sub-package/module from a module collection name
- * (`lynx-mod-<id>-docs` / `core-pkg-<id>-docs` — see lib/modules.ts).
+ * (`lynx-mod-<id>-docs` / `core-pkg-<id>-docs` / `server-pkg-<id>-docs` —
+ * see lib/modules.ts).
  * The `-mod-`/`-pkg-` infix keeps these unambiguous against top-level
  * collections (`core-api` vs a core sub-package named `api`), while
  * `packageForCollection`'s prefix split still yields the parent package.

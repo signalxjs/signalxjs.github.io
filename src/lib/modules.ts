@@ -1,11 +1,12 @@
 /**
  * SignalX sub-package registry — the modules inside the collection
- * packages (core, lynx — see `kind: 'collection'` in lib/family.ts).
+ * packages (core, lynx, server — see `kind: 'collection'` in lib/family.ts).
  *
  * Presentational chrome ONLY (tiles, hues, switcher groups, catalog
  * cards): docs content + navigation stay data-driven from the SSG —
  * each module owns a real MDX collection (`lynx-mod-<id>-docs` /
- * `core-pkg-<id>-docs`, see ssg.config.ts + scripts/generate-module-docs.mjs).
+ * `core-pkg-<id>-docs` / `server-pkg-<id>-docs`, see ssg.config.ts +
+ * scripts/generate-module-docs.mjs).
  *
  * IMPORTANT: this file is imported by ssg.config.ts at config time —
  * keep it dependency-free (pure data + helpers, type-only imports + the
