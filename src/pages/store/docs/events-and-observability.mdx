@@ -1,0 +1,166 @@
+---
+title: Events & Observability
+description: "State events, action events, custom events, and the inspection registry"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Events & Observability
+
+A store emits three kinds of events, and they answer different questions:
+
+- **State events** (`$events.count`) tell you **what** changed — a key's value went from `prev` to `value`, regardless of who changed it.
+- **Action events** (`save.onDispatched`) tell you **why** — an action ran, with which arguments and what result. See [Actions & Async](/store/docs/actions-and-async#the-lifecycle-events).
+- **Custom events** (`defineEvents`) are **domain events** you publish yourself — "checked out", "logged in" — decoupled from both state shape and action names.
+
+All three are built on the same core primitive, the [Topic](/core/docs/advanced/messaging), which is what makes the observability story below uniform: subscriptions clean up the same way everywhere, and every event a store emits is discoverable by tooling.
+
+## State events: `$events` vs. `watch`
+
+`store.$events.count.subscribe((value, prev) => ...)` is the store-native way to react to a single key. Compared to a raw `watch` from the reactivity package:
+
+- The callback receives `(value, prev)` for exactly that key — no expression to write, deep changes included (mutating an object or array stored under the key fires it too).
+- It is **lazy** (see below) — an unobserved key costs nothing.
+- It is **typed from the store's public surface** — `$events` only has the keys you returned from the setup.
+
+Use `watch`/`effect` instead when you need to react to an arbitrary *expression* over several keys or across stores. For rendering, you need neither — reads in render functions are tracked automatically.
+
+Inside the setup, `defineState`'s own `events` object covers **every** key of the slice, including ones you keep private. On the instance, `$events` (like `$patch`) covers only the **returned** key signals — private state is invisible outside the setup. See [TypeScript](/store/docs/typescript#patch-and-events-follow-the-returned-keys) for how that's enforced at the type level.
+
+## Laziness: refCounted watchers
+
+State events are engineered so that *declaring* them is free and only *observing* them costs anything:
+
+- The topic behind each key is created **eagerly** when `defineState` runs — that's what makes it discoverable in the registry (below).
+- The **deep watcher** that feeds it is created on the **first subscribe** and stopped on the **last unsubscribe** (a refCount pattern). A key nobody listens to has no watcher running.
+- Nothing fires at subscribe time — you only see changes that happen *after* you subscribed.
+
+So returning twenty state keys from a setup does not create twenty deep watchers; it creates twenty cheap topics, and watchers only spin up for the keys someone actually observes.
+
+## Subscriptions clean up with the component
+
+Every `subscribe()` — on `$events.*`, on action lifecycle events, on custom events — returns a `Subscription` with `unsubscribe()`. But when you subscribe **inside a component setup**, you rarely need to keep it: the topic's `subscribe` registers an `onUnmounted` cleanup with the current component, so the subscription is removed automatically when the component unmounts. Outside a component (scripts, tests, module scope), keep the `Subscription` and unsubscribe yourself.
+
+The demo below leans on that: all four subscriptions are made in the component setup with no manual teardown.
+
+```tsx preview code live
+import { component, render, signal } from 'sigx';
+import { defineStore } from '@sigx/store';
+
+const useCounterStore = defineStore('counter', ({ defineState, defineActions }) => {
+    const { state, signals } = defineState({ count: 0 });
+
+    const actions = defineActions({
+        increment() { state.count++; },
+        async incrementLater() {
+            await new Promise(resolve => setTimeout(resolve, 700));
+            state.count++;
+        },
+    });
+
+    return { ...signals, ...actions };
+});
+
+const EventLog = component(() => {
+    const store = useCounterStore();
+    const log = signal([] as string[]);
+
+    // WHAT changed — the state event:
+    store.$events.count.subscribe((value, prev) => {
+        log.push(`count: ${prev} → ${value}`);
+    });
+    // WHY it changed — the action events:
+    store.increment.onDispatched.subscribe(() => log.push('increment ran'));
+    store.incrementLater.onDispatching.subscribe(() => log.push('incrementLater started…'));
+    store.incrementLater.onDispatched.subscribe(() => log.push('incrementLater resolved'));
+
+    return () => (
+        <div class="space-y-2">
+            <div class="flex items-center gap-2">
+                <button class="btn btn-sm" onClick={() => store.increment()}>+1 now</button>
+                <button class="btn btn-sm" disabled={store.incrementLater.pending}
+                        onClick={() => store.incrementLater()}>
+                    +1 in 0.7s
+                </button>
+                <span class="font-bold">{store.count}</span>
+            </div>
+            <ul class="text-sm font-mono max-h-32 overflow-y-auto">
+                {log.map(line => <li>{line}</li>)}
+            </ul>
+        </div>
+    );
+});
+
+render(<EventLog />, "#sandbox");
+```
+
+Notice the ordering in the log for the async action: `started…` (onDispatching), then on resolution the state event fires from the mutation, then `resolved` (onDispatched).
+
+## Custom events with `defineEvents`
+
+When neither "key x changed" nor "action y ran" is the right vocabulary, define domain events. `defineEvents<EventMap>()` on the setup context creates a typed group of topics; return the ones subscribers should reach:
+
+```ts
+import { defineStore } from '@sigx/store';
+
+type CartEvents = {
+    checkedOut: { orderId: string };
+    cleared: void;
+};
+
+const useCartStore = defineStore('cart', (ctx) => {
+    const { state, signals, patch } = ctx.defineState({ items: [] as Item[] });
+    const events = ctx.defineEvents<CartEvents>();
+
+    const actions = ctx.defineActions({
+        async checkout() {
+            const orderId = await api.checkout(state.items);
+            patch({ items: [] });
+            events.checkedOut.publish({ orderId });
+        },
+    });
+
+    return { ...signals, ...actions, onCheckedOut: events.checkedOut };
+});
+
+useCartStore().onCheckedOut.subscribe(({ orderId }) => { /* typed payload */ });
+```
+
+Custom-event topics are created lazily, on first access of each key — the event-map type is erased at runtime, so a topic exists (and registers for inspection) once your code first touches `events.checkedOut`.
+
+## The inspection registry
+
+Every store event is a **namespaced topic**, and namespaced topics register in a realm-global, inspection-only registry that tooling reads via `@sigx/runtime-core/inspect`. A store with `$id` `'todos#1'` registers under three namespaces:
+
+| Namespace | Topics |
+|---|---|
+| `todos#1.state` | one per state key — `count`, `items`, … |
+| `todos#1.actions` | three per action — `save.onDispatching`, `save.onDispatched`, `save.onFailure` |
+| `todos#1.events` | one per custom event key (as each is first touched) |
+
+```ts
+import { listTopics, subscribeTopics } from '@sigx/runtime-core/inspect';
+
+listTopics('todos#1.*');          // every topic of this instance
+listTopics('*.actions.*');        // every action event of every store
+
+// Tap everything one store emits — existing topics AND ones created later:
+const sub = subscribeTopics('todos#1.*', (data, { namespace, name }) => {
+    console.log(`[${namespace}] ${name}`, data);
+});
+sub.unsubscribe();                // one call tears the whole tap down
+```
+
+This is how devtools auto-discover stores without any store-side registration code: the topics carry `namespace` and `name` metadata, `onTopicCreated` notifies about new ones, and wildcard patterns like `'*.state.*'` slice across all stores. The registry is deliberately `Topic<unknown>`-typed and **inspection-only** — application code should share typed topic references (like `onCheckedOut` above) instead of looking topics up by string.
+
+When a store is disposed, all of its topics are destroyed — they unregister from the registry, their refCount watchers stop, and `$events` / action events stop firing. See [Using Stores in Components](/store/docs/using-in-components#cleanup-on-unmount).
+
+For store-creation-time observability (wiring a logger to every store automatically), see [`onStoreCreated`](/store/docs/composables-and-plugins#global-plugins-with-onstorecreated).
+
+## Next steps
+
+- [Actions & Async](/store/docs/actions-and-async) — the action lifecycle events in depth.
+- [Composables & Plugins](/store/docs/composables-and-plugins) — cross-cutting observability with `onStoreCreated`.
+- [Messaging in core](/core/docs/advanced/messaging) — the Topic primitive itself.
+- [API Reference](/store/docs/api#statekeyevent) — `StateKeyEvent`, `Topic`, and `Subscription` signatures.

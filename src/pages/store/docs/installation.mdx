@@ -34,7 +34,7 @@ You use the store alongside the `sigx` component package, which provides `compon
 npm install sigx
 ```
 
-> Store `0.5.0` requires core `0.5.0` — that is the release where factory lifetimes (`'singleton' | 'scoped' | 'transient'`) are actually implemented, along with the Topic v2 events the store's lazy `$events` are built on.
+> Store `0.5.0` requires core `0.5.0` — that is the release where factory lifetimes (`'singleton' | 'scoped' | 'transient'`) are actually implemented, along with the Topic v2 events the store's lazy `$events` are built on. Coming from store `0.4.x`? The API changed substantially — follow the [migration guide](/store/docs/migrating-from-0-4).
 
 ## Project setup
 
@@ -69,6 +69,7 @@ render(<App />, '#app');
 
 ## Next steps
 
-- [Getting Started](/store/docs/getting-started) — the core mental model and a counter example.
+- [Getting Started](/store/docs/getting-started) — the core mental model with live examples.
 - [Defining a Store](/store/docs/defining-a-store) — state, actions, derived values, and events.
 - [Using Stores in Components](/store/docs/using-in-components) — sharing, lifetimes, and cleanup.
+- [Migrating from 0.4](/store/docs/migrating-from-0-4) — before/after for every breaking change.
