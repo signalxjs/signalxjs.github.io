@@ -137,6 +137,28 @@ for (const m of MODULES) {
     const dir = join(root, 'src', 'pages', ...moduleRoutePrefix(m).split('/').filter(Boolean));
     mkdirSync(dir, { recursive: true });
 
+    // Module root redirect: the bare `/lynx/modules/<id>/` (or `/core/packages/<id>/`)
+    // has no doc page of its own and would 404 — emit an index page that redirects to
+    // the module's first doc page (overview). Idempotent; kept out of the sidebar.
+    const indexPath = join(dir, 'index.tsx');
+    if (existsSync(indexPath)) { skipped++; } else {
+        writeFileSync(indexPath, `import { component } from 'sigx';
+import { ModuleIndexRedirect } from '@/components/ModuleIndexRedirect';
+
+const Page = component(() => () => <ModuleIndexRedirect id="${m.id}" />);
+
+export default Page;
+
+export const meta = {
+    title: ${yaml(m.name)},
+    description: ${yaml(`${m.name} — module overview`)},
+    layout: 'default',
+    sidebar: false,
+};
+`, 'utf8');
+        created++;
+    }
+
     for (const page of pageSet(m)) {
         const path = join(dir, page.file);
         if (existsSync(path)) { skipped++; continue; }
