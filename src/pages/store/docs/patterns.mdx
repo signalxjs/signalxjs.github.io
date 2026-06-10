@@ -71,11 +71,15 @@ const useCartStore = defineStore('cart', ({ defineState, defineActions }) => {
 
 - **The inner store resolves when the outer setup runs** — for a shared outer store, that's its *first creation*, and the result is captured for the outer's whole life. A `'scoped'` inner store resolves against whatever component tree (and `defineProvide` overrides) surrounded that first call — later overrides won't reach an already-created outer store.
 - **Lifetime mismatch:** composing a long-lived outer (`'singleton'`) with a shorter-lived inner is the dangerous direction. Inner `'singleton'`/`'scoped'` deps from a shared outer are the safe, boring default.
-- **A `'transient'` inner store is owned by whoever created it** — resolved during the outer setup inside a component, it disposes with that *component*, not with the outer store. If the outer store should own it, say so explicitly:
+- **A `'transient'` inner store is owned by whoever created it** — resolved during the outer setup inside a component, it disposes with that *component*, not with the outer store. If the outer store should own it, say so explicitly inside its setup:
 
 ```ts
-const inner = useScratchStore();                  // 'transient'
-ctx.onDeactivated(() => inner.$dispose());        // die together
+const useOuterStore = defineStore('outer', (ctx) => {
+    const inner = useScratchStore();                  // 'transient'
+    ctx.onDeactivated(() => inner.$dispose());        // die together
+    // ...
+    return { /* ... */ };
+});
 ```
 
 ## Optimistic update with rollback

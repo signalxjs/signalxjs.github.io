@@ -91,6 +91,7 @@ load(id: number | string) { /* ... */ }
 // ✗ overloads — subscribers would see only (id: string)
 function load(id: number): void;
 function load(id: string): void;
+function load(id: number | string): void { /* ... */ }
 ```
 
 The reason is mechanical: TypeScript's `Parameters<F>` and `ReturnType<F>` resolve an overloaded function type to its **last** overload only. The action would still be *callable* through every overload, but `onDispatching`/`onDispatched`/`onFailure` would be typed against just one of them — silently wrong for the rest. A union signature keeps the call site and the subscribers in agreement.
