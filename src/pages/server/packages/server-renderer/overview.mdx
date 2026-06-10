@@ -56,7 +56,7 @@ import { component } from 'sigx';
 export const App = component(({ signal }) => {
     const count = signal(0, 'count');
     return () => (
-        <div id="root">
+        <div class="app">
             <h1>Hello from SignalX SSR</h1>
             <button onClick={() => count(count() + 1)}>
                 Count: {count()}
