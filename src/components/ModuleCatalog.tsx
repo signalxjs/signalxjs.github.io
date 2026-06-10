@@ -57,6 +57,13 @@ export const ModuleCatalog = component<ModuleCatalogProps>(({ props, signal }) =
                             modules, gestures, UI and tooling. Every package ships in lockstep at one version,
                             so any combination just works together, and each one carries its own docs.
                         </p>
+                    ) : props.parent === 'server' ? (
+                        <p>
+                            Server-side rendering for SignalX — <code class="inline">@sigx/server-renderer</code>{' '}
+                            streams your component tree to HTML and hydrates it on the client, and{' '}
+                            <code class="inline">@sigx/ssr-islands</code> layers on selective{' '}
+                            <code class="inline">client:*</code> hydration. Each one carries its own docs.
+                        </p>
                     ) : (
                         <p>
                             Core is a collection — the packages in this repo, from the reactive primitives to

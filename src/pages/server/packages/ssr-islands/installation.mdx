@@ -1,0 +1,65 @@
+---
+title: Installation
+description: "Install @sigx/ssr-islands, its dependency, and the four subpath entry points"
+layout: module-docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/ssr-islands` on top of the server renderer and enable the `client:*` JSX types.</p>
+
+## Install
+
+```bash
+pnpm add @sigx/ssr-islands
+```
+
+## Dependencies
+
+`@sigx/ssr-islands` depends on **`@sigx/server-renderer`** (pulled in
+automatically) and lists **`sigx`** as a peer dependency — so it slots into an app
+you already render with the server renderer. The package is **ESM-only**.
+
+If you are starting from scratch, install all three:
+
+```bash
+pnpm add sigx @sigx/server-renderer @sigx/ssr-islands
+```
+
+## Subpath imports
+
+The package ships four entry points:
+
+| Import path | Use it for |
+|---|---|
+| `@sigx/ssr-islands` | Everything — `islandsPlugin`, client hydration, registry, server helpers |
+| `@sigx/ssr-islands/server` | Server-only island utilities (`createTrackingSignal`, `serializeSignalState`, `generateIslandDataScript`) |
+| `@sigx/ssr-islands/client` | Client hydration + registry (`hydrateIslands`, `registerComponent`, `loadIslandComponent`, …) |
+| `@sigx/ssr-islands/jsx` | **Types only** — augments JSX so `client:*` attributes type-check |
+
+The main entry re-exports both the server and client surfaces, so most apps just
+import from `@sigx/ssr-islands`. Split to `/server` and `/client` when you want to
+keep server-only code out of the browser bundle.
+
+## Enabling the client:\* directives
+
+The `client:*` attributes are added by a type-only import. Add it once — in your
+client entry, or any ambient `.d.ts` — so the whole project type-checks:
+
+```tsx
+import '@sigx/ssr-islands/jsx';
+
+// now valid:
+<Counter client:visible />
+```
+
+Without this import, TypeScript rejects `client:visible` and friends as unknown
+attributes.
+
+## Next steps
+
+- [Client directives](/server/packages/ssr-islands/client-directives)
+- [Plugin setup](/server/packages/ssr-islands/plugin-setup)
+- [API reference](/server/packages/ssr-islands/api)

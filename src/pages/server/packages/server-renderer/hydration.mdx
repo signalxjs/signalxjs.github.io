@@ -1,16 +1,14 @@
 ---
-title: Hydration & Head Management
-description: "Hydrate server-rendered DOM, manage the document head, and add island/selective hydration via plugins"
-layout: docs
+title: Hydration & head
+description: "Hydrate server-rendered DOM, manage the document head, and extend rendering through the plugin SPI"
+layout: module-docs
 category: Guides
 order: 40
 ---
 
-# Hydration & Head Management
+# Hydration & head
 
-After the server sends HTML, the client must re-attach reactivity to that existing
-DOM. This guide covers the hydration entry point, head management, and how
-selective/island/resumable hydration are implemented as plugins.
+<p class="lede">After the server sends HTML, the client re-attaches reactivity to that existing DOM. This guide covers the hydration entry point, head management, and the plugin SPI that advanced strategies build on.</p>
 
 ## The client hydration entry
 
@@ -76,9 +74,9 @@ export const ArticlePage = component((props) => {
 });
 ```
 
-The renderer auto-collects head configs during render and appends the head HTML to
-the context (read it via `ctx.getHead()`). `titleTemplate` uses `%s` as the title
-placeholder, and `renderHeadToString()` dedupes meta by
+The render APIs auto-collect head configs during render and append the head HTML
+to the context (read it via `ctx.getHead()`). `titleTemplate` uses `%s` as the
+title placeholder, and `renderHeadToString()` dedupes meta by
 `name`/`property`/`http-equiv`/`charset`.
 
 ### Manual head rendering
@@ -105,20 +103,20 @@ const doc = `<!DOCTYPE html><html><head>${headHtml}</head><body><div id="root">$
 The render APIs already enable head collection for you; reach for these functions
 only when driving the lifecycle by hand.
 
-## Selective, island & resumable hydration
+## The plugin SPI
 
 The core renderer and hydrator are strategy-agnostic. Every advanced hydration
-strategy is an `SSRPlugin` with optional `server` and `client` hook sets.
+strategy — selective, islands, resumable, Suspense — is an `SSRPlugin` with
+optional `server` and `client` hook sets.
 
 - Register **server** hooks with `createSSR().use(plugin)`.
 - Register **client** hooks with `registerClientPlugin(plugin)`.
 
 ```tsx
-// server entry
 import { createSSR, type SSRPlugin } from '@sigx/server-renderer';
 
-const islandsPlugin: SSRPlugin = {
-    name: 'my-islands',
+const myPlugin: SSRPlugin = {
+    name: 'my-strategy',
     server: {
         // choose block | stream | skip for async components, inject HTML, etc.
         handleAsyncSetup(id, ssrLoads, renderFn, ctx) {
@@ -130,66 +128,35 @@ const islandsPlugin: SSRPlugin = {
         beforeHydrate(container) {
             return; // run normal hydration
         },
-        // return a Node to "claim" a component (islands intercept client:* props)
+        // return a Node to "claim" a component during the hydration walk
         hydrateComponent(vnode, dom, parent) {
             return undefined; // let core hydrate it
         },
     },
 };
 
-const ssr = createSSR().use(islandsPlugin);
+const ssr = createSSR().use(myPlugin);
 const html = await ssr.render(<App />);
-```
-
-```tsx
-// client entry
-import { registerClientPlugin } from '@sigx/server-renderer/client';
-import { defineApp } from 'sigx';
-import { ssrClientPlugin } from '@sigx/server-renderer/client';
-import { App } from './App';
-import { islandsPlugin } from './islands';
-
-registerClientPlugin(islandsPlugin);
-
-defineApp(<App />)
-    .use(ssrClientPlugin)
-    .hydrate('#root');
 ```
 
 Key hook semantics:
 
 - `client.beforeHydrate` returning `false` **skips** the default DOM walk — the
   basis for resumable SSR.
-- `client.hydrateComponent` returning a `Node` **claims** that component; island
-  strategies use this to intercept `client:*` props and schedule deferred
-  hydration (e.g. on idle or on visible).
+- `client.hydrateComponent` returning a `Node` **claims** that component — the hook
+  islands use to intercept `client:*` props and schedule deferred hydration.
 - `server.handleAsyncSetup` chooses `block`, `stream`, or `skip` per async
   component; `getInjectedHTML` and `getStreamingChunks` let a plugin emit extra
   markup or streamed chunks.
 
-For lower-level plugin work, `hydrateComponent` (from `/client`) hydrates a single
-component against its trailing `<!--$c:N-->` marker — useful when a plugin needs to
-hydrate one island on demand.
-
-## Restoring signal state without re-fetching
-
-When a plugin defers hydration, use `createRestoringSignal()` to build a `signal()`
-replacement that restores values from server-captured state by key instead of
-re-running `ssr.load()`:
-
-```tsx
-import { createRestoringSignal } from '@sigx/server-renderer/client';
-
-const serverState = { count: 5 };
-const signal = createRestoringSignal(serverState);
-const count = signal(0, 'count'); // restores 5 from server state
-```
-
-Name your signals — `createRestoringSignal` dev-warns once when it restores an
-unnamed (positional-key) signal, because order drift between builds can silently
-mismatch state.
+> **You usually don't write this by hand.** The islands strategy — `client:*`
+> directives, deferred hydration, signal-state transfer and per-island code
+> splitting — is already implemented as a plugin in
+> [`@sigx/ssr-islands`](/server/packages/ssr-islands/overview). Reach for the raw
+> SPI only when building a *new* strategy.
 
 ## Next steps
 
-- [Streaming SSR with an HTTP server](/server/docs/streaming-ssr)
-- [API Reference](/server/docs/api)
+- [Building a full SSR app](/server/packages/server-renderer/full-app)
+- [Islands & selective hydration](/server/packages/ssr-islands/overview)
+- [API reference](/server/packages/server-renderer/api)

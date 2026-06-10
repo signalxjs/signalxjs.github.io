@@ -1,0 +1,153 @@
+---
+title: Building a full SSR app
+description: "Wire entry-server, entry-client and an HTTP server into a complete SignalX SSR app — with routing and islands"
+layout: module-docs
+category: Guides
+order: 50
+---
+
+# Building a full SSR app
+
+<p class="lede">The render and hydrate primitives are small on purpose. This guide shows how they fit together into a complete, routed SSR application — and where to reach for the router and islands packages.</p>
+
+## The shape of an SSR app
+
+Every SignalX SSR app has the same three-file backbone plus an HTTP server:
+
+```
+src/
+  App.tsx           # the shared component tree (runs on server AND client)
+  entry-server.tsx  # renders App → HTML for a request
+  entry-client.tsx  # hydrates the server HTML in the browser
+server.ts           # the HTTP server that calls entry-server per request
+```
+
+`App.tsx` is **isomorphic** — the exact same components run on both sides. There
+are no special "server components"; the only difference is the entry that drives
+them.
+
+## 1. The shared app
+
+```tsx
+// src/App.tsx
+import { component } from 'sigx';
+import { useHead } from '@sigx/server-renderer';
+
+export const App = component(() => {
+    useHead({ title: 'My SignalX app', htmlAttrs: { lang: 'en' } });
+    return () => (
+        <main class="app">
+            <h1>Hello from SSR</h1>
+        </main>
+    );
+});
+```
+
+## 2. The server entry
+
+Create a fresh app per request and render it. Using `createSSR()` (rather than the
+standalone functions) is the form that plugins — a router, islands — plug into:
+
+```tsx
+// src/entry-server.tsx
+import { defineApp } from 'sigx';
+import { createSSR } from '@sigx/server-renderer';
+import { App } from './App';
+
+const ssr = createSSR();
+
+export async function render() {
+    const app = defineApp(<App />);
+    return await ssr.render(app);              // or ssr.renderNodeStream(app)
+}
+```
+
+## 3. The client entry
+
+Hydrate instead of mounting. `ssrClientPlugin` adds `.hydrate()` to the app:
+
+```tsx
+// src/entry-client.tsx
+import { defineApp } from 'sigx';
+import { ssrClientPlugin } from '@sigx/server-renderer/client';
+import { App } from './App';
+
+defineApp(<App />)
+    .use(ssrClientPlugin)
+    .hydrate('#root');
+```
+
+## 4. The HTTP server
+
+Wrap the rendered markup in a full document and serve your built client bundle as
+static files:
+
+```ts
+// server.ts
+import express from 'express';
+import { render } from './entry-server';
+
+const app = express();
+app.use(express.static('dist/client'));
+
+app.get('*', async (req, res) => {
+    const body = await render();
+    res.status(200).set('Content-Type', 'text/html').send(`<!DOCTYPE html>
+<html>
+  <head><meta charset="utf-8" /></head>
+  <body>
+    <div id="root">${body}</div>
+    <script type="module" src="/entry-client.js"></script>
+  </body>
+</html>`);
+});
+
+app.listen(3000);
+```
+
+For streaming instead of buffering, swap `ssr.render(app)` for
+`ssr.renderNodeStream(app)` and pipe it to the response — see
+[Rendering & streaming](/server/packages/server-renderer/rendering).
+
+## Adding routing
+
+Real apps render different pages per URL. `@sigx/server-renderer` does **not**
+know about routes — routing is the router's job. The pattern is: build the router
+**per request** on the server (memory history) and **once** on the client (web
+history), then `.use(router)` on both apps.
+
+```tsx
+// entry-server.tsx (sketch)
+const app = defineApp(<App />).use(createServerRouter(req.url));
+```
+
+`@sigx/router` is isomorphic and integrates directly with `createSSR()`. Rather
+than repeat it here, follow the complete, verified walkthrough — router factory,
+per-request instances, data loading and SSR redirects:
+
+> **→ [SSR Routing with `@sigx/router`](/router/docs/ssr)**
+
+## Adding islands (selective hydration)
+
+By default `hydrate()` re-attaches reactivity to the **whole** tree. For a mostly
+static page with a few interactive spots, hydrate only those islands with
+`@sigx/ssr-islands`: mark components `client:visible` / `client:idle` / … in your
+JSX, register the plugin on the server, and call `hydrateIslands()` on the client.
+
+> **→ [Islands & selective hydration](/server/packages/ssr-islands/overview)**
+
+## Build & dev
+
+- **Dev** — use `@sigx/vite` with a Vite middleware server so `entry-server` and
+  `entry-client` hot-reload together. The JSX/HMR setup is the standard SignalX
+  Vite config; see [`@sigx/vite`](/vite).
+- **Build** — produce two bundles: the client bundle (served statically) and the
+  server bundle (imported by `server.ts`). Point the `<script type="module">` at
+  the built client entry.
+
+## Next steps
+
+- [Rendering & streaming](/server/packages/server-renderer/rendering) — Express / Fastify / edge and async data.
+- [Hydration & head](/server/packages/server-renderer/hydration) — the hydration entry and head management.
+- [SSR Routing](/router/docs/ssr) — the full router integration.
+- [Islands](/server/packages/ssr-islands/overview) — `client:*` selective hydration.

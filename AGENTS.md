@@ -120,8 +120,9 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 
 | Docs area (`src/pages/…`) | Source repo | Registry-backed? |
 |---|---|---|
-| `core/` (`api`, `docs`, `packages`), `server/`, `vite/` | [`signalxjs/core`](https://github.com/signalxjs/core) | **Yes** — `parent: 'core'` rows in `src/lib/modules.ts` (`sigx`, `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`, `@sigx/server-renderer`, `@sigx/vite`) |
+| `core/` (`api`, `docs`, `packages`), `vite/` | [`signalxjs/core`](https://github.com/signalxjs/core) | **Yes** — `parent: 'core'` rows in `src/lib/modules.ts` (`sigx`, `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`, `@sigx/vite`) |
 | `lynx/` (`docs`, `modules`) | [`signalxjs/lynx`](https://github.com/signalxjs/lynx) | **Yes** — `parent: 'lynx'` rows (`@sigx/lynx`, `@sigx/lynx-*`) |
+| `server/` (`packages`) — a collection spanning two repos | [`signalxjs/core`](https://github.com/signalxjs/core) (`@sigx/server-renderer`) + [`signalxjs/ssr-islands`](https://github.com/signalxjs/ssr-islands) (`@sigx/ssr-islands`) | **Yes** — `parent: 'server'` rows (`server-renderer`, `ssr-islands`); the two packages are versioned independently |
 | `store/` | [`signalxjs/store`](https://github.com/signalxjs/store) | No — hand-written guide/API pages |
 | `router/` (`api`, `docs`) | [`signalxjs/router`](https://github.com/signalxjs/router) | No |
 | `ssg/` | [`signalxjs/ssg`](https://github.com/signalxjs/ssg) | No |

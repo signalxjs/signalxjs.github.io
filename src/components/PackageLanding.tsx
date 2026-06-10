@@ -50,8 +50,14 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                 <section class="landing-hero">
                     <div class="lh-deco" />
                     <div class="lh-badge">
-                        <span class="lhb-tile">{pkg.glyph}</span> {pkg.npm}
-                        <span class="lhb-dot">·</span> v{pkg.version}
+                        <span class="lhb-tile">{pkg.glyph}</span>{' '}
+                        {/* `server` is a docs-only collection — no umbrella npm package
+                            or single version; show the package count instead. */}
+                        {pkg.id === 'server' ? (
+                            <>Collection <span class="lhb-dot">·</span> {modulesByParent('server').length} packages</>
+                        ) : (
+                            <>{pkg.npm} <span class="lhb-dot">·</span> v{pkg.version}</>
+                        )}
                     </div>
                     <h1>{pkg.title}</h1>
                     <p class="lh-tag">{pkg.blurb}</p>
@@ -64,6 +70,11 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         {pkg.id === 'lynx' && (
                             <SxLink to="/lynx/modules" class="sx-btn sx-btn-outline">
                                 <Icon name="cube" size={15} /> Browse modules
+                            </SxLink>
+                        )}
+                        {pkg.id === 'server' && (
+                            <SxLink to="/server/packages" class={`sx-btn ${docs ? 'sx-btn-outline' : 'sx-btn-primary'}`}>
+                                <Icon name="cube" size={15} /> Browse packages
                             </SxLink>
                         )}
                         {api && (
@@ -79,19 +90,24 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         >
                             <Icon name="github" size={16} /> GitHub
                         </a>
-                        <a
-                            class="sx-btn sx-btn-ghost"
-                            href={`https://www.npmjs.com/package/${pkg.npm}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            <Icon name="external" size={15} /> npm
-                        </a>
+                        {/* `server` is a docs-only collection with no umbrella npm
+                            package — its two packages each link to npm from their
+                            own docs, so skip the single-package npm button here. */}
+                        {pkg.id !== 'server' && (
+                            <a
+                                class="sx-btn sx-btn-ghost"
+                                href={`https://www.npmjs.com/package/${pkg.npm}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <Icon name="external" size={15} /> npm
+                            </a>
+                        )}
                         <StatusBadge status={pkg.status} />
                         {/* DaisyUI exists on two targets — link the native sibling (local, never a global mode) */}
                         {pkg.id === 'daisyui' && <SiblingTargetPill current="web" />}
                     </div>
-                    {!docs && (
+                    {!docs && pkg.kind !== 'collection' && (
                         <p class="lh-soon">Documentation for {pkg.title} is on its way — watch this space.</p>
                     )}
                 </section>
@@ -108,9 +124,14 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                     ))}
                 </div>
 
-                {/* Install */}
+                {/* Install — `server` has no umbrella package, so list its two
+                    packages individually rather than implying a single install. */}
                 <div class="section-label"><span class="sl-text">Install</span><span class="sl-line" /></div>
-                <CopyLine text={`pnpm add ${pkg.npm}`} prefix="$" />
+                {pkg.id === 'server'
+                    ? modulesByParent('server').map((m) => (
+                        <CopyLine key={m.id} text={`pnpm add ${m.npm}`} prefix="$" />
+                    ))
+                    : <CopyLine text={`pnpm add ${pkg.npm}`} prefix="$" />}
 
                 {/* Collection strips — core & lynx are meta-packages with sub-package docs */}
                 {pkg.id === 'core' && (
@@ -122,6 +143,18 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         </div>
                         <div class="lynx-mod-row">
                             {modulesByParent('core').map(moduleCard)}
+                        </div>
+                    </>
+                )}
+                {pkg.id === 'server' && (
+                    <>
+                        <div class="section-label">
+                            <span class="sl-text">SSR packages</span>
+                            <span class="sl-line" />
+                            <span class="sl-note">server is a collection — the renderer and the islands add-on</span>
+                        </div>
+                        <div class="lynx-mod-row">
+                            {modulesByParent('server').map(moduleCard)}
                         </div>
                     </>
                 )}

@@ -1,15 +1,14 @@
 ---
-title: Streaming SSR with an HTTP Server
-description: "Wire renderToNodeStream/renderToStream into Express, Fastify, or H3, and stream async data with ssr.load()"
-layout: docs
+title: Rendering & streaming
+description: "Wire renderToString/Stream/NodeStream into Express, Fastify, or an edge runtime, and stream async data with ssr.load()"
+layout: module-docs
 category: Guides
 order: 30
 ---
 
-# Streaming SSR with an HTTP Server
+# Rendering & streaming
 
-This guide wires the render APIs into a real HTTP server and shows how async data
-streams to the client. Every example uses inventoried exports only.
+<p class="lede">Pick a render API, wire it into a real HTTP server, and stream async data to the client.</p>
 
 ## Picking a render API
 
@@ -110,9 +109,8 @@ export default {
 
 ## Async data with ssr.load()
 
-To fetch data during SSR, call `ssr.load()` from inside `setup`. With the bare
-render APIs the callback runs on the **server** and its resolved HTML is streamed
-to the client, but the signal state itself is not transferred — see the note below:
+To fetch data during SSR, call `ssr.load()` from inside `setup`. The callback runs
+on the **server**; its resolved HTML is streamed to the client:
 
 ```tsx
 import { component } from 'sigx';
@@ -137,28 +135,26 @@ Default behavior by render mode:
   default to `stream`: a placeholder is emitted immediately, then a
   `$SIGX_REPLACE` script swaps in the real HTML once `ssr.load()` resolves.
 
-### State transfer requires a tracking/islands plugin
+### State transfer needs the islands plugin
 
-The bare render APIs (`renderToString` / `renderToStream` / `renderToNodeStream`)
-produce correct HTML, but they do **not** serialize signal state. In the core
-render path `ctx.signal` is the plain, non-tracking signal, so no
-`_serverState` is sent to the client. On hydration of a core-rendered async
+The bare render APIs produce correct HTML, but they do **not** serialize signal
+state. In the core render path `ctx.signal` is the plain, non-tracking signal, so
+no server state is sent to the client. On hydration of a core-rendered async
 component there is nothing to restore, and `ssr.load()` runs again on the client.
 
 Automatic skip-on-hydration and state restoration — so `ssr.load()` does **not**
-re-run and you avoid a duplicate fetch — require an islands/tracking SSR plugin.
-Such a plugin swaps `ctx.signal` for a tracking signal during render (via
-`transformComponentContext`) and a restoring signal during hydration
-(`createRestoringSignal`), keyed by `generateSignalKey`.
+re-run and you avoid a duplicate fetch — require a tracking plugin like
+[`@sigx/ssr-islands`](/server/packages/ssr-islands/overview), which swaps in a
+tracking signal during render and a restoring signal during hydration.
 
 ## Naming signals for hydration parity
 
-When a tracking/islands plugin is in use, hydration matches server-captured state
-to client signals by key. Name the context `signal` that holds server-loaded
-state — `signal(value, 'name')`, using the `signal` destructured from the
-component context — so the keys line up. Unnamed signals fall back to positional
-keys (`$0`, `$1`, …); the dev build warns once because declaration-order drift
-between server and client builds can silently mismatch state.
+When a tracking plugin is in use, hydration matches server-captured state to
+client signals by key. Name the context `signal` that holds server-loaded state —
+`signal(value, 'name')`, using the `signal` destructured from the component
+context — so the keys line up. Unnamed signals fall back to positional keys
+(`$0`, `$1`, …); the dev build warns once because declaration-order drift between
+server and client builds can silently mismatch state.
 
 The module-level `signal` exported from `sigx` takes only a value and ignores a
 name; the name parameter exists on the context `signal` (typed `SSRSignalFn`).
@@ -170,8 +166,7 @@ of failing the whole render. Return a string of fallback HTML, or `null` for the
 default error placeholder:
 
 ```tsx
-import { createSSRContext } from '@sigx/server-renderer/server';
-import { renderToString } from '@sigx/server-renderer/server';
+import { createSSRContext, renderToString } from '@sigx/server-renderer/server';
 import { App } from './App';
 
 const ctx = createSSRContext({
@@ -183,8 +178,7 @@ const html = await renderToString(<App />, ctx);
 
 ## Completion signal
 
-The streaming render forms (`renderToStream`, `renderToNodeStream`, and
-`renderToStreamWithCallbacks`) emit a trailing `<script>` that sets
+The streaming render forms emit a trailing `<script>` that sets
 `window.__SIGX_STREAMING_COMPLETE__ = true` and dispatches a `sigx:ready` event,
 so client code can wait for the full document before running deferred logic.
 `renderToString` does **not** emit this script — it returns the complete document
@@ -192,5 +186,6 @@ as a string, so there is nothing to wait for.
 
 ## Next steps
 
-- [Hydration and island strategies](/server/docs/hydration)
-- [API Reference](/server/docs/api)
+- [Hydration & head](/server/packages/server-renderer/hydration)
+- [Building a full SSR app](/server/packages/server-renderer/full-app)
+- [API reference](/server/packages/server-renderer/api)

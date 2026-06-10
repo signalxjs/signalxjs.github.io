@@ -35,8 +35,9 @@ const FEATURES: Record<string, LandingFeature[]> = {
         { icon: 'terminal', title: 'One command', body: 'Dev server, prerender and sitemap from a single config.' },
     ],
     server: [
-        { icon: 'bolt', title: 'Streaming SSR', body: 'Render to a stream on the server for fast first paint.' },
-        { icon: 'layers', title: 'Selective hydration', body: 'client:* directives hydrate only what needs to be alive.' },
+        { icon: 'bolt', title: 'Streaming SSR', body: 'Render to a string or a stream on the server for fast first paint.' },
+        { icon: 'layers', title: 'Hydration & head', body: 'Re-attach reactivity to server HTML and manage the document head.' },
+        { icon: 'sparkle', title: 'Islands add-on', body: 'Layer @sigx/ssr-islands on top for client:* selective hydration.' },
         { icon: 'cube', title: 'Same components', body: 'No special server components — your TSX runs everywhere.' },
     ],
     lynx: [

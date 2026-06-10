@@ -1,0 +1,101 @@
+---
+title: Client directives
+description: "The five client:* selective-hydration strategies — load, idle, visible, media, only"
+layout: module-docs
+category: Guides
+order: 30
+---
+
+# Client directives
+
+<p class="lede">A `client:*` directive on a component tells the islands plugin to hydrate it — and <em>when</em>. Components without a `client:*` directive render to static HTML and ship no client JavaScript.</p>
+
+Enable the attributes with a one-time type import — see
+[Installation](/server/packages/ssr-islands/installation):
+
+```tsx
+import '@sigx/ssr-islands/jsx';
+```
+
+## The strategies
+
+```tsx
+<Counter client:load />                       {/* hydrate immediately */}
+<Sidebar client:idle />                       {/* hydrate when the browser is idle */}
+<Chart client:visible />                      {/* hydrate when scrolled into view */}
+<Menu client:media="(min-width: 768px)" />    {/* hydrate when the query matches */}
+<LiveFeed client:only />                       {/* skip SSR, mount fresh on the client */}
+```
+
+### client:load
+
+Hydrates as soon as `hydrateIslands()` runs. Use for above-the-fold interactivity
+that must be live immediately (primary nav, a hero CTA).
+
+### client:idle
+
+Defers hydration to browser idle time (`requestIdleCallback`, with a timeout
+fallback). Good for secondary widgets that should not compete with first paint.
+
+### client:visible
+
+Hydrates when the element scrolls into the viewport, via `IntersectionObserver`.
+Ideal for below-the-fold islands — charts, comment threads, carousels — so their
+JS only loads when the user reaches them. Pairs naturally with lazy registration
+for [per-island code splitting](/server/packages/ssr-islands/registry-and-code-splitting).
+
+### client:media
+
+Hydrates when a CSS media query matches. Pass the query as the value:
+
+```tsx
+<MobileMenu client:media="(max-width: 767px)" />
+<DesktopNav client:media="(min-width: 768px)" />
+```
+
+The component stays static until (and unless) the query matches — so a desktop
+visitor never pays for the mobile menu's JavaScript, and vice versa.
+
+### client:only
+
+Renders **no** SSR HTML for the component and mounts it fresh on the client. Use
+for components that cannot render on the server — ones that read `window`,
+`localStorage`, or other browser-only globals during setup.
+
+## The strategy type
+
+The five strategies are the `HydrationStrategy` union, and the directives are the
+`ClientDirectives` interface that augments component attributes:
+
+```ts
+type HydrationStrategy = 'load' | 'idle' | 'visible' | 'media' | 'only';
+
+interface ClientDirectives {
+    'client:load'?: boolean;
+    'client:idle'?: boolean;
+    'client:visible'?: boolean;
+    'client:media'?: string;   // the media query
+    'client:only'?: boolean;
+}
+```
+
+## Cleaning up on SPA navigation
+
+Deferred strategies register observers and listeners (`IntersectionObserver`,
+`matchMedia`) for islands that have not triggered yet. When you navigate away in
+an SPA before they fire, call `cleanupPendingHydrations()` to tear those down and
+avoid leaks:
+
+```ts
+import { cleanupPendingHydrations } from '@sigx/ssr-islands';
+
+router.beforeEach(() => {
+    cleanupPendingHydrations();
+});
+```
+
+## Next steps
+
+- [Registry & code splitting](/server/packages/ssr-islands/registry-and-code-splitting) — make islands' components resolvable on the client.
+- [Plugin setup](/server/packages/ssr-islands/plugin-setup) — register the server plugin and transfer signal state.
+- [API reference](/server/packages/ssr-islands/api)
