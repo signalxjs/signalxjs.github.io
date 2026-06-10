@@ -191,7 +191,7 @@ const useSettings = defineStore('settings', (ctx) => {
         },
     });
 
-    return { ...signals, ...actions, hydrated };
+    return { ...signals, ...actions, hydrated, whenHydrated };
 }, 'singleton');
 ```
 
@@ -206,11 +206,11 @@ const Settings = component(() => {
 });
 ```
 
-`hydrated` is a plain `{ readonly value }` view — reading `store.hydrated.value` in render re-renders when it flips. For imperative flows (e.g. deciding an initial route after settings load), `await whenHydrated` instead:
+`hydrated` is a plain `{ readonly value }` view — reading `store.hydrated.value` in render re-renders when it flips. For imperative flows (e.g. deciding an initial route after settings load), return `whenHydrated` from the setup too (as above) and await it on the instance:
 
 ```ts
 const store = useSettings();
-await whenHydrated;            // resolves once stored values are applied
+await store.whenHydrated;      // resolves once stored values are applied
 navigate(store.locale === 'en' ? '/home' : `/${store.locale}/home`);
 ```
 
