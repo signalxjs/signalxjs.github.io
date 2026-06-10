@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Daily rebuild so package versions track npm `latest` without a push.
+  schedule:
+    - cron: '0 6 * * *'
 
 # Allow only one concurrent deployment, skip runs queued between the run
 # in-progress and latest queued. Don't cancel in-progress, so deploys finish.
@@ -31,6 +34,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Refresh src/lib/versions.generated.ts from npm `latest` so the built
+      # site shows current versions. Failure-tolerant: a flaky npm keeps the
+      # committed values rather than breaking the deploy.
+      - name: Refresh versions from npm
+        run: node scripts/fetch-versions.mjs
 
       - name: Build
         run: pnpm build
