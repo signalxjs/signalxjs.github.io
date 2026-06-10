@@ -98,7 +98,7 @@ await Promise.all(
             if (!version) throw new Error('no version field');
             fetched[pkg] = version;
         } catch (err) {
-            failed.push(`${pkg} (${err.message})`);
+            failed.push(`${pkg} (${err instanceof Error ? err.message : String(err)})`);
         }
     }),
 );
