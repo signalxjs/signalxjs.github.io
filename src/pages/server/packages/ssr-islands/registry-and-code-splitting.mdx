@@ -92,6 +92,7 @@ helpers — useful when you want an isolated registry instance:
 
 ```ts
 import { HydrationRegistry } from '@sigx/ssr-islands';
+import { Counter } from './components/Counter';
 
 const registry = new HydrationRegistry()
     .register('Counter', Counter)
