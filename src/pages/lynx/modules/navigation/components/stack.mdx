@@ -1,0 +1,111 @@
+---
+title: "Stack"
+description: "Stack — @sigx/lynx-navigation component"
+layout: module-docs
+category: ["Components", "Navigators"]
+order: 101
+---
+
+# Stack
+
+<p class="lede">The stack navigator: a native push/pop stack of screens. In bound mode it renders the enclosing navigator's stack; in nested-owner mode it mints a fresh per-tab back-stack. Its <code>default</code> slot is chrome rendered inside the stack's nav scope — typically a <a href="/lynx/modules/navigation/components/header">Header</a>.</p>
+
+## Import
+
+```tsx
+import { Stack } from '@sigx/lynx-navigation';
+```
+
+## Basic usage
+
+Mount a `Stack` inside a [`NavigationRoot`](/lynx/modules/navigation/api#navigationroot) — the root creates the navigator state, the stack renders its screens. Drop a [`<Header />`](/lynx/modules/navigation/components/header) into the stack's `default` slot for the headless default header bar.
+
+```tsx
+import { z } from 'zod';
+import { defineRoutes, NavigationRoot, Stack, Header } from '@sigx/lynx-navigation';
+import { Home } from './screens/Home';
+import { Profile } from './screens/Profile';
+
+export const routes = defineRoutes({
+    home: { component: Home },
+    profile: {
+        component: Profile,
+        params: z.object({ id: z.string() }),
+        path: '/users/:id',
+    },
+});
+
+declare module '@sigx/lynx-navigation' {
+    interface Register {
+        routes: typeof routes;
+    }
+}
+
+export const App = () => (
+    <NavigationRoot routes={routes} initialRoute="home">
+        <Stack>
+            <Header />
+        </Stack>
+    </NavigationRoot>
+);
+```
+
+This is **bound mode** — with no `initialRoute`, the stack renders the enclosing navigator's stack. `useNav()` inside returns that navigator. `card` pushes stay local; `modal` / `fullScreen` / `transparent-modal` / `sheet` presentations escalate to root; `replace` is strictly local.
+
+## Nested per-tab stacks
+
+Passing `initialRoute` puts the stack in **nested-owner mode**: it mints a fresh nested navigator with its own back-stack. This is how each tab gets independent history — `useNav()` inside returns the nested nav, and `nav.parent` is the enclosing one.
+
+```tsx
+import { Tabs, TabBar, Stack, Header } from '@sigx/lynx-navigation';
+
+export const Main = () => (
+    <Tabs initialTab="trips">
+        <Tabs.Screen name="trips" label="Trips">
+            <Stack initialRoute="tripsHome">
+                <Header />
+            </Stack>
+        </Tabs.Screen>
+        <Tabs.Screen name="account" label="Account">
+            <Stack initialRoute="accountHome">
+                <Header />
+            </Stack>
+        </Tabs.Screen>
+        <TabBar />
+    </Tabs>
+);
+```
+
+Inside a tab, a `card` push (`nav.push('tripDetail', { tripId })`) stays in that tab's stack, while a `modal` push escalates to root and overlays the tab bar. See [Tabs](/lynx/modules/navigation/api#tabs) for the full pattern.
+
+## Bounding retained screens
+
+`maxRetainedScreens` caps how many covered `card` screens stay mounted underneath the top entry (default: all, capped at the internal `MAX_LAYERS` of 24). Lower it to trade transition fidelity for memory on deep stacks.
+
+```tsx
+<Stack maxRetainedScreens={3}>
+    <Header />
+</Stack>
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `initialRoute` | `string` | When set, switches to nested-owner mode — the stack mints a fresh nested navigator starting at this route. Omit for bound mode (renders the enclosing navigator's stack). |
+| `initialParams` | `Record<string, unknown>` | Params for the nested navigator's initial route. |
+| `initialSearch` | `Record<string, unknown>` | Search / query params for the nested navigator's initial route. |
+| `maxRetainedScreens` | `number` | Bounds covered-card retention. Default: all, capped at `MAX_LAYERS` (24). |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Chrome rendered inside this stack's nav scope — e.g. a per-stack [`<Header />`](/lynx/modules/navigation/components/header). |
+
+## See also
+
+- [Screen](/lynx/modules/navigation/api#screen) — declarative per-screen options and header slot fills.
+- [Header](/lynx/modules/navigation/components/header) — the default navigator header chrome.
+- [API reference](/lynx/modules/navigation/api#stack) — full signature and the `Nav` handle from [`useNav`](/lynx/modules/navigation/api#usenav).
+- [Usage](/lynx/modules/navigation/usage) — the complete typed-routes setup pattern.

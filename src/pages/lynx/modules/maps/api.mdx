@@ -37,31 +37,12 @@ Every export below works on both iOS and Android.
 
 ## Components
 
-### `Map`
+Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/maps/components) catalog:
 
-Native map view component. Renders `MKMapView` on iOS (Apple Maps, no key) and `com.google.android.gms.maps.MapView` on Android (Google Maps, API key required). Accepts any number of [`MapMarker`](#mapmarker) children as pins.
+- [**Map**](/lynx/modules/maps/components/map) — native map view rendering Apple Maps on iOS and Google Maps on Android, accepting `MapMarker` children as pins.
+- [**MapMarker**](/lynx/modules/maps/components/mapmarker) — a marker pin rendered inside a `Map`.
 
-```ts
-export const Map: (props: MapProps) => /* sigx-lynx component */
-```
-
-- **`props`** — [`MapProps`](#mapprops). All props are optional.
-- **Returns** — a sigx-lynx component that maps to the intrinsic `<sigx-map>` element.
-
-Platform notes: serializes `region` to a JSON string; passes `showsUserLocation` → `shows-user-location` and `mapType` → `map-type`; and wires `onRegionChange` / `onPress` / `onMarkerPress` to the native `bindregionchange` / `bindpress` / `bindmarkerpress` bindings. The map snaps to `region` on **every** prop change — for initial-region-only semantics, pass it once and hold it in stable local state. The imperative methods `animateToRegion` and `fitToCoordinates` are **not** implemented in v1.
-
-### `MapMarker`
-
-Marker pin rendered inside a [`Map`](#map).
-
-```ts
-export const MapMarker: (props: MapMarkerProps) => /* sigx-lynx component */
-```
-
-- **`props`** — [`MapMarkerProps`](#mapmarkerprops). `coordinate` is required; the rest are optional.
-- **Returns** — a sigx-lynx component that maps to the intrinsic `<sigx-map-marker>` element.
-
-Platform notes: JSON-stringifies `coordinate`, passes `title` / `description` through, and forwards `id` → `marker-id` (surfaced as `event.detail.id` on the parent map's `onMarkerPress`). v1 markers are minimal — platform default pin only: no custom icons, no draggable pins, no custom callout views. Set `id` to disambiguate when multiple markers share a coordinate.
+Their prop types and related APIs remain documented below.
 
 ## Prop types
 

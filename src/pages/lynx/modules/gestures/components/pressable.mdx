@@ -1,0 +1,106 @@
+---
+title: "Pressable"
+description: "Pressable — @sigx/lynx-gestures component"
+layout: module-docs
+category: ["Components", "Touch"]
+order: 101
+---
+
+# Pressable
+
+<p class="lede">A tap and long-press recognizer with built-in pressed-state visual feedback (opacity and scale). It composes `Gesture.Tap` and `Gesture.LongPress` simultaneously, keeping touch tracking on Lynx's main thread and dispatching `press` / `longPress` to the background thread via `runOnBackground`.</p>
+
+## Import
+
+```tsx
+import { Pressable } from '@sigx/lynx-gestures';
+```
+
+## Basic usage
+
+Put the content you want to make tappable in the default slot and listen for `press`. Emit your reactive updates from the event callbacks:
+
+```tsx
+import { Pressable } from '@sigx/lynx-gestures';
+import { signal } from '@sigx/reactivity';
+
+function TapCounter() {
+  const taps = signal(0);
+
+  return (
+    <Pressable
+      pressedOpacity={0.5}
+      pressedScale={0.95}
+      longPressDuration={500}
+      onPress={() => { taps.value++; }}
+      onLongPress={() => { taps.value = 0; }}
+      style={{ padding: '12px', borderRadius: '8px' }}
+    >
+      <text>Tapped {taps} times</text>
+    </Pressable>
+  );
+}
+```
+
+`pressedOpacity` and `pressedScale` set the visual feedback applied while the touch is down (defaults `0.6` and `1`). `maxDistance` (default `10`px) is the slop past which the press cancels.
+
+## Disabling long-press
+
+Set `longPressDuration={0}` to turn off long-press detection while keeping the pressed-state reset. The default duration is `500`ms:
+
+```tsx
+<Pressable longPressDuration={0} onPress={() => save()}>
+  <text>Save</text>
+</Pressable>
+```
+
+## Accessibility
+
+The `accessibility-*` props are forwarded onto the inner interactive view, so a `Pressable` can announce itself like a native button:
+
+```tsx
+<Pressable
+  accessibility-element
+  accessibility-role="button"
+  accessibility-label="Add to favorites"
+  onPress={() => toggleFavorite()}
+>
+  <text>♥</text>
+</Pressable>
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `pressedOpacity` | `number` | Opacity applied while pressed. Default `0.6`. |
+| `pressedScale` | `number` | Scale applied while pressed. Default `1`. |
+| `longPressDuration` | `number` | Long-press threshold in ms. Default `500`; `0` disables long-press while keeping the pressed-state reset. |
+| `maxDistance` | `number` | Slop in px past which the press cancels. Default `10`. |
+| `disabled` | `boolean` | Disables the recognizer. |
+| `class` | `string` | Extra CSS classes. |
+| `style` | `Record<string, string \| number>` | Inline style for the host view. |
+| `accessibility-element` | `boolean` | Forwarded onto the inner interactive view; marks the node as an accessibility element. |
+| `accessibility-label` | `string` | Forwarded accessibility label for screen readers. |
+| `accessibility-role` | `string` | Forwarded accessibility role. |
+| `accessibility-trait` | `string` | Forwarded accessibility trait. |
+| `accessibility-status` | `string` | Forwarded accessibility status. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Content to make pressable. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onPress` | `() => void` | Fired on a tap. Dispatched to the background thread. |
+| `onLongPress` | `() => void` | Fired when the touch is held past `longPressDuration`. Dispatched to the background thread. |
+
+## See also
+
+- [Draggable](/lynx/modules/gestures/components/draggable) — pan-driven dragging on the main thread.
+- [Swipeable](/lynx/modules/gestures/components/swipeable) — horizontal swipe-to-reveal rows.
+- [API reference](/lynx/modules/gestures/api) — every export, typed, including `PressableProps`.

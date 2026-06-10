@@ -14,55 +14,15 @@ All exports work on both iOS and Android unless noted. The package is named-expo
 
 ## Components
 
-### Pressable
+Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/gestures/components) catalog:
 
-A tap and long-press recognizer with built-in pressed-state visual feedback (opacity and scale). Composes `Gesture.Tap` and `Gesture.LongPress` simultaneously; emits `press` and `longPress` to the background thread via `runOnBackground`.
+- [**Pressable**](/lynx/modules/gestures/components/pressable) — a tap and long-press recognizer with built-in pressed-state visual feedback (opacity and scale).
+- [**Draggable**](/lynx/modules/gestures/components/draggable) — a draggable container built on `Gesture.Pan()` with axis lock, bounds clamping, snap-back, and `ScrollView` coordination.
+- [**Swipeable**](/lynx/modules/gestures/components/swipeable) — a horizontal swipe-to-reveal container that snaps to closed / open-left / open-right on release.
+- [**ScrollView**](/lynx/modules/gestures/components/scrollview) — a `scroll-view` wrapper that mirrors scroll position into `SharedValue`s and coordinates descendant gestures.
+- [**Swiper**](/lynx/modules/gestures/components/swiper) — a paged horizontal carousel built on a native paging `scroll-view`, with a controlled `index` and live `offset`.
 
-```ts
-export const Pressable: (props: PressableProps) => unknown;
-```
-
-Defaults: `pressedOpacity` `0.6`, `pressedScale` `1`, `longPressDuration` `500`ms (`0` disables long-press while keeping pressed-state reset), `maxDistance` `10`px (the slop past which the press cancels). `accessibility-*` props are forwarded onto the inner interactive view. Platform: both.
-
-### Draggable
-
-A draggable container built on `Gesture.Pan()`. Drives the element transform via two `useAnimatedStyle` bindings on the main thread; supports axis lock, bounds clamping, snap-back, external `SharedValue` position exposure, and automatic `ScrollView` coordination plus edge-scroll.
-
-```ts
-export const Draggable: (props: DraggableProps) => unknown;
-```
-
-Defaults: `axis` `'both'`, `threshold` `0` (minimum pan distance), `snapBack` `false`. Emits `dragStart` and `dragEnd`. Platform: both.
-
-### Swipeable
-
-A horizontal swipe-to-reveal container built on `Gesture.Pan().axis('x')`. Snaps to closed / open-left / open-right on release; emits `swipeOpen` and `swipeClose`.
-
-```ts
-export const Swipeable: (props: SwipeableProps) => unknown;
-```
-
-Defaults: `leftActionsWidth` `100`, `rightActionsWidth` `100`, `snapThreshold` `60`, `snapDuration` `200`ms. `leftActions` / `rightActions` are render-prop functions for the reveal panels. Platform: both.
-
-### ScrollView
-
-A `scroll-view` wrapper that mirrors scroll position into `SharedValue`s (`offsetX` / `offsetY`) and provides a `ScrollContext` so descendant `Draggable` / `Swipeable` auto-coordinate — they yield the native pan during a child gesture.
-
-```ts
-export const ScrollView: (props: ScrollViewProps) => unknown;
-```
-
-`scroll-orientation` defaults to `'vertical'`; `enable-scroll` defaults to `true` and is AND-combined with the descendant-driven dragging flag (children can lock scroll mid-drag). `offsetX` / `offsetY` are written each scroll frame on the main thread. Platform: both.
-
-### Swiper
-
-A paged horizontal carousel built on a native paging `scroll-view`. Renders items into page-sized wrappers, writes the live pixel offset into a `SharedValue` each main-thread frame, supports a controlled `index` (`PrimitiveSignal`) with native `scrollTo` glide, and emits `pageChange`.
-
-```ts
-export const Swiper: <T>(props: SwiperProps<T>) => unknown;
-```
-
-`items` and `renderItem` are required. `width` defaults to the measured container width, then `lynx.SystemInfo.pixelWidth / pixelRatio` (fallback `400`); `height` falls back to the measured height then `800`. `keyExtractor` defaults to the array index. Platform: both.
+Their prop types and related APIs remain documented below.
 
 ## Hooks — Swiper indicators
 

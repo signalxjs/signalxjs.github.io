@@ -1,0 +1,106 @@
+---
+title: "Tabs"
+description: "Tabs — @sigx/lynx-navigation component"
+layout: module-docs
+category: ["Components", "Navigators"]
+order: 102
+---
+
+# Tabs
+
+<p class="lede">A persistent native tab navigator. Each tab is declared with a `<Tabs.Screen>` and stays mounted while inactive (hidden with <code>display:none</code>), so per-tab state — including a nested back-stack — survives switching between tabs.</p>
+
+## Import
+
+```tsx
+import { Tabs } from '@sigx/lynx-navigation';
+```
+
+## Basic usage
+
+`<Tabs initialTab>` hosts one `<Tabs.Screen name>` per tab. Each `Tabs.Screen` body is rendered eagerly and kept mounted; only the active tab is visible. Drop a [`<Stack initialRoute>`](/lynx/modules/navigation/api) inside a `Tabs.Screen` to give that tab its own back-stack, and add a [`<TabBar />`](/lynx/modules/navigation/api) for the default chrome:
+
+```tsx
+import { Tabs, TabBar, Stack, Header } from '@sigx/lynx-navigation';
+
+export const Main = () => (
+  <Tabs initialTab="trips">
+    <Tabs.Screen name="trips" label="Trips">
+      <Stack initialRoute="tripsHome">
+        <Header />
+      </Stack>
+    </Tabs.Screen>
+    <Tabs.Screen name="account" label="Account">
+      <Stack initialRoute="accountHome">
+        <Header />
+      </Stack>
+    </Tabs.Screen>
+    <TabBar />
+  </Tabs>
+);
+```
+
+Inside a tab, a `card` push (e.g. `nav.push('tripDetail', { tripId })`) stays in that tab's stack and the tab bar stays visible. `modal` / `fullScreen` / `transparent-modal` / `sheet` pushes escalate to the root navigator and overlay everything; `nav.replace` is always local.
+
+## Reading and switching the active tab
+
+Read the enclosing tab navigator with [`useTabs()`](/lynx/modules/navigation/api) — it returns `{ active, setActive(name), tabs }`, all reactive. `setActive` ignores unknown tab names (no-op). It throws when called outside `Tabs`:
+
+```tsx
+import { useTabs } from '@sigx/lynx-navigation';
+
+export const TabSwitcher = () => {
+  const tabs = useTabs();
+
+  return (
+    <view>
+      <text>Active: {tabs.active}</text>
+      {tabs.tabs.map((t) => (
+        <text bindtap={() => tabs.setActive(t.name)}>
+          {t.label ?? t.name}
+        </text>
+      ))}
+    </view>
+  );
+};
+```
+
+## Custom tab bar
+
+The default `TabBar` is headless and unstyled with accessibility wiring built in. Pass `renderTab` to override per-item rendering, or use `NavTabBar` from [DaisyUI](/lynx/modules/daisyui/overview) for a themed bar. Each `Tabs.Screen`'s `name`, `label`, `icon` and `accessibilityLabel` flow through as the `TabInfo` for that tab.
+
+## Props
+
+### `Tabs`
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `initialTab` | `string` | The `name` of the tab shown first. Defaults to the first `Tabs.Screen`. |
+
+`Tabs` renders its `default` slot — the `Tabs.Screen` children plus the tab bar (`TabBar` or your own). It provides `useTabs()` to the subtree.
+
+### `Tabs.Screen`
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `name` | `string` | **Required.** The tab identifier, captured once at setup (remount to rename). |
+| `icon` | `IconSpec \| JSXElement` | Tab icon, surfaced via `TabInfo` to the tab bar. |
+| `label` | `string` | Human-readable tab label, surfaced via `TabInfo`. |
+| `accessibilityLabel` | `string` | Accessibility label for the tab, surfaced via `TabInfo`. |
+
+### `TabInfo`
+
+The per-tab metadata derived from each `Tabs.Screen`, exposed through `useTabs().tabs` and passed to a custom `TabBar` `renderTab`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | `string` | The tab's identifier. |
+| `icon` | `IconSpec \| JSXElement` | The tab's icon, if any. |
+| `label` | `string` | The tab's label, if any. |
+| `accessibilityLabel` | `string` | The tab's accessibility label, if any. |
+
+## See also
+
+- [`useTabs`](/lynx/modules/navigation/api) — the reactive `{ active, setActive, tabs }` handle.
+- [`TabBar`](/lynx/modules/navigation/api) — the default headless tab-bar chrome and its `renderTab` override.
+- [Usage](/lynx/modules/navigation/usage) — tabs with per-tab stacks, modals and the full setup pattern.

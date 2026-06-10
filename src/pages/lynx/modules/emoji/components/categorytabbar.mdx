@@ -1,0 +1,93 @@
+---
+title: "CategoryTabBar"
+description: "CategoryTabBar — @sigx/lynx-emoji component"
+layout: module-docs
+category: ["Components", "Parts"]
+order: 106
+---
+
+# CategoryTabBar
+
+<p class="lede">The headless category jump bar — a horizontal scroll-view row of glyph tabs. Selecting a tab switches which category the grid shows (filter-based, with no scroll-position sync, to stay headless and cheap). Works identically on iOS and Android.</p>
+
+## Import
+
+```tsx
+import { CategoryTabBar } from '@sigx/lynx-emoji';
+```
+
+## Basic usage
+
+`CategoryTabBar` is one of the headless parts that [`EmojiPicker`](/lynx/modules/emoji/components/emojipicker) is assembled from. Use it directly when you want a custom picker layout. Each tab is a `CategoryTabEntry` — an `EmojiTab` (a category key, or the literal `'recents'`) paired with its representative glyph (🕘 for recents, a category icon otherwise). The `active` prop is the currently-selected category key (or `'recents'`), and `select` fires the chosen `EmojiTab` when a tab is tapped.
+
+```tsx
+import { CategoryTabBar, type CategoryTabEntry, type EmojiTab } from '@sigx/lynx-emoji';
+import { signal } from '@sigx/reactivity';
+
+function CategoryJumpBar({ tabs }: { tabs: CategoryTabEntry[] }) {
+    const active = signal<string>(tabs[0].tab as string);
+
+    return (
+        <CategoryTabBar
+            tabs={tabs}
+            active={active.value}
+            onSelect={(tab: EmojiTab) => { active.value = tab as string; }}
+        />
+    );
+}
+```
+
+## Styling and render override
+
+The bar is headless with neutral inline fallbacks only. Pass `class` for the row container, and `tabClass` / `tabActiveClass` for individual tabs (the active tab gets both). When you need full control over a tab's content, supply a `render` prop — an `EmojiRenderCategoryTab`, called with the tab, its glyph, and whether it is active, rendered inside the tab's `Pressable`:
+
+```tsx
+import { CategoryTabBar, type CategoryTabEntry } from '@sigx/lynx-emoji';
+
+function ThemedTabBar({ tabs, active }: { tabs: CategoryTabEntry[]; active: string }) {
+    return (
+        <CategoryTabBar
+            tabs={tabs}
+            active={active}
+            class="emoji-tabbar"
+            tabClass="emoji-tab"
+            tabActiveClass="emoji-tab--active"
+            render={(tab, glyph, isActive) => (
+                <text style={{ opacity: isActive ? '1' : '0.5' }}>{glyph}</text>
+            )}
+            onSelect={(tab) => { /* jump the grid to `tab` */ }}
+        />
+    );
+}
+```
+
+When used inside `EmojiPicker`, the same theming is reached through the `tabBar`, `tab` and `tabActive` slots of [`EmojiSlotClasses`](/lynx/modules/emoji/api#emojislotclasses) and the picker's `renderCategoryTab` render prop.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `tabs` | `CategoryTabEntry[]` | Required. The tabs to show — each an `EmojiTab` plus its representative glyph. |
+| `active` | `string` | The currently-selected category key, or `'recents'`. |
+| `class` | `string` | Extra classes on the tab-bar row container (drops its inline fallback). |
+| `tabClass` | `string` | Classes applied to every tab. |
+| `tabActiveClass` | `string` | Classes applied to the active tab (in addition to `tabClass`). |
+| `render` | `EmojiRenderCategoryTab` | `(tab, glyph, active) => JSXElement` — replaces a tab's content, rendered inside its `Pressable`. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onSelect` | `(tab: EmojiTab) => void` | Fired when a tab is tapped, with the selected `EmojiTab` (a category key or `'recents'`). |
+
+### Related types
+
+- [`CategoryTabEntry`](/lynx/modules/emoji/api#categorytabentry) — a `{ tab, glyph }` pair.
+- [`EmojiTab`](/lynx/modules/emoji/api#emojitab) — an `EmojiCategory` key or the literal `'recents'`.
+- [`EmojiRenderCategoryTab`](/lynx/modules/emoji/api#emojirendercategorytab) — the `render` prop signature.
+
+## See also
+
+- [EmojiPicker](/lynx/modules/emoji/components/emojipicker) — the full surface this bar is part of.
+- [Usage — composing the parts](/lynx/modules/emoji/usage#composing-the-parts) — wiring the headless parts against a context.
+- [API reference](/lynx/modules/emoji/api#categorytabbar) — every export, typed.

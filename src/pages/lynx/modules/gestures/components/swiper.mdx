@@ -1,0 +1,144 @@
+---
+title: "Swiper"
+description: "Swiper — @sigx/lynx-gestures component"
+layout: module-docs
+category: ["Components", "Scroll"]
+order: 105
+---
+
+# Swiper
+
+<p class="lede">A paged horizontal carousel built on a native paging <code>scroll-view</code>. It renders items into page-sized wrappers, writes the live pixel offset into a <code>SharedValue</code> each main-thread frame, supports a controlled <code>index</code> with native <code>scrollTo</code> glide, and emits <code>pageChange</code>.</p>
+
+## Import
+
+```tsx
+import { Swiper } from '@sigx/lynx-gestures';
+```
+
+## Basic usage
+
+`items` and `renderItem` are the only required props — `renderItem` receives each item and its index and returns the page content. Each item is laid out into a page-sized wrapper.
+
+```tsx
+import { Swiper } from '@sigx/lynx-gestures';
+
+function Gallery({ photos }: { photos: string[] }) {
+    return (
+        <Swiper
+            items={photos}
+            height={480}
+            renderItem={(src) => (
+                <image src={src} mode="aspectFit" style={{ width: '100%', height: '100%' }} />
+            )}
+            onPageChange={(e) => console.log('page', e.index)}
+        />
+    );
+}
+```
+
+`width` defaults to the measured container width, then `lynx.SystemInfo.pixelWidth / pixelRatio` (fallback `400`); `height` falls back to the measured height then `800`. `keyExtractor` defaults to the array index.
+
+## Controlled paging
+
+Pass a `PrimitiveSignal` to `index` for controlled paging — writing the signal glides to that page via native `scrollTo`, and the swiper writes it back as the user pages. Use `initialIndex` for an uncontrolled starting page.
+
+```tsx
+import { Swiper } from '@sigx/lynx-gestures';
+import { signal } from '@sigx/reactivity';
+
+function Carousel({ slides }: { slides: string[] }) {
+    const index = signal(0);
+
+    return (
+        <Swiper
+            items={slides}
+            index={index}
+            height={320}
+            renderItem={(label) => (
+                <view style={{ justifyContent: 'center', alignItems: 'center' }}>
+                    <text>{label}</text>
+                </view>
+            )}
+            onPageChange={(e) => { index.value = e.index; }}
+        />
+    );
+}
+```
+
+## Driving indicators from `offset`
+
+Pass a `SharedValue` to `offset` to read the live main-thread pixel offset and drive dot indicators. The headless [`useSwiperDot*` hooks](/lynx/modules/gestures/api) each return a `MainThreadRef` you spread onto a dot element and animate one transform channel from that `offset`.
+
+```tsx
+import { Swiper, useSwiperDotProgress } from '@sigx/lynx-gestures';
+import { useSharedValue } from '@sigx/lynx';
+
+function Gallery({ photos }: { photos: string[] }) {
+    const offset = useSharedValue(0);
+    const pageWidth = 360;
+
+    return (
+        <view>
+            <Swiper
+                items={photos}
+                offset={offset}
+                width={pageWidth}
+                height={480}
+                renderItem={(src) => (
+                    <image src={src} mode="aspectFit" style={{ width: '100%', height: '100%' }} />
+                )}
+            />
+            <view style={{ flexDirection: 'row' }}>
+                {photos.map((_, i) => (
+                    <Dot offset={offset} pageWidth={pageWidth} index={i} />
+                ))}
+            </view>
+        </view>
+    );
+}
+
+function Dot({ offset, pageWidth, index }: {
+    offset: ReturnType<typeof useSharedValue<number>>;
+    pageWidth: number;
+    index: number;
+}) {
+    const ref = useSwiperDotProgress({ offset, pageWidth, index });
+    return (
+        <view
+            main-thread:ref={ref}
+            style={{ width: '8px', height: '8px', borderRadius: '4px', backgroundColor: 'tomato', opacity: '0' }}
+        />
+    );
+}
+```
+
+For themed, ready-made indicators use `SwiperIndicator` from [`@sigx/lynx-zero`](/lynx/modules/zero/overview) (also re-exported from `@sigx/lynx-daisyui`).
+
+## Props
+
+`Swiper` is generic over the item type `T`: `Swiper<T>(props: SwiperProps<T>)`.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `items` | `readonly T[]` | **Required.** The pages to render, one per array element. |
+| `renderItem` | `(item: T, index: number) => unknown` | **Required.** Renders the content for each page. |
+| `keyExtractor` | `(item: T, index: number) => string \| number` | Stable key per item. Defaults to the array index. |
+| `width` | `number` | Page width in CSS pixels. Defaults to the measured container width, then `lynx.SystemInfo.pixelWidth / pixelRatio` (fallback `400`). |
+| `height` | `number \| string` | Page height. Falls back to the measured height then `800`. |
+| `index` | `PrimitiveSignal<number>` | Controlled current page. Writing it glides via native `scrollTo`; the swiper writes it back on page change. |
+| `initialIndex` | `number` | Starting page when uncontrolled. |
+| `offset` | `SharedValue<number>` | Live main-thread pixel offset, written each frame — spread into `useSwiperDot*` hooks. |
+| `class` | `string` | Extra CSS classes. |
+| `style` | `Record<string, string \| number>` | Inline styles. Keep structurally stable across renders. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onPageChange` | `(e: { index: number }) => void` | Fired when the active page changes. |
+
+## See also
+
+- [Usage guide](/lynx/modules/gestures/usage) — the full gesture set, end to end.
+- [API reference](/lynx/modules/gestures/api) — every export, including the `useSwiperDot*` indicator hooks, typed.

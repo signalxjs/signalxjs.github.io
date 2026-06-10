@@ -366,6 +366,38 @@ export const COMPONENT_CATALOGS: Record<string, { cat: string; items: string[] }
         { cat: 'Content', items: ['MarkdownView'] },
         { cat: 'Editing', items: ['MarkdownEditor', 'EditorToolbar', 'SuggestionPopup'] },
     ],
+    'lynx-navigation': [
+        { cat: 'Navigators', items: ['Stack', 'Tabs', 'Drawer'] },
+        { cat: 'Screens', items: ['NavigationRoot', 'Screen'] },
+        { cat: 'Chrome', items: ['Header', 'TabBar'] },
+        { cat: 'Linking', items: ['Link'] },
+    ],
+    'lynx-emoji': [
+        { cat: 'Pickers', items: ['EmojiPicker', 'KeyboardPanelPicker', 'SheetPicker'] },
+        { cat: 'Parts', items: ['EmojiGrid', 'EmojiCell', 'CategoryTabBar', 'SearchInput', 'SkinTonePopover'] },
+        { cat: 'State', items: ['EmojiProvider'] },
+    ],
+    'lynx-zero': [
+        { cat: 'Theme', items: ['ThemeProvider', 'StatusBarSync'] },
+        { cat: 'Layout', items: ['Row', 'Col', 'Center', 'Spacer', 'ScrollView'] },
+    ],
+    'lynx-gestures': [
+        { cat: 'Touch', items: ['Pressable'] },
+        { cat: 'Drag & swipe', items: ['Draggable', 'Swipeable'] },
+        { cat: 'Scroll', items: ['ScrollView', 'Swiper'] },
+    ],
+    'lynx-maps': [
+        { cat: 'Map', items: ['Map', 'MapMarker'] },
+    ],
+    'lynx-richtext': [
+        { cat: 'Editor', items: ['RichTextInput'] },
+    ],
+    'lynx-video': [
+        { cat: 'Media', items: ['VideoPlayer'] },
+    ],
+    'lynx-webview': [
+        { cat: 'Web', items: ['WebView'] },
+    ],
 };
 
 export const moduleById: Record<string, SigxModule> =

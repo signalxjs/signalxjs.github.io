@@ -1,0 +1,133 @@
+---
+title: "Draggable"
+description: "Draggable — @sigx/lynx-gestures component"
+layout: module-docs
+category: ["Components", "Drag & swipe"]
+order: 102
+---
+
+# Draggable
+
+<p class="lede">A draggable container built on `Gesture.Pan()`. It drives the element's transform on the main thread via two `useAnimatedStyle` bindings, with axis lock, bounds clamping, snap-back, external `SharedValue` position exposure, and automatic `ScrollView` coordination plus edge-scroll.</p>
+
+## Import
+
+```tsx
+import { Draggable } from '@sigx/lynx-gestures';
+```
+
+## Basic usage
+
+Put the element you want to move in the default slot. `Draggable` tracks the pan on the main (MT/Lepus) thread, so dragging stays locked to the frame rate with no per-frame thread crossings. The `dragStart` and `dragEnd` callbacks are dispatched to the background thread.
+
+```tsx
+import { Draggable } from '@sigx/lynx-gestures';
+
+function DragBox() {
+    return (
+        <Draggable
+            onDragStart={(e) => console.log('start', e.x, e.y)}
+            onDragEnd={(e) => console.log('end', e.x, e.y, e.vx, e.vy)}
+        >
+            <view style={{ width: '80px', height: '80px', backgroundColor: 'tomato' }} />
+        </Draggable>
+    );
+}
+```
+
+The `dragEnd` payload carries the terminal position (`x`, `y`) and velocity (`vx`, `vy`, page px per ms).
+
+## Axis lock, bounds, and snap-back
+
+`axis` locks movement to `'x'`, `'y'` or `'both'` (the default). `minX` / `maxX` / `minY` / `maxY` clamp the translation, `threshold` sets the minimum pan distance before the drag engages, and `snapBack` returns the element to its origin on release.
+
+```tsx
+import { Draggable } from '@sigx/lynx-gestures';
+
+function Slider() {
+    return (
+        <Draggable axis="x" threshold={4} minX={-120} maxX={120} snapBack>
+            <view style={{ width: '64px', height: '64px', backgroundColor: 'royalblue' }} />
+        </Draggable>
+    );
+}
+```
+
+## Reading the live position
+
+Pass external `SharedValue`s to `translateX` / `translateY` to observe or reuse the live position — the worklet writes them every frame, and you can read them reactively on the background thread.
+
+```tsx
+import { Draggable } from '@sigx/lynx-gestures';
+import { useSharedValue } from '@sigx/lynx';
+
+function TrackedBox() {
+    const x = useSharedValue(0);
+    const y = useSharedValue(0);
+
+    return (
+        <view>
+            <Draggable axis="both" translateX={x} translateY={y}>
+                <view style={{ width: '80px', height: '80px', backgroundColor: 'tomato' }} />
+            </Draggable>
+            <text>Live x: {x.value.toFixed(0)}px</text>
+        </view>
+    );
+}
+```
+
+## Edge-scroll inside a ScrollView
+
+For drag-to-reorder inside a list, wrap the list in [`ScrollView`](/lynx/modules/gestures/api) and set `edgeScroll` — the parent scroll auto-scrolls when the drag nears its viewport edge. Descendant `Draggable`s auto-yield the native scroll during a gesture, so no extra wiring is required.
+
+```tsx
+import { Draggable } from '@sigx/lynx-gestures';
+import { useSharedValue } from '@sigx/lynx';
+
+function ReorderRow() {
+    const y = useSharedValue(0);
+
+    return (
+        <Draggable edgeScroll={{ threshold: 50, maxSpeed: 800 }} translateY={y}>
+            <view>{/* row content */}</view>
+        </Draggable>
+    );
+}
+```
+
+`edgeScroll` accepts `true` or a config object; it defaults to a `threshold` of `50`pt and `maxSpeed` of `800`pt/sec.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `axis` | `'x' \| 'y' \| 'both'` | Locks movement to one axis or allows both. Default `'both'`. |
+| `threshold` | `number` | Minimum pan distance before the drag engages. Default `0`. |
+| `snapBack` | `boolean` | Returns the element to its origin on release. Default `false`. |
+| `minX` | `number` | Lower bound for the horizontal translation. |
+| `maxX` | `number` | Upper bound for the horizontal translation. |
+| `minY` | `number` | Lower bound for the vertical translation. |
+| `maxY` | `number` | Upper bound for the vertical translation. |
+| `translateX` | `SharedValue<number>` | Optional external shared value the worklet writes the live X each frame. |
+| `translateY` | `SharedValue<number>` | Optional external shared value the worklet writes the live Y each frame. |
+| `edgeScroll` | `boolean \| { threshold?: number; maxSpeed?: number }` | Auto-scrolls a parent `ScrollView` when the drag nears its edge. Defaults: `threshold` `50`pt, `maxSpeed` `800`pt/sec. |
+| `class` | `string` | Extra CSS classes. |
+| `style` | `Record<string, string \| number>` | Inline style. Keep it structurally stable — a background `SET_STYLE` can clobber the main-thread transform writes. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The element to drag. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onDragStart` | `(detail: { x: number; y: number }) => void` | Fired when the drag begins, with the starting position. |
+| `onDragEnd` | `(detail: DragEndDetail) => void` | Fired on release. `DragEndDetail` is `{ x, y, vx, vy }` — terminal position and velocity (page px per ms). |
+
+## See also
+
+- [API reference](/lynx/modules/gestures/api) — every export, typed, including `DragEndDetail`, `EdgeScrollConfig`, `ScrollView`, and `useScrollContext`.
+- [Swipeable](/lynx/modules/gestures/api) — swipe-to-reveal rows built on the same pan engine.

@@ -30,21 +30,13 @@ import {
 } from '@sigx/lynx-webview';
 ```
 
-## Component
+## Components
 
-### WebView
+Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/webview/components) catalog:
 
-```ts
-const WebView: (props: WebViewProps) => JSX.Element
-```
+- [**WebView**](/lynx/modules/webview/components/webview) — native web view wrapping `WKWebView` on iOS and `android.webkit.WebView` on Android, with `onLoad` / `onError` / `onMessage` messaging.
 
-The native WebView component. On iOS it wraps a `WKWebView`; on Android, `android.webkit.WebView`. It renders a `sigx-webview` intrinsic element, mapping camelCase props to the native hyphenated attributes (`src`, `html`, `user-agent`, `enable-debug`) and `onLoad` / `onError` / `onMessage` to `bindload` / `binderror` / `bindmessage`.
-
-Page-to-host messaging arrives on `onMessage` as `e.detail.data` (always a string) when the page calls `window.sigx.postMessage(payload)`. Host-to-page messaging goes through `mtRef` plus `WebViewMethods.postMessage(ref.current, data)`; the page subscribes with `window.sigx.onmessage = (data) => { ... }`.
-
-- **props** — see [WebViewProps](#webviewprops). All props are optional.
-- **Returns** — a renderable element.
-- **Platform** — iOS and Android.
+Their prop types and related APIs remain documented below.
 
 ## Imperative methods
 

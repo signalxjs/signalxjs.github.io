@@ -1,0 +1,168 @@
+---
+title: "Map"
+description: "Map — @sigx/lynx-maps component"
+layout: module-docs
+category: ["Components", "Map"]
+order: 101
+---
+
+# Map
+
+<p class="lede">Native map view that renders Apple Maps (`MKMapView`) on iOS and Google Maps on Android, with any number of <a href="/lynx/modules/maps/components/map-marker">MapMarker</a> children as pins. Works on both platforms; Android needs a Google Maps API key.</p>
+
+## Import
+
+```tsx
+import { Map } from '@sigx/lynx-maps';
+```
+
+## Basic Usage
+
+Render a `Map`, give it a `region`, and nest `MapMarker` children as pins. A `region` is a rectangle: a center `latitude`/`longitude` plus `latitudeDelta`/`longitudeDelta`, the span in degrees visible around the center.
+
+```tsx
+import { Map, MapMarker } from '@sigx/lynx-maps';
+
+const region = {
+  latitude: 59.3293,
+  longitude: 18.0686,
+  latitudeDelta: 0.1,
+  longitudeDelta: 0.1,
+};
+
+export function MapScreen() {
+  return (
+    <Map region={region} mapType="standard" class="flex-1">
+      <MapMarker
+        coordinate={{ latitude: 59.3293, longitude: 18.0686 }}
+        title="Stockholm"
+        description="Sweden's capital"
+        id="sthlm"
+      />
+    </Map>
+  );
+}
+```
+
+## Region snaps on every change
+
+`Map` snaps the camera to `region` on **every** prop change. For initial-region-only semantics — "center here on load, then let the user roam freely" — set `region` once and hold it in stable local state so its identity never changes. There is no separate `initialRegion` prop in v1, and the imperative helpers `animateToRegion` / `fitToCoordinates` are not implemented.
+
+```tsx
+import { signal } from '@sigx/core';
+import { Map, MapMarker } from '@sigx/lynx-maps';
+
+export function FreeRoamMap() {
+  // Created once; never reassigned, so the map never re-snaps.
+  const initialRegion = signal({
+    latitude: 37.7749,
+    longitude: -122.4194,
+    latitudeDelta: 0.2,
+    longitudeDelta: 0.2,
+  });
+
+  return (
+    <Map region={initialRegion()} class="flex-1">
+      <MapMarker
+        coordinate={{ latitude: 37.7749, longitude: -122.4194 }}
+        title="San Francisco"
+      />
+    </Map>
+  );
+}
+```
+
+## Responding to events
+
+`Map` exposes three event props. Each handler receives a typed event whose payload lives on `event.detail`. Read the new viewport from `onRegionChange`, but do **not** feed it back into `region` — that would fight the user's gesture.
+
+```tsx
+import { signal } from '@sigx/core';
+import { Map, MapMarker } from '@sigx/lynx-maps';
+import type {
+  MapRegionChangeEvent,
+  MapPressEvent,
+  MapMarkerPressEvent,
+} from '@sigx/lynx-maps';
+
+const initialRegion = {
+  latitude: 51.5074,
+  longitude: -0.1278,
+  latitudeDelta: 0.15,
+  longitudeDelta: 0.15,
+};
+
+export function EventfulMap() {
+  const selected = signal('');
+
+  return (
+    <Map
+      region={initialRegion}
+      onRegionChange={(e: MapRegionChangeEvent) => console.log('viewport', e.detail.region)}
+      onPress={(e: MapPressEvent) => console.log('tapped at', e.detail.coordinate)}
+      // e.detail.id is the empty string when the marker had no id set.
+      onMarkerPress={(e: MapMarkerPressEvent) => selected.set(e.detail.id || '(unnamed)')}
+      class="flex-1"
+    >
+      <MapMarker coordinate={{ latitude: 51.5074, longitude: -0.1278 }} id="london" title="London" />
+    </Map>
+  );
+}
+```
+
+## Showing the user's location
+
+Set `showsUserLocation` to render the blue user-location dot. This requires location permission at runtime — pair it with a permission request before relying on the dot to appear.
+
+```tsx
+import { Map } from '@sigx/lynx-maps';
+
+const region = {
+  latitude: 40.7128,
+  longitude: -74.006,
+  latitudeDelta: 0.1,
+  longitudeDelta: 0.1,
+};
+
+export function LocatedMap() {
+  return <Map region={region} showsUserLocation class="flex-1" />;
+}
+```
+
+## Props
+
+All props are optional. `region` and a marker's `coordinate` are passed as objects — the component JSON-stringifies them before crossing the Lynx bridge, so you never stringify anything yourself.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `region` | `MapRegion` | Visible rectangle (center `latitude`/`longitude` + `latitudeDelta`/`longitudeDelta`). Re-applied on every change. |
+| `showsUserLocation` | `boolean` | Show the user-location dot. Requires location permission at runtime. |
+| `mapType` | `MapType` (`'standard' \| 'satellite' \| 'hybrid'`) | Base map style. Defaults to `'standard'`. |
+| `class` | `string` | CSS class string. |
+| `style` | `string \| Record<string, string \| number>` | CSS string or style object. |
+| `onRegionChange` | `(e: MapRegionChangeEvent) => void` | Handler for region-change events; payload on `e.detail`. |
+| `onPress` | `(e: MapPressEvent) => void` | Handler for map-press events; payload on `e.detail`. |
+| `onMarkerPress` | `(e: MapMarkerPressEvent) => void` | Handler for marker-press events; payload on `e.detail`. |
+| `children` | `unknown` | The [`MapMarker`](/lynx/modules/maps/components/map-marker) pins. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Any number of [`MapMarker`](/lynx/modules/maps/components/map-marker) children rendered as pins. |
+
+### Events
+
+Each event object has a `type` discriminant and a `detail` payload.
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onRegionChange` | `(e: MapRegionChangeEvent) => void` | Fires after a pan/zoom or programmatic region change. `e.detail.region` is the new visible `MapRegion`. |
+| `onPress` | `(e: MapPressEvent) => void` | Fires when the user taps the map away from any marker. `e.detail.coordinate` is the tapped `MapCoordinate`. |
+| `onMarkerPress` | `(e: MapMarkerPressEvent) => void` | Fires when a marker is tapped. `e.detail.id` is the marker's `id` (empty string if unset) and `e.detail.coordinate` its location. |
+
+## See also
+
+- [`MapMarker`](/lynx/modules/maps/components/map-marker) — the pin children rendered inside a `Map`.
+- [Usage guide](/lynx/modules/maps/usage) — list rendering, Android API key, and installation.
+- [API reference](/lynx/modules/maps/api) — every export with full signatures and types.

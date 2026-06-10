@@ -33,17 +33,11 @@ import type {
 
 ## Components
 
-### VideoPlayer
+Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/video/components) catalog:
 
-The recommended entry point — a typed sigx-lynx component wrapping the native `<video-player>` intrinsic. On iOS it wraps an `AVPlayer` inside an `AVPlayerLayer`; on Android it wraps an androidx.media3 `ExoPlayer` inside a `PlayerView`. It participates in Lynx's layout tree like any other view — give it a width/height (or `aspectRatio`) and it draws decoded frames there. Prefer it over the raw `<video-player>` intrinsic. Available on iOS and Android (native UI).
+- [**VideoPlayer**](/lynx/modules/video/components/videoplayer) — typed sigx-lynx component wrapping the native `<video-player>` intrinsic (iOS `AVPlayer`, Android androidx.media3 `ExoPlayer`).
 
-```ts
-export const VideoPlayer: component<VideoPlayerProps>(({ props }) => () => JSX.Element)
-```
-
-It accepts the props described by [`VideoPlayerProps`](#videoplayerprops), maps camelCase React-style props onto the native element's kebab/bind attributes (`resizeMode` → `resize-mode`, `onLoad` → `bindload`, `onEnd` → `bindend`, `onError` → `binderror`, `onTimeUpdate` → `bindtimeupdate`), and returns a render function so signals and props read inside it stay reactive.
-
-**v1 is declarative-only.** Imperative methods (`seek`, `getStatus`) are not implemented — drive playback through the `playing` and `src` props.
+Their prop types and related APIs remain documented below.
 
 ## Types
 

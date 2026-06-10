@@ -1,0 +1,117 @@
+---
+title: "EmojiCell"
+description: "EmojiCell — @sigx/lynx-emoji component"
+layout: module-docs
+category: ["Components", "Parts"]
+order: 105
+---
+
+# EmojiCell
+
+<p class="lede">One grid cell — a `Pressable` glyph, accessibility-labeled with the emoji's name. A tap picks the emoji; a long-press emits `pickTone`, but only when the emoji has uniform tone variants. Works identically on iOS and Android.</p>
+
+## Import
+
+```tsx
+import { EmojiCell } from '@sigx/lynx-emoji';
+```
+
+## Basic usage
+
+`EmojiCell` is the leaf part the [`EmojiGrid`](/lynx/modules/emoji/components/emojigrid) recycles for each on-screen emoji. You give it the `datum` and the tone-resolved `glyph` to render; it reports a tap via `onPick` and a long-press (when tonal) via `onPickTone`. The accessibility label is taken from `datum.n`.
+
+```tsx
+import { EmojiCell, glyphForTone, enData } from '@sigx/lynx-emoji';
+
+function FirstCell({ pick }: { pick: (glyph: string) => void }) {
+    const datum = enData.emojis[0];
+
+    return (
+        <EmojiCell
+            datum={datum}
+            glyph={glyphForTone(datum, 0)}
+            onPick={(d) => pick(glyphForTone(d, 0))}
+        />
+    );
+}
+```
+
+Use [`glyphForTone(datum, tone)`](/lynx/modules/emoji/api) to derive the `glyph` to render and insert: it returns the tone variant when supported and the base glyph (`datum.e`) otherwise.
+
+## Long-press for skin tones
+
+`onPickTone` only fires when the emoji actually has uniform tone variants (`datum.s`). In the full picker this opens the [`SkinTonePopover`](/lynx/modules/emoji/components/skintonepopover); wired directly, branch on whether tone variants exist before acting on it.
+
+```tsx
+import { EmojiCell, glyphForTone } from '@sigx/lynx-emoji';
+import type { EmojiDatum, SkinTone } from '@sigx/lynx-emoji';
+
+function TonableCell({
+    datum,
+    tone,
+    onPick,
+    openTones,
+}: {
+    datum: EmojiDatum;
+    tone: SkinTone;
+    onPick: (glyph: string) => void;
+    openTones: (datum: EmojiDatum) => void;
+}) {
+    return (
+        <EmojiCell
+            datum={datum}
+            glyph={glyphForTone(datum, tone)}
+            size={26}
+            onPick={(d) => onPick(glyphForTone(d, tone))}
+            onPickTone={(d) => openTones(d)}
+        />
+    );
+}
+```
+
+## Custom cell content
+
+Pass `render` to replace the cell's content (it is rendered inside the cell's `Pressable`). The callback receives the `datum` and the resolved `glyph`. This is the same `EmojiRenderCell` signature `EmojiGrid` and `EmojiPicker` accept via their own `renderCell` props.
+
+```tsx
+import { EmojiCell, glyphForTone } from '@sigx/lynx-emoji';
+import type { EmojiDatum } from '@sigx/lynx-emoji';
+
+function LabeledCell({ datum }: { datum: EmojiDatum }) {
+    return (
+        <EmojiCell
+            datum={datum}
+            glyph={glyphForTone(datum, 0)}
+            render={(d, glyph) => (
+                <view>
+                    <text>{glyph}</text>
+                    <text>{d.n}</text>
+                </view>
+            )}
+        />
+    );
+}
+```
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `datum` | `EmojiDatum` | **Required.** The emoji entry. Its name (`datum.n`) becomes the accessibility label; tone variants (`datum.s`) gate `onPickTone`. |
+| `glyph` | `string` | **Required.** The tone-resolved glyph to render — typically `glyphForTone(datum, tone)`. |
+| `size` | `number` | Glyph size in px. Default `26`. |
+| `class` | `string` | Extra CSS classes for the cell. |
+| `render` | `EmojiRenderCell` | Replaces the cell's content. `(datum: EmojiDatum, glyph: string) => JSXElement`, rendered inside the cell's `Pressable`. |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onPick` | `(datum: EmojiDatum) => void` | Fired on tap — picks the emoji. |
+| `onPickTone` | `(datum: EmojiDatum) => void` | Fired on long-press, but only when the emoji has uniform tone variants (`datum.s`). |
+
+## See also
+
+- [API reference](/lynx/modules/emoji/api) — `EmojiCellProps`, `EmojiRenderCell`, `EmojiDatum`, `SkinTone`, typed.
+- [EmojiGrid](/lynx/modules/emoji/components/emojigrid) — the recycler that renders these cells.
+- [Usage](/lynx/modules/emoji/usage) — composing the headless parts.
