@@ -15,7 +15,7 @@
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MODULES, moduleDocsCollection, moduleRoutePrefix } from '../src/lib/modules.ts';
+import { MODULES, moduleDocsCollection, moduleRoutePrefix, COMPONENT_CATALOGS } from '../src/lib/modules.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -24,6 +24,13 @@ const yaml = (s) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 
 /** Escape prose for MDX (blurbs may contain `<Icon …/>`-style text). */
 const mdx = (s) => s.replace(/([<>{}])/g, '\\$1');
+
+/** Slugify a component name — must match `slug` in src/components/ComponentCatalog.tsx. */
+const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+/** A lynx module's component-catalog key, or undefined if it has no catalog. */
+const catalogFor = (m) =>
+    m.parent === 'lynx' ? COMPONENT_CATALOGS[`lynx-${m.id}`] : undefined;
 
 const pageSet = (m) => {
     const parentTitle = m.parent === 'lynx' ? 'Lynx' : 'Core';
@@ -140,6 +147,70 @@ for (const m of MODULES) {
         ].join('\n');
         writeFileSync(path, `${frontmatter}\n\n${page.body}`, 'utf8');
         created++;
+    }
+
+    // Component-library pages: for modules with a COMPONENT_CATALOGS entry,
+    // scaffold a Components catalog index + one stub page per component, so the
+    // sidebar gets a "Components" section (mirrors lynx-daisyui / lynx-heroui).
+    // Idempotent: hand-authored pages are never overwritten.
+    const catalog = catalogFor(m);
+    if (catalog) {
+        const idxPath = join(dir, 'components.mdx');
+        if (existsSync(idxPath)) { skipped++; } else {
+            const fm = [
+                '---',
+                'title: Components',
+                `description: ${yaml(`Browse every ${m.npm} component, by category.`)}`,
+                'layout: module-docs',
+                'category: Guides',
+                'order: 25',
+                '---',
+            ].join('\n');
+            const body = `import { ComponentCatalog } from '@/components/ComponentCatalog';
+
+# Components
+
+<p class="lede">Every component in \`${m.npm}\`, grouped by category.</p>
+
+<ComponentCatalog catalogId="lynx-${m.id}" collection="${moduleDocsCollection(m)}" />
+`;
+            writeFileSync(idxPath, `${fm}\n\n${body}`, 'utf8');
+            created++;
+        }
+
+        const compDir = join(dir, 'components');
+        mkdirSync(compDir, { recursive: true });
+        let n = 0;
+        for (const group of catalog) {
+            for (const name of group.items) {
+                n++;
+                const path = join(compDir, `${slug(name)}.mdx`);
+                if (existsSync(path)) { skipped++; continue; }
+                const fm = [
+                    '---',
+                    `title: ${yaml(name)}`,
+                    `description: ${yaml(`${name} — ${m.npm} component`)}`,
+                    'layout: module-docs',
+                    `category: [${yaml('Components')}, ${yaml(group.cat)}]`,
+                    `order: ${100 + n}`,
+                    '---',
+                ].join('\n');
+                const body = `# ${name}
+
+<p class="lede">${mdx(name)} — ${mdx(m.tag)}.</p>
+
+## Import
+
+\`\`\`tsx
+import { ${name} } from '${m.npm}';
+\`\`\`
+
+{/* TODO: author usage, props, slots & events for ${name} */}
+`;
+                writeFileSync(path, `${fm}\n\n${body}`, 'utf8');
+                created++;
+            }
+        }
     }
 }
 

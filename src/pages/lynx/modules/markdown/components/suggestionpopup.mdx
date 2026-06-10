@@ -1,0 +1,67 @@
+---
+title: "SuggestionPopup"
+description: "SuggestionPopup — neutral suggestion popup for trigger sessions (e.g. @-mentions)"
+layout: module-docs
+category: ["Components", "Editing"]
+order: 104
+---
+
+# SuggestionPopup
+
+<p class="lede">The neutral suggestion popup for trigger sessions such as <code>@</code>-mentions. Positions itself from a caret rect and the container's page frame; rows are replaceable.</p>
+
+## Import
+
+```tsx
+import { SuggestionPopup, createTriggerSessionManager } from '@sigx/lynx-markdown/editor';
+```
+
+`SuggestionPopup` is the presentational surface; [`createTriggerSessionManager`](/lynx/modules/markdown/api#createtriggersessionmanager) is the state machine that decides when a session is open and what to show. Most apps get this wired automatically by passing a mention plugin to [`MarkdownEditor`](/lynx/modules/markdown/components/markdowneditor) — reach for the popup directly only when building a custom trigger UI.
+
+> The popup imports `@sigx/lynx-keyboard`'s `useKeyboard()`, so it needs a `<SafeAreaProvider>` ancestor while open.
+
+## Usage
+
+Drive the popup from a trigger session: feed the editor's text and caret to the manager, and render the popup whenever a session is active.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { SuggestionPopup, createTriggerSessionManager } from '@sigx/lynx-markdown/editor';
+
+export const Mentions = component(({ signal }) => {
+  const state = signal({ session: null as any });
+
+  const sessions = createTriggerSessionManager({
+    triggers: [{ char: '@', search: (q) => findPeople(q) }],
+    onUpdate: (session) => (state.session = session),
+  });
+
+  return () => state.session && (
+    <SuggestionPopup
+      items={state.session.items}
+      caretRect={state.session.caretRect}
+      containerFrame={state.session.containerFrame}
+      activeIndex={state.session.activeIndex}
+      onSelect={(item) => sessions.close()}
+    />
+  );
+});
+```
+
+Whitespace, caret exits, blur, and selection all close the session for free — the manager derives state purely from `bindchange` text and the collapsed caret offset.
+
+## Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `items` | `TriggerItem[]` | Rows for the active session. |
+| `caretRect` | `Rect` | Caret rectangle the popup anchors to. |
+| `containerFrame` | `Rect` | Page frame of the relative container, for positioning. |
+| `renderItem` | `SuggestionRenderItem` | Per-row render override: `(item, active) => JSXElement`. |
+| `onSelect` | `(item: TriggerItem) => void` | Fired when a row is chosen. |
+| `activeIndex` | `number` | Highlighted row; `-1` or omitted means none. |
+| `maxHeight` | `number` | Max popup height. |
+| `width` | `number` | Popup width. |
+| `class` | `string` | Extra classes on the popup root. |
+
+See the [API reference](/lynx/modules/markdown/api#suggestionpopup) for `createTriggerSessionManager`, `TriggerSession`, and the trigger contract types.

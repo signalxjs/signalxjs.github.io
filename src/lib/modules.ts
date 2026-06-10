@@ -336,6 +336,10 @@ export const COMPONENT_CATALOGS: Record<string, { cat: string; items: string[] }
         { cat: 'Navigation', items: ['Tabs'] },
         { cat: 'Typography', items: ['Text', 'Heading'] },
     ],
+    'lynx-markdown': [
+        { cat: 'Content', items: ['MarkdownView'] },
+        { cat: 'Editing', items: ['MarkdownEditor', 'EditorToolbar', 'SuggestionPopup'] },
+    ],
 };
 
 export const moduleById: Record<string, SigxModule> =

@@ -16,29 +16,14 @@ Unless noted, every export below is from the root entry and available on all pla
 
 ## Components
 
-### MarkdownView
+Each renderable component has its own page with usage, props, slots, and events — see the **[Components](/lynx/modules/markdown/components)** catalog:
 
-SignalX-native, streaming-aware markdown renderer. Parses markdown in JS and renders to Lynx primitives. The `value` is reactive; finalized blocks keep stable keys and are never re-parsed or remounted, so streaming output does not flicker. Design-system agnostic via `components`.
+- [**MarkdownView**](/lynx/modules/markdown/components/markdownview) — streaming-aware renderer (root entry).
+- [**MarkdownEditor**](/lynx/modules/markdown/components/markdowneditor) — true-WYSIWYG editor (`/editor` subpath).
+- [**EditorToolbar**](/lynx/modules/markdown/components/editortoolbar) — formatting toolbar (`/editor` subpath).
+- [**SuggestionPopup**](/lynx/modules/markdown/components/suggestionpopup) — trigger-session suggestion popup (`/editor` subpath).
 
-```ts
-export const MarkdownView: (props: MarkdownViewProps) => JSXElement;
-```
-
-**Props** — see [`MarkdownViewProps`](#markdownviewprops). All optional: `value`, `onLink`, `onImageTap`, `components`, `extensions`.
-
-**Notes** — supports CommonMark + GFM. Unsupported constructs (raw HTML, reference-style links, setext headings, syntax highlighting) render as literal text. Link hrefs are sanitized — only `http(s):`, `mailto:`, `tel:`, and scheme-less links reach `onLink`. The `extensions` array must be a stable reference; changing its identity recreates the engine and re-parses from scratch.
-
-### MarkdownEditor
-
-True-WYSIWYG markdown editing on the native `<sigx-richtext>` element. Lightly controlled: markdown in via `value`, `onChange(markdown)` out. An incoming value equal to the last emitted markdown is treated as an echo and ignored. From the `@sigx/lynx-markdown/editor` subpath.
-
-```ts
-export const MarkdownEditor: component<MarkdownEditorProps>;
-```
-
-**Props** — `MarkdownEditorProps`, including `value`, `placeholder`, `minLines`, `maxLines`, and `mode` (`MarkdownEditorMode`). A controller is exposed via `controllerRef`.
-
-**Platform notes** — statically imports `@sigx/lynx-richtext`; the suggestion popup imports `@sigx/lynx-keyboard`'s `useKeyboard`, which needs a `<SafeAreaProvider>` ancestor while the fullscreen overlay is open. Toolbar, popup, and the fullscreen close affordance carry `ignore-focus`. Fullscreen restyles the same element in place — it is never re-parented.
+Their prop types, controller interface, and the editor-subpath signatures remain documented below.
 
 ## Functions
 
