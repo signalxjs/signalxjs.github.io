@@ -154,7 +154,7 @@ sub.unsubscribe();                // one call tears the whole tap down
 
 This is how devtools auto-discover stores without any store-side registration code: the topics carry `namespace` and `name` metadata, `onTopicCreated` notifies about new ones, and wildcard patterns like `'*.state.*'` slice across all stores. The registry is deliberately `Topic<unknown>`-typed and **inspection-only** — application code should share typed topic references (like `onCheckedOut` above) instead of looking topics up by string.
 
-When a store is disposed, all of its topics are destroyed — they unregister from the registry, their refCount watchers stop, and `$events` / action events stop firing. See [Using Stores in Components](/store/docs/using-in-components#cleanup-and-lifetime).
+When a store is disposed, all of its topics are destroyed — they unregister from the registry, their refCount watchers stop, and `$events` / action events stop firing. See [Using Stores in Components](/store/docs/using-in-components#cleanup-on-unmount).
 
 For store-creation-time observability (wiring a logger to every store automatically), see [`onStoreCreated`](/store/docs/composables-and-plugins#global-plugins-with-onstorecreated).
 

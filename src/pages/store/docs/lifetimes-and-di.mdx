@@ -75,7 +75,7 @@ Sibling sections each calling `defineProvide(useFilterStore)` get fully independ
 
 ## Parameterized stores: first creation wins
 
-Setup parameters after the context are forwarded through the factory call ([Using Stores in Components](/store/docs/using-in-components#parameterized-stores)). With a `'transient'` lifetime every call uses its own arguments — that's the natural pairing. For `'scoped'` and `'singleton'`, arguments are honored **at first creation only**:
+Setup parameters after the context are forwarded through the factory call, with full tuple-typed inference at any arity (see [TypeScript](/store/docs/typescript)). With a `'transient'` lifetime every call uses its own arguments — that's the natural pairing. For `'scoped'` and `'singleton'`, arguments are honored **at first creation only**:
 
 ```ts
 const useListStore = defineStore('list', ({ defineState }, initial: string[]) => {

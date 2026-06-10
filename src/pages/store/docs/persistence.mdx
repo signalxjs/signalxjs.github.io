@@ -47,9 +47,15 @@ const useNoteStore = defineStore('persist-demo', (ctx) => {
         if (raw) patch(JSON.parse(raw).data);
     } catch { /* corrupted entry → keep defaults */ }
 
-    // save on change (persist uses a deep watch; a key event works here)
+    // save on change (persist uses a deep watch; a key event works here).
+    // Like persist(), writes are isolated: quota/privacy failures are
+    // logged, never thrown into the app.
     events.note.subscribe((value) => {
-        localStorage.setItem(KEY, JSON.stringify({ v: 1, data: { note: value } }));
+        try {
+            localStorage.setItem(KEY, JSON.stringify({ v: 1, data: { note: value } }));
+        } catch (err) {
+            console.error('persist-demo: write failed:', err);
+        }
     });
 
     const actions = ctx.defineActions({
