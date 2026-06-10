@@ -8,6 +8,7 @@
  */
 
 import { moduleById, type SigxModule } from '@/lib/modules';
+import { VERSIONS } from '@/lib/versions.generated';
 
 export type PackageStatus = 'stable' | 'beta' | 'experimental';
 export type PackageCategory = 'core' | 'render' | 'platform' | 'ui' | 'tooling';
@@ -45,7 +46,12 @@ export interface SigxPackage {
     blurb: string;
 }
 
-export const PACKAGES: SigxPackage[] = [
+/**
+ * Literal registry. Each `version` is the offline fallback; the live npm
+ * `latest` is overlaid below from versions.generated.ts (refreshed at build
+ * time by scripts/fetch-versions.mjs).
+ */
+const RAW_PACKAGES: SigxPackage[] = [
     // ---- Foundation: reactivity & state ----
     { id: 'core', npm: 'sigx', title: 'Core', cat: 'core', target: 'foundation', kind: 'collection',
       hue: 285, glyph: '◇', status: 'stable', version: '0.4.9',
@@ -104,6 +110,10 @@ export const PACKAGES: SigxPackage[] = [
       tag: 'Inspect signals at runtime',
       blurb: 'A browser panel to trace the reactive graph, time-travel effects and inspect components.' },
 ];
+
+/** Registry with live npm versions overlaid (falls back to the literal). */
+export const PACKAGES: SigxPackage[] =
+    RAW_PACKAGES.map((p) => ({ ...p, version: VERSIONS[p.npm] ?? p.version }));
 
 export const CATEGORIES: { id: PackageCategory; label: string; hint: string }[] = [
     { id: 'core', label: 'Core', hint: 'Reactivity, routing & state' },

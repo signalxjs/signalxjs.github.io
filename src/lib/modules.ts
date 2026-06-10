@@ -8,11 +8,14 @@
  * `core-pkg-<id>-docs`, see ssg.config.ts + scripts/generate-module-docs.mjs).
  *
  * IMPORTANT: this file is imported by ssg.config.ts at config time —
- * keep it dependency-free (pure data + helpers, relative type-only
- * imports, no `virtual:` / framework imports).
+ * keep it dependency-free (pure data + helpers, type-only imports + the
+ * pure-data versions.generated.ts sibling, no `virtual:` / framework
+ * imports). The `.ts` extension on that import is required so plain Node
+ * (type-stripping) can resolve it; tsconfig has `allowImportingTsExtensions`.
  */
 
 import type { PackageStatus } from './family';
+import { VERSIONS } from './versions.generated.ts';
 
 export type ModuleParent = 'lynx' | 'core';
 
@@ -64,7 +67,12 @@ export const MODULE_CATEGORIES: Record<ModuleParent, { id: string; label: string
     ],
 };
 
-export const MODULES: SigxModule[] = [
+/**
+ * Literal registry. Each `version` is the offline fallback; the live npm
+ * `latest` is overlaid below from versions.generated.ts (refreshed at build
+ * time by scripts/fetch-versions.mjs).
+ */
+const RAW_MODULES: SigxModule[] = [
     // ============ Lynx (@sigx/lynx-*) — lockstep-versioned ============
     // ---- Framework ----
     { id: 'framework', parent: 'lynx', npm: '@sigx/lynx', name: 'Lynx', category: 'framework',
@@ -300,6 +308,10 @@ export const MODULES: SigxModule[] = [
       tag: 'Vite plugin & HMR',
       blurb: 'Vite plugin for dev and build with component HMR.' },
 ];
+
+/** Registry with live npm versions overlaid (falls back to the literal). */
+export const MODULES: SigxModule[] =
+    RAW_MODULES.map((m) => ({ ...m, version: VERSIONS[m.npm] ?? m.version }));
 
 /** Featured Lynx modules surfaced directly in the family menu's Lynx column. */
 export const LYNX_FEATURED = ['navigation', 'daisyui', 'gestures', 'motion'];

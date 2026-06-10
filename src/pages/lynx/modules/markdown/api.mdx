@@ -6,9 +6,11 @@ category: "Reference"
 order: 40
 ---
 
+import { PkgVersion } from '@/components/PkgVersion';
+
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-markdown` v0.5.0.</p>
+<p class="lede">Exports of `@sigx/lynx-markdown` <PkgVersion npm="@sigx/lynx-markdown" />.</p>
 
 The package has two entry points. The root (`@sigx/lynx-markdown`, the `"."` export) carries the renderer, parser, streaming bridge, and plugins, with no runtime peer imports. The `@sigx/lynx-markdown/editor` subpath adds the WYSIWYG editor and the markdown ⇄ RichDoc converters; importing it turns the optional peers (`@sigx/lynx-keyboard`, `@sigx/lynx-richtext`) into real requirements. The renderer is pure JS and renders identically on iOS, Android, and Harmony — there is no native module.
 

@@ -6,9 +6,11 @@ category: "Reference"
 order: 40
 ---
 
+import { PkgVersion } from '@/components/PkgVersion';
+
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-secure-storage` v0.5.0.</p>
+<p class="lede">Exports of `@sigx/lynx-secure-storage` <PkgVersion npm="@sigx/lynx-secure-storage" />.</p>
 
 The package has exactly one runtime export — `SecureStorage`, a frozen value-object (declared `as const`, not a class — never `new` it) — plus three TypeScript types. All methods run on both iOS and Android.
 

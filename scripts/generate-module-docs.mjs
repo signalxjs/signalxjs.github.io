@@ -39,11 +39,13 @@ const pageSet = (m) => {
     return [
         {
             file: 'overview.mdx', title: 'Overview', category: 'Getting Started', order: 10,
-            body: `# ${m.name}
+            body: `import { PkgVersion } from '@/components/PkgVersion';
+
+# ${m.name}
 
 <p class="lede">${mdx(m.blurb)}</p>
 
-<p class="mod-meta-row">${m.downloads ? `<strong>${m.downloads}</strong> weekly <span class="mmr-dot" /> ` : ''}v${m.version}${m.parent === 'lynx' ? ' <span class="mmr-dot" /> iOS · Android' : ''} <span class="mmr-dot" /> MIT</p>
+<p class="mod-meta-row">${m.downloads ? `<strong>${m.downloads}</strong> weekly <span class="mmr-dot" /> ` : ''}<PkgVersion npm="${m.npm}" />${m.parent === 'lynx' ? ' <span class="mmr-dot" /> iOS · Android' : ''} <span class="mmr-dot" /> MIT</p>
 
 ## Installation
 
@@ -110,9 +112,11 @@ ${mdx(m.blurb)}
         },
         {
             file: 'api.mdx', title: 'API reference', category: 'Reference', order: 40,
-            body: `# API reference
+            body: `import { PkgVersion } from '@/components/PkgVersion';
 
-<p class="lede">Exports of \`${m.npm}\` v${m.version}.</p>
+# API reference
+
+<p class="lede">Exports of \`${m.npm}\` <PkgVersion npm="${m.npm}" />.</p>
 
 ## Exports
 
