@@ -21,6 +21,8 @@ const useMyStore = defineStore('my-store', (ctx) => {
 
 `defineStore` returns a **factory function**. Calling that factory creates (or resolves, depending on the lifetime) an instance. By convention it is named `useXxxStore`, but it is just a function — there is no separate `useStore` export.
 
+This page is the conceptual map: each building block in brief, with a deep guide behind it. If you want the full picture of one topic, follow the link at the end of its section.
+
 ## State
 
 `defineState(obj)` turns a plain object into deep reactive, signal-backed state. It returns four things:
@@ -31,17 +33,13 @@ const { state, signals, events, patch } = ctx.defineState({ count: 0, name: 'Ada
 
 - `state` — the deep reactive object. Read and write properties freely inside the setup and actions; nested objects and arrays are reactive too.
 - `signals` — spreadable per-key signal views. **The keys you return become the store's public state**; keys you don't return stay private to the setup.
-- `events` — one change event per key (`events.count`, `events.name`) with `(value, prev)` callbacks. Lazy: the deep watcher behind a key only runs while someone is subscribed.
+- `events` — one change event per key (`events.count`, `events.name`) with `(value, prev)` callbacks. Lazy: the deep watcher behind a key only runs while someone is subscribed — see [Events & Observability](/store/docs/events-and-observability).
 - `patch` — atomic multi-key update; the whole update flushes reactivity once. Accepts a partial object or a mutator function. Errors inside the mutator propagate to the caller.
 
 ```ts
 state.count = 5;                       // direct assignment
 patch({ count: 42, name: 'Grace' });   // atomic multi-key (object form)
 patch(s => { s.count++; });            // atomic (mutator form)
-
-events.count.subscribe((value, prev) => {
-    console.log('count changed from', prev, 'to', value);
-});
 ```
 
 ### Public vs. private state
@@ -66,6 +64,8 @@ store.count;          // ✔ public
 // store.internalTicks — not on the store, and not in $patch/$events
 ```
 
+How that selection drives the instance types is covered in [TypeScript](/store/docs/typescript).
+
 ## Derived / computed values
 
 `@sigx/store` does not ship its own getter helper. Build derived values with `computed` and return them directly — on the instance they unwrap to plain **read-only** values.
@@ -86,11 +86,7 @@ const useCartStore = defineStore('cart', ({ defineState }) => {
         state.items.reduce((sum, item) => sum + item.price * item.qty, 0)
     );
 
-    const itemCount = computed(() =>
-        state.items.reduce((sum, item) => sum + item.qty, 0)
-    );
-
-    return { ...signals, total, itemCount };
+    return { ...signals, total };
 });
 
 const store = useCartStore();
@@ -110,34 +106,17 @@ const actions = ctx.defineActions({
 
 actions.add(3, 7);          // => 10
 actions.fetchData.pending;  // reactive: true while any invocation is in flight
+
+actions.fetchData.onFailure.subscribe((error) => console.error('fetch failed', error));
 ```
 
-- `action.onDispatching.subscribe(fn)` — runs **before** the action body, with the original args.
-- `action.onDispatched.subscribe(fn)` — runs **after** the action, with `(result, ...args)`. For async actions it fires after the returned promise resolves, with the **resolved value**.
-- `action.onFailure.subscribe(fn)` — runs if the action throws or its promise rejects, with `(error, ...args)`.
+- `action.onDispatching.subscribe(fn)` — before the action body, with the original args.
+- `action.onDispatched.subscribe(fn)` — after the action, with `(result, ...args)`; for async actions, after the promise resolves, with the **resolved value**.
+- `action.onFailure.subscribe(fn)` — on a sync throw or async rejection, with `(error, ...args)`.
 
-```ts
-actions.add.onDispatching.subscribe((a, b) => {
-    console.log('about to add', a, b);
-});
-actions.add.onDispatched.subscribe((result, a, b) => {
-    console.log('added', a, b, '=>', result);
-});
-actions.fetchData.onFailure.subscribe((error) => {
-    console.error('fetch failed', error);
-});
-```
+Errors are the caller's to handle — never swallowed: sync actions re-throw, async actions return the **original promise**. The full story — overlapping invocations, optimistic updates, aborts, race patterns — lives in [Actions & Async](/store/docs/actions-and-async).
 
-### Error semantics
-
-Errors are the caller's to handle — never swallowed:
-
-- **Sync actions**: a throw fires `onFailure` and **re-throws** to the caller.
-- **Async actions**: the call returns the **original promise**, so `await store.save()` observes rejections normally. A rejection also fires `onFailure` — and the store's internal handling keeps fire-and-forget calls (`store.save()` without `await`) free of unhandled-rejection noise.
-
-### Write single-signature actions
-
-Declare each action as a single function signature (use union parameter types instead of overloads). The derived `onDispatching` / `onDispatched` / `onFailure` subscriber types are inferred from that one signature, so overloads would degrade the event typing.
+> Declare each action as a single function signature (union parameter types instead of overloads); the event subscriber types are inferred from that one signature. Rationale in [TypeScript](/store/docs/typescript).
 
 ## Custom events
 
@@ -169,11 +148,27 @@ const useCartStore = defineStore('cart', (ctx) => {
 useCartStore().onCheckedOut.subscribe(({ orderId }) => { /* typed */ });
 ```
 
-Every `subscribe()` returns a `Subscription` with `unsubscribe()`.
+Every `subscribe()` returns a `Subscription` with `unsubscribe()`. When to reach for custom events versus per-key state events versus action events — and how devtools discovers all of them — is the subject of [Events & Observability](/store/docs/events-and-observability).
 
 ## Lifetime
 
-The third argument to `defineStore` is the instance lifetime — `'singleton' | 'scoped' | 'transient'`, defaulting to `'scoped'`. It is honored by the core DI layer (core `0.5.0`); see [Using Stores in Components](/store/docs/using-in-components#sharing-one-instance-vs-fresh-instances) for what each means in practice.
+The third argument to `defineStore` is the instance lifetime — `'singleton' | 'scoped' | 'transient'`, defaulting to `'scoped'`. It is honored by the core DI layer (core `0.5.0`): singletons are shared per app, scoped instances respect `defineProvide` subtree overrides, transients are created per call. [Lifetimes & DI](/store/docs/lifetimes-and-di) covers each in practice, plus parameterized stores and the SSR contract.
+
+## Composables
+
+Because a store is "just" a setup function, reusable behavior is a plain function that takes the context — the built-in [`persist`](/store/docs/persistence) composable is the canonical example:
+
+```ts
+import { persist } from '@sigx/store/persist';
+
+const useSettings = defineStore('settings', (ctx) => {
+    const { state, signals, patch } = ctx.defineState({ theme: 'dark' });
+    const { hydrated } = persist(ctx, { state, patch });
+    return { ...signals, hydrated };
+}, 'singleton');
+```
+
+Writing your own composables — and when to use the global `onStoreCreated` plugin hook instead — is covered in [Composables & Plugins](/store/docs/composables-and-plugins).
 
 ## A complete store
 
@@ -211,8 +206,12 @@ const useTodoStore = defineStore('todos', ({ defineState, defineActions }) => {
 }, 'scoped');
 ```
 
+For larger stores — multiple slices, stores composed of stores, undo/redo — see [Patterns](/store/docs/patterns).
+
 ## Next steps
 
-- [Using Stores in Components](/store/docs/using-in-components) — reading state in render, sharing instances, lifetimes, and cleanup.
-- [Persistence](/store/docs/persistence) — persist state slices with `@sigx/store/persist`.
+- [Actions & Async](/store/docs/actions-and-async) — `pending`, lifecycle events, and error semantics in depth.
+- [Events & Observability](/store/docs/events-and-observability) — the event mental model and devtools discovery.
+- [Lifetimes & DI](/store/docs/lifetimes-and-di) — lifetimes in practice, `defineProvide`, SSR.
+- [Using Stores in Components](/store/docs/using-in-components) — reading state in render, sharing instances, cleanup.
 - [API Reference](/store/docs/api) — full signatures for every export.

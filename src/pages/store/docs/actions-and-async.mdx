@@ -1,0 +1,209 @@
+---
+title: Actions & Async
+description: "pending, action lifecycle events, error semantics, and async patterns"
+layout: docs
+category: Guides
+order: 35
+---
+
+# Actions & Async
+
+`defineActions(obj)` wraps each function you pass it. The wrapped action is callable with its **exact original signature** — same parameters, same return type — and carries three things on the function itself: a reactive `pending` flag, and the `onDispatching` / `onDispatched` / `onFailure` lifecycle subscribers. This page covers what each of those does precisely, the error semantics, and the async patterns they enable.
+
+If you haven't read [Defining a Store](/store/docs/defining-a-store) yet, start there — this page assumes you know what `defineState` and `defineActions` return.
+
+## `pending` is a counter, not a boolean flag
+
+`store.save.pending` is `true` while **any** invocation of `save` is in flight. Internally each call increments a reactive counter on entry and decrements it when the call settles (synchronously for sync actions, on promise settlement for async ones); `pending` reads as `count > 0`. Two consequences:
+
+- **Overlapping invocations are handled correctly.** Fire `save()` twice and `pending` stays `true` until *both* settle — there is no flicker when the first one finishes early.
+- **Reading `pending` in a render function is reactive** — the component re-renders when the action goes in or out of flight, like any other signal read.
+
+Try it: fire both uploads quickly. The status stays "Uploading…" until the *slower* one finishes, and the counter only catches up as each completes.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { defineStore } from '@sigx/store';
+
+const useUploadStore = defineStore('uploads', ({ defineState, defineActions }) => {
+    const { state, signals } = defineState({ completed: 0 });
+
+    const actions = defineActions({
+        async upload(ms: number) {
+            await new Promise(resolve => setTimeout(resolve, ms));
+            state.completed++;
+        },
+    });
+
+    return { ...signals, ...actions };
+});
+
+const Uploader = component(() => {
+    const store = useUploadStore();
+    return () => (
+        <div class="space-y-2">
+            <div class="flex gap-2">
+                <button class="btn btn-sm" onClick={() => store.upload(800)}>Upload (0.8s)</button>
+                <button class="btn btn-sm" onClick={() => store.upload(2500)}>Upload (2.5s)</button>
+            </div>
+            <p class="text-sm">
+                <span class={store.upload.pending ? 'text-warning font-bold' : ''}>
+                    {store.upload.pending ? 'Uploading…' : 'Idle'}
+                </span>
+                {' — '}{store.completed} completed
+            </p>
+        </div>
+    );
+});
+
+render(<Uploader />, "#sandbox");
+```
+
+`pending` is per-action — `store.save.pending` and `store.load.pending` are independent. For a store-wide "anything in flight" flag, derive one with `computed` in the setup.
+
+## The lifecycle events
+
+Each action carries three subscribable events, in dispatch order:
+
+| Event | Fires | Callback receives |
+|---|---|---|
+| `onDispatching` | before the action body runs | `(...args)` — the original arguments |
+| `onDispatched` | after the action completes | `(result, ...args)` — for async actions, the **resolved value** |
+| `onFailure` | on a sync throw or async rejection | `(error, ...args)` |
+
+```ts
+const store = useUploadStore();
+
+store.upload.onDispatching.subscribe((ms) => {
+    console.log('starting upload, simulated ms:', ms);
+});
+store.upload.onDispatched.subscribe((result, ms) => {
+    console.log('upload done');
+});
+store.upload.onFailure.subscribe((error, ms) => {
+    console.error('upload failed:', error);
+});
+```
+
+Every `subscribe()` returns a `Subscription` with `unsubscribe()`. When you subscribe **inside a component setup**, the subscription is automatically removed on unmount — see [Events & Observability](/store/docs/events-and-observability#subscriptions-clean-up-with-the-component) for how that works.
+
+Note that `onDispatched` fires with the **resolved value**, not the promise: for `async fetchUser(id)` returning a `User`, subscribers get `(user, id)`. The subscriber types are derived from the action's own signature — see [TypeScript](/store/docs/typescript#what-subscribers-receive).
+
+## Error semantics
+
+Errors are the caller's to handle — the wrapper never swallows them:
+
+- **Sync actions**: a throw publishes `onFailure` (with `(error, ...args)`) and then **re-throws** to the caller. The call site sees the exception exactly as if the action were unwrapped.
+- **Async actions**: the call returns the **original promise**. `await store.save()` observes the resolved value or the rejection, normally. On rejection, `onFailure` fires too.
+- **No unhandled-rejection noise**: the wrapper attaches an internal, handled side chain to the returned promise (that's where `pending` is settled and the events publish). Because that side chain handles rejection, a fire-and-forget call — `store.save()` without `await` — never triggers an unhandled-rejection warning, while an awaited call still rejects into your `try/catch`.
+
+That combination is what makes the "feed" pattern below safe: components can fire actions without awaiting them and route all failure handling through `onFailure`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { defineStore } from '@sigx/store';
+
+const useSyncStore = defineStore('sync', ({ defineState, defineActions }) => {
+    const { state, signals } = defineState({ log: [] as string[] });
+
+    const actions = defineActions({
+        async push(shouldFail: boolean) {
+            await new Promise(resolve => setTimeout(resolve, 600));
+            if (shouldFail) throw new Error('server said no');
+            return 'synced';
+        },
+    });
+
+    // Cross-cutting failure handling, wired once in the setup:
+    actions.push.onFailure.subscribe((error, shouldFail) => {
+        state.log.push(`✗ ${String(error)}`);
+    });
+    actions.push.onDispatched.subscribe((result) => {
+        state.log.push(`✓ ${result}`);
+    });
+
+    return { ...signals, ...actions };
+});
+
+const SyncPanel = component(() => {
+    const store = useSyncStore();
+    return () => (
+        <div class="space-y-2">
+            <div class="flex gap-2">
+                <button class="btn btn-sm btn-primary" disabled={store.push.pending}
+                        onClick={() => store.push(false)}>
+                    Sync (succeeds)
+                </button>
+                <button class="btn btn-sm btn-error" disabled={store.push.pending}
+                        onClick={() => store.push(true)}>
+                    Sync (fails)
+                </button>
+            </div>
+            <ul class="text-sm font-mono">
+                {store.log.map(line => <li>{line}</li>)}
+            </ul>
+        </div>
+    );
+});
+
+render(<SyncPanel />, "#sandbox");
+```
+
+The buttons above call `store.push(...)` without `await` — failures still reach `onFailure`, and the console stays free of unhandled-rejection warnings.
+
+> Subscriber errors are isolated, too: a throwing `onFailure` or `onDispatched` handler is logged and cannot poison the action's own promise chain or break other subscribers.
+
+## Cancellation with AbortSignal
+
+The store doesn't impose a cancellation mechanism — actions are plain functions, so the standard `AbortController` pattern works as-is. Keep the controller in **private state** (don't return it) and expose a `cancel` action:
+
+```ts
+import { defineStore } from '@sigx/store';
+
+const useSearchStore = defineStore('search', ({ defineState, defineActions }) => {
+    const { state, signals } = defineState({ results: [] as string[] });
+    let controller: AbortController | null = null;
+
+    const actions = defineActions({
+        async search(query: string) {
+            controller?.abort();                     // cancel the previous run
+            controller = new AbortController();
+            const res = await fetch(`/api/search?q=${query}`, { signal: controller.signal });
+            state.results = await res.json();
+        },
+        cancel() {
+            controller?.abort();
+        },
+    });
+
+    return { ...signals, ...actions };
+});
+```
+
+An aborted `fetch` rejects with an `AbortError`, which fires `onFailure` like any other rejection — filter it out there if cancellations shouldn't be reported as failures.
+
+## Races: latest wins
+
+`pending` tells you *whether* something is in flight, not *which* invocation will finish last. When overlapping calls can resolve out of order (type-ahead search, tab switching), guard the state write with a request id so only the latest invocation applies:
+
+```ts
+let requestId = 0;
+
+const actions = defineActions({
+    async load(query: string) {
+        const id = ++requestId;
+        const data = await api.search(query);
+        if (id !== requestId) return;   // a newer call superseded this one
+        state.results = data;
+    },
+});
+```
+
+This and related recipes — de-duplication, optimistic updates with rollback via `onFailure` — are worked through in [Patterns](/store/docs/patterns#request-de-duplication-and-latest-wins).
+
+## Next steps
+
+- [Events & Observability](/store/docs/events-and-observability) — state events vs. action events, laziness, and the inspection registry.
+- [Patterns](/store/docs/patterns) — optimistic updates, request races, undo.
+- [TypeScript](/store/docs/typescript) — how the subscriber types are derived, and why actions should be single-signature.
+- [API Reference](/store/docs/api#storeaction) — the `StoreAction` type in full.

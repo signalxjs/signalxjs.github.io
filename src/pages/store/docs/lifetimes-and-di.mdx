@@ -1,0 +1,153 @@
+---
+title: Lifetimes & DI
+description: "scoped, singleton, and transient stores; defineProvide overrides; disposal ownership; SSR"
+layout: docs
+category: Guides
+order: 45
+---
+
+# Lifetimes & DI
+
+A store factory doesn't just *create* instances — it **resolves** them through SignalX's dependency-injection layer. The third argument to `defineStore` picks the resolution strategy:
+
+```ts
+const useAppStore = defineStore('app', setup, 'singleton');   // default: 'scoped'
+```
+
+This page explains exactly where each lifetime looks for an instance, who owns disposal, and what that means for component subtrees, parameterized stores, and SSR. The mechanism is core's [factory system](/core/docs/advanced/factories) — stores are factories.
+
+## The three lifetimes
+
+### `'scoped'` (the default)
+
+Resolution order when you call the factory:
+
+1. **Nearest provider** — walking up the component tree from the calling component, the first instance provided via `defineProvide` wins.
+2. **App context** — otherwise, the per-app shared instance (one per `AppContext`), created on first use and cached. It is **app-owned**: disposed on `app.unmount()`, never by the component that happened to resolve it first.
+3. **Realm fallback** — outside any app/component context (tests, scripts), one instance per JS realm.
+
+`'scoped'` therefore *behaves* like a singleton until somebody overrides it for a subtree — which is exactly what makes it the right default: global by convention, locally replaceable on demand.
+
+### `'singleton'`
+
+Steps 2 and 3 only — one shared instance per `AppContext`, disposed on `app.unmount()`, with the same per-realm fallback outside an app. `defineProvide` overrides are **not** consulted: a singleton is the same instance everywhere in the app, by definition.
+
+### `'transient'`
+
+A fresh instance on **every** factory call. When the call happens inside a component setup, the instance is tied to that component and auto-disposed on unmount; outside a component, you own it — call `store.$dispose()` yourself.
+
+```ts
+const useWizardStore = defineStore('wizard', setup, 'transient');
+
+const Wizard = component(() => {
+    const store = useWizardStore();   // this component's own copy,
+    return () => /* ... */;           // disposed when it unmounts
+});
+```
+
+## Subtree overrides with `defineProvide`
+
+`defineProvide(useStore)` — in a component setup — creates a **fresh instance** and provides it to that component's subtree. Every `'scoped'` resolution below it gets that instance instead of the app-wide one:
+
+```tsx
+import { component, defineProvide } from 'sigx';
+
+const useFilterStore = defineStore('filters', setup);   // 'scoped'
+
+const ProductSection = component(() => {
+    // This subtree gets its own filter state:
+    const filters = defineProvide(useFilterStore);
+    return () => <ProductList />;                        // useFilterStore() in any
+});                                                      // descendant → this instance
+```
+
+Two rules to know:
+
+- **The provider component owns the instance** — it is disposed when the provider unmounts, not on `app.unmount()`.
+- **`defineProvide` creates the instance without arguments by default.** Its default factory calls the setup args-less (and beware: a custom `defineProvide(useFn, factory)` callback that calls the use-function would *resolve a shared instance*, not create a fresh one). The reliable pattern for per-subtree configuration is to design provided stores arg-less and seed the fresh instance through an action right after providing it:
+
+```ts
+const filters = defineProvide(useFilterStore);
+filters.init(props.initialFilters);   // seed via an action, not setup args
+```
+
+Sibling sections each calling `defineProvide(useFilterStore)` get fully independent instances — same store definition, isolated state per subtree.
+
+## Parameterized stores: first creation wins
+
+Setup parameters after the context are forwarded through the factory call, with full tuple-typed inference at any arity (see [TypeScript](/store/docs/typescript)). With a `'transient'` lifetime every call uses its own arguments — that's the natural pairing. For `'scoped'` and `'singleton'`, arguments are honored **at first creation only**:
+
+```ts
+const useListStore = defineStore('list', ({ defineState }, initial: string[]) => {
+    const { signals } = defineState({ items: initial });
+    return { ...signals };
+}, 'scoped');
+
+useListStore(['a']);   // creates the shared instance, seeded with ['a']
+useListStore(['z']);   // resolves the SAME instance — ['z'] is ignored
+```
+
+If different callers need different seeds, the store wants to be `'transient'` (or provided per subtree with explicit construction, as above).
+
+## Disposal ownership
+
+Who calls dispose depends on how the instance came to exist:
+
+| How it was created | Disposed by |
+|---|---|
+| `'scoped'`/`'singleton'`, resolved under an app | `app.unmount()` |
+| `defineProvide` in a component | that component's unmount |
+| `'transient'`, called in a component setup | that component's unmount |
+| `'transient'` outside a component | you — `store.$dispose()` |
+| realm fallback (no app context) | you — `store.$dispose()` |
+
+Disposal stops the store's state watchers and destroys all its topics — `$events` and action events go silent ([Events & Observability](/store/docs/events-and-observability#the-inspection-registry)), and anything registered via the setup's `onDeactivated` (like a [persist](/store/docs/persistence) composable's watcher) is cleaned up.
+
+Manually disposing a shared instance does not poison the factory: the next resolution detects the disposed instance and **creates a fresh one** rather than serving a corpse. That makes `$dispose()` a legitimate "reset this store completely" lever in tests.
+
+## SSR: one app per request
+
+The DI layer gives SSR a simple contract: **shared instances live on the `AppContext`**. Create one app per request and every `'scoped'`/`'singleton'` store is automatically per-request — no cross-request state leakage, and everything is disposed together when the request's app is torn down.
+
+The corollary is the thing to avoid: resolving a shared store at **module scope** on the server. There is no app context there, so resolution falls back to the **per-realm** instance — which *is* shared across requests. Keep factory calls inside component setups (or other code that runs within an app), and module-level store usage stays a client-only convenience.
+
+```ts
+// ✗ server-dangerous: realm-fallback instance, shared by all requests
+const store = useCartStore();
+export function totalBadge() { return store.total; }
+
+// ✔ resolved per app / per request
+const Badge = component(() => {
+    const store = useCartStore();
+    return () => <span>{store.total}</span>;
+});
+```
+
+(`persist` is already SSR-safe on its own — with no storage available it is a no-op; see [Persistence](/store/docs/persistence#how-it-behaves).)
+
+## Choosing a lifetime
+
+- **App-wide state** (session, settings, cart): `'singleton'` — or leave the default `'scoped'`, which behaves identically until you need an override.
+- **Feature state that some subtree may want its own copy of** (filters, selection): `'scoped'` + `defineProvide` at the feature root.
+- **Per-component state machines** (wizards, editors, anything seeded by props): `'transient'` with setup parameters.
+
+Composing stores from other stores' setups adds one more wrinkle — when the *inner* store resolves and who disposes it — covered in [Patterns](/store/docs/patterns#store-composition-stores-using-stores).
+
+## Testing note
+
+Unit tests usually run outside any app, so shared lifetimes resolve to the **realm fallback** — which persists across tests in the same file. Reset between tests by disposing; the next resolution creates a fresh instance:
+
+```ts
+afterEach(() => {
+    useCartStore().$dispose();   // next test's useCartStore() starts clean
+});
+```
+
+For isolation without disposal bookkeeping, prefer `'transient'` in tests of the setup logic itself, or mount each test inside its own app.
+
+## Next steps
+
+- [Factories in core](/core/docs/advanced/factories) — the underlying `defineFactory` machinery.
+- [Using Stores in Components](/store/docs/using-in-components) — the component-side view of sharing and cleanup.
+- [Patterns](/store/docs/patterns) — store composition and its lifetime implications.
+- [API Reference](/store/docs/api#lifetime) — the `Lifetime` type.
