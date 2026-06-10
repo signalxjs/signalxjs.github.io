@@ -16,17 +16,20 @@ import { PrereqCallout } from '@/components/PrereqCallout';
     { name: 'Components', path: '/core/docs/components' },
 ]} />
 
-`@sigx/store` provides centralized, reactive state built on the same signal core that powers your components. You define a store once with `defineStore`, describe its `state`, `actions`, and derived getters inside a setup function, and then call the returned factory anywhere to get a live, reactive instance.
+`@sigx/store` provides centralized, reactive state built on the same signal core that powers your components. You define a store once with `defineStore`, describe its state, actions, and derived values inside a setup function, and then call the returned factory anywhere to get a live, reactive instance.
 
-Because the state is signal-backed, reading `store.state.x` inside a component's render function makes that component re-render automatically when the value changes. There is no boilerplate selector layer and no manual subscription required for rendering.
+The store surface is **flat and signal-first**: whatever your setup returns becomes the store. Returned state keys read and write as plain values (`store.count`), returned computeds read as plain read-only values (`store.total`), and actions are called directly (`store.increment()`). Reading any of them inside a component's render function makes that component re-render automatically when the value changes — no selector layer, no manual subscriptions.
 
 ## Why a store?
 
 - **Centralized state** shared across components instead of prop-drilling.
 - **Signal-backed reactivity** so reads in render functions update automatically.
-- **Actions** that wrap mutations and expose lifecycle events (`onDispatching`, `onDispatched`, `onFailure`).
-- **Per-property mutation events** (`onMutated{Key}`) for reacting to specific state changes.
-- **Automatic cleanup** when a store instance is created inside a component — it disposes on unmount.
+- **A flat, fully-typed surface** — public state is exactly the signals you return.
+- **Actions** with a reactive `pending` flag and lifecycle events (`onDispatching`, `onDispatched`, `onFailure`) riding on each action function.
+- **Per-key change events** (`store.$events.count`) that cost nothing until someone subscribes.
+- **Atomic multi-key updates** via `patch` / `$patch` (one reactivity flush).
+- **Real lifetimes** (`'singleton' | 'scoped' | 'transient'`) and automatic cleanup — a store created inside a component disposes on unmount.
+- **Built-in persistence** at the `@sigx/store/persist` subpath.
 
 ## Installation
 
@@ -34,26 +37,26 @@ Because the state is signal-backed, reading `store.state.x` inside a component's
 npm install @sigx/store
 ```
 
-See [Installation](/store/docs/installation) for peer dependencies and project wiring.
+See [Installation](/store/docs/installation) for dependencies and project wiring.
 
 ## Your first store
 
-Define a store with `defineStore(name, setup)`. The `setup` function receives a context object that includes `defineState` and `defineActions`. Whatever you return becomes the shape of every instance.
+Define a store with `defineStore(name, setup)`. The `setup` function receives a context object that includes `defineState` and `defineActions`. Whatever you return becomes the store's surface — spread the `signals` from `defineState` to make those keys public state.
 
 ```tsx preview code live
 import { component, render } from 'sigx';
 import { defineStore } from '@sigx/store';
 
 const useCounterStore = defineStore('counter', ({ defineState, defineActions }) => {
-    const { state, mutate } = defineState({ count: 0 });
+    const { state, signals } = defineState({ count: 0 });
 
     const actions = defineActions({
-        increment() { mutate.count(prev => prev + 1); },
-        decrement() { mutate.count(prev => prev - 1); },
-        reset() { mutate.count(0); },
+        increment() { state.count++; },
+        decrement() { state.count--; },
+        reset() { state.count = 0; },
     });
 
-    return { state, actions };
+    return { ...signals, ...actions };
 });
 
 const Counter = component(() => {
@@ -61,10 +64,10 @@ const Counter = component(() => {
 
     return () => (
         <div class="flex items-center gap-3">
-            <button class="btn" onClick={store.actions.decrement}>-</button>
-            <span class="text-xl font-bold w-12 text-center">{store.state.count}</span>
-            <button class="btn" onClick={store.actions.increment}>+</button>
-            <button class="btn btn-ghost" onClick={store.actions.reset}>reset</button>
+            <button class="btn" onClick={() => store.decrement()}>-</button>
+            <span class="text-xl font-bold w-12 text-center">{store.count}</span>
+            <button class="btn" onClick={() => store.increment()}>+</button>
+            <button class="btn btn-ghost" onClick={() => store.reset()}>reset</button>
         </div>
     );
 });
@@ -74,32 +77,39 @@ render(<Counter />, "#sandbox");
 
 ## How it fits together
 
-- `defineStore(name, setup)` returns a **factory function**. By convention it is assigned to a `useXxxStore` const, but it is an ordinary function — calling it creates an instance.
-- Inside `setup`, `defineState(obj)` returns `{ state, events, mutate }`. Read and write `state` directly, or use the typed `mutate` helpers.
-- `defineActions(obj)` returns your original callable actions plus `onDispatching`, `onDispatched`, and `onFailure` event namespaces.
+- `defineStore(name, setup, lifetime?)` returns a **factory function**. By convention it is assigned to a `useXxxStore` const, but it is an ordinary function — calling it creates (or resolves) an instance. There is no `useStore` export.
+- Inside `setup`, `defineState(obj)` returns `{ state, signals, events, patch }`. `state` is the deep reactive object you mutate inside the setup and actions; `signals` are spreadable per-key views — **the keys you return become the store's public state**, unreturned keys stay private.
+- `defineActions(obj)` wraps your functions. Each returned action is callable with its original signature and carries a reactive `pending` flag plus `onDispatching` / `onDispatched` / `onFailure` event subscribers.
+- The store instance is an **unwrap proxy**: returned key signals read/write as plain values, returned `computed(...)` values read as plain read-only values, everything else passes through.
+- Store meta lives behind `$`: `$id`, `$patch`, `$events`, `$dispose`.
 - Calling the factory inside a `component(...)` setup ties the instance to the component lifecycle: it auto-disposes on unmount.
 
-> Note: there is no `useStore` export. `useCounterStore` above is just the name we gave the factory returned by `defineStore`.
+## Reading and writing state
 
-## Reading and mutating state
-
-`state` is a reactive, signal-backed object. You can assign properties directly, or use `mutate` for value/updater ergonomics. Both paths fire the matching `onMutated{Key}` event.
+On the instance, returned state keys are plain values — read them and assign to them directly. Inside the setup, mutate `state` (it is deeply reactive) or use `patch` for an atomic multi-key update.
 
 ```ts
-const { state, mutate, events } = defineState({ count: 0 });
+const store = useCounterStore();
 
-state.count = 5;                  // direct assignment (fires onMutatedCount)
-mutate.count(42);                 // set via helper
-mutate.count(prev => prev + 1);   // functional update
+store.count;          // read (reactive when read in a render/effect)
+store.count = 5;      // write — same as setting state.count inside the setup
 
-events.onMutatedCount.subscribe(value => {
-    console.log('count is now', value);
+store.$patch({ count: 0 });           // atomic multi-key update (object form)
+store.$patch(s => { s.count += 2; }); // ...or mutator form
+
+store.$events.count.subscribe((value, prev) => {
+    console.log('count went from', prev, 'to', value);
 });
 ```
 
+Per-key events are **lazy**: the deep watcher behind `$events.count` only runs while someone is subscribed, and it does not fire immediately on subscribe.
+
+> One convention to internalize early: **don't destructure the store**. `const { count } = store` snapshots the current value and loses reactivity. Either keep reads on the store (`store.count`) or use [`storeToSignals`](/store/docs/using-in-components#destructuring-safely-with-storetosignals) for destructuring-safe signal views.
+
 ## Next steps
 
-- [Installation](/store/docs/installation) — install command, peer deps, and project setup.
-- [Defining a Store](/store/docs/defining-a-store) — state, actions, derived getters, and events in depth.
+- [Installation](/store/docs/installation) — install command, dependencies, and project setup.
+- [Defining a Store](/store/docs/defining-a-store) — state, actions, derived values, and events in depth.
 - [Using Stores in Components](/store/docs/using-in-components) — sharing state, lifetimes, and cleanup.
+- [Persistence](/store/docs/persistence) — persist state slices with `@sigx/store/persist`.
 - [API Reference](/store/docs/api) — every export with signatures.

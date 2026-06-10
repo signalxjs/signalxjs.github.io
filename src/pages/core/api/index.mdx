@@ -50,8 +50,10 @@ Complete reference for all SignalX (`sigx`) exports. SignalX re-exports everythi
 - [`Plugin`](/core/api/app#plugin) - Plugin type
 
 ### Advanced
-- [`defineFactory`](/core/api/advanced#definefactory) - Injectable factory
+- [`defineFactory`](/core/api/advanced#definefactory) - Injectable factory with real lifetimes
+- [`Lifetime`](/core/api/advanced#lifetime) - `'singleton' | 'scoped' | 'transient'`
 - [`createTopic`](/core/api/advanced#createtopic) - Pub/sub messaging
+- [`createTopicGroup`](/core/api/advanced#createtopicgroup) - Typed group of topics
 - [`toSubscriber`](/core/api/advanced#tosubscriber) - Read-only subscriber
 
 ### Types
@@ -89,9 +91,15 @@ import {
     type Define, ComponentRef, Exposed,
     
     // Advanced
-    defineFactory, createTopic, toSubscriber,
-    InstanceLifetimes
+    defineFactory, createTopic, createTopicGroup, toSubscriber,
+    type Lifetime
 } from 'sigx';
+```
+
+The inspection-only topic registry for tooling lives on its own entry:
+
+```tsx
+import { getTopic, listTopics, subscribeTopics, onTopicCreated } from '@sigx/runtime-core/inspect';
 ```
 
 ## TypeScript

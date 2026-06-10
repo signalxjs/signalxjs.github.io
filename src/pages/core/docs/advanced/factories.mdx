@@ -8,12 +8,12 @@ order: 20
 
 # Factories
 
-SignalX provides `defineFactory()` for creating injectable services with lifecycle management. Factories are ideal for shared logic, API clients, and stateful services.
+SignalX provides `defineFactory()` for creating injectable services with managed subscriptions, disposal, and a real instance lifetime. Factories are ideal for shared logic, API clients, and stateful services.
 
 ## Basic Factory
 
 ```tsx
-import { defineFactory, InstanceLifetimes } from 'sigx';
+import { defineFactory } from 'sigx';
 
 const useLogger = defineFactory((ctx) => {
     const logs: string[] = [];
@@ -30,7 +30,7 @@ const useLogger = defineFactory((ctx) => {
     });
 
     return { log, getLogs };
-}, InstanceLifetimes.Singleton);
+}, 'singleton');
 
 // Usage in component
 const MyComponent = component(() => {
@@ -42,30 +42,49 @@ const MyComponent = component(() => {
 });
 ```
 
+The setup function must return an object or a function — returning a primitive throws.
+
 ## Instance Lifetimes
 
-Factories support three lifetime modes:
+The second argument is a `Lifetime` string literal — `'singleton'`, `'scoped'`, or `'transient'`. (It replaces the old `InstanceLifetimes` enum, and unlike the enum the lifetimes are now **enforced**.)
 
 ```tsx
-import { InstanceLifetimes } from 'sigx';
+import { defineFactory } from 'sigx';
 
-// New instance every time
-defineFactory(setup, InstanceLifetimes.Transient);
+// New instance every call
+defineFactory(setup, 'transient');
 
-// One instance per component tree (scoped to provider)
-defineFactory(setup, InstanceLifetimes.Scoped);
+// Nearest defineProvide provider in the tree, falling back to the app instance
+defineFactory(setup, 'scoped');
 
-// Single global instance
-defineFactory(setup, InstanceLifetimes.Singleton);
+// One instance per app
+defineFactory(setup, 'singleton');
 ```
 
 ### Lifetime Comparison
 
-| Lifetime | Instances | Use Case |
-|----------|-----------|----------|
-| `Transient` | Many | Stateless utilities, unique per use |
-| `Scoped` | Per scope | Component-tree-local services |
-| `Singleton` | One | Global services, caches, API clients |
+| Lifetime | Instances | Semantics |
+|----------|-----------|-----------|
+| `'singleton'` | One per app | Created on first resolution per `AppContext`, disposed on `app.unmount()`. Outside any app context, one instance per JS realm |
+| `'scoped'` | Per provider | The nearest instance provided via `defineProvide` in the component tree; falls back to the app-context instance (and outside any app/component context to the per-realm instance) |
+| `'transient'` | Per call | A new instance each call, disposed with the calling component — or owned by the caller via `dispose()` |
+
+## Disposal
+
+Every factory instance gets a `dispose()` method attached — **non-enumerable** (it never shows up when iterating or serializing the instance) and **idempotent** (safe to call twice). If the setup returns its own `dispose`, the generated one delegates to it.
+
+Disposal runs the `onDeactivated` callbacks and the `ctx.subscriptions` cleanups:
+
+- `'singleton'` instances are disposed when their app is unmounted (`app.unmount()`).
+- `'scoped'` instances are disposed when their provider component unmounts.
+- `'transient'` instances are disposed with the calling component; created outside a component, the caller owns disposal and calls `dispose()` manually.
+
+```tsx
+const transient = useThing();   // inside a component: auto-disposed on unmount
+
+const standalone = useThing();  // outside a component: you own it
+standalone.dispose();           // idempotent — safe to call again
+```
 
 ## Factory Context
 
@@ -80,7 +99,7 @@ const useService = defineFactory((ctx) => {
 
     // Subscription helper for auto-cleanup
     ctx.subscriptions.add(() => {
-        // This runs on deactivation
+        // This runs on disposal
     });
 
     // Override default dispose behavior
@@ -90,13 +109,13 @@ const useService = defineFactory((ctx) => {
     });
 
     return { /* service API */ };
-}, InstanceLifetimes.Singleton);
+}, 'singleton');
 ```
 
 ## API Client Example
 
 ```tsx
-import { defineFactory, InstanceLifetimes, signal } from 'sigx';
+import { defineFactory, signal } from 'sigx';
 
 interface User {
     id: number;
@@ -137,7 +156,7 @@ const useUserApi = defineFactory((ctx) => {
         invalidateCache,
         isLoading: () => loading.value
     };
-}, InstanceLifetimes.Singleton);
+}, 'singleton');
 
 // Usage
 const UserProfile = component(({ props }) => {
@@ -159,7 +178,7 @@ const UserProfile = component(({ props }) => {
 
 ## Factories with Parameters
 
-Factories can accept parameters for dynamic creation:
+Factories can accept parameters for dynamic creation. A parameterized factory returns a `FactoryFunction` creator (typed overloads up to 5 parameters):
 
 ```tsx
 const useRepository = defineFactory((ctx, entityName: string) => {
@@ -173,12 +192,14 @@ const useRepository = defineFactory((ctx, entityName: string) => {
     });
     
     return { getAll, getById, create };
-}, InstanceLifetimes.Transient);
+}, 'transient');
 
-// Usage
+// Usage — each call creates a fresh instance (transient)
 const usersRepo = useRepository('users');
 const postsRepo = useRepository('posts');
 ```
+
+For **non-transient** parameterized factories, arguments are honored at **first creation only** — later calls resolve the existing shared instance, whatever arguments they pass. If different argument sets must yield different instances, use `'transient'` (or provide per-subtree instances with `defineProvide`).
 
 ## Subscription Management
 
@@ -191,7 +212,7 @@ const useWebSocket = defineFactory((ctx) => {
     const connect = (url: string) => {
         ws = new WebSocket(url);
         
-        // Auto-cleanup on factory deactivation
+        // Auto-cleanup on factory disposal
         ctx.subscriptions.add(() => {
             ws?.close();
         });
@@ -202,15 +223,15 @@ const useWebSocket = defineFactory((ctx) => {
     };
     
     return { connect, send };
-}, InstanceLifetimes.Singleton);
+}, 'singleton');
 ```
 
 ## Combining with Dependency Injection
 
-Factories work with SignalX's DI system:
+Factory use-functions satisfy `Providable<T>`, so they work with `defineProvide` / `app.defineProvide` exactly like `defineInjectable` tokens — including parameterized creators. Providing a `'scoped'` factory gives a subtree its own instance; the provider component owns it and disposes it on unmount.
 
 ```tsx
-import { defineFactory, defineInjectable, provide, inject, InstanceLifetimes } from 'sigx';
+import { component, defineFactory, defineProvide, signal } from 'sigx';
 
 // Define the factory
 const useAuthService = defineFactory((ctx) => {
@@ -240,11 +261,17 @@ const useAuthService = defineFactory((ctx) => {
         login,
         logout
     };
-}, InstanceLifetimes.Singleton);
+}, 'scoped');
+
+// Provide a fresh instance for a subtree (disposed when the provider unmounts)
+const AccountArea = component(({ slots }) => {
+    defineProvide(useAuthService);
+    return () => <>{slots.default()}</>;
+});
 
 // Usage in components
 const LoginForm = component(({ signal }) => {
-    const auth = useAuthService();
+    const auth = useAuthService();   // nearest provided instance
     const form = signal({ email: '', password: '' });
     
     const handleSubmit = async () => {
@@ -290,11 +317,11 @@ Create an injectable factory function.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `setup` | `(ctx: SetupFactoryContext, ...args) => T` | Factory setup function |
-| `lifetime` | `InstanceLifetimes` | Instance lifetime mode |
-| `typeIdentifier` | `string` | Optional unique identifier |
+| `setup` | `(ctx: SetupFactoryContext, ...args) => T` | Factory setup function. Must return an object or function |
+| `lifetime` | `Lifetime` | `'singleton'`, `'scoped'`, or `'transient'` |
+| `typeIdentifier` | `guid` | Optional unique identifier |
 
-**Returns:** Factory function that creates/returns the service
+**Returns:** An `InjectableFunction<T & { dispose: () => void }>` for parameterless setups, or a `FactoryFunction` creator for parameterized setups. Both work with `defineProvide` / `app.defineProvide`.
 
 ### `SetupFactoryContext`
 
@@ -306,15 +333,19 @@ Context passed to factory setup functions.
 | `subscriptions` | `SubscriptionHandler` | Helper for managing subscriptions |
 | `overrideDispose` | `(fn: (dispose: () => void) => void) => void` | Custom disposal logic |
 
-### `InstanceLifetimes`
+### `Lifetime`
 
-Enum for factory instance lifetimes.
+String-literal union for factory instance lifetimes.
+
+```tsx
+type Lifetime = 'singleton' | 'scoped' | 'transient';
+```
 
 | Value | Description |
 |-------|-------------|
-| `Transient` | New instance every invocation |
-| `Scoped` | One instance per scope/provider |
-| `Singleton` | Single global instance |
+| `'singleton'` | One instance per app (`AppContext`), disposed on `app.unmount()`; per-realm fallback outside apps |
+| `'scoped'` | Nearest `defineProvide` provider, falling back to the app instance |
+| `'transient'` | New instance every invocation, disposed with the calling component or via `dispose()` |
 
 ### `SubscriptionHandler`
 
@@ -327,9 +358,9 @@ ctx.subscriptions.unsubscribe(); // Call all cleanup functions
 
 ## Best Practices
 
-1. **Use Singleton for shared state**:
+1. **Use `'singleton'` for app-wide shared state**:
    ```tsx
-   const useStore = defineFactory(setup, InstanceLifetimes.Singleton);
+   const useStore = defineFactory(setup, 'singleton');
    ```
 
 2. **Clean up resources**:
@@ -356,6 +387,12 @@ ctx.subscriptions.unsubscribe(); // Call all cleanup functions
        get user() { return state.user; },  // Reactive
        getUser: () => state.user           // Also reactive
    };
+   ```
+
+5. **Dispose transient instances you create outside components**:
+   ```tsx
+   const job = useJob();
+   try { await job.run(); } finally { job.dispose(); }
    ```
 
 ## Next Steps

@@ -53,6 +53,26 @@ user.$set({ name: 'Carol', tags: [] }); // logs: Carol (0)
 
 Nested objects become reactive lazily on first access, and array mutator methods like `push`, `splice`, and `sort` are batched automatically. Note that exotic built-ins such as `Date` and `RegExp` are returned unwrapped and are not reactive.
 
+## Destructuring without losing reactivity
+
+Destructuring a reactive object snapshots its values — `const { name } = user` is just a plain string afterwards. Use `toSignal` (one property) or `toSignals` (every property) to get `{ value }` views that read and write through to the source:
+
+```ts
+import { signal, effect, toSignal, toSignals } from '@sigx/reactivity';
+
+const user = signal({ name: 'Alice', age: 30 });
+
+const name = toSignal(user, 'name');
+effect(() => console.log(name.value)); // logs: Alice
+user.name = 'Bob';                     // logs: Bob
+name.value = 'Carol';                  // writes through; logs: Carol
+
+const { age } = toSignals(user);
+age.value++;                           // user.age is now 31
+```
+
+`toSignals` creates views for every own enumerable string key except `$set`.
+
 ## Batching updates
 
 Multiple synchronous writes each notify subscribers. Wrap them in `batch` so dependent effects flush only once, after the function returns. `batch` is nestable — only the outermost batch triggers the flush.
@@ -110,6 +130,24 @@ const runner = effect(() => console.log(count.value));
 
 count.value++; // logs the new value
 runner.stop(); // future changes are ignored
+```
+
+To dispose a batch of reactive work in one call, create it inside an `effectScope`. Stopping the scope disposes every effect and watcher created inside `run()`; nested scopes stop with their parent unless created detached (`effectScope(true)`).
+
+```ts
+import { signal, effect, watch, effectScope } from '@sigx/reactivity';
+
+const count = signal(0);
+const scope = effectScope();
+
+scope.run(() => {
+  effect(() => console.log('count is', count.value));
+  watch(() => count.value, (next) => console.log('changed to', next));
+});
+
+count.value++; // both run
+scope.stop();  // both disposed
+count.value++; // nothing runs
 ```
 
 To read a signal without subscribing to it, wrap the read in `untrack`:

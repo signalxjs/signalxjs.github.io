@@ -1,6 +1,6 @@
 ---
 title: Defining a Store
-description: "State, derived getters, actions, and events with defineStore"
+description: "State, derived values, actions, and events with defineStore"
 layout: docs
 category: Guides
 order: 30
@@ -8,53 +8,74 @@ order: 30
 
 # Defining a Store
 
-Everything in `@sigx/store` starts with `defineStore`. It takes a `name` (used as a debug/instance-name prefix) and a `setup` function. The setup receives a context with `defineState` and `defineActions`, and returns an object describing the store: `state`, `get`, `actions`, `events`, and an optional `name`.
+Everything in `@sigx/store` starts with `defineStore`. It takes a `name` (the logical store name, used for instance ids like `todos#1` and as the default persistence key), a `setup` function, and an optional lifetime. The setup receives a context with `defineState`, `defineActions`, and `defineEvents`, and **whatever it returns becomes the store**.
 
 ```ts
 import { defineStore } from '@sigx/store';
 
-const useStore = defineStore('my-store', (ctx) => {
-    // ctx.defineState(...), ctx.defineActions(...)
-    return { /* state, get, actions, events */ };
-});
+const useMyStore = defineStore('my-store', (ctx) => {
+    // ctx.defineState(...), ctx.defineActions(...), ctx.defineEvents(...)
+    return { /* spread signals, actions, computeds, anything else */ };
+}, 'scoped');
 ```
 
-`defineStore` returns a **factory function**. Calling that factory creates an instance. By convention it is named `useXxxStore`, but it is just a function — there is no separate `useStore` export.
+`defineStore` returns a **factory function**. Calling that factory creates (or resolves, depending on the lifetime) an instance. By convention it is named `useXxxStore`, but it is just a function — there is no separate `useStore` export.
 
 ## State
 
-`defineState(obj)` turns a plain object into reactive, signal-backed state. It returns three things:
+`defineState(obj)` turns a plain object into deep reactive, signal-backed state. It returns four things:
 
 ```ts
-const { state, events, mutate } = ctx.defineState({ count: 0, name: 'Ada' });
+const { state, signals, events, patch } = ctx.defineState({ count: 0, name: 'Ada' });
 ```
 
-- `state` — the reactive object. Read and write properties directly; deep watching is on, so nested object changes also trigger events.
-- `events` — one `onMutated{Key}` subscriber per property (the key is capitalized): `onMutatedCount`, `onMutatedName`.
-- `mutate` — one helper per property that accepts a value or an updater function.
+- `state` — the deep reactive object. Read and write properties freely inside the setup and actions; nested objects and arrays are reactive too.
+- `signals` — spreadable per-key signal views. **The keys you return become the store's public state**; keys you don't return stay private to the setup.
+- `events` — one change event per key (`events.count`, `events.name`) with `(value, prev)` callbacks. Lazy: the deep watcher behind a key only runs while someone is subscribed.
+- `patch` — atomic multi-key update; the whole update flushes reactivity once. Accepts a partial object or a mutator function. Errors inside the mutator propagate to the caller.
 
 ```ts
-state.count = 5;                  // direct assignment
-mutate.count(42);                 // set via helper
-mutate.count(prev => prev + 1);   // functional update (errors in the updater are caught and logged)
+state.count = 5;                       // direct assignment
+patch({ count: 42, name: 'Grace' });   // atomic multi-key (object form)
+patch(s => { s.count++; });            // atomic (mutator form)
 
-events.onMutatedCount.subscribe(value => {
-    console.log('count changed to', value);
+events.count.subscribe((value, prev) => {
+    console.log('count changed from', prev, 'to', value);
 });
 ```
 
-Both direct assignment and `mutate` fire the matching `onMutated{Key}` event with the new value.
+### Public vs. private state
 
-## Derived / computed getters
+Only the key signals you spread into the return are part of the store's surface — and of `$patch` / `$events` typing on the instance:
 
-`@sigx/store` does not ship its own getter helper. Build derived values with `computed` from `sigx` and expose them under the `get` field of your setup return. Computed values are lazy and cached, and they track the signal-backed `state` they read.
+```ts
+const useCounter = defineStore('counter', ({ defineState, defineActions }) => {
+    const { state, signals } = defineState({ count: 0, internalTicks: 0 });
+
+    const actions = defineActions({
+        increment() { state.count++; state.internalTicks++; },
+    });
+
+    // expose count, keep internalTicks private:
+    const { count } = signals;
+    return { count, ...actions };
+});
+
+const store = useCounter();
+store.count;          // ✔ public
+// store.internalTicks — not on the store, and not in $patch/$events
+```
+
+## Derived / computed values
+
+`@sigx/store` does not ship its own getter helper. Build derived values with `computed` and return them directly — on the instance they unwrap to plain **read-only** values.
 
 ```tsx
 import { computed } from 'sigx';
 import { defineStore } from '@sigx/store';
 
 const useCartStore = defineStore('cart', ({ defineState }) => {
-    const { state, mutate } = defineState({
+    const { state, signals } = defineState({
         items: [
             { name: 'Keyboard', price: 80, qty: 1 },
             { name: 'Mouse', price: 30, qty: 2 },
@@ -69,64 +90,101 @@ const useCartStore = defineStore('cart', ({ defineState }) => {
         state.items.reduce((sum, item) => sum + item.qty, 0)
     );
 
-    return {
-        state,
-        get: { total, itemCount },
-    };
+    return { ...signals, total, itemCount };
 });
-```
 
-Read derived values via `.value` (the `computed` convention): `store.get.total.value`.
+const store = useCartStore();
+store.total;       // plain number — no .value
+store.total = 0;   // ✗ throws: computed values are read-only
+```
 
 ## Actions
 
-`defineActions(obj)` wraps a set of functions. The returned object keeps your original callable actions and adds three event namespaces — one entry per action.
+`defineActions(obj)` wraps a set of functions. Each returned action is callable with its exact original signature, plus a reactive in-flight flag and three lifecycle event subscribers riding on the function itself:
 
 ```ts
 const actions = ctx.defineActions({
-    add: (a: number, b: number) => a + b,
-    fetchData: async () => 'data',
+    add(a: number, b: number) { return a + b; },
+    async fetchData() { return await api.load(); },
 });
 
-actions.add(3, 7); // => 10
+actions.add(3, 7);          // => 10
+actions.fetchData.pending;  // reactive: true while any invocation is in flight
 ```
 
-Each action gains lifecycle events:
-
-- `actions.onDispatching.<action>.subscribe(fn)` — runs **before** the action body, with the original args.
-- `actions.onDispatched.<action>.subscribe(fn)` — runs **after** the action, with `(result, ...args)`. For async actions, this fires after the returned promise resolves.
-- `actions.onFailure.<action>.subscribe(fn)` — runs if the action throws, with `(failureReason, ...args)`.
+- `action.onDispatching.subscribe(fn)` — runs **before** the action body, with the original args.
+- `action.onDispatched.subscribe(fn)` — runs **after** the action, with `(result, ...args)`. For async actions it fires after the returned promise resolves, with the **resolved value**.
+- `action.onFailure.subscribe(fn)` — runs if the action throws or its promise rejects, with `(error, ...args)`.
 
 ```ts
-actions.onDispatching.add.subscribe((a, b) => {
+actions.add.onDispatching.subscribe((a, b) => {
     console.log('about to add', a, b);
 });
-actions.onDispatched.add.subscribe((result, a, b) => {
+actions.add.onDispatched.subscribe((result, a, b) => {
     console.log('added', a, b, '=>', result);
 });
-actions.onFailure.add.subscribe((error, a, b) => {
-    console.error('add failed', error);
+actions.fetchData.onFailure.subscribe((error) => {
+    console.error('fetch failed', error);
 });
 ```
 
-Errors thrown inside an action are caught: `onFailure` fires, the error is logged via `console.error`, and the call returns `undefined` (the error is not re-thrown).
+### Error semantics
 
-For sync actions the order is: `onDispatching` → action body → `onDispatched`. For async actions, `onDispatched` waits for the promise to resolve.
+Errors are the caller's to handle — never swallowed:
+
+- **Sync actions**: a throw fires `onFailure` and **re-throws** to the caller.
+- **Async actions**: the call returns the **original promise**, so `await store.save()` observes rejections normally. A rejection also fires `onFailure` — and the store's internal handling keeps fire-and-forget calls (`store.save()` without `await`) free of unhandled-rejection noise.
+
+### Write single-signature actions
+
+Declare each action as a single function signature (use union parameter types instead of overloads). The derived `onDispatching` / `onDispatched` / `onFailure` subscriber types are inferred from that one signature, so overloads would degrade the event typing.
 
 ## Custom events
 
-Beyond the automatic `onMutated{Key}` events, you can expose your own topic-based events under the `events` field of the setup return. Every subscriber returns a `Subscription` with `unsubscribe()`.
+`defineEvents<EventMap>()` creates a typed group of topics, auto-namespaced to the store instance (`${id}.events`) and destroyed with it. Return the ones you want subscribers to reach:
+
+```ts
+import { defineStore } from '@sigx/store';
+
+type CartEvents = {
+    checkedOut: { orderId: string };
+    cleared: void;
+};
+
+const useCartStore = defineStore('cart', (ctx) => {
+    const { state, signals, patch } = ctx.defineState({ items: [] as Item[] });
+    const events = ctx.defineEvents<CartEvents>();
+
+    const actions = ctx.defineActions({
+        async checkout() {
+            const orderId = await api.checkout(state.items);
+            patch({ items: [] });
+            events.checkedOut.publish({ orderId });
+        },
+    });
+
+    return { ...signals, ...actions, onCheckedOut: events.checkedOut };
+});
+
+useCartStore().onCheckedOut.subscribe(({ orderId }) => { /* typed */ });
+```
+
+Every `subscribe()` returns a `Subscription` with `unsubscribe()`.
+
+## Lifetime
+
+The third argument to `defineStore` is the instance lifetime — `'singleton' | 'scoped' | 'transient'`, defaulting to `'scoped'`. It is honored by the core DI layer (core `0.5.0`); see [Using Stores in Components](/store/docs/using-in-components#sharing-one-instance-vs-fresh-instances) for what each means in practice.
 
 ## A complete store
 
-Putting state, getters, and actions together:
+Putting state, derived values, and actions together:
 
 ```tsx
 import { computed } from 'sigx';
 import { defineStore } from '@sigx/store';
 
 const useTodoStore = defineStore('todos', ({ defineState, defineActions }) => {
-    const { state, mutate } = defineState({
+    const { state, signals, patch } = defineState({
         todos: [] as { id: number; text: string; done: boolean }[],
         nextId: 1,
     });
@@ -135,29 +193,26 @@ const useTodoStore = defineStore('todos', ({ defineState, defineActions }) => {
 
     const actions = defineActions({
         add(text: string) {
-            const id = state.nextId;
-            mutate.todos(prev => [...prev, { id, text, done: false }]);
-            mutate.nextId(prev => prev + 1);
+            patch(s => {
+                s.todos.push({ id: s.nextId, text, done: false });
+                s.nextId++;
+            });
         },
         toggle(id: number) {
-            mutate.todos(prev =>
-                prev.map(t => (t.id === id ? { ...t, done: !t.done } : t))
-            );
+            const todo = state.todos.find(t => t.id === id);
+            if (todo) todo.done = !todo.done;
         },
         clearCompleted() {
-            mutate.todos(prev => prev.filter(t => !t.done));
+            state.todos = state.todos.filter(t => !t.done);
         },
     });
 
-    return {
-        state,
-        get: { remaining },
-        actions,
-    };
-});
+    return { ...signals, ...actions, remaining };
+}, 'scoped');
 ```
 
 ## Next steps
 
 - [Using Stores in Components](/store/docs/using-in-components) — reading state in render, sharing instances, lifetimes, and cleanup.
+- [Persistence](/store/docs/persistence) — persist state slices with `@sigx/store/persist`.
 - [API Reference](/store/docs/api) — full signatures for every export.
