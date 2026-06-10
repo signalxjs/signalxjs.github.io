@@ -6,9 +6,11 @@ category: "Reference"
 order: 40
 ---
 
+import { PkgVersion } from '@/components/PkgVersion';
+
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-keyboard` v0.5.0.</p>
+<p class="lede">Exports of `@sigx/lynx-keyboard` <PkgVersion npm="@sigx/lynx-keyboard" />.</p>
 
 All exports are shared (Lynx) and work on both iOS and Android. Every primitive requires a `SafeAreaProvider` ancestor (from `@sigx/lynx-safe-area`); without one the hooks read zero insets and warn once in development. Heights are in dp/pt (logical pixels). The lift is always computed as `max(0, keyboard - (discountBottomInset ? bottom : 0) + offset)`.
 

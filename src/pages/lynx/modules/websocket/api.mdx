@@ -6,9 +6,11 @@ category: "Reference"
 order: 40
 ---
 
+import { PkgVersion } from '@/components/PkgVersion';
+
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-websocket` v0.5.0.</p>
+<p class="lede">Exports of `@sigx/lynx-websocket` <PkgVersion npm="@sigx/lynx-websocket" />.</p>
 
 The package entry re-exports exactly two named symbols: the `WebSocket` class and the `isWebSocketAvailable` function. Both run on iOS and Android. Importing the package (or merely listing it in `modules:`) also installs a global `WebSocket` on `globalThis` when one is not already defined.
 

@@ -6,9 +6,11 @@ category: "Reference"
 order: 40
 ---
 
+import { PkgVersion } from '@/components/PkgVersion';
+
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-http` v0.5.0.</p>
+<p class="lede">Exports of `@sigx/lynx-http` <PkgVersion npm="@sigx/lynx-http" />.</p>
 
 Importing the package installs `fetch`, `Headers`, `FormData`, `Response`, and a minimal UTF-8 `TextDecoder` on `globalThis`. Every symbol below is also importable by name from `@sigx/lynx-http`. The functions and runtime classes work on all hosts in shape; an actual request only completes on a real iOS / Android build where the native `Http` module is linked (URLSession on iOS, OkHttp on Android).
 
