@@ -12,23 +12,29 @@ Factories, messaging, and other advanced utilities.
 
 ## defineFactory
 
-Create an injectable factory with lifecycle management.
+Create an injectable factory with managed subscriptions, disposal, and a real instance lifetime.
 
 ```tsx
 function defineFactory<T>(
     setup: (ctx: SetupFactoryContext, ...args: any[]) => T,
-    lifetime: InstanceLifetimes,
-    typeIdentifier?: string
-): (...args: any[]) => T & { dispose?: () => void };
+    lifetime: Lifetime,
+    typeIdentifier?: guid
+): InjectableFunction<T & { dispose: () => void }>;
+// Parameterized setups return a FactoryFunction creator instead
+// (overloads up to 5 parameters).
 ```
 
 ### Parameters
 
 | Name | Type | Description |
 |------|------|-------------|
-| `setup` | `(ctx, ...args) => T` | Factory setup function |
-| `lifetime` | `InstanceLifetimes` | Instance lifetime mode |
-| `typeIdentifier` | `string` | Optional unique identifier |
+| `setup` | `(ctx, ...args) => T` | Factory setup function. Must return an object or function (primitives throw) |
+| `lifetime` | `Lifetime` | `'singleton'`, `'scoped'`, or `'transient'` — see [Lifetime](#lifetime) |
+| `typeIdentifier` | `guid` | Optional unique identifier |
+
+A parameterless factory returns an `InjectableFunction` (usable like `defineInjectable` tokens); a parameterized factory returns a `FactoryFunction` creator. Both carry the provide metadata, so either can be passed to `defineProvide` / `app.defineProvide` (they satisfy `Providable<T>`).
+
+Every instance gets a **non-enumerable, idempotent `dispose()`** attached (a `dispose` returned by the setup is delegated to). Parameterized non-transient factories honor arguments at **first creation only** — later calls resolve the existing shared instance.
 
 ### SetupFactoryContext
 
@@ -41,16 +47,16 @@ function defineFactory<T>(
 ### Examples
 
 ```tsx
-import { defineFactory, InstanceLifetimes } from 'sigx';
+import { defineFactory } from 'sigx';
 
-// Singleton service
+// Singleton service — one instance per app, disposed on app.unmount()
 const useApi = defineFactory((ctx) => {
     const cache = new Map();
-    
+
     ctx.onDeactivated(() => {
         cache.clear();
     });
-    
+
     return {
         fetch: async (url: string) => {
             if (cache.has(url)) return cache.get(url);
@@ -60,15 +66,15 @@ const useApi = defineFactory((ctx) => {
         },
         invalidate: (url: string) => cache.delete(url)
     };
-}, InstanceLifetimes.Singleton);
+}, 'singleton');
 
-// Factory with parameters
+// Factory with parameters — new instance per call (transient)
 const useRepository = defineFactory((ctx, entityName: string) => {
     return {
         getAll: () => fetch(`/api/${entityName}`),
         getById: (id: number) => fetch(`/api/${entityName}/${id}`)
     };
-}, InstanceLifetimes.Transient);
+}, 'transient');
 
 // Usage
 const api = useApi();
@@ -77,31 +83,33 @@ const usersRepo = useRepository('users');
 
 ---
 
-## InstanceLifetimes
+## Lifetime
 
-Enum for factory instance lifetimes.
+String-literal union for factory instance lifetimes. Replaces the old `InstanceLifetimes` enum — and unlike the enum, lifetimes are now **enforced**.
 
 ```tsx
-enum InstanceLifetimes {
-    Transient = 0,  // New instance every time
-    Scoped = 1,     // One per scope/provider
-    Singleton = 2   // Single global instance
-}
+type Lifetime = 'singleton' | 'scoped' | 'transient';
 ```
+
+| Value | Semantics |
+|-------|-----------|
+| `'singleton'` | One instance per `AppContext`, created on first resolution and disposed on `app.unmount()`. Outside any app context, one instance per JS realm |
+| `'scoped'` | The nearest instance provided via `defineProvide` in the component tree; falls back to the app-context instance, and outside any app/component context to the per-realm instance |
+| `'transient'` | A new instance per call, disposed with the calling component (or manually via `dispose()`) |
 
 ### Examples
 
 ```tsx
-import { defineFactory, InstanceLifetimes } from 'sigx';
+import { defineFactory } from 'sigx';
 
 // New instance every call
-const useTransient = defineFactory(setup, InstanceLifetimes.Transient);
+const useTransient = defineFactory(setup, 'transient');
 
-// Shared within a scope
-const useScoped = defineFactory(setup, InstanceLifetimes.Scoped);
+// Nearest defineProvide provider, falling back to the app instance
+const useScoped = defineFactory(setup, 'scoped');
 
-// Single global instance
-const useSingleton = defineFactory(setup, InstanceLifetimes.Singleton);
+// One instance per app
+const useSingleton = defineFactory(setup, 'singleton');
 ```
 
 ---
@@ -122,18 +130,18 @@ class SubscriptionHandler {
 ```tsx
 const useWebSocket = defineFactory((ctx) => {
     let ws: WebSocket;
-    
+
     return {
         connect: (url: string) => {
             ws = new WebSocket(url);
-            
-            // Auto-cleanup on factory deactivation
+
+            // Auto-cleanup on factory disposal
             ctx.subscriptions.add(() => ws.close());
-            
+
             return ws;
         }
     };
-}, InstanceLifetimes.Singleton);
+}, 'singleton');
 ```
 
 ---
@@ -143,25 +151,34 @@ const useWebSocket = defineFactory((ctx) => {
 Create a pub/sub topic for messaging.
 
 ```tsx
-function createTopic<T>(options?: {
+function createTopic<T>(options?: CreateTopicOptions): Topic<T>;
+
+interface CreateTopicOptions {
     namespace?: string;
     name?: string;
-}): Topic<T>;
+    onActivate?(): void;
+    onDeactivate?(): void;
+}
 ```
 
 ### Parameters
 
 | Name | Type | Description |
 |------|------|-------------|
-| `options.namespace` | `string` | Optional namespace for debugging |
-| `options.name` | `string` | Optional name for debugging |
+| `options.namespace` | `string` | Tooling metadata; topics **with** a namespace register in the [inspection registry](#inspection-sigxruntime-coreinspect) |
+| `options.name` | `string` | Tooling metadata |
+| `options.onActivate` | `() => void` | Called when `subscriberCount` transitions 0 → 1 (refCount pattern) |
+| `options.onDeactivate` | `() => void` | Called when `subscriberCount` transitions back to 0 (last unsubscribe or destroy) |
 
 ### Returns
 
-`Topic<T>` with:
-- `publish(data: T): void` - Send to all subscribers
-- `subscribe(handler: (data: T) => void): Subscription` - Add subscriber
-- `destroy(): void` - Remove all subscribers
+`Topic<T>` — see the [Topic interface](#topic-interface).
+
+Behavior contract:
+- `publish` **isolates subscriber errors** — a throwing handler is logged via `console.error` and neither skips later subscribers nor propagates to the publisher. Publishing to a destroyed topic is a no-op.
+- `subscribe` **throws on a destroyed topic**. Called inside a component it auto-unsubscribes on unmount.
+- `onActivate` / `onDeactivate` hook errors are isolated too.
+- `destroy()` is idempotent and unregisters the topic from the inspection registry.
 
 ### Examples
 
@@ -172,21 +189,68 @@ import { createTopic } from 'sigx';
 const userEvents = createTopic<{
     type: 'login' | 'logout';
     userId: number;
-}>();
+}>({
+    namespace: 'auth', name: 'userEvents',   // tooling metadata
+    onActivate: () => startPolling(),         // first subscriber arrived
+    onDeactivate: () => stopPolling()         // last subscriber left
+});
 
 // Subscribe
 const sub = userEvents.subscribe((event) => {
     console.log(`User ${event.userId} ${event.type}`);
 });
 
-// Publish
-userEvents.publish({ type: 'login', userId: 123 });
+// Publish (skip work when nobody is listening)
+if (userEvents.hasSubscribers) {
+    userEvents.publish({ type: 'login', userId: 123 });
+}
 
 // Unsubscribe
 sub.unsubscribe();
 
 // Or destroy all
 userEvents.destroy();
+```
+
+---
+
+## createTopicGroup
+
+Create a typed group of topics keyed by an event map — mitt-level DX on the `Topic` primitive. Topics are created lazily per key on first access and are namespaced/registered like any other topic.
+
+```tsx
+function createTopicGroup<EventMap extends Record<string, any>>(options?: {
+    namespace?: string;
+}): {
+    topics: { [K in keyof EventMap]: Topic<EventMap[K]> };
+    destroy(): void;
+};
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `options.namespace` | `string` | Applied to every created topic |
+
+### Returns
+
+`{ topics, destroy }` — `destroy()` destroys all created topics; accessing a key on a destroyed group throws.
+
+### Examples
+
+```tsx
+import { createTopicGroup } from 'sigx';
+
+const group = createTopicGroup<{
+    loggedIn: { userId: number };
+    loggedOut: void;
+}>({ namespace: 'auth' });
+
+group.topics.loggedIn.subscribe(({ userId }) => console.log(userId));
+group.topics.loggedIn.publish({ userId: 123 });  // payload type-checked
+
+group.destroy();
 ```
 
 ---
@@ -209,7 +273,7 @@ function toSubscriber<T>(topic: Topic<T>): {
 
 ### Returns
 
-Object with only `subscribe` method (no `publish`).
+Object with only `subscribe` method (no `publish` or `destroy`).
 
 ### Examples
 
@@ -235,6 +299,12 @@ notifications.publish({ message: 'Hello' }); // Error!
 
 ```tsx
 interface Topic<T> {
+    /** Tooling metadata (set via createTopic options). */
+    readonly namespace?: string;
+    readonly name?: string;
+    readonly subscriberCount: number;
+    readonly hasSubscribers: boolean;
+    readonly disposed: boolean;
     publish(data: T): void;
     subscribe(handler: (data: T) => void): Subscription;
     destroy(): void;
@@ -250,6 +320,36 @@ interface Subscription {
     unsubscribe(): void;
 }
 ```
+
+---
+
+## Inspection (@sigx/runtime-core/inspect)
+
+A separate `@sigx/runtime-core/inspect` entry exposes the **inspection-only** topic registry for tooling (devtools, diagnostics). The DX contract: **typed application code holds `Topic<T>` references; strings are tooling metadata.** The registry is deliberately `Topic<unknown>`-typed and realm-global — do not use it as an app-level lookup mechanism; share typed topic references instead.
+
+Only topics created with a `namespace` register; `destroy()` unregisters. Patterns use `*` wildcards matched over `${namespace}.${name}` (e.g. `'todos#1.*'`, `'*.actions.*'`).
+
+```tsx
+import { getTopic, listTopics, subscribeTopics, onTopicCreated } from '@sigx/runtime-core/inspect';
+
+// Exact lookup by namespace and name
+function getTopic(namespace: string, name: string): Topic<unknown> | undefined;
+
+// List live registered topics, optionally filtered by a wildcard pattern
+function listTopics(pattern?: string): Topic<unknown>[];
+
+// Subscribe to every matching topic — existing AND created later;
+// one Subscription tears everything down
+function subscribeTopics(
+    pattern: string,
+    handler: (data: unknown, meta: { namespace: string; name: string }) => void
+): Subscription;
+
+// Handler for every topic that registers from now on
+function onTopicCreated(handler: (topic: Topic<unknown>) => void): Subscription;
+```
+
+`subscribeTopics` and `onTopicCreated` auto-unsubscribe on component unmount when called inside a setup.
 
 ---
 
@@ -273,95 +373,77 @@ const id = guid();
 
 ---
 
-## valueOf
-
-Type assertion helper.
-
-```tsx
-function valueOf<T>(obj: any): T;
-```
-
-### Examples
-
-```tsx
-import { valueOf } from 'sigx';
-
-const data = valueOf<MyType>(untypedData);
-```
-
----
-
 ## Patterns
 
 ### Event Bus
 
 ```tsx
-import { createTopic } from 'sigx';
+import { createTopicGroup } from 'sigx';
 
-// Centralized event bus
-export const eventBus = {
-    userLogin: createTopic<{ userId: number }>(),
-    userLogout: createTopic<void>(),
-    notification: createTopic<{ message: string; type: 'info' | 'error' }>(),
-    themeChange: createTopic<'light' | 'dark'>()
-};
+// Centralized, typed event bus
+export const eventBus = createTopicGroup<{
+    userLogin: { userId: number };
+    userLogout: void;
+    notification: { message: string; type: 'info' | 'error' };
+    themeChange: 'light' | 'dark';
+}>({ namespace: 'app' });
 
 // Usage
-eventBus.userLogin.publish({ userId: 123 });
-eventBus.notification.subscribe(({ message }) => toast(message));
+eventBus.topics.userLogin.publish({ userId: 123 });
+eventBus.topics.notification.subscribe(({ message }) => toast(message));
 ```
 
 ### Service Layer
 
 ```tsx
-import { defineFactory, createTopic, InstanceLifetimes, signal } from 'sigx';
+import { defineFactory, createTopic, toSubscriber, signal } from 'sigx';
 
 const useCartService = defineFactory((ctx) => {
     const state = signal({ items: [] as CartItem[] });
     const cartUpdated = createTopic<{ itemCount: number }>();
-    
+
     ctx.onDeactivated(() => {
         cartUpdated.destroy();
     });
-    
+
     return {
         get items() { return state.items; },
         get count() { return state.items.length; },
-        
+
         onUpdate: toSubscriber(cartUpdated),
-        
+
         add: (item: CartItem) => {
             state.items = [...state.items, item];
             cartUpdated.publish({ itemCount: state.items.length });
         },
-        
+
         remove: (id: string) => {
             state.items = state.items.filter(i => i.id !== id);
             cartUpdated.publish({ itemCount: state.items.length });
         },
-        
+
         clear: () => {
             state.items = [];
             cartUpdated.publish({ itemCount: 0 });
         }
     };
-}, InstanceLifetimes.Singleton);
+}, 'singleton');
 ```
 
 ### Async Operations
 
 ```tsx
 const useAsyncOperation = defineFactory((ctx) => {
-    const state = signal({ 
-        loading: false, 
+    const state = signal({
+        loading: false,
         error: null as Error | null,
         data: null as any
     });
-    
+
     const execute = async <T>(operation: () => Promise<T>): Promise<T | null> => {
         state.loading = true;
         state.error = null;
-        
+
         try {
             const result = await operation();
             state.data = result;
@@ -373,12 +455,12 @@ const useAsyncOperation = defineFactory((ctx) => {
             state.loading = false;
         }
     };
-    
+
     return {
         get loading() { return state.loading; },
         get error() { return state.error; },
         get data() { return state.data; },
         execute
     };
-}, InstanceLifetimes.Transient);
+}, 'transient');
 ```

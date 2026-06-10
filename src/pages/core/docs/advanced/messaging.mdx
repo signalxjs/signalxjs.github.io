@@ -30,6 +30,22 @@ const subscription = userUpdated.subscribe((user) => {
 subscription.unsubscribe();
 ```
 
+## Delivery Guarantees
+
+Topics have a strict behavior contract:
+
+- **Publishing is error-isolated.** A throwing subscriber is logged via `console.error` and neither skips later subscribers nor propagates into the publisher.
+- **Subscribing to a destroyed topic throws.** A handler attached after `destroy()` could never be cleaned up, so it is rejected loudly instead of silently leaking.
+- **Publishing to a destroyed topic is a no-op**, and `destroy()` itself is idempotent.
+
+Topics also expose live state — `subscriberCount`, `hasSubscribers`, and `disposed` — so publishers can skip building payloads nobody will see:
+
+```tsx
+if (userUpdated.hasSubscribers) {
+    userUpdated.publish(buildExpensivePayload());
+}
+```
+
 ## Auto-Cleanup in Components
 
 When subscribing inside a component, subscriptions are automatically cleaned up on unmount:
@@ -74,14 +90,20 @@ const ActionButton = component(() => {
 
 ## Topic Options
 
-Topics can have optional namespace and name for debugging:
+Topics accept metadata and refCount lifecycle hooks:
 
 ```tsx
 const userEvents = createTopic<UserEvent>({
-    namespace: 'user',
-    name: 'events'
+    namespace: 'user',                  // tooling metadata
+    name: 'events',                     // tooling metadata
+    onActivate: () => startPolling(),   // subscriberCount went 0 → 1
+    onDeactivate: () => stopPolling()   // subscriberCount went back to 0
 });
 ```
+
+`namespace` and `name` are exposed read-only on the topic. Topics created **with** a `namespace` also register in the [inspection registry](#inspecting-topics-from-tooling) for devtools; `destroy()` unregisters.
+
+`onActivate` / `onDeactivate` implement the refCount pattern: pay for upstream work (polling, websocket connections, state watchers) only while someone is listening. `onDeactivate` fires on the last unsubscribe or on destroy. Hook errors are isolated, like subscriber errors.
 
 ## Read-Only Subscribers
 
@@ -103,42 +125,39 @@ events.publish(); // Error: publish doesn't exist
 
 This is useful for exposing topics from services while keeping publish control internal.
 
-## Event Bus Pattern
+## Typed Topic Groups
 
-Create a centralized event bus for cross-component communication:
+For a set of related events, `createTopicGroup<EventMap>()` gives mitt-level DX on the `Topic` primitive — one typed topic per event key, created lazily on first access and destroyed together:
 
 ```tsx
-import { createTopic } from 'sigx';
+import { createTopicGroup } from 'sigx';
 
-// Define event types
-type AppEvents = {
-    'user:login': { userId: number };
-    'user:logout': void;
-    'cart:add': { productId: number; quantity: number };
-    'cart:clear': void;
-};
-
-// Create typed topics for each event
-const eventBus = {
-    userLogin: createTopic<{ userId: number }>(),
-    userLogout: createTopic<void>(),
-    cartAdd: createTopic<{ productId: number; quantity: number }>(),
-    cartClear: createTopic<void>(),
-};
+// One typed topic per event key
+const eventBus = createTopicGroup<{
+    userLogin: { userId: number };
+    userLogout: void;
+    cartAdd: { productId: number; quantity: number };
+    cartClear: void;
+}>({ namespace: 'app' });
 
 export default eventBus;
 
 // Usage
 import eventBus from './eventBus';
 
-// Subscribe
-eventBus.userLogin.subscribe(({ userId }) => {
+// Subscribe (payload typed per key)
+eventBus.topics.userLogin.subscribe(({ userId }) => {
     console.log('User logged in:', userId);
 });
 
-// Publish
-eventBus.userLogin.publish({ userId: 123 });
+// Publish (type-checked)
+eventBus.topics.userLogin.publish({ userId: 123 });
+
+// Tear down every created topic at once
+eventBus.destroy();
 ```
+
+The `namespace` is applied to every created topic (each topic's `name` is its event key), so the whole group is discoverable by tooling. Accessing a key on a destroyed group throws.
 
 ## Component Communication Example
 
@@ -200,7 +219,7 @@ const App = component(() => {
 Combine topics with factories for complex event handling:
 
 ```tsx
-import { defineFactory, createTopic, InstanceLifetimes } from 'sigx';
+import { defineFactory, createTopic } from 'sigx';
 
 interface AnalyticsEvent {
     event: string;
@@ -251,13 +270,40 @@ const useAnalytics = defineFactory((ctx) => {
         onEvent: (handler: (event: AnalyticsEvent) => void) => 
             eventTopic.subscribe(handler)
     };
-}, InstanceLifetimes.Singleton);
+}, 'singleton');
 
 // Usage
 const analytics = useAnalytics();
 analytics.track('page_view', { path: '/home' });
 analytics.track('button_click', { button: 'signup' });
 ```
+
+## Inspecting Topics from Tooling
+
+Topics created with a `namespace` register in a realm-global inspection registry, exposed through the dedicated `@sigx/runtime-core/inspect` entry. This is how devtools discover and trace topics — it is **inspection-only**: the registry is deliberately `Topic<unknown>`-typed, so it is not a substitute for sharing typed topic references. **Typed code holds `Topic<T>` references; the strings are tooling metadata.**
+
+```tsx
+import { getTopic, listTopics, subscribeTopics, onTopicCreated } from '@sigx/runtime-core/inspect';
+
+// Exact lookup
+const topic = getTopic('app', 'userLogin');
+
+// Wildcards match over `${namespace}.${name}`
+listTopics('app.*');
+listTopics('*.actions.*');
+
+// Tap every matching topic — existing AND created later;
+// one Subscription tears the whole tap down
+const tap = subscribeTopics('app.*', (data, { namespace, name }) => {
+    console.log(`[${namespace}.${name}]`, data);
+});
+tap.unsubscribe();
+
+// React to topics registering from now on
+onTopicCreated((topic) => console.log('new topic:', topic.namespace, topic.name));
+```
+
+`subscribeTopics` and `onTopicCreated` auto-unsubscribe on component unmount when called inside a setup. This registry is what `@sigx/devtools` builds on to auto-discover stores and topics.
 
 ## API Reference
 
@@ -267,18 +313,35 @@ Create a new pub/sub topic.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `options.namespace` | `string` | Optional namespace for debugging |
-| `options.name` | `string` | Optional name for debugging |
+| `options.namespace` | `string` | Tooling metadata; topics with a namespace register in the inspection registry |
+| `options.name` | `string` | Tooling metadata |
+| `options.onActivate` | `() => void` | Called when `subscriberCount` transitions 0 → 1 |
+| `options.onDeactivate` | `() => void` | Called when `subscriberCount` transitions back to 0 |
 
 **Returns:** `Topic<T>`
 
 ### `Topic<T>`
 
-| Method | Type | Description |
+| Member | Type | Description |
 |--------|------|-------------|
-| `publish` | `(data: T) => void` | Send message to all subscribers |
-| `subscribe` | `(handler: (data: T) => void) => Subscription` | Register a handler |
-| `destroy` | `() => void` | Remove all subscribers |
+| `namespace` | `string \| undefined` (readonly) | Tooling metadata |
+| `name` | `string \| undefined` (readonly) | Tooling metadata |
+| `subscriberCount` | `number` (readonly) | Current number of subscribers |
+| `hasSubscribers` | `boolean` (readonly) | `subscriberCount > 0` |
+| `disposed` | `boolean` (readonly) | `true` after `destroy()` |
+| `publish` | `(data: T) => void` | Deliver to all subscribers; handler errors are isolated; no-op when disposed |
+| `subscribe` | `(handler: (data: T) => void) => Subscription` | Register a handler; throws if the topic is destroyed |
+| `destroy` | `() => void` | Remove all subscribers and unregister; idempotent |
+
+### `createTopicGroup<EventMap>(options?)`
+
+Create a typed group of topics keyed by an event map.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `options.namespace` | `string` | Applied to every created topic |
+
+**Returns:** `{ topics: { [K in keyof EventMap]: Topic<EventMap[K]> }; destroy(): void }` — topics are created lazily per key; `destroy()` destroys them all.
 
 ### `toSubscriber<T>(topic)`
 
@@ -295,6 +358,17 @@ Create a read-only subscriber from a topic.
 | Method | Type | Description |
 |--------|------|-------------|
 | `unsubscribe` | `() => void` | Remove the subscription |
+
+### `@sigx/runtime-core/inspect`
+
+Inspection-only registry for tooling. Patterns use `*` wildcards matched over `${namespace}.${name}`.
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `getTopic` | `(namespace: string, name: string) => Topic<unknown> \| undefined` | Exact lookup of a live registered topic |
+| `listTopics` | `(pattern?: string) => Topic<unknown>[]` | List live registered topics, optionally filtered |
+| `subscribeTopics` | `(pattern: string, handler: (data, meta) => void) => Subscription` | Subscribe to every matching topic, existing and future |
+| `onTopicCreated` | `(handler: (topic: Topic<unknown>) => void) => Subscription` | Handler for every topic registering from now on |
 
 ## Best Practices
 
@@ -325,12 +399,23 @@ Create a read-only subscriber from a topic.
    export const events = toSubscriber(_events);
    ```
 
-5. **Destroy topics when no longer needed**:
+5. **Destroy topics when no longer needed** (and remember: subscribing after destroy throws):
    ```tsx
    ctx.onDeactivated(() => {
        topic.destroy();
    });
    ```
+
+6. **Gate expensive work on listeners**:
+   ```tsx
+   const topic = createTopic<Frame>({
+       onActivate: () => startCapture(),
+       onDeactivate: () => stopCapture()
+   });
+   if (topic.hasSubscribers) topic.publish(captureFrame());
+   ```
+
+7. **Keep the inspection registry for tooling.** Share typed `Topic<T>` references between modules; reach for `@sigx/runtime-core/inspect` only in devtools/diagnostic code.
 
 ## When to Use Topics vs Props
 
