@@ -164,7 +164,7 @@ lynx) and the `@sigx/*` entries in `package.json` (what the site builds against)
    - Write/refresh the affected MDX guide & API pages under `src/pages/<area>/`.
 4. **Verify:** `pnpm gen:modules` (should produce no surprise changes),
    `pnpm typecheck`, `pnpm test`, `pnpm build`.
-5. **PR** per the workflow above — `Closes #N` for every docs-queue issue the
+5. **PR** per the workflow above — `Closes #N` for every queue issue the
    update covers. Merge to `main` deploys automatically.
 
 ### How a sync gets triggered
@@ -175,7 +175,7 @@ lynx) and the `@sigx/*` entries in `package.json` (what the site builds against)
   titled `<repo>: <what changed>` and linking the source PR. When the source
   repo cuts a release, it comments the release tag on each issue that release
   ships (`Released in <repo> vX.Y.Z.`). Work the queue oldest-first
-  (`gh issue list`):
+  (`gh issue list --search "sort:created-asc"`):
   - An issue **with** a release comment is ready — follow the playbook for its
     area and close the issue from the docs PR (`Closes #N`).
   - An issue **without** a release comment is merged upstream but **not yet
