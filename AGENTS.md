@@ -146,9 +146,12 @@ lynx) and the `@sigx/*` entries in `package.json` (what the site builds against)
 1. **Find what's behind.** For a `core`/`lynx` package, compare its `version` in
    `src/lib/modules.ts` to npm's latest (`npm view <pkg> version`). For the others,
    check the source repo's latest release / `CHANGELOG.md`.
-2. **Read what changed.** Open the source repo's `CHANGELOG.md` (or release notes)
-   for **user-facing** changes since the version the docs currently reflect — new
-   or changed public API, new packages/modules, removed features.
+2. **Read what changed.** Start from this repo's docs-issue queue — the source
+   repo filed an issue here for each user-facing change, linking its source PR
+   (see "How a sync gets triggered"). Cross-check the source repo's
+   `CHANGELOG.md` (or release notes) for anything else since the version the
+   docs currently reflect — new or changed public API, new packages/modules,
+   removed features.
 3. **Update the docs:**
    - Bump the matching `@sigx/*` / `sigx` range in `package.json` so live-code
      examples build against the new version. (Routine bumps arrive via Dependabot;
@@ -161,12 +164,25 @@ lynx) and the `@sigx/*` entries in `package.json` (what the site builds against)
    - Write/refresh the affected MDX guide & API pages under `src/pages/<area>/`.
 4. **Verify:** `pnpm gen:modules` (should produce no surprise changes),
    `pnpm typecheck`, `pnpm test`, `pnpm build`.
-5. **PR** per the workflow above. Merge to `main` deploys automatically.
+5. **PR** per the workflow above — `Closes #N` for every docs-queue issue the
+   update covers. Merge to `main` deploys automatically.
 
 ### How a sync gets triggered
 
+- **The docs-issue queue (primary).** Every source repo files an issue **here**
+  before merging a user-facing change (the sigx standard from
+  [`signalxjs/repo-template`](https://github.com/signalxjs/repo-template)),
+  titled `<repo>: <what changed>` and linking the source PR. When the source
+  repo cuts a release, it comments the release tag on each issue that release
+  ships (`Released in <repo> vX.Y.Z.`). Work the queue oldest-first
+  (`gh issue list`):
+  - An issue **with** a release comment is ready — follow the playbook for its
+    area and close the issue from the docs PR (`Closes #N`).
+  - An issue **without** a release comment is merged upstream but **not yet
+    released — don't document it yet** (docs track what users can install; see
+    the beta-soak note below).
 - **On demand** — "update the docs for the `<repo>` `<version>` release." Follow the
-  playbook for that one area.
+  playbook for that one area, closing any queue issues that release covers.
 - **Routine dependency bumps** — Dependabot opens `@sigx/*` bump PRs; patch bumps
   auto-merge and redeploy.
 - **Scheduled (future)** — a scheduled agent can diff npm `latest` against
