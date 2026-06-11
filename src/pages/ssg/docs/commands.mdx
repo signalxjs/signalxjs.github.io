@@ -51,8 +51,9 @@ npx sigx ssg build [--config <path>] [--verbose] [--drafts]
 | `--config <path>` | string | Path to `ssg.config.ts`. |
 | `--verbose` | boolean | Verbose logging. |
 | `--drafts` | boolean | Include pages with `draft: true` frontmatter (excluded from production builds by default). |
+| `--concurrency <n>` | number | Pages to render in parallel (default 20). |
 
-Each rendered page is written to `<outDir>/<path>/index.html`. Per-page head tags (title, description, canonical, Open Graph, Twitter) are injected at the page's head marker.
+Each rendered page is written to `<outDir>/<path>/index.html` (a `404` page becomes a root `404.html`). Per-page head tags (title, description, canonical, Open Graph, Twitter) are injected at the page's head marker. A failed page render fails the build with a non-zero exit. The build works zero-config too — without a `vite.config`, the same plugin set the dev server assembles is injected automatically.
 
 ## sigx ssg preview
 
