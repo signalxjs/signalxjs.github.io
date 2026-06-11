@@ -14,7 +14,6 @@ import { Footer } from '@/components/Footer';
 import { TableOfContents } from '@/components/TableOfContents';
 import { CommandPalette } from '@/components/CommandPalette';
 import { useCommandPalette } from '@/lib/useCommandPalette';
-import { installSpaLinks } from '@/lib/spaLinks';
 import { initializeTheme } from '@sigx/daisyui';
 
 export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props }) => {
@@ -23,7 +22,6 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props }) =
 
     onMounted(() => {
         initializeTheme({ defaultTheme: 'dark' });
-        installSpaLinks(router);
     });
 
     return () => {

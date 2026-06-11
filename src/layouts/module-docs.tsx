@@ -22,7 +22,6 @@ import { CommandPalette } from '@/components/CommandPalette';
 import { useCommandPalette } from '@/lib/useCommandPalette';
 import { SxLink } from '@/components/ui/SxLink';
 import { SiblingTargetPill } from '@/components/SiblingTargetPill';
-import { installSpaLinks } from '@/lib/spaLinks';
 import { initializeTheme } from '@sigx/daisyui';
 
 export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props, signal }) => {
@@ -33,7 +32,6 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props, sig
 
     onMounted(() => {
         initializeTheme({ defaultTheme: 'dark' });
-        installSpaLinks(router);
     });
 
     return () => {
