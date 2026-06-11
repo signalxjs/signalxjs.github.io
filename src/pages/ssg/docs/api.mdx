@@ -310,18 +310,20 @@ interface SSGConfig {
     defaultLayout?: string;
     outDir?: string;
     base?: string;
+    trailingSlash?: 'always' | 'never';
     site?: SiteConfig;
     markdown?: MarkdownConfig;
-    vite?: Record<string, unknown>;
-    autoEntries?: boolean;
     clientEntry?: string;
     clientImports?: string[];
     serverEntry?: string;
     htmlTemplate?: string | false;
     prefetch?: boolean | { delay?: number };
+    spaNavigation?: boolean;
     collections?: Record<string, CollectionConfig>;
     navigation?: NavigationConfig;
     toc?: TOCConfig;
+    sitemap?: SitemapOptions | false;
+    hooks?: BuildHooks;
 }
 ```
 

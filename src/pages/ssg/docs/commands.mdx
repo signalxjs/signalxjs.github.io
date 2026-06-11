@@ -41,7 +41,7 @@ npx sigx ssg dev [--config <path>] [--port <n>] [--host] [--open] [--verbose]
 Builds the static site for production. It loads the config, scans routes, builds the client and SSR bundles with Vite, renders every path (including paths expanded from `getStaticPaths`) to static HTML in `outDir`, and writes `sitemap.xml` and `robots.txt`.
 
 ```bash
-npx sigx ssg build [--config <path>] [--verbose] [--drafts]
+npx sigx ssg build [--config <path>] [--verbose] [--drafts] [--concurrency <n>]
 ```
 
 **Flags**
