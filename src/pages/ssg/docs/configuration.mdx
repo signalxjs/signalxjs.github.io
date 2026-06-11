@@ -36,10 +36,23 @@ export default defineSSGConfig({
 
 - `pages` is `src/pages`, `layouts` is `src/layouts`, `content` is `src/content`.
 - `defaultLayout` is `default`, `outDir` is `dist`, `base` is `/`.
-- `autoEntries` and `prefetch` are enabled, `site.lang` is `en`.
+- `prefetch` and `spaNavigation` are enabled, `site.lang` is `en`.
 - `markdown.shiki` is on; `toc` uses `minLevel: 2`, `maxLevel: 3`.
+- `trailingSlash` is `'always'` — derived public URLs (canonical, `og:url`, sitemap `<loc>`) end with `/` for folder routes, matching the `<path>/index.html` output that static hosts serve with 200. Set `'never'` only when your host serves the slash-less URL directly.
 
-When `base` is not set, SSG inherits Vite's `base`, so the sitemap, canonical URLs, and router stay in sync for sub-path deploys.
+`base` works in both directions: when not set, SSG inherits Vite's `base`; when set in `ssg.config.ts`, it is passed to the production Vite builds, so the sitemap, canonical URLs, router, and asset URLs all stay in sync for sub-path deploys.
+
+The `markdown.*` and `toc.*` options apply whether you set them in `ssg.config.ts` or pass them as `ssgPlugin()` arguments — both feed the same MDX pipeline, with plugin arguments taking precedence.
+
+Other notable options:
+
+- `spaNavigation` (default `true`) — internal anchor clicks (including plain markdown links in MDX) navigate through the router instead of full page reloads. Opt out per link with a `data-no-spa` attribute, or globally with `spaNavigation: false`.
+- `sitemap` — `SitemapOptions` (`exclude`, `additionalUrls`, `defaultChangefreq`, `defaultPriority`), or `false` to skip sitemap.xml/robots.txt entirely. Pages with `robots: noindex` and the `/404` page are excluded automatically, frontmatter `date` becomes `<lastmod>`, and a `public/robots.txt` you ship is never overwritten.
+- `clientEntry` / `serverEntry` / `htmlTemplate` — explicit entry/template paths that win over convention detection (`htmlTemplate: false` forces the generated template). A configured path that doesn't exist fails the build.
+- `navigation.sectionOrder` — per-category sort order for auto-generated sidebars, merged over the built-in defaults.
+- `clientImports` — side-effect imports added to the generated client entry; the usual home for `'@sigx/ssg/styles.css'`, the base stylesheet for ssg-emitted markup (code windows, package-manager tabs, heading anchors, dual-theme Shiki).
+
+The previously documented `vite`, `autoEntries`, and `ThemeConfig.css` options were never functional and have been removed.
 
 ## File-based routing
 
@@ -65,7 +78,11 @@ Routes are sorted by specificity: static beats dynamic (`:param`) beats catch-al
 
 ### Dynamic routes need `getStaticPaths`
 
-A dynamic route must export `getStaticPaths()` returning an array of `StaticPath` objects, each with `params` and optional `props`. Routes without it are skipped with a warning (`SSG102`).
+A dynamic route must export `getStaticPaths()` returning an array of `StaticPath` objects, each with `params` and optional `props`. The build resolves `getStaticPaths` from the built SSR bundle, so it can live in `.tsx` and `.mdx` pages alike. Routes without it are skipped with a warning (`SSG102`); a `getStaticPaths` that throws fails the build.
+
+Route params and per-path `props` arrive as component props (`props.params.slug`, plus your `props` spread at the top level) — in SSR, at hydration (the build embeds them), and after client-side navigation.
+
+A `src/pages/404.*` page is emitted as a root `404.html` — the not-found convention static hosts serve.
 
 ```tsx
 import { component } from 'sigx';
@@ -107,7 +124,7 @@ A page selects its layout, in order of precedence, via:
 3. The collection config.
 4. The config `defaultLayout` (defaults to `default`).
 
-Themes bundle layouts, components, and CSS in a package referenced by the config `theme` field.
+Themes bundle layouts, components, and CSS in a package referenced by the config `theme` field. A theme's exported `config` can also contribute markdown plugins, head tags, CSS imports, and a default layout — your own config always wins. Layouts receive the whole site config as `props.site` (including the `site.nav`, `site.logo`, and `site.repo` branding fields), so themes render your branding instead of hardcoding their own.
 
 ## MDX and Markdown
 
@@ -133,6 +150,10 @@ Defaults that apply to content pages:
 - **Table of contents** headings are extracted between `toc.minLevel` (2) and `toc.maxLevel` (3).
 
 Navigation-related frontmatter fields come from `PageMeta`: `category` (a string, or an array for nesting), `order`, `sidebar`, `draft`, `toc`, and `ssr`.
+
+### Draft pages
+
+Pages with `draft: true` frontmatter are visible in dev but excluded from production builds and the sitemap. To preview drafts in a production build, pass `--drafts` to `sigx ssg build` (or `drafts: true` to the programmatic `build()`).
 
 ## Collections and navigation
 
@@ -233,6 +254,28 @@ if (!isStaticPage()) {
 }
 ```
 
+## Build hooks
+
+Three hooks in `ssg.config.ts` extend the production build — the slots for search indexing, OG-image generation, link checking, redirects:
+
+```ts
+export default defineSSGConfig({
+    hooks: {
+        transformHtml(html, page) {
+            return html.replace('</head>', () => '<meta name="generator" content="@sigx/ssg"></head>');
+        },
+        onPageRendered(page) {
+            // page is the build result entry plus the final html
+        },
+        async postBuild(result, ctx) {
+            // everything is on disk; result.pages lists every page with meta
+        },
+    },
+});
+```
+
+The per-page hooks run concurrently and in no guaranteed order; `postBuild` runs exactly once. A hook that throws fails the build.
+
 ## Sitemap and robots.txt
 
 `build()` writes `sitemap.xml` and `robots.txt` automatically. You can also generate them programmatically:
@@ -249,7 +292,7 @@ const xml = generateSitemap(
 const robots = generateRobotsTxt(config);
 ```
 
-Entries are prefixed with `site.url` + `base`. When mapping built pages, priority is derived from depth (`/` = 1.0, depth 1 = 0.8, depth 2 = 0.6, otherwise the default 0.5) and the default change frequency is `weekly`.
+Entries are prefixed with `site.url` + `base`, and folder-route paths are normalized per the `trailingSlash` policy (default `'always'`: `/about` → `https://example.com/about/`), byte-identical with the canonical and `og:url` emitted in each page's head. The same normalization is exported as `normalizePagePath(path, trailingSlash?)`. When mapping built pages, priority is derived from depth (`/` = 1.0, depth 1 = 0.8, depth 2 = 0.6, otherwise the default 0.5) and the default change frequency is `weekly`.
 
 ## Next steps
 

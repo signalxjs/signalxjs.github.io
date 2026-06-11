@@ -41,7 +41,7 @@ npx sigx ssg dev [--config <path>] [--port <n>] [--host] [--open] [--verbose]
 Builds the static site for production. It loads the config, scans routes, builds the client and SSR bundles with Vite, renders every path (including paths expanded from `getStaticPaths`) to static HTML in `outDir`, and writes `sitemap.xml` and `robots.txt`.
 
 ```bash
-npx sigx ssg build [--config <path>] [--verbose]
+npx sigx ssg build [--config <path>] [--verbose] [--drafts] [--concurrency <n>]
 ```
 
 **Flags**
@@ -50,8 +50,10 @@ npx sigx ssg build [--config <path>] [--verbose]
 | --- | --- | --- |
 | `--config <path>` | string | Path to `ssg.config.ts`. |
 | `--verbose` | boolean | Verbose logging. |
+| `--drafts` | boolean | Include pages with `draft: true` frontmatter (excluded from production builds by default). |
+| `--concurrency <n>` | number | Pages to render in parallel (default 20). |
 
-Each rendered page is written to `<outDir>/<path>/index.html`. Per-page head tags (title, description, canonical, Open Graph, Twitter) are injected at the page's head marker.
+Each rendered page is written to `<outDir>/<path>/index.html` (a `404` page becomes a root `404.html`). Per-page head tags (title, description, canonical, Open Graph, Twitter) are injected at the page's head marker. A failed page render fails the build with a non-zero exit. The build works zero-config too — without a `vite.config`, the same plugin set the dev server assembles is injected automatically.
 
 ## sigx ssg preview
 

@@ -20,7 +20,7 @@ For CLI usage see [Commands](/ssg/docs/commands).
 function defineSSGConfig(config: SSGConfig): SSGConfig
 ```
 
-Type-safe SSG config helper. Applies defaults (`pages` `src/pages`, `layouts` `src/layouts`, `content` `src/content`, `defaultLayout` `default`, `outDir` `dist`, `base` `/`, `autoEntries` true, `prefetch` true, `site.lang` `en`, `markdown.shiki` true, `toc.minLevel` 2 / `maxLevel` 3) then merges the user config.
+Type-safe SSG config helper. Applies defaults (`pages` `src/pages`, `layouts` `src/layouts`, `content` `src/content`, `defaultLayout` `default`, `outDir` `dist`, `base` `/`, `trailingSlash` `'always'`, `prefetch` true, `spaNavigation` true, `site.lang` `en`, `markdown.shiki` true, `toc.minLevel` 2 / `maxLevel` 3) then merges the user config.
 
 - **config** — the user's SSG configuration.
 - **Returns** — the merged config. Export it as the default from `ssg.config.ts`.
@@ -43,7 +43,7 @@ function build(options?: BuildOptions): Promise<BuildResult>
 
 Programmatic static-site build. Loads config, scans routes, builds the client and SSR Vite bundles, renders every path (including paths expanded from `getStaticPaths`) to static HTML in `outDir`, and writes `sitemap.xml` and `robots.txt`. Also exported via `@sigx/ssg/build`.
 
-- **options** — optional `BuildOptions` (`configPath`, `verbose`, `concurrency`). The effective default concurrency is 20.
+- **options** — optional `BuildOptions` (`configPath`, `verbose`, `concurrency`, `drafts`). The effective default concurrency is 20; `drafts: true` includes pages with `draft: true` frontmatter, which are otherwise excluded from production builds and the sitemap.
 - **Returns** — a `BuildResult` with the built pages, total time, and warnings.
 
 ## Dev server
@@ -78,11 +78,23 @@ Previews the production build through the Vite preview server (default port 4173
 function generateSitemap(entries: SitemapEntry[], config: SSGConfig): string
 ```
 
-Builds `sitemap.xml` content (sitemaps.org 0.9 schema) from entries. Each path is prefixed with `site.url` + `base`.
+Builds `sitemap.xml` content (sitemaps.org 0.9 schema) from entries. Each path is prefixed with `site.url` + `base` and normalized per the config's `trailingSlash` policy, byte-identical with the canonical URL emitted in each page's head.
 
 - **entries** — the sitemap entries to include.
-- **config** — the SSG config (supplies `site.url` and `base`).
+- **config** — the SSG config (supplies `site.url`, `base`, and `trailingSlash`).
 - **Returns** — the sitemap XML as a string.
+
+### normalizePagePath
+
+```ts
+function normalizePagePath(path: string, trailingSlash?: 'always' | 'never'): string
+```
+
+Normalizes a route path for public URLs (canonical, `og:url`, sitemap `<loc>`). With `'always'` (the default, matching the `<path>/index.html` output layout) folder routes gain a trailing slash (`/about` → `/about/`); the root `/` and explicit `.html` paths are untouched. With `'never'`, trailing slashes are stripped instead. The `TrailingSlash` union type is also exported.
+
+- **path** — the route path to normalize.
+- **trailingSlash** — the policy (defaults to `'always'`).
+- **Returns** — the normalized path.
 
 ### generateRobotsTxt
 
@@ -130,6 +142,16 @@ Maps build results to sitemap entries, applying `exclude` globs and depth-based 
 - **options** — optional `SitemapOptions`.
 - **Returns** — the derived `SitemapEntry[]`.
 
+### loadThemeModule / applyThemeConfig / resolveThemeConfig
+
+```ts
+function loadThemeModule(themeName: string, root: string): Promise<ThemeModule>
+function applyThemeConfig(config: SSGConfig, theme: ThemeModule): SSGConfig
+function resolveThemeConfig(config: SSGConfig, root: string): Promise<SSGConfig>
+```
+
+Theme loading and config-contribution merging: a theme's exported `config` can contribute markdown plugins (run before the site's), head tags (prepended to `site.head`), CSS import specifiers (prepended to `clientImports`), and a `defaultLayout` (used when the site doesn't set one). `resolveThemeConfig` combines both: it loads `config.theme` (if set) and applies it. Build and dev call this automatically; the exports exist for tooling.
+
 ## Vite plugin
 
 ### ssgPlugin
@@ -150,6 +172,10 @@ export default ssgPlugin
 ```
 
 The default export of `@sigx/ssg/vite` is `ssgPlugin`.
+
+## Build hooks
+
+`SSGConfig.hooks` carries `BuildHooks` — `transformHtml(html, page)`, `onPageRendered(page & { html })`, and `postBuild(result, ctx)`. See [Configuration & Content → Build hooks](/ssg/docs/configuration#build-hooks) for semantics (per-page hooks run concurrently; a throwing hook fails the build).
 
 ## Errors
 
@@ -229,6 +255,20 @@ Prefetches internal links on hover (default delay 100 ms), skipping external and
 
 - **options.delay** — hover delay in milliseconds before prefetching.
 
+### installSpaNavigation
+
+```ts
+function installSpaNavigation(
+    router: { push(path: string): unknown },
+    options?: { base?: string },
+): () => void
+```
+
+Routes same-origin internal anchor clicks (including plain markdown links) through the router instead of full page reloads. The browser keeps handling modified clicks, external/`mailto:` links, `target`/`download` anchors, same-document `#hash` scrolls, `data-no-spa` opt-outs, and anything that already called `preventDefault()`. Wired automatically into the generated client entry (`spaNavigation: false` disables); call it yourself in custom entries. Returns an uninstall function.
+
+- **router** — anything with a `push(path)` method.
+- **options.base** — the site base path on subpath deploys (stripped before push).
+
 ### isStaticPage
 
 ```ts
@@ -270,18 +310,20 @@ interface SSGConfig {
     defaultLayout?: string;
     outDir?: string;
     base?: string;
+    trailingSlash?: 'always' | 'never';
     site?: SiteConfig;
     markdown?: MarkdownConfig;
-    vite?: Record<string, unknown>;
-    autoEntries?: boolean;
     clientEntry?: string;
     clientImports?: string[];
     serverEntry?: string;
     htmlTemplate?: string | false;
     prefetch?: boolean | { delay?: number };
+    spaNavigation?: boolean;
     collections?: Record<string, CollectionConfig>;
     navigation?: NavigationConfig;
     toc?: TOCConfig;
+    sitemap?: SitemapOptions | false;
+    hooks?: BuildHooks;
 }
 ```
 
