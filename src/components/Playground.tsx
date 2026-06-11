@@ -170,7 +170,7 @@ export const Playground = component<PlaygroundProps>(({ props, signal, emit }) =
 
                         {/* The stage stays mounted (hidden on the console tab) so the
                             rendered demo keeps its state across tab switches. */}
-                        <div class="pg-stage" data-hidden={String(state.tab !== 'preview')}>
+                        <div class="pg-stage" data-no-spa data-hidden={String(state.tab !== 'preview')}>
                             {state.running && (
                                 <div class="pg-spinner-wrap"><span class="pg-spinner" /></div>
                             )}

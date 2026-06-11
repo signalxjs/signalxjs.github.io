@@ -1,7 +1,8 @@
 import { defineSSGConfig } from '@sigx/ssg';
-// NOTE: explicit .ts extension — the SSG loads this config by transpiling it
-// to a temp .mjs and resolving imports with plain Node ESM (Node ≥22.18
-// type-strips the .ts import; the registry must stay dependency-free).
+// NOTE: explicit .ts extension — @sigx/ssg ≥0.7.1 bundles this config with
+// esbuild, so the relative .ts registry import works on every supported Node.
+// (scripts/generate-module-docs.mjs imports the registry directly and still
+// needs Node ≥22.18 — dev-only.)
 import { MODULES, moduleDocsCollection, moduleRoutePrefix } from './src/lib/modules.ts';
 
 /**
@@ -49,7 +50,7 @@ export default defineSSGConfig({
             'Geist+Mono:wght@400;500',
         ],
         // OG/Twitter support
-        ogImage: 'https://sigx.dev/og-image.png',
+        ogImage: 'https://sigx.dev/sigx.png',
         twitter: 'signalxjs',
     },
     
