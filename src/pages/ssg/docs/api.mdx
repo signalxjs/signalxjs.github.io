@@ -20,7 +20,7 @@ For CLI usage see [Commands](/ssg/docs/commands).
 function defineSSGConfig(config: SSGConfig): SSGConfig
 ```
 
-Type-safe SSG config helper. Applies defaults (`pages` `src/pages`, `layouts` `src/layouts`, `content` `src/content`, `defaultLayout` `default`, `outDir` `dist`, `base` `/`, `autoEntries` true, `prefetch` true, `site.lang` `en`, `markdown.shiki` true, `toc.minLevel` 2 / `maxLevel` 3) then merges the user config.
+Type-safe SSG config helper. Applies defaults (`pages` `src/pages`, `layouts` `src/layouts`, `content` `src/content`, `defaultLayout` `default`, `outDir` `dist`, `base` `/`, `trailingSlash` `'always'`, `autoEntries` true, `prefetch` true, `site.lang` `en`, `markdown.shiki` true, `toc.minLevel` 2 / `maxLevel` 3) then merges the user config.
 
 - **config** — the user's SSG configuration.
 - **Returns** — the merged config. Export it as the default from `ssg.config.ts`.
