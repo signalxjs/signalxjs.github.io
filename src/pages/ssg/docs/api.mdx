@@ -142,6 +142,16 @@ Maps build results to sitemap entries, applying `exclude` globs and depth-based 
 - **options** — optional `SitemapOptions`.
 - **Returns** — the derived `SitemapEntry[]`.
 
+### loadThemeModule / applyThemeConfig / resolveThemeConfig
+
+```ts
+function loadThemeModule(themeName: string, root: string): Promise<ThemeModule>
+function applyThemeConfig(config: SSGConfig, theme: ThemeModule): SSGConfig
+function resolveThemeConfig(config: SSGConfig, root: string): Promise<SSGConfig>
+```
+
+Theme loading and config-contribution merging: a theme's exported `config` can contribute markdown plugins (run before the site's), head tags (prepended to `site.head`), CSS import specifiers (prepended to `clientImports`), and a `defaultLayout` (used when the site doesn't set one). `resolveThemeConfig` combines both: it loads `config.theme` (if set) and applies it. Build and dev call this automatically; the exports exist for tooling.
+
 ## Vite plugin
 
 ### ssgPlugin
@@ -162,6 +172,10 @@ export default ssgPlugin
 ```
 
 The default export of `@sigx/ssg/vite` is `ssgPlugin`.
+
+## Build hooks
+
+`SSGConfig.hooks` carries `BuildHooks` — `transformHtml(html, page)`, `onPageRendered(page & { html })`, and `postBuild(result, ctx)`. See [Configuration & Content → Build hooks](/ssg/docs/configuration#build-hooks) for semantics (per-page hooks run concurrently; a throwing hook fails the build).
 
 ## Errors
 
@@ -240,6 +254,20 @@ function setupPrefetch(options?: { delay?: number }): void
 Prefetches internal links on hover (default delay 100 ms), skipping external and hash links and already-prefetched paths. Wired automatically in the generated client entry when `config.prefetch` is enabled.
 
 - **options.delay** — hover delay in milliseconds before prefetching.
+
+### installSpaNavigation
+
+```ts
+function installSpaNavigation(
+    router: { push(path: string): unknown },
+    options?: { base?: string },
+): () => void
+```
+
+Routes same-origin internal anchor clicks (including plain markdown links) through the router instead of full page reloads. The browser keeps handling modified clicks, external/`mailto:` links, `target`/`download` anchors, same-document `#hash` scrolls, `data-no-spa` opt-outs, and anything that already called `preventDefault()`. Wired automatically into the generated client entry (`spaNavigation: false` disables); call it yourself in custom entries. Returns an uninstall function.
+
+- **router** — anything with a `push(path)` method.
+- **options.base** — the site base path on subpath deploys (stripped before push).
 
 ### isStaticPage
 
