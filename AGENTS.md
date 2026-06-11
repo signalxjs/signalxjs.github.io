@@ -175,12 +175,12 @@ lynx) and the `@sigx/*` entries in `package.json` (what the site builds against)
   titled `<repo>: <what changed>` and linking the source PR. When the source
   repo cuts a release, it comments the release tag on each issue that release
   ships (`Released in <repo> vX.Y.Z.`). Work the queue oldest-first
-  (`gh issue list --search "sort:created-asc"`):
+  (`gh issue list --search "sort:created-asc" --limit 200`):
   - An issue **with** a release comment is ready — follow the playbook for its
     area and close the issue from the docs PR (`Closes #N`).
-  - An issue **without** a release comment is merged upstream but **not yet
-    released — don't document it yet** (docs track what users can install; see
-    the beta-soak note below).
+  - An issue **without** a release comment is merged upstream but not yet
+    released — **don't document it yet** (docs track what users can install;
+    see the beta-soak note below).
 - **On demand** — "update the docs for the `<repo>` `<version>` release." Follow the
   playbook for that one area, closing any queue issues that release covers.
 - **Routine dependency bumps** — Dependabot opens `@sigx/*` bump PRs; patch bumps
