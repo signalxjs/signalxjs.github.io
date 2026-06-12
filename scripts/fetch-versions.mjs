@@ -12,8 +12,8 @@
  * total instead of ~60). Resilient by design — a failed request keeps the
  * previously committed value, so a flaky npm never breaks the build.
  *
- * Tracks the `latest` dist-tag (not the newest publish) per the
- * beta-soak-then-promote model documented in AGENTS.md.
+ * Tracks the `latest` dist-tag (not the newest publish) so docs only ever
+ * describe versions users can install — see the dist-tag note in AGENTS.md.
  *
  * Requires Node ≥ 22.18 (native TS type-stripping for the registry import).
  */

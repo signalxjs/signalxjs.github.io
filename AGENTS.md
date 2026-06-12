@@ -191,7 +191,7 @@ lynx) and the `@sigx/*` entries in `package.json` (what the site builds against)
     area and close the issue from the docs PR (`Closes #N`).
   - An issue **without** a release comment is merged upstream but not yet
     released — **don't document it yet** (docs track what users can install;
-    see the beta-soak note below).
+    see the dist-tag note below).
 - **On demand** — "update the docs for the `<repo>` `<version>` release." Follow the
   playbook for that one area, closing any queue issues that release covers.
 - **Routine dependency bumps** — Dependabot opens `@sigx/*` bump PRs; patch bumps
@@ -200,9 +200,9 @@ lynx) and the `@sigx/*` entries in `package.json` (what the site builds against)
   `src/lib/modules.ts` and open a sync PR when an area is behind. Not wired up yet
   (tracked separately).
 
-> Releases follow a **beta-soak-then-promote** model in the source repos (publish
-> `beta`, soak, then `npm dist-tag … latest`). Docs track **`latest`**, not the tag
-> — don't document a version users can't `npm install` yet.
+> Source repos currently publish **directly to `latest`** (no beta/soak stage —
+> sigx ships fast and has no beta channel right now). Docs track the `latest`
+> dist-tag — don't document a version users can't `npm install` yet.
 
 ## Parallel work with git worktrees
 
