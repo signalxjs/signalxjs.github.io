@@ -90,7 +90,7 @@ optional; for agents the issue-first flow below is required.)
 6. **Merge it yourself** once Copilot's feedback is resolved AND CI is green (squash
    — repo rules block merge commits) and clean up:
    ```sh
-   pr=<pr>                                    # the PR number, once
+   pr=123                                     # your PR number (digits only)
    gh pr checks "$pr"                         # all green first
    gh pr merge "$pr" --squash --delete-branch \
      --subject "$(gh pr view "$pr" --json title -q .title) (#$pr)" \
