@@ -12,7 +12,7 @@ import { useRoute } from '@sigx/router';
 import { navigation, detectCollection } from 'virtual:ssg-navigation';
 import type { NavSection, NavItem } from '@sigx/ssg';
 import { byId, moduleForCollection, packageForCollection } from '@/lib/family';
-import { modulesByParent, moduleRoutePrefix, type ModuleParent } from '@/lib/modules';
+import { modulesByParent, type ModuleParent } from '@/lib/modules';
 import { PackageSwitcher } from '@/components/PackageSwitcher';
 import { ModuleSwitcher } from '@/components/ModuleSwitcher';
 import { Icon } from '@/components/ui/Icon';
@@ -29,28 +29,6 @@ const CATALOG_LABEL: Record<ModuleParent, string> = {
     core: 'All Core packages',
     server: 'All Server packages',
 };
-/**
- * Keep only nav items under `prefix`. Module collection paths can nest —
- * `/lynx/modules/updates` is a prefix of `/lynx/modules/updates-ui` (likewise
- * runtime/runtime-main, icons/icons-*) — so the SSG groups the longer sibling's
- * pages into the shorter module's collection nav. Prune to the active module's
- * exact route prefix so its sidebar shows only its own pages.
- * Workaround for signalxjs/ssg#143 (remove once collection assignment is
- * longest-match / segment-boundary aware upstream).
- */
-function pruneToPrefix(items: NavItem[], prefix: string): NavItem[] {
-    const out: NavItem[] = [];
-    for (const item of items) {
-        if (item.items && item.items.length > 0) {
-            const kids = pruneToPrefix(item.items, prefix);
-            if (kids.length) out.push({ ...item, items: kids });
-        } else if (item.href && item.href.startsWith(prefix)) {
-            out.push(item);
-        }
-    }
-    return out;
-}
-
 const CatalogLink = component<Define.Prop<'parent', ModuleParent, true> & Define.Event<'pick', void>>(
     ({ props, emit }) => () => (
         <SxLink
@@ -164,12 +142,7 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
                             </>
                         )}
                         <nav class="side-nav">
-                            {(currentModule
-                                ? getSections()
-                                    .map((s) => ({ ...s, items: pruneToPrefix(s.items, `${moduleRoutePrefix(currentModule)}/`) }))
-                                    .filter((s) => s.items.length > 0)
-                                : getSections()
-                            ).map((section, idx) => (
+                            {getSections().map((section, idx) => (
                                 <div class="side-section" key={idx}>
                                     <div class="side-section-title mono">{section.title}</div>
                                     <ul>
