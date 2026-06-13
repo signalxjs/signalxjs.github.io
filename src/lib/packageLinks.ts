@@ -11,10 +11,10 @@ import { navigation } from 'virtual:ssg-navigation';
 import type { NavItem, NavSection } from '@sigx/ssg';
 import { moduleDocsCollection, moduleRoutePrefix, type SigxModule } from '@/lib/modules';
 
-function firstLeaf(items: NavItem[] | undefined): string | undefined {
+function firstLeaf(items: NavItem[] | undefined, prefix?: string): string | undefined {
     for (const item of items ?? []) {
-        if (item.href) return item.href;
-        const nested = firstLeaf(item.items);
+        if (item.href && (!prefix || item.href.startsWith(prefix))) return item.href;
+        const nested = firstLeaf(item.items, prefix);
         if (nested) return nested;
     }
     return undefined;
@@ -57,11 +57,17 @@ export function firstModuleDocHref(m: SigxModule): string | undefined {
     const collection = moduleDocsCollection(m);
     const nav = collection ? navigation[collection] : undefined;
     if (!nav) return undefined;
+    // Collection paths can nest — `/lynx/modules/updates` is a prefix of
+    // `/lynx/modules/updates-ui` (likewise runtime/runtime-main, icons/icons-*).
+    // The SSG nav for the shorter collection can surface the longer sibling's
+    // pages, so only accept a leaf that lives under THIS module's exact route
+    // prefix; fall back to the module's own overview page if none matches.
+    const prefix = `${moduleRoutePrefix(m)}/`;
     for (const section of (nav.sidebar ?? []) as NavSection[]) {
-        const href = firstLeaf(section.items);
+        const href = firstLeaf(section.items, prefix);
         if (href) return href;
     }
-    return undefined;
+    return `${moduleRoutePrefix(m)}/overview`;
 }
 
 /**
