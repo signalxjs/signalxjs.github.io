@@ -162,14 +162,34 @@ app.directive('highlight', highlight);
 app.mount('#sandbox');
 ```
 
-Once registered, `use:highlight={value}` works exactly like the built-in `use:show` — you just pass a value and the runtime resolves the directive by name.
+Once registered, `use:highlight={value}` works exactly like the built-in `use:show` — you just pass a value and the runtime resolves the directive by name. `app.directive()` registration works both on the client and during SSR.
+
+### Layered Registration
+
+Directive registration happens in layers:
+
+- **Built-in directives** (`show`) register automatically. The platform package registers them as a side effect, and their JSX types are globally visible, so the runtime always resolves them — no import or setup needed.
+- **Per-app** with `app.directive(name, def)` — the directive is available to that app's component tree, on the client and during SSR. This is the common case for custom and pack directives.
+- **Globally** with `registerBuiltInDirective(name, def)` (from `@sigx/runtime-dom`) — registers a directive into the built-in tier so every app and every `render()` call resolves it by name without per-app wiring. Reach for this when shipping a directive pack that should be available everywhere.
+
+```tsx code
+import { defineDirective } from 'sigx';
+import { registerBuiltInDirective } from '@sigx/runtime-dom';
+
+const focusOnMount = defineDirective<void, HTMLInputElement>({
+    mounted(el) { el.focus(); }
+});
+
+// Available app-wide and in plain render() — no app.directive() call needed
+registerBuiltInDirective('focusOnMount', focusOnMount);
+```
 
 ### Resolution Priority
 
 When the runtime encounters a `use:name` prop, it resolves the directive in this order:
 
 1. **Explicit directive** — A directive definition or `[definition, value]` tuple passed directly (no registration needed)
-2. **Built-in directives** — Internally registered directives like `show` (always available)
+2. **Built-in directives** — Directives in the built-in tier: `show` (registered automatically) and anything added globally via `registerBuiltInDirective()`
 3. **App-registered directives** — Custom directives registered via `app.directive()`
 
 This means built-in directives always take precedence, and you can always bypass registration by passing a directive explicitly.
@@ -335,6 +355,32 @@ const autoSelect = defineDirective<void, HTMLInputElement>({
     }
 });
 ```
+
+## Typing a `use:*` Attribute
+
+`JSX.DirectiveAttribute<T, El>` is the type of a directive's `use:*` attribute — it accepts the bare value, the directive definition, or the `[definition, value]` tuple in one alias:
+
+```tsx code
+// JSX.DirectiveAttribute<T, El = HTMLElement> =
+//   | T
+//   | DirectiveDefinition<T, El>
+//   | [DirectiveDefinition<T, El>, T]
+```
+
+To give a registered directive IntelliSense on `use:`, augment `JSX.DirectiveAttributeExtensions`:
+
+```tsx code
+// Makes `use:highlight={'#fef08a'}` autocomplete and type-check
+declare global {
+    namespace JSX {
+        interface DirectiveAttributeExtensions {
+            'use:highlight'?: JSX.DirectiveAttribute<string>;
+        }
+    }
+}
+```
+
+Without the augmentation, `use:*` attributes still work — they fall back to a permissive catch-all type. The augmentation is what surfaces the directive by name in editor completions.
 
 ## Custom Directive Examples
 
@@ -558,5 +604,6 @@ const hidden = defineDirective<boolean>({
 | Registration | How it works | Use case |
 |---|---|---|
 | **Built-in** (`show`) | Always available, no registration needed | Core framework directives |
-| **`app.directive()`** | Register globally on your app instance | Custom directives used across your app |
+| **`app.directive()`** | Register on your app instance (client + SSR) | Custom directives used across your app |
+| **`registerBuiltInDirective()`** | Register into the built-in tier, every app + `render()` | Directive packs that should be globally available |
 | **Tuple form** `[def, value]` | Pass definition inline, no registration | One-off usage, library directives |

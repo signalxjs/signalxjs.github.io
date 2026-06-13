@@ -16,6 +16,15 @@ order: 20
 pnpm add @sigx/lynx-updates-ui
 ```
 
+## Peers
+
+The components sit on top of two packages you configure yourself:
+
+- [`@sigx/lynx-updates`](/lynx/modules/updates/overview) — the headless OTA engine. Call `defineUpdates()` in `main.tsx`.
+- [`@sigx/lynx-daisyui`](/lynx/modules/daisyui/overview) — the components are built from its Modal / Progress / Button / Alert, so its styles must be in your CSS pipeline.
+
+"Later" dismissals persist across launches via `@sigx/lynx-storage`, which is installed with this package — `sigx prebuild` links the native Storage module automatically, so there's nothing to set up. Only on web preview and in tests do dismissals degrade to session-only suppression.
+
 ## Native setup
 
 Rebuild your development client after installing:
@@ -24,10 +33,22 @@ Rebuild your development client after installing:
 sigx prebuild
 ```
 
-## Verify
+## Configure
 
 ```tsx
-import * as OTAUpdateUI from '@sigx/lynx-updates-ui';
+import { component } from '@sigx/lynx';
+import { defineUpdates } from '@sigx/lynx-updates';
+import { UpdateGate, UpdatePrompt, UpdateReadyBanner } from '@sigx/lynx-updates-ui';
 
-console.log(Object.keys(OTAUpdateUI));
+defineUpdates({ provider: { url: 'https://updates.example.com/manifest.json' } });
+
+const App = component(() => () => (
+  <UpdateGate>
+    <Screens />
+    <UpdatePrompt />
+    <UpdateReadyBanner />
+  </UpdateGate>
+));
 ```
+
+See the [Usage guide](/lynx/modules/updates-ui/usage) for how the components divide the update lifecycle.

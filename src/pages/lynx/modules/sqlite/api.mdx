@@ -12,8 +12,193 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Exports of `@sigx/lynx-sqlite` <PkgVersion npm="@sigx/lynx-sqlite" />.</p>
 
-## Exports
+```ts
+import {
+  openDatabase,
+  deleteDatabase,
+  isAvailable,
+  SQLiteDatabase,
+  useLiveQuery,
+} from '@sigx/lynx-sqlite';
+import type {
+  Migration,
+  OpenOptions,
+  QueryResult,
+  SQLStatement,
+  SQLValue,
+  SQLiteRow,
+  SQLiteTransaction,
+  LiveQueryOptions,
+  LiveQueryState,
+} from '@sigx/lynx-sqlite';
+```
 
-{/* TODO: document the public API of @sigx/lynx-sqlite */}
+## Functions
 
-See the package source for the complete typed surface.
+### openDatabase
+
+Open (or create) a database in the app's data directory. The same `name` returns the same shared instance — one handle, one operation queue, one change bus — so live queries see writes from every screen.
+
+```ts
+export function openDatabase(name: string, options?: OpenOptions): Promise<SQLiteDatabase>;
+```
+
+### deleteDatabase
+
+Delete a database file, including its WAL/SHM sidecars. The database must not be open — `close()` it first.
+
+```ts
+export function deleteDatabase(name: string): Promise<void>;
+```
+
+### isAvailable
+
+Whether the native SQLite module is registered in this runtime.
+
+```ts
+export function isAvailable(): boolean;
+```
+
+### useLiveQuery
+
+BG-reactive query — re-runs whenever one of its tables is written through this database's API. Returns a `Computed<LiveQueryState>`; subscriptions clean up on unmount. Accepts the `openDatabase(...)` promise directly.
+
+```ts
+export function useLiveQuery<R = SQLiteRow>(
+  db: SQLiteDatabase | Promise<SQLiteDatabase>,
+  sql: string,
+  params?: readonly SQLValue[],
+  options?: LiveQueryOptions,
+): Computed<LiveQueryState<R>>;
+```
+
+**Parameters** — `db` (an `SQLiteDatabase` or the `openDatabase` promise), `sql`, optional `params`, and optional [`LiveQueryOptions`](#livequeryoptions).
+
+**Returns** — a `Computed<LiveQueryState<R>>`.
+
+## Class
+
+### SQLiteDatabase
+
+The handle returned by [`openDatabase`](#opendatabase). Construct it only through `openDatabase` — the constructor is internal.
+
+```ts
+export declare class SQLiteDatabase {
+  readonly name: string;
+
+  execute<R = SQLiteRow>(sql: string, params?: readonly SQLValue[]): Promise<QueryResult<R>>;
+  executeBatch(statements: readonly SQLStatement[]): Promise<{ rowsAffected: number }>;
+  transaction<T>(fn: (tx: SQLiteTransaction) => Promise<T>): Promise<T>;
+  migrate(migrations: readonly Migration[]): Promise<void>;
+  onChange(
+    tables: readonly string[] | ReadonlySet<string> | '*',
+    listener: (changed: ReadonlySet<string> | '*') => void,
+  ): () => void;
+  close(): Promise<void>;
+}
+```
+
+**Members**
+
+- `execute(sql, params?)` — run one statement. SELECTs return `rows`; writes return `rowsAffected`/`insertId`. Positional `?` binding.
+- `executeBatch(statements)` — many statements in one native call and **one** transaction (all-or-nothing).
+- `transaction(fn)` — interactive transaction; rolls back if `fn` throws. Change notifications fire once on commit, never on rollback. Other calls queue behind it. Inside `fn`, only use the provided `tx.execute` — awaiting `db.execute` from within deadlocks.
+- `migrate(migrations)` — apply pending `PRAGMA user_version` migrations, each atomic.
+- `onChange(tables, listener)` — subscribe to write notifications (`'*'` = any write). Only writes through this API notify. Returns an unsubscribe function.
+- `close()` — release the native handle. Subsequent calls on this instance reject.
+
+## Types
+
+### SQLValue
+
+A value bindable to a `?` placeholder. Booleans bind as `1`/`0` (SQLite has no boolean type); `undefined` binds as NULL. BLOBs are not supported in v1 — store a file path or base64 TEXT instead.
+
+```ts
+export type SQLValue = string | number | boolean | null | undefined;
+```
+
+### SQLiteRow
+
+A result row. SQLite INTEGER/REAL columns come back as JS numbers — integers above 2^53 lose precision crossing the bridge, so store snowflake-style ids as TEXT.
+
+```ts
+export type SQLiteRow = Record<string, string | number | null>;
+```
+
+### QueryResult
+
+```ts
+export interface QueryResult<R = SQLiteRow> {
+  rows: R[];
+  /** Rows changed by INSERT/UPDATE/DELETE; 0 for read-only statements. */
+  rowsAffected: number;
+  /** `last_insert_rowid()` after an INSERT/REPLACE; null otherwise. */
+  insertId: number | null;
+}
+```
+
+### SQLStatement
+
+One statement for `executeBatch`: `[sql]` or `[sql, params]`.
+
+```ts
+export type SQLStatement = readonly [sql: string, params?: readonly SQLValue[]];
+```
+
+### SQLiteTransaction
+
+The statement runner handed to `transaction()` and function migrations.
+
+```ts
+export interface SQLiteTransaction {
+  execute<R = SQLiteRow>(sql: string, params?: readonly SQLValue[]): Promise<QueryResult<R>>;
+}
+```
+
+### Migration
+
+```ts
+export interface Migration {
+  /** Strictly increasing positive integer, stored in `PRAGMA user_version`. */
+  version: number;
+  /**
+   * Statements run atomically (one transaction per migration), or a function
+   * for data migrations. A crash mid-migration rolls back and the migration
+   * re-runs on next launch.
+   */
+  up: readonly string[] | ((tx: SQLiteTransaction) => Promise<void>);
+}
+```
+
+### OpenOptions
+
+Options for `openDatabase`. Reserved for future use (read-only, encryption key, custom location) — empty in v1, so adding fields is non-breaking.
+
+```ts
+export interface OpenOptions {}
+```
+
+### LiveQueryState
+
+```ts
+export interface LiveQueryState<R = SQLiteRow> {
+  rows: R[];
+  /** True until the first result (or first error) lands. */
+  loading: boolean;
+  /** Last failure; the previous rows are kept so the UI doesn't blank. */
+  error: Error | null;
+}
+```
+
+### LiveQueryOptions
+
+```ts
+export interface LiveQueryOptions {
+  /**
+   * Tables whose writes re-run this query. Defaults to the tables extracted
+   * from the SQL's FROM/JOIN clauses — pass this explicitly for views or
+   * anything extraction can't see (`'*'` re-runs on any write).
+   */
+  tables?: readonly string[] | '*';
+}
+```

@@ -24,6 +24,15 @@ Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after insta
 sigx prebuild
 ```
 
+Autolinking wires up everything the native SDK needs:
+
+- the native WebRTC SDK dependency (Android Gradle dep / `WebRTC-SDK` pod);
+- the Android `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS` permissions;
+- the iOS microphone usage description;
+- the iOS `audio` background mode, so an active call survives backgrounding.
+
+The native SDK adds roughly 5–10 MB per ABI on Android and ~10 MB on iOS. WebRTC is Android + iOS only — it is inert on the web runtime, so gate any usage behind [`isWebRTCAvailable()`](/lynx/modules/webrtc/api#iswebrtcavailable).
+
 ## Verify
 
 ```tsx

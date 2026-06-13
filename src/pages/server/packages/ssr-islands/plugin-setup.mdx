@@ -19,7 +19,7 @@ import { createSSR } from '@sigx/server-renderer';
 import { islandsPlugin } from '@sigx/ssr-islands';
 
 const ssr = createSSR().use(islandsPlugin());
-const html = await ssr.render(<App />);
+const html = await ssr.renderDocument(app, { template });   // or ssr.render(app) for a shell
 ```
 
 That single registration wires both the server hooks (during render) and the
@@ -96,9 +96,9 @@ custom server pipelines (from `@sigx/ssr-islands` or `@sigx/ssr-islands/server`)
   script for a set of islands.
 
 State keys come from `generateSignalKey` (re-exported from `@sigx/server-renderer`),
-so server capture and client restore line up — which is why naming the signals
-that hold server-loaded state matters — see
-[Rendering & streaming](/server/packages/server-renderer/rendering#naming-signals-for-hydration-parity).
+so server capture and client restore line up. For keyed `useAsync`/`useStream`
+data the key is the call's own key, serialized into the page automatically — see
+[Rendering & streaming](/server/packages/server-renderer/rendering#server-data-with-useasync--usestream).
 
 ## Next steps
 

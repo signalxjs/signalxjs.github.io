@@ -8,16 +8,142 @@ order: 30
 
 # Using SQLite
 
-<p class="lede">Embedded SQLite database — the essentials.</p>
+<p class="lede">Open a database, declare its schema as <code>user_version</code> migrations, read and write with parameterized SQL, and let live queries re-run themselves when the underlying tables change — everything async, off the JS thread.</p>
 
-## Basic usage
+`@sigx/lynx-sqlite` is backed by the platform's own SQLite (Android `android.database.sqlite`, iOS system `libsqlite3`) — there is no bundled C library, so nothing is added to your binary. It's the persistence layer for offline-first apps: chat history, message queues, local caches.
 
-```tsx
-import * as SQLite from '@sigx/lynx-sqlite';
+## Opening a database
+
+`openDatabase(name)` opens (or creates) a file in the app's data directory and resolves to an `SQLiteDatabase`. Opening the **same name** always returns the **same shared instance** — one native handle, one operation queue, one change bus — so writes on one screen are seen by live queries on another.
+
+```ts
+import { openDatabase } from '@sigx/lynx-sqlite';
+
+const db = await openDatabase('chat.db');
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-sqlite */}
+Everything is asynchronous: statements run on a per-database native thread, so even bulk inserts never block the JS thread or jank the UI.
+
+## Declaring the schema as migrations
+
+Don't issue `CREATE TABLE` ad-hoc — declare your schema as an ordered list of migrations keyed by an integer `version`. `migrate()` reads SQLite's `PRAGMA user_version`, runs only the migrations newer than the stored version, and bumps it. Each migration runs **atomically** (one transaction); a crash mid-migration rolls back and the migration re-runs on next launch.
+
+```ts
+await db.migrate([
+  {
+    version: 1,
+    up: [
+      `CREATE TABLE messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation TEXT NOT NULL,
+        author TEXT NOT NULL,
+        body TEXT NOT NULL,
+        sent_at INTEGER NOT NULL
+      )`,
+      `CREATE INDEX idx_messages_conversation
+        ON messages(conversation, sent_at)`,
+    ],
+  },
+]);
+```
+
+`up` is either an array of SQL strings or a function `(tx) => Promise<void>` for data migrations that need to read existing rows before writing.
+
+## Reading and writing
+
+`execute(sql, params?)` runs one statement. Bind values positionally with `?` placeholders — never interpolate user input into SQL. A SELECT returns `{ rows }`; an INSERT/UPDATE/DELETE returns `{ rowsAffected, insertId }`.
+
+```ts
+// Write
+const { insertId } = await db.execute(
+  'INSERT INTO messages (conversation, author, body, sent_at) VALUES (?, ?, ?, ?)',
+  [conversationId, 'me', text, Date.now()],
+);
+
+// Read
+const { rows } = await db.execute(
+  'SELECT * FROM messages WHERE conversation = ? ORDER BY sent_at DESC LIMIT 50',
+  [conversationId],
+);
+```
+
+Booleans bind as `1`/`0` (SQLite has no boolean type) and `undefined` params bind as NULL.
+
+## Live queries
+
+In a component, `useLiveQuery` runs the query and **re-runs it automatically** whenever one of its tables is written through this database's API — insert a message anywhere and every list showing it updates. It returns a `Computed`, and its subscription is cleaned up on unmount. It accepts the `openDatabase(...)` promise directly, so a screen doesn't need its own await-then-render plumbing.
+
+```tsx
+import { component } from '@sigx/lynx';
+import { openDatabase, useLiveQuery } from '@sigx/lynx-sqlite';
+
+const db = openDatabase('chat.db'); // pass the promise straight in
+
+export const Thread = component<{ conversationId: string }>((props) => {
+  const messages = useLiveQuery(db,
+    'SELECT * FROM messages WHERE conversation = ? ORDER BY sent_at DESC LIMIT 50',
+    [props.conversationId]);
+
+  return () => (
+    <view>
+      {messages.value.rows.map((m) => <Bubble message={m} />)}
+    </view>
+  );
+});
+```
+
+The result carries `loading` (true until the first result or error lands) and `error` (the last failure — the previous `rows` are kept so the UI doesn't blank).
+
+The tables to watch are extracted from the SQL's `FROM`/`JOIN` clauses. When the query reads through a view or anything extraction can't see, pass them explicitly with `{ tables: ['…'] }` (or `'*'` to re-run on any write).
+
+## Transactions
+
+`transaction(fn)` opens an interactive transaction and rolls back if `fn` throws; change notifications for everything written inside fire **once, on commit** — never on rollback. Other calls on this database queue behind it.
+
+```ts
+await db.transaction(async (tx) => {
+  const { insertId } = await tx.execute(
+    'INSERT INTO conversations (title) VALUES (?)', [title]);
+  await tx.execute(
+    'INSERT INTO messages (conversation, author, body, sent_at) VALUES (?, ?, ?, ?)',
+    [insertId, 'me', firstMessage, Date.now()]);
+});
+```
+
+> **Inside the callback, only use `tx.execute`.** Awaiting `db.execute(...)` (or a nested `db.transaction`) from within `fn` deadlocks — that call queues behind the very transaction that is awaiting it. Concurrent `db.execute` calls from *elsewhere* are fine; they simply run after the commit.
+
+For a fixed set of statements that should be all-or-nothing without interactive logic, `executeBatch` runs many statements in one native call and one transaction:
+
+```ts
+await db.executeBatch([
+  ['DELETE FROM messages WHERE conversation = ?', [conversationId]],
+  ['DELETE FROM conversations WHERE id = ?', [conversationId]],
+]);
+```
+
+Don't issue `BEGIN`/`COMMIT` yourself — use `transaction()` / `executeBatch()`, which keep the JS-side queue and change notifications consistent.
+
+## Reacting to writes outside a component
+
+`onChange(tables, listener)` subscribes to write notifications (`'*'` = any write) and returns an unsubscribe function. Only writes made through this API notify — another process or native code touching the same file does not.
+
+```ts
+const off = db.onChange(['messages'], (changed) => {
+  // changed is a ReadonlySet<string> of table names, or '*'
+  refreshBadge();
+});
+// later: off();
+```
 
 ## Notes
 
-SQL, transactions, migrations and live queries for offline-first apps — openDatabase, parameterized execute, PRAGMA user_version migrations and a reactive useLiveQuery hook.
+- **Everything is async** and runs on a per-database native thread — bulk inserts never block the UI.
+- **BLOBs are not supported (v1).** Store a file path (see [`@sigx/lynx-file-system`](/lynx/modules/file-system/overview)) or base64 TEXT; binding an object/ArrayBuffer throws before reaching native.
+- **Big integers**: INTEGER columns come back as JS numbers — above 2^53 precision is lost, so store snowflake-style ids as TEXT.
+- **Duplicate column names** in joined SELECTs collide (rows are plain objects) — use `AS` aliases.
+- **Availability**: `isAvailable()` reports whether the native module is registered. On web it degrades like the other native modules.
+
+## See also
+
+- [API reference](/lynx/modules/sqlite/api) — every export and its signature.
+- [Installation](/lynx/modules/sqlite/installation) — project setup.

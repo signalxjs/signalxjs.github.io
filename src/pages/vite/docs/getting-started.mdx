@@ -19,10 +19,13 @@ import { PrereqCallout } from '@/components/PrereqCallout';
 Vite's dev server and production build so you get:
 
 - **Component-level HMR** — edit a `component(...)` and see it update in place,
-  with per-instance signal state preserved across reloads.
-- **Singleton reactivity** — the plugin guarantees a single physical copy of
-  the SignalX runtime in both dev and build, so signal mutations always
-  re-render after hydration.
+  with per-instance signal state preserved across reloads. In middleware-mode dev
+  servers it also picks a free HMR websocket port automatically, so concurrent
+  servers never collide on Vite's default `24678`.
+- **Singleton reactivity** — the plugin guarantees a single physical copy of the
+  SignalX runtime in both dev and build by excluding **all** `@sigx/*` packages
+  from `optimizeDeps` and unifying them in the SSR graph (`ssr.noExternal`), so
+  signal mutations always re-render after hydration.
 - **Optimized production builds** — runtime packages are deduped and forced into
   a single chunk to keep that singleton guarantee.
 

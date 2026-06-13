@@ -25,6 +25,8 @@ Complete reference for all SignalX (`sigx`) exports. SignalX re-exports everythi
 - [`toRaw`](/core/api/reactivity#toraw) - Get raw object
 - [`isReactive`](/core/api/reactivity#isreactive) - Check if reactive
 - [`effectScope`](/core/api/reactivity#effectscope) - Group effects
+- [`toSignal`](/core/api/reactivity#tosignal) - Signal-shaped view over one property
+- [`toSignals`](/core/api/reactivity#tosignals) - Signal-shaped views for every property
 
 ### Components
 - [`component`](/core/api/components#component) - Define component
@@ -32,6 +34,10 @@ Complete reference for all SignalX (`sigx`) exports. SignalX re-exports everythi
 - [`lazy`](/core/api/components#lazy) - Lazy load component
 - [`Suspense`](/core/api/components#suspense) - Async boundary
 - [`Portal`](/core/api/components#portal) - Render to different DOM location
+
+### Data Loading
+- [`useAsync`](/core/api/components#useasync) - Async data, SSR-transferable when keyed
+- [`useStream`](/core/api/components#usestream) - Progressive text streaming
 
 ### Lifecycle
 - [`onMounted`](/core/api/lifecycle#onmounted) - After mount
@@ -74,9 +80,13 @@ import {
     // Reactivity
     signal, effect, computed, watch,
     batch, untrack, toRaw, isReactive, effectScope,
+    toSignal, toSignals,
     
     // Components
     component, Fragment, lazy, Suspense, Portal,
+    
+    // Data loading
+    useAsync, useStream,
     
     // Lifecycle
     onMounted, onUnmounted, onCreated, onUpdated,

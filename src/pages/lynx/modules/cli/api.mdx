@@ -274,6 +274,14 @@ export type Platform = 'android' | 'ios';
 export type Orientation = 'portrait' | 'landscape' | 'all' | 'default';
 ```
 
+### PlistValue
+
+A value allowed in the `ios.infoPlist` passthrough (and the module-manifest equivalent) — mirrors the `Info.plist` value types.
+
+```ts
+export type PlistValue = boolean | number | string | PlistValue[] | { [key: string]: PlistValue };
+```
+
 ### IconMode
 
 ```ts
@@ -377,7 +385,8 @@ export interface AndroidConfig {
     permissions?: string[];
     features?: AndroidFeatureConfig[];
     googleMapsApiKey?: string;
-    manifestMetaData?: Record<string, string>;
+    manifestMetaData?: Record<string, string>;     // arbitrary <meta-data> entries
+    applicationAttributes?: Record<string, string | boolean | number>; // arbitrary <application> attrs
     icon?: string;
     adaptiveIcon?: AdaptiveIconConfig;
     notificationIcon?: string;
@@ -402,6 +411,8 @@ export interface IosConfig {
     pods?: Record<string, string>;
     usageDescriptions?: Record<string, string>;
     bgTaskIdentifiers?: string[];
+    infoPlist?: Record<string, PlistValue>;        // arbitrary Info.plist keys, merged last-write-wins
+    usesNonExemptEncryption?: boolean;             // convenience for ITSAppUsesNonExemptEncryption
     icon?: string | IosIconConfig;
     splash?: SplashConfig;
     scheme?: string;

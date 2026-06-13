@@ -37,6 +37,22 @@ function defineApp(options?: AppOptions): App;
 | `mount(component, container)` | `(comp, el) => void` | Mount root component |
 | `unmount()` | `() => void` | Unmount the application |
 | `provide(token, value)` | `(token, value) => App` | Provide app-level value |
+| `runWithContext(fn)` | `<T>(fn: () => T) => T` | Run `fn` with the app's DI context current |
+
+### `runWithContext`
+
+Runs a function with the app's DI context set as current, so use-functions from `defineInjectable` / `defineFactory` (and `inject`) called **outside** component setup — router guards, socket handlers, entry-scope code — resolve to the app's instances instead of a realm-level fallback. The context applies to the synchronous portion only (re-enter after `await`); nested calls restore the previous context.
+
+```tsx
+const app = defineApp(<App />);
+
+router.beforeEach((to) =>
+    app.runWithContext(() => {
+        const auth = useAuthService(); // same instance components see
+        return auth.isAuthenticated ? true : '/login';
+    })
+);
+```
 
 ### Examples
 
@@ -258,6 +274,7 @@ interface App {
     mount(component: ComponentFactory, container: Element): void;
     unmount(): void;
     provide<T>(token: any, value: T): App;
+    runWithContext<T>(fn: () => T): T;
     provides: Map<any, any>;
 }
 ```

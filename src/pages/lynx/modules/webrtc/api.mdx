@@ -12,8 +12,286 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Exports of `@sigx/lynx-webrtc` <PkgVersion npm="@sigx/lynx-webrtc" />.</p>
 
-## Exports
+The dictionaries and state unions mirror the standard `lib.dom.d.ts` shapes (module-scoped, so they shadow the DOM globals inside this package) — code written against browser WebRTC type-checks against this subset unchanged.
 
-{/* TODO: document the public API of @sigx/lynx-webrtc */}
+```ts
+import {
+  RTCPeerConnection,
+  RTCDataChannel,
+  MediaStream,
+  MediaStreamTrack,
+  mediaDevices,
+  WebRTC,
+  isWebRTCAvailable,
+} from '@sigx/lynx-webrtc';
+import type {
+  RTCRtpSender,
+  RTCConfiguration,
+  RTCIceServer,
+  RTCSessionDescription,
+  RTCSessionDescriptionInit,
+  RTCIceCandidateInit,
+  RTCDataChannelInit,
+  RTCOfferOptions,
+  RTCSdpType,
+  RTCPeerConnectionState,
+  RTCIceConnectionState,
+  RTCIceGatheringState,
+  RTCSignalingState,
+  RTCDataChannelState,
+  MediaStreamConstraints,
+  MediaTrackConstraintSet,
+  MediaStreamTrackState,
+  AudioOutputRoute,
+} from '@sigx/lynx-webrtc';
+```
 
-See the package source for the complete typed surface.
+## mediaDevices
+
+### mediaDevices.getUserMedia
+
+Capture the microphone. Triggers the OS permission prompt when the permission is undetermined; rejects with `NotAllowedError` on denial and `NotSupportedError` for video constraints (v1 is audio-only).
+
+```ts
+mediaDevices.getUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream>
+```
+
+## RTCPeerConnection
+
+```ts
+export declare class RTCPeerConnection extends RTCEventTargetBase {
+  constructor(configuration?: RTCConfiguration);
+
+  get connectionState(): RTCPeerConnectionState;
+  get iceConnectionState(): RTCIceConnectionState;
+  get iceGatheringState(): RTCIceGatheringState;
+  get signalingState(): RTCSignalingState;
+  get localDescription(): RTCSessionDescription | null;
+  get remoteDescription(): RTCSessionDescription | null;
+
+  createOffer(options?: RTCOfferOptions): Promise<RTCSessionDescriptionInit>;
+  createAnswer(): Promise<RTCSessionDescriptionInit>;
+  setLocalDescription(description?: RTCSessionDescriptionInit): Promise<void>;
+  setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void>;
+  addIceCandidate(candidate?: RTCIceCandidateInit | null): Promise<void>;
+
+  addTrack(track: MediaStreamTrack, ...streams: MediaStream[]): RTCRtpSender;
+  removeTrack(sender: RTCRtpSender): void;
+  createDataChannel(label: string, init?: RTCDataChannelInit): RTCDataChannel;
+  close(): void;
+
+  onconnectionstatechange: ((ev: RTCEventLike) => void) | null;
+  oniceconnectionstatechange: ((ev: RTCEventLike) => void) | null;
+  onicegatheringstatechange: ((ev: RTCEventLike) => void) | null;
+  onsignalingstatechange: ((ev: RTCEventLike) => void) | null;
+  onicecandidate: ((ev: RTCEventLike) => void) | null; // ev.candidate is null at end-of-candidates
+  ontrack: ((ev: RTCEventLike) => void) | null;         // ev.track, ev.streams
+  ondatachannel: ((ev: RTCEventLike) => void) | null;   // ev.channel
+}
+```
+
+**Notes**
+
+- `setLocalDescription` supports the no-arg implicit form (per the modern spec).
+- `addIceCandidate` with a `null`/omitted candidate (or an empty `candidate` string) signals end-of-candidates.
+- `localDescription` is refreshed on every `icegatheringstatechange`, so it carries the full SDP once gathering completes.
+- `addTrack` returns a minimal [`RTCRtpSender`](#rtcrtpsender); `close()` also ends remote tracks and closes child channels.
+
+### RTCRtpSender
+
+The minimal sender returned by `addTrack` — enough to `removeTrack` and identify the outbound track. (`replaceTrack`/`getParameters` are reserved for the video follow-up.)
+
+```ts
+export interface RTCRtpSender {
+  readonly track: MediaStreamTrack | null;
+}
+```
+
+## RTCDataChannel
+
+Created synchronously by `peer.createDataChannel()`; remote channels arrive via `ondatachannel`. Construct only through those — the constructor is internal.
+
+```ts
+export declare class RTCDataChannel extends RTCEventTargetBase {
+  readonly label: string;
+  readonly ordered: boolean;
+  readonly protocol: string;
+  binaryType: 'arraybuffer';
+  /** Write-through approximation (bytes handed to the bridge). */
+  bufferedAmount: number;
+
+  /** SCTP stream id — null until the channel opens. */
+  get id(): number | null;
+  get readyState(): RTCDataChannelState;
+
+  send(data: string | ArrayBuffer | ArrayBufferView): void;
+  close(): void;
+
+  onopen: ((ev: RTCEventLike) => void) | null;
+  onmessage: ((ev: RTCEventLike) => void) | null;
+  onclose: ((ev: RTCEventLike) => void) | null;
+  onerror: ((ev: RTCEventLike) => void) | null;
+}
+```
+
+## MediaStreamTrack
+
+An audio track captured from the microphone (local) or received from a peer (remote). Remote tracks render automatically through the device's audio output — there is no element to attach. Construct only via `mediaDevices.getUserMedia()` / `ontrack`.
+
+```ts
+export declare class MediaStreamTrack extends RTCEventTargetBase {
+  readonly kind: 'audio' | 'video';
+  readonly id: string;       // stringified native handle (the msid in SDP)
+  readonly label: string;
+  readonly remote: boolean;  // true for tracks received from a peer
+
+  get readyState(): MediaStreamTrackState; // 'live' | 'ended'
+  /** Whether the remote side is currently sending media on this track. */
+  get muted(): boolean;
+  get enabled(): boolean;
+  /** enabled = false mutes (silence) without stopping capture. */
+  set enabled(value: boolean);
+  /** Permanently end the track and release the capturer. Does not fire `ended`. */
+  stop(): void;
+
+  onended: ((ev: RTCEventLike) => void) | null;
+  onmute: ((ev: RTCEventLike) => void) | null;
+  onunmute: ((ev: RTCEventLike) => void) | null;
+}
+```
+
+## MediaStream
+
+A grouping of tracks. On this runtime the stream itself is JS-side bookkeeping — tracks carry the native handles; the stream's string `id` is what appears as the msid in SDP.
+
+```ts
+export declare class MediaStream {
+  readonly id: string;
+  constructor(tracksOrId?: MediaStreamTrack[] | string);
+
+  getTracks(): MediaStreamTrack[];
+  getAudioTracks(): MediaStreamTrack[];
+  getVideoTracks(): MediaStreamTrack[];
+  addTrack(track: MediaStreamTrack): void;
+  removeTrack(track: MediaStreamTrack): void;
+}
+```
+
+## Extras (non-W3C)
+
+### WebRTC
+
+Audio-session and permission helpers.
+
+```ts
+export declare const WebRTC: {
+  /** Route call audio to the loudspeaker or the earpiece. Default while live: 'speaker'. */
+  readonly setAudioOutput: (route: AudioOutputRoute) => Promise<void>;
+  /** Request microphone permission, showing the OS dialog if needed. */
+  readonly requestPermission: () => Promise<PermissionResponse>;
+  /** Check current microphone permission status without prompting. */
+  readonly getPermissionStatus: () => Promise<PermissionResponse>;
+  readonly isAvailable: () => boolean;
+};
+```
+
+`PermissionResponse` comes from `@sigx/lynx-core`.
+
+### isWebRTCAvailable
+
+Whether the native WebRTC module is registered in this build. `false` on web / when not linked — gate any WebRTC use behind it on a shared codebase.
+
+```ts
+export function isWebRTCAvailable(): boolean;
+```
+
+## Types
+
+### RTCIceServer / RTCConfiguration
+
+```ts
+export interface RTCIceServer {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+export interface RTCConfiguration {
+  iceServers?: RTCIceServer[];
+}
+```
+
+### RTCSessionDescription / RTCSessionDescriptionInit
+
+`localDescription`/`remoteDescription` return the frozen `RTCSessionDescription` (a plain object with `toJSON()` — there is no constructor); init dicts are accepted everywhere.
+
+```ts
+export type RTCSdpType = 'offer' | 'answer' | 'pranswer' | 'rollback';
+
+export interface RTCSessionDescriptionInit {
+  type: RTCSdpType;
+  sdp?: string;
+}
+
+export interface RTCSessionDescription {
+  readonly type: RTCSdpType;
+  readonly sdp: string;
+  toJSON(): { type: RTCSdpType; sdp: string };
+}
+```
+
+### RTCIceCandidateInit
+
+```ts
+export interface RTCIceCandidateInit {
+  /** Defaults to "" per lib.dom.d.ts — an empty/absent string is end-of-candidates. */
+  candidate?: string;
+  sdpMid?: string | null;
+  sdpMLineIndex?: number | null;
+  usernameFragment?: string | null;
+}
+```
+
+### RTCDataChannelInit / RTCOfferOptions
+
+```ts
+export interface RTCDataChannelInit {
+  ordered?: boolean;
+  maxPacketLifeTime?: number;
+  maxRetransmits?: number;
+  protocol?: string;
+  negotiated?: boolean;
+  id?: number;
+}
+
+export interface RTCOfferOptions {
+  offerToReceiveAudio?: boolean;
+  iceRestart?: boolean;
+}
+```
+
+### State unions
+
+```ts
+export type RTCPeerConnectionState = 'new' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed';
+export type RTCIceConnectionState  = 'new' | 'checking' | 'connected' | 'completed' | 'disconnected' | 'failed' | 'closed';
+export type RTCIceGatheringState   = 'new' | 'gathering' | 'complete';
+export type RTCSignalingState      = 'stable' | 'have-local-offer' | 'have-remote-offer' | 'have-local-pranswer' | 'have-remote-pranswer' | 'closed';
+export type RTCDataChannelState    = 'connecting' | 'open' | 'closing' | 'closed';
+export type MediaStreamTrackState  = 'live' | 'ended';
+export type AudioOutputRoute       = 'speaker' | 'earpiece';
+```
+
+### MediaStreamConstraints / MediaTrackConstraintSet
+
+```ts
+export interface MediaStreamConstraints {
+  audio?: boolean | MediaTrackConstraintSet;
+  video?: boolean | MediaTrackConstraintSet; // rejected in v1
+}
+
+export interface MediaTrackConstraintSet {
+  /** Accepted for API compatibility; the native capturer uses platform defaults in v1. */
+  [key: string]: unknown;
+}
+```

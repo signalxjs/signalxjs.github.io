@@ -398,6 +398,67 @@ scope.stop();
 
 ---
 
+## toSignal
+
+Create a signal-shaped (`{ value }`) live view over **one** property of a reactive object. Unlike destructuring — which snapshots the value — the view reads and writes through to the source, so tracking and triggering are preserved.
+
+```tsx
+function toSignal<T extends object, K>(source: T, key: K): PropertySignal<T[K]>;
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `source` | `T` | A reactive object (e.g. from `signal({...})`) |
+| `key` | `K` | The property to view (any string key except `$set`) |
+
+### Examples
+
+```tsx
+import { signal, toSignal } from 'sigx';
+
+const state = signal({ count: 0 });
+const count = toSignal(state, 'count');
+
+count.value++;             // triggers effects watching state.count
+console.log(state.count);  // 1
+```
+
+---
+
+## toSignals
+
+Create signal-shaped views for **every** own enumerable property of a reactive object, so it can be destructured without losing reactivity.
+
+```tsx
+function toSignals<T extends object>(source: T): ToSignals<T>;
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `source` | `T` | A reactive object |
+
+### Returns
+
+A `ToSignals<T>` — one `PropertySignal` per own enumerable string key (`$set` excluded).
+
+### Examples
+
+```tsx
+import { signal, toSignals } from 'sigx';
+
+const state = signal({ count: 0, name: 'Ada' });
+const { count, name } = toSignals(state);
+
+count.value++;            // still reactive
+name.value = 'Grace';     // writes through to state.name
+```
+
+---
+
 ## Types
 
 ### Signal\<T\>

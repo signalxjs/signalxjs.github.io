@@ -24,10 +24,22 @@ Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after insta
 sigx prebuild
 ```
 
-## Verify
+Prebuild also computes a **runtime fingerprint** from the linked native modules, the Lynx SDK version, and the scaffold revision, and bakes it into the binary. `sigx updates:publish` stamps the same fingerprint into the manifest so the client only applies bundles compatible with the installed native build (see [Runtime-version compatibility](/lynx/modules/updates/usage#runtime-version-compatibility)).
+
+## Configure
+
+Declare the update behavior once in `main.tsx`, before `defineApp()`:
 
 ```tsx
-import * as OTAUpdates from '@sigx/lynx-updates';
+import { defineApp } from '@sigx/lynx';
+import { defineUpdates } from '@sigx/lynx-updates';
+import App from './App';
 
-console.log(Object.keys(OTAUpdates));
+defineUpdates({
+  provider: { url: 'https://cdn.example.com/myapp/production/manifest.json' },
+});
+
+defineApp(<App />).mount(null);
 ```
+
+For prebuilt UI (prompt, blocking gate, progress, restart banner), add [`@sigx/lynx-updates-ui`](/lynx/modules/updates-ui/overview).

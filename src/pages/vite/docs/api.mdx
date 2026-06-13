@@ -25,14 +25,21 @@ The main Vite plugin. Returns a Vite `Plugin` object with `name: 'sigx'` and
   `sigx`, `sigx/internals`, `sigx/jsx-runtime`, `sigx/jsx-dev-runtime`,
   `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`,
   `@sigx/server-renderer`, plus their `/internals` subpaths — to their `src`
-  entry files so a single reactivity instance is shared, and excludes them from
-  `optimizeDeps` pre-bundling.
-- In build (`command === 'build'`) it dedupes those packages and forces them all
-  into a single `sigx` manual chunk to preserve singleton reactivity.
+  entry files so a single reactivity instance is shared. It excludes **all**
+  `@sigx/*` packages from `optimizeDeps` pre-bundling — the core tier plus every
+  `@sigx/*` dependency declared in the project's `package.json` — and sets
+  `ssr.noExternal: ['sigx', /^@sigx\//]`. In middleware mode, if you have not
+  pinned an HMR port, it assigns a free one so concurrent dev servers don't clash
+  on Vite's default `24678`.
+- In build (`command === 'build'`) it dedupes the runtime tier, sets the same
+  `ssr.noExternal`, and forces those packages into a single `sigx` manual chunk to
+  preserve singleton reactivity.
 - Its `transform` hook injects the HMR runtime registration into any
   `.ts`/`.tsx`/`.jsx` source file (outside `node_modules` and `/dist/`) that
   contains a `component<` or `component(` usage, when `hmr` is `true` and in
   serve mode.
+- All of the above merges with (never replaces) your own `optimizeDeps.exclude`,
+  `ssr.noExternal`, and `server.hmr` config.
 
 **Parameters**
 
@@ -96,10 +103,10 @@ across re-executions. Normally injected automatically by the plugin's
 ### defineLibConfig
 
 ```ts
-export function defineLibConfig(options: LibBuildOptions): UserConfig;
+export function defineLibConfig(options: LibBuildOptions): UserConfigFnObject;
 ```
 
-Produces a Vite 8 / Rolldown library-build `UserConfig` for `@sigx/*` packages.
+Produces a Vite 8 / Rolldown library-build config function for `@sigx/*` packages.
 It normalizes the entry (`string` | record | `LibEntry[]`) into a Rolldown lib
 config (ES format only, file name `${entryName}.js`), resolves alias paths
 against `root` (accepts a `file://` URL or directory), and **always** prepends
@@ -108,16 +115,27 @@ the SignalX runtime externals — `sigx`, `@sigx/reactivity`,
 subpaths — to the caller's `external` list (deduped) to preserve singleton
 reactivity.
 
-It sets `build.emptyOutDir: true`, `sourcemap` (default `true`), minify via Oxc
-(`'oxc'` or `false`), an optional `output.banner`, a node target (`node18`) when
-`platform === 'node'`, and Oxc automatic JSX with import source `sigx` when
-`jsx` is `true`. The result is wrapped in Vite's `defineConfig`.
+It builds ES output only (file name `${entryName}.js`), sets `sourcemap` (default
+`true`), minifies in place via Oxc (`minify: 'oxc'`, or `false`), an optional
+`output.banner`, a node target (`node18`) when `platform === 'node'`, and Oxc
+automatic JSX with import source `sigx` when `jsx` is `true`. The result is a
+config **function** (wrapped in Vite's `defineConfig`) that branches on
+`--mode prod-dist`:
+
+- **Default build** (`vite build`) emits the development dist with `emptyOutDir`
+  on.
+- **`vite build --mode prod-dist`** emits a parallel **production** dist into the
+  same `outDir` (without emptying it): `process.env.NODE_ENV` is defined away to
+  `'production'` so dev warnings and devtools plumbing are stripped, and every
+  output file gets a `.prod.js` suffix for the package's `production` export
+  condition. Run it as a second pass after the default build.
 
 **Parameters**
 
 - `options` — `LibBuildOptions`. Required.
 
-**Returns** — a Vite `UserConfig`.
+**Returns** — a Vite `UserConfigFnObject` (a config function `({ mode }) =>
+UserConfig`), so the `prod-dist` mode branch resolves at build time.
 
 ### defineConfig
 
@@ -140,14 +158,26 @@ interface SigxPluginOptions {
      * @default true
      */
     hmr?: boolean;
+
+    /**
+     * Port for Vite's HMR websocket. Only relevant in middleware mode (the
+     * standard SSR setup), where Vite's default 24678 collides when two dev
+     * servers run on one machine. Unset: the plugin picks a free port
+     * automatically. Explicit `server.hmr` settings always take precedence.
+     */
+    hmrPort?: number;
 }
 ```
 
-Options for `sigxPlugin`. The only field is `hmr`, which toggles HMR injection.
+Options for `sigxPlugin`:
 
-> **Note.** This interface is declared but not exported from the package — the
-> `hmr` option is the only public-facing surface. Consumers cannot import the
-> type by name; pass the option inline: `sigx({ hmr: false })`.
+- **hmr** — toggles HMR injection. Default `true`.
+- **hmrPort** — pins the HMR websocket port in middleware mode. When unset the
+  plugin assigns a free port automatically; an explicit `server.hmr.port` (or
+  `server.hmr: false`) in your Vite config wins.
+
+> **Note.** This interface is declared but not exported from the package — pass
+> the options inline: `sigx({ hmr: false })` or `sigx({ hmrPort: 24700 })`.
 
 ### LibBuildOptions
 
@@ -163,7 +193,7 @@ export interface LibBuildOptions {
     external?: (string | RegExp)[];
     /** Path aliases for bundling sibling packages. Keys are import paths, values are file paths relative to project root */
     alias?: Record<string, string>;
-    /** Enable minification (produces additional .min.js files) @default true */
+    /** Minify output in place via Oxc @default true */
     minify?: boolean;
     /** Banner to prepend to output (e.g., shebang for CLI tools) */
     banner?: string;
@@ -201,8 +231,8 @@ npx sigx-types [options]
 ```
 
 Generates `components.d.ts` and `components.ts` for tag-named components. See the
-[Commands](/vite/docs/commands) guide for usage, flags, and the v0.4.9
-packaging caveat.
+[Commands](/vite/docs/commands) guide for usage, flags, and the packaging caveat
+(no `bin`/`./cli` export as of 0.6.3).
 
 ## See Also
 

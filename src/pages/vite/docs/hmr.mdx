@@ -40,7 +40,31 @@ export default defineConfig({
 });
 ```
 
-`hmr` is the only plugin option.
+## The HMR websocket port
+
+In a **middleware-mode** dev server — the standard SignalX SSR setup, where Vite
+runs inside your own HTTP server — the HMR websocket cannot piggyback on the HTTP
+server and Vite falls back to a fixed default port (`24678`). Run two dev servers
+on one machine and they collide: the browser connects to the *other* server's
+websocket, gets a 400 token mismatch, and HMR silently breaks.
+
+`@sigx/vite` fixes this automatically. When you do **not** pin a port, the plugin
+asks the OS for a free port and uses it for the HMR websocket — so concurrent dev
+servers never clash. To pin one explicitly, pass `hmrPort`:
+
+```ts
+import sigx from '@sigx/vite';
+
+export default defineConfig({
+    server: { middlewareMode: true },
+    plugins: [sigx({ hmrPort: 24700 })],
+});
+```
+
+Any explicit `server.hmr` settings in your Vite config always take precedence —
+the plugin only steps in when you haven't pinned a port yourself, and only in
+middleware mode (when the websocket shares the HTTP server's port there is nothing
+to fix).
 
 ## When the Transform Fires
 
@@ -115,10 +139,16 @@ patched in place.
 
 The deeper guarantee behind HMR is a **single physical copy** of
 `@sigx/reactivity`. In dev the plugin aliases the SignalX runtime packages to
-their `src` entries and excludes them from `optimizeDeps` pre-bundling; in build
-it dedupes them and forces them into a single `sigx` chunk. Without that single
-copy, signal mutations from `onMounted`, observers, `setTimeout`, or event
-handlers would silently fail to re-render after hydration.
+their `src` entries and excludes **all** `@sigx/*` packages from `optimizeDeps`
+pre-bundling — the core tier plus every `@sigx/*` dependency declared in your
+`package.json` (store, router, daisyui, …) — so no pre-bundled chunk can carry a
+second reactivity copy. It also sets `ssr.noExternal: ['sigx', /^@sigx\//]` so the
+whole family stays in the SSR module graph instead of splitting between Vite's
+module runner and Node's resolver. In build it dedupes the runtime tier and forces
+it into a single `sigx` chunk. Without that single copy, signal mutations from
+`onMounted`, observers, `setTimeout`, or event handlers would silently fail to
+re-render after hydration. Your own `optimizeDeps.exclude` / `ssr.noExternal`
+entries are merged with the plugin's, never replaced.
 
 ## Next Steps
 

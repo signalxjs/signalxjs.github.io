@@ -1,0 +1,142 @@
+---
+title: Data Loading
+description: Load async data and stream text with useAsync and useStream — SSR-aware with automatic hydration state transfer
+layout: docs
+category: Core Concepts
+order: 55
+---
+
+# Data Loading
+
+SignalX has one data-loading story for both the client and the server: `useAsync` for fetched values and `useStream` for progressive text. Both are imported from `'sigx'`, called synchronously during component setup, and return reactive state your render reads.
+
+The single rule that controls server behavior: **give the call a key and it becomes server-transferable.** A keyed call runs during SSR, serializes its resolved value into the page, and restores on hydration without refetching. An unkeyed call is client-only.
+
+## useAsync
+
+`useAsync` runs an async fetcher and returns reactive `{ value, loading, error }` state. Reading any of those inside the render subscribes it, so the component re-renders as the request settles.
+
+### Client-only (unkeyed)
+
+Pass just a fetcher. The fetcher never runs on the server — the loading branch is rendered during SSR and the work starts on the client after hydration:
+
+```tsx code preview live
+import { component, render, useAsync } from 'sigx';
+
+const Joke = component(() => {
+    const joke = useAsync(async ({ signal }) => {
+        const res = await fetch('https://icanhazdadjoke.com/', {
+            headers: { Accept: 'application/json' },
+            signal
+        });
+        return (await res.json()).joke as string;
+    });
+
+    return () => (
+        <div style="padding: 16px;">
+            {joke.loading && <p>Loading…</p>}
+            {joke.error && <p>Failed: {joke.error.message}</p>}
+            {joke.value && <p>{joke.value}</p>}
+            <button onClick={() => joke.refresh()} disabled={joke.loading}>
+                Another one
+            </button>
+        </div>
+    );
+});
+
+render(<Joke />, "#sandbox");
+```
+
+The fetcher receives an `AbortSignal` — pass it straight to `fetch`. For an unkeyed call it aborts when the component unmounts or when a `refresh()` supersedes the run.
+
+### SSR + hydration (keyed)
+
+Pass an explicit string key as the first argument and the call participates in server rendering:
+
+```tsx code
+import { component, useAsync } from 'sigx';
+
+const UserProfile = component<{ id: string }>(({ props }) => {
+    const user = useAsync(`user:${props.id}`, async ({ signal }) => {
+        const res = await fetch(`/api/users/${props.id}`, { signal });
+        return res.json();
+    });
+
+    return () => {
+        if (user.loading) return <p>Loading…</p>;
+        if (user.error) return <p>{user.error.message}</p>;
+        return <h1>{user.value!.name}</h1>;
+    };
+});
+```
+
+With a key, `useAsync`:
+
+- **Runs on the server.** The resolved value is serialized under the key into `window.__SIGX_ASYNC__` (a prototype-pollution-safe, page-lifetime cache the server renderer emits).
+- **Restores on hydration** from that cache — no refetch on first client render.
+- **Dedupes per key.** Two components using the same key share a single in-flight request and both restore from the same cached value; neither refetches.
+
+The cache is the page's data cache for its lifetime — every later mount of the same key (including remounts after client-side navigation) restores from it, and successful keyed fetches write back so it always holds the latest value.
+
+### Stale-while-revalidate with refresh
+
+`refresh()` re-runs the fetcher. It keeps the current `value` visible while the new request is in flight (`loading` is `true`), so you can show a revalidation indicator without dropping content. It aborts any in-flight run and repopulates the cache on success:
+
+```tsx code
+const feed = useAsync('feed', loadFeed);
+
+// keep showing feed.value, just flag the refresh
+<button onClick={() => feed.refresh()}>
+    {feed.loading ? 'Refreshing…' : 'Refresh'}
+</button>
+```
+
+`value` and `error` are **mutually exclusive** — a failed fetch clears stale data, so success and error branches never render at the same time.
+
+### Throwing to an error boundary
+
+Pass `{ throwOnError: true }` to route fetch errors to the nearest error boundary / component error fallback instead of exposing them on `.error`. The error throws when `.error` is read during render:
+
+```tsx code
+const data = useAsync('report', loadReport, { throwOnError: true });
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `throwOnError` | `boolean` | `false` | Throw the fetch error when `.error` is read (routes to an error boundary) instead of exposing it |
+| `server` | `boolean` | `true` | (Keyed form.) Run the fetcher during SSR. `server: false` renders the loading branch on the server and fetches on the client after hydration |
+
+## useStream
+
+`useStream(key, source)` accumulates a streamed `AsyncIterable<string>` into a reactive string — built for progressive, token-at-a-time content like LLM output. It returns a `{ value }` signal that grows as chunks arrive:
+
+```tsx code
+import { component, useStream } from 'sigx';
+
+const Answer = component<{ prompt: string }>(({ props }) => {
+    const answer = useStream(`answer:${props.prompt}`, () => streamCompletion(props.prompt));
+
+    return () => <p>{answer.value}</p>;
+});
+```
+
+Like keyed `useAsync`, `useStream` is SSR-aware:
+
+- **Server, streaming:** tokens append into the page as they arrive; the final text swaps in through the standard replacement pipeline and is serialized under the key.
+- **Server, blocking:** the source is drained fully and the final text is rendered inline.
+- **Client, hydrating:** the final text is restored from the key — the source is **not** re-run, so there are no duplicate calls.
+- **Client navigation:** the source runs live and the signal updates per chunk.
+
+`useStream` is text-only, and the appended tokens are XSS-safe by construction (text nodes, never raw HTML). It stops pulling from the source when the component unmounts.
+
+## Server rendering
+
+The server side of keyed data loading is owned by `@sigx/server-renderer`'s document renderers (`renderDocument` and friends), which run the fetchers, inject the `window.__SIGX_ASYNC__` state blob, and stream replacements. See the [server renderer guide](/server) for the document-rendering APIs; from a component's point of view, `useAsync`/`useStream` are all you import.
+
+## Next Steps
+
+- [Lazy Loading](/core/docs/lazy-loading) - Code-split components and `Suspense`
+- [Effects](/core/docs/effects) - React to signal changes
+- [Components](/core/docs/components) - Component model and patterns

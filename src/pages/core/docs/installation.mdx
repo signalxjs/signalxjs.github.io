@@ -83,6 +83,23 @@ SignalX follows semantic versioning. Current packages:
 | `@sigx/store` | 0.1.5 | State management |
 | `@sigx/daisyui` | 0.1.5 | UI components |
 
+## Development and Production Builds
+
+Every SignalX package ships **two** builds:
+
+- `dist/*.js` — the **development** build: dev warnings, the devtools integration, and runtime `process.env.NODE_ENV` checks.
+- `dist/*.prod.js` — the **production** build: warnings and the devtools plumbing are compiled out.
+
+Bundlers pick the right one automatically through the `development` / `production` [export conditions](https://nodejs.org/api/packages.html#conditional-exports) — **Vite needs no configuration**. A `vite build` resolves the production build; `vite dev` resolves the development build. Resolvers that don't understand those conditions fall back to the development build, where a consumer-side `NODE_ENV` define still strips the dev branches — the same behavior as before.
+
+For **plain Node SSR** (running the server renderer outside a bundler), opt into the stripped build with the `production` condition:
+
+```bash
+node --conditions=production server.js
+```
+
+There's nothing to configure in your app — devtools and dev-only warnings simply disappear from production output.
+
 ## Next Steps
 
 - [Quick Start](/core/docs/getting-started) - Build your first component

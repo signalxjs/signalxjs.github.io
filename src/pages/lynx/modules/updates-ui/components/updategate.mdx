@@ -8,7 +8,7 @@ order: 101
 
 # UpdateGate
 
-<p class="lede">UpdateGate — Prebuilt OTA update UI.</p>
+<p class="lede">Wraps your app and blocks it behind a full-screen overlay while a <strong>mandatory</strong> update installs. Children always render; the overlay only covers them when <code>state.mandatory</code> is true.</p>
 
 ## Import
 
@@ -16,4 +16,43 @@ order: 101
 import { UpdateGate } from '@sigx/lynx-updates-ui';
 ```
 
-{/* TODO: author usage, props, slots & events for UpdateGate */}
+## Usage
+
+Wrap your app's content in `<UpdateGate>` (its default slot). It renders the children normally at all times; when the headless package sees a `mandatory: true` manifest, a full-screen overlay covers them with a centered title + description, a `Progress` bar bound to the download, "Installing…" while applying, and a Retry button (re-runs `Updates.download()`) on error.
+
+```tsx
+import { UpdateGate } from '@sigx/lynx-updates-ui';
+
+<UpdateGate description="A required update is being installed.">
+  <App />
+</UpdateGate>
+```
+
+Only **mandatory** updates trigger the gate — optional updates flow through [`UpdatePrompt`](/lynx/modules/updates-ui/components/updateprompt) and [`UpdateReadyBanner`](/lynx/modules/updates-ui/components/updatereadybanner), which never overlap the gate.
+
+## Custom blocked screen
+
+The named `blocked` slot replaces the built-in overlay entirely — bring your own blocked UI while still letting the gate decide *when* to show it.
+
+```tsx
+<UpdateGate slots={{ blocked: () => <MyBlockedScreen /> }}>
+  <App />
+</UpdateGate>
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `title` | `string` | `'Update required'` | Overlay headline. |
+| `description` | `string` | — | Copy under the headline. |
+| `class` | `string` | — | Extra class for the overlay container. |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | App content — always mounted. |
+| `blocked` | Escape hatch: replaces the built-in blocked overlay entirely. |
+
+See the [API reference](/lynx/modules/updates-ui/api) and the headless [`@sigx/lynx-updates`](/lynx/modules/updates/usage#update-modes) docs for how `state.mandatory` is set.

@@ -205,6 +205,28 @@ set.add('item');          // Reactive
 console.log(set.has('item'));  // true
 ```
 
+## Destructuring Without Losing Reactivity
+
+Destructuring a reactive object snapshots its values — `const { count } = state` leaves you with a plain number that no longer tracks. Use `toSignal` (one property) or `toSignals` (every property) to get `{ value }` views that read **and** write through to the source:
+
+```tsx code console live
+import { signal, toSignal, toSignals } from 'sigx';
+
+const state = signal({ count: 0, name: 'Ada' });
+
+// A live view over a single property
+const count = toSignal(state, 'count');
+count.value++;
+console.log(state.count);  // 1 — write went through to the source
+
+// Views for every property — destructure freely
+const { name } = toSignals(state);
+name.value = 'Grace';
+console.log(state.name);   // "Grace"
+```
+
+`toSignals` creates a view for every own enumerable string key (except `$set`). Both keep reads tracked and writes flowing back to the original signal.
+
 ## Next Steps
 
 - [Computed](/core/docs/computed) - Derive values from signals

@@ -8,7 +8,7 @@ order: 102
 
 # UpdatePrompt
 
-<p class="lede">UpdatePrompt — Prebuilt OTA update UI.</p>
+<p class="lede">A modal offering an optional (non-mandatory) update. Appears automatically when an update is available; "Update" downloads it, "Later" suppresses re-prompts for that update id.</p>
 
 ## Import
 
@@ -16,4 +16,34 @@ order: 102
 import { UpdatePrompt } from '@sigx/lynx-updates-ui';
 ```
 
-{/* TODO: author usage, props, slots & events for UpdatePrompt */}
+## Usage
+
+Drop `<UpdatePrompt>` anywhere inside your tree. It shows automatically when the headless state reaches `status: 'available'` with `mandatory: false`, unless the user already dismissed this update id. It shows `manifest.version` and `manifest.metadata?.releaseNotes`.
+
+```tsx
+import { UpdatePrompt } from '@sigx/lynx-updates-ui';
+
+// Download now, apply on the next cold launch (default).
+<UpdatePrompt applyOn="next-launch" />
+```
+
+- **Update** → `Updates.download()`; with `applyOn="restart"` it then `Updates.apply()`s immediately (in-place reload). The default `'next-launch'` leaves the staged update for the next cold start (pair it with [`UpdateReadyBanner`](/lynx/modules/updates-ui/components/updatereadybanner) to offer an immediate restart).
+- **Later** → dismisses and suppresses re-prompts for that update id (persisted via `@sigx/lynx-storage`, key `__sigx_updates_dismissed:<id>`), and fires `onDismiss`.
+
+Mandatory updates never prompt — [`UpdateGate`](/lynx/modules/updates-ui/components/updategate) owns those.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `applyOn` | `'restart' \| 'next-launch'` | `'next-launch'` | When the downloaded update takes effect after "Update". |
+| `title` | `string` | `'Update available'` | Modal headline. |
+| `class` | `string` | — | Extra class for the modal box. |
+
+## Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `onDismiss` | `() => void` | Fired when the user taps "Later" (or the backdrop). |
+
+See the [dismissal helpers](/lynx/modules/updates-ui/api#dismissal-helpers) to read or set dismissals yourself.

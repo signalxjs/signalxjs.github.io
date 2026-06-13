@@ -12,8 +12,296 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Exports of `@sigx/lynx-updates` <PkgVersion npm="@sigx/lynx-updates" />.</p>
 
-## Exports
+```ts
+import {
+  defineUpdates,
+  Updates,
+  useUpdates,
+  StaticManifestProvider,
+  validateUpdatesManifest,
+  UpdatesError,
+} from '@sigx/lynx-updates';
+import type {
+  UpdatesConfig,
+  UpdateProvider,
+  UpdateManifest,
+  UpdateMode,
+  UpdatePlatform,
+  UpdateStatus,
+  UpdatesState,
+  UpdatesEvent,
+  UpdateCheckContext,
+  UpdateCheckResult,
+  CurrentUpdateInfo,
+  DownloadProgress,
+  DownloadSpec,
+  UpdatesErrorCode,
+  StaticManifestDocument,
+  StaticManifestEntry,
+  StaticManifestProviderOptions,
+} from '@sigx/lynx-updates';
+```
 
-{/* TODO: document the public API of @sigx/lynx-updates */}
+## defineUpdates
 
-See the package source for the complete typed surface.
+Declare the OTA update behavior for this app. Call once in `main.tsx` before `defineApp` — in the `defineApp`/`defineRoutes` family. Idempotent and synchronous; re-declaring updates the config but never re-runs the boot work (markReady / launch check). Kicks off the configured mode's automatic behavior on a deferred task (never blocks first paint). No-ops gracefully (with one warning) when the native module is absent (web preview, tests).
+
+```ts
+export function defineUpdates(config: UpdatesConfig): void;
+```
+
+**Parameters** — `config`, see [`UpdatesConfig`](#updatesconfig).
+
+## Updates
+
+The runtime object — a thin facade over the controller, the store, and the native module (in the `Haptics`/`Storage` native-module family). Drive the lifecycle manually and inspect state through it.
+
+```ts
+export declare const Updates: {
+  /** Ask the provider for the best available update. Works in every mode. */
+  checkForUpdate(): Promise<UpdateCheckResult>;
+  /** Download + verify + stage the given (or last-checked) update for next launch. */
+  download(manifest?: UpdateManifest): Promise<void>;
+  /** Apply the staged update NOW (in-place reload). Resolves never — only rejects on failure. */
+  apply(): Promise<void>;
+  /** Health signal — commits the pending update. Auto-called after defineUpdates() unless autoMarkReady:false. */
+  markReady(): Promise<void>;
+  /** What this process is running (embedded vs. OTA, rollback flags). */
+  getCurrentlyRunning(): Promise<CurrentUpdateInfo>;
+  /** Drop all downloaded updates; the baked bundle loads on next launch. */
+  clearUpdates(): Promise<void>;
+  /** Snapshot of the reactive state (see useUpdates() for the live view). */
+  getState(): UpdatesState;
+  /** Subscribe to update lifecycle events. Returns an unsubscribe fn. */
+  addListener(fn: (event: UpdatesEvent) => void): () => void;
+  /** True when the native Updates module is present in this runtime. */
+  isAvailable(): boolean;
+};
+```
+
+## useUpdates
+
+BG-reactive updates state for components — re-evaluates whenever the controller transitions the state machine (status, manifest, download progress, mandatory flag, errors). Returns a `Computed<UpdatesState>`.
+
+```ts
+export function useUpdates(): Computed<UpdatesState>;
+```
+
+## Provider
+
+### StaticManifestProvider
+
+The built-in backend: a JSON document on any static host/CDN. The `{ url }` shorthand in `UpdatesConfig.provider` constructs this for you; instantiate it directly only when you need a custom `fetchImpl` or shared headers.
+
+```ts
+export declare class StaticManifestProvider implements UpdateProvider {
+  readonly name: 'static-manifest';
+  constructor(options: StaticManifestProviderOptions);
+  checkForUpdate(ctx: UpdateCheckContext): Promise<UpdateCheckResult>;
+  resolveDownload(manifest: UpdateManifest): Promise<DownloadSpec>;
+}
+
+export interface StaticManifestProviderOptions {
+  /** Absolute URL of the manifest JSON. */
+  url: string;
+  /** Extra headers sent with the manifest request AND the bundle download. */
+  headers?: Record<string, string>;
+  /** Injectable fetch for tests. Defaults to globalThis.fetch. */
+  fetchImpl?: typeof globalThis.fetch;
+}
+```
+
+### validateUpdatesManifest
+
+Validate a parsed manifest document. Returns human-readable errors (empty array = valid). Exported for `sigx updates:publish` and tests.
+
+```ts
+export function validateUpdatesManifest(doc: unknown): string[];
+```
+
+## Config
+
+### UpdatesConfig
+
+```ts
+export interface UpdatesConfig {
+  /** Provider instance, or shorthand for the built-in static-manifest provider. */
+  provider: UpdateProvider | { url: string; headers?: Record<string, string> };
+  /** Release channel. Default: the baked __SIGX_UPDATES_CHANNEL__ define (usually 'production'). */
+  channel?: string;
+  /** Update mode. Default 'silent'. */
+  mode?: UpdateMode;
+  /** When to auto-check (ignored in 'manual'). Default ['launch']. */
+  checkOn?: Array<'launch' | 'foreground'>;
+  /** Mandatory updates always block + auto-apply, in EVERY mode, unless false. Default true. */
+  honorMandatory?: boolean;
+  /** true (default): markReady() is auto-called shortly after defineUpdates(). */
+  autoMarkReady?: boolean;
+  /** Rollback tuning — persisted natively for subsequent launches. */
+  rollback?: {
+    /** Launch attempts a pending update gets before native rolls back. Default 2. */
+    maxFailedLaunches?: number;
+  };
+}
+```
+
+### UpdateMode
+
+```ts
+export type UpdateMode = 'silent' | 'immediate' | 'manual';
+```
+
+## Provider contract
+
+### UpdateProvider
+
+Pluggable update backend. The built-in `StaticManifestProvider` covers static-host JSON manifests; protocol backends implement this in their own package — no core changes.
+
+```ts
+export interface UpdateProvider {
+  readonly name: string;
+  /** Resolve the best available update, or up-to-date. Core re-validates runtimeVersion regardless. */
+  checkForUpdate(ctx: UpdateCheckContext): Promise<UpdateCheckResult>;
+  /** Optional: customize how the bundle is fetched (auth headers, signed URLs). */
+  resolveDownload?(manifest: UpdateManifest, ctx: UpdateCheckContext): Promise<DownloadSpec>;
+}
+```
+
+### UpdateCheckContext
+
+```ts
+export interface UpdateCheckContext {
+  platform: UpdatePlatform;            // 'android' | 'ios'
+  runtimeVersion: string;              // installed binary's native fingerprint (authoritative)
+  currentUpdateId: string | null;      // running OTA update id, or null on the embedded bundle
+  embeddedVersion: string;             // version of the embedded (store-shipped) bundle
+  channel: string | undefined;
+}
+```
+
+### UpdateCheckResult
+
+```ts
+export type UpdateCheckResult =
+  | { type: 'update-available'; manifest: UpdateManifest }
+  | { type: 'up-to-date' }
+  | { type: 'incompatible'; manifest: UpdateManifest }; // needs a newer native build
+```
+
+### DownloadSpec
+
+```ts
+export interface DownloadSpec {
+  url: string;
+  sha256: string;
+  headers?: Record<string, string>;
+}
+```
+
+## Manifest & state types
+
+### UpdateManifest
+
+```ts
+export interface UpdateManifest {
+  id: string;             // content-addressed by convention: sha256.slice(0, 16)
+  version: string;        // human-readable JS version, e.g. '1.4.2'
+  runtimeVersion: string; // native fingerprint this bundle requires
+  bundleUrl: string;      // .lynx.bundle artifact (absolute or relative to the manifest URL)
+  sha256: string;         // hex SHA-256 of the bundle bytes — verified natively
+  mandatory: boolean;     // app is blocked + force-installed when true
+  createdAt?: string;     // ISO-8601 publish timestamp — newest wins
+  metadata?: Record<string, string>; // surfaced to UI (e.g. releaseNotes)
+}
+```
+
+### UpdatesState
+
+```ts
+export interface UpdatesState {
+  status: UpdateStatus;
+  manifest: UpdateManifest | null;     // set from 'available' onward
+  progress: DownloadProgress | null;   // non-null only while downloading
+  mandatory: boolean;                  // true → UI should block
+  error: UpdatesError | null;
+  currentlyRunning: CurrentUpdateInfo;
+}
+
+export type UpdateStatus =
+  | 'idle' | 'checking' | 'up-to-date' | 'available' | 'incompatible'
+  | 'downloading' | 'ready' | 'applying' | 'error';
+
+export interface DownloadProgress {
+  receivedBytes: number;
+  totalBytes: number | null; // null when the server sent no Content-Length
+}
+```
+
+### CurrentUpdateInfo
+
+```ts
+export interface CurrentUpdateInfo {
+  updateId: string | null;          // null → running the embedded bundle
+  version: string;
+  embeddedVersion: string;          // store-shipped version, always present
+  runtimeVersion: string;
+  isEmbedded: boolean;
+  isFirstLaunchAfterUpdate: boolean;
+  didRollBack: boolean;             // native rolled back because the previous launch never reached markReady
+  rolledBackUpdateId: string | null;
+}
+```
+
+### UpdatesEvent
+
+Every state transition fires one. Subscribe with `Updates.addListener`.
+
+```ts
+export type UpdatesEvent =
+  | { type: 'checkStarted' }
+  | { type: 'upToDate' }
+  | { type: 'updateAvailable'; manifest: UpdateManifest }
+  | { type: 'incompatibleUpdate'; manifest: UpdateManifest }
+  | { type: 'downloadStarted'; manifest: UpdateManifest }
+  | { type: 'downloadProgress'; progress: DownloadProgress }
+  | { type: 'updateReady'; manifest: UpdateManifest }
+  | { type: 'applying' }
+  | { type: 'rolledBack'; fromUpdateId: string }
+  | { type: 'error'; error: UpdatesError };
+```
+
+## Errors
+
+### UpdatesError
+
+```ts
+export declare class UpdatesError extends Error {
+  readonly code: UpdatesErrorCode;
+  constructor(code: UpdatesErrorCode, message: string);
+}
+
+export type UpdatesErrorCode =
+  | 'check-failed' | 'download-failed' | 'download-in-progress' | 'hash-mismatch'
+  | 'apply-failed' | 'no-view' | 'runtime-mismatch' | 'not-configured'
+  | 'native-unavailable' | 'native-error';
+```
+
+## Static manifest types
+
+### StaticManifestDocument / StaticManifestEntry
+
+The document `sigx updates:publish` maintains. An entry omits `id`/`mandatory` (defaulted), and `platforms` defaults to both, `channel` to `'production'`.
+
+```ts
+export interface StaticManifestDocument {
+  schemaVersion: number;
+  updates: StaticManifestEntry[];
+}
+
+export interface StaticManifestEntry extends Omit<UpdateManifest, 'id' | 'mandatory'> {
+  id?: string;
+  mandatory?: boolean;
+  platforms?: string[]; // default: both
+  channel?: string;     // default 'production'
+}
+```

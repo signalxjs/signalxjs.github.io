@@ -150,6 +150,29 @@ function Mover() {
 
 The reverse direction — main-thread-to-background dispatch from inside a worklet — is `runOnBackground`. Both `runOnMainThread` and `runOnBackground` depend on `@sigx/lynx-plugin`'s worklet transform to rewrite the `'main thread'` function bodies. Without the transform `runOnMainThread` simply runs the function locally on the background thread, and `runOnBackground` throws with a message pointing at the worklet loader — so a thrown error here almost always means the build plugin isn't wired up.
 
+## Two-way binding on native inputs
+
+Importing `@sigx/lynx-runtime` installs the `model` directive processor for Lynx's form elements, so `model={() => state.field}` two-way-binds a `<input>` or `<textarea>` to a signal with no `onChange` plumbing. At JSX-creation time the processor rewrites the element's props to (1) set the initial `value` from the bound state — the field **displays** the current value, so it prefills — and (2) install a `bindinput` handler that pushes each edit back into state.
+
+```tsx
+import '@sigx/lynx-runtime';
+import { component } from '@sigx/lynx';
+
+const Form = component(({ signal }) => {
+  const state = signal({ name: 'Ada' }); // prefills the field with "Ada"
+
+  return () => (
+    <view>
+      <input model={() => state.name} />
+      <textarea model={() => state.bio} placeholder="About you" />
+      <text>Hello, {state.name}</text>
+    </view>
+  );
+});
+```
+
+Lynx `<input>`/`<textarea>` fire `bindinput` with the new text on `event.detail.value` (there is no DOM-style `target.value`), which the processor reads for you. Any `bindinput` you also pass is preserved and called after the model write. v1 handles text-style `<input>` and `<textarea>`; the higher-level [daisyUI](/lynx/modules/daisyui/overview) / [HeroUI](/lynx/modules/heroui/overview) form controls (Input, Textarea, Checkbox, Radio, Toggle, Select) wrap this same `model` binding with themed styling.
+
 ## Reacting to measured layout
 
 To read an element's measured size and position reactively, use `useElementLayout`. It returns a layout signal plus a handler you wire onto `bindlayoutchange` (Lynx 3.7+).

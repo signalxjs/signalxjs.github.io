@@ -78,6 +78,18 @@ Grab the editor's [`MarkdownEditorController`](/lynx/modules/markdown/api#markdo
 | `clear()` | Empty the document. |
 | `openFullscreen()` / `closeFullscreen()` / `isFullscreen()` | Fullscreen control — restyles the same element in place, never re-parented. |
 
+## Styling the suggestion popup
+
+The trigger suggestion popup (mentions, etc.) is themed through the optional `suggestionPopup` prop — surface/border/active/text colors, plus `width`/`maxHeight`/`class`. **Every field is optional, and so is the prop itself:** any color you omit auto-tints from the editor's active `textColor`, so a popup reads as light-on-dark or dark-on-light to match the field without you setting anything. (daisyUI wires concrete theme colors through here via `useMarkdownEditorTheme().suggestionPopup`, mirroring how `textColor`/`accentColor` theme the editor body.) Per-row content stays a plugin concern (`trigger.renderItem`).
+
+```tsx
+// Auto-tinted from the dark editor text — no popup colors needed.
+<MarkdownEditor value={draft} onChange={save} textColor="#e5e7eb" plugins={[mention]} />
+
+// Or set only the fields you care about; the rest still auto-tint.
+<MarkdownEditor value={draft} onChange={save} suggestionPopup={{ width: 280 }} plugins={[mention]} />
+```
+
 ## Native setup & gotchas
 
 These apply only to the editor subpath — the renderer needs none of them.
@@ -97,6 +109,7 @@ These apply only to the editor subpath — the renderer needs none of them.
 | `mode` | `MarkdownEditorMode` | Editor mode. |
 | `toolbar` | `boolean` | Mount the built-in `EditorToolbar`. |
 | `plugins` | `MarkdownEditorPlugin[]` | Trigger/inline plugins (e.g. mentions). |
+| `suggestionPopup` | `SuggestionPopupStyle` | Optional. Style the trigger suggestion popup; omitted colors auto-tint from `textColor`. |
 | `controllerRef` | `(c: MarkdownEditorController) => void` | Receives the imperative controller. |
 
 See the [API reference](/lynx/modules/markdown/api#markdowneditorprops) for the full prop list and the editor-subpath exports (`mdToDoc`, `docToMd`, plugin contract types).

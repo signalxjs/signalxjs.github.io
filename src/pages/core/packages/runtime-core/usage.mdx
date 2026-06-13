@@ -200,13 +200,13 @@ const Dashboard = component(() => {
 // onMouseEnter={() => HeavyChart.preload()}
 ```
 
-For ad-hoc async data inside a single component, reach for `useAsync`, which returns a reactive `{ value, loading, error }` state and re-runs the render as the state changes.
+For async data inside a component, reach for `useAsync`, which returns a reactive `{ value, loading, error, refresh }` state and re-runs the render as the state changes. The fetcher receives an `AbortSignal`.
 
 ```tsx
 import { component, useAsync } from '@sigx/runtime-core';
 
 const Editor = component(() => {
-  const libs = useAsync(async () => ({
+  const libs = useAsync(async ({ signal }) => ({
     EditorView: (await import('@codemirror/view')).EditorView,
   }));
 
@@ -217,6 +217,8 @@ const Editor = component(() => {
   };
 });
 ```
+
+Pass an explicit **key** as the first argument to make the call SSR-transferable: it runs during SSR, serializes its value under the key, restores on hydration without refetching, and dedupes across components sharing the key. `useStream(key, source)` is the companion for progressive text (LLM-token streaming). See the [Data Loading](/core/docs/data-loading) guide for the full story.
 
 ## Handling errors
 

@@ -38,6 +38,7 @@ export default defineSSGConfig({
 - `defaultLayout` is `default`, `outDir` is `dist`, `base` is `/`.
 - `prefetch` and `spaNavigation` are enabled, `site.lang` is `en`.
 - `markdown.shiki` is on; `toc` uses `minLevel: 2`, `maxLevel: 3`.
+- `linkCheck` is `'warn'`; `search` is off.
 - `trailingSlash` is `'always'` — derived public URLs (canonical, `og:url`, sitemap `<loc>`) end with `/` for folder routes, matching the `<path>/index.html` output that static hosts serve with 200. Set `'never'` only when your host serves the slash-less URL directly.
 
 `base` works in both directions: when not set, SSG inherits Vite's `base`; when set in `ssg.config.ts`, it is passed to the production Vite builds, so the sitemap, canonical URLs, router, and asset URLs all stay in sync for sub-path deploys.
@@ -46,13 +47,17 @@ The `markdown.*` and `toc.*` options apply whether you set them in `ssg.config.t
 
 Other notable options:
 
-- `spaNavigation` (default `true`) — internal anchor clicks (including plain markdown links in MDX) navigate through the router instead of full page reloads. Opt out per link with a `data-no-spa` attribute, or globally with `spaNavigation: false`.
-- `sitemap` — `SitemapOptions` (`exclude`, `additionalUrls`, `defaultChangefreq`, `defaultPriority`), or `false` to skip sitemap.xml/robots.txt entirely. Pages with `robots: noindex` and the `/404` page are excluded automatically, frontmatter `date` becomes `<lastmod>`, and a `public/robots.txt` you ship is never overwritten.
+- `spaNavigation` (default `true`) — internal anchor clicks (including plain markdown links in MDX) navigate through the router instead of full page reloads. Opt out per link with a `data-no-spa` attribute, or globally with `spaNavigation: false`. See [SPA navigation](#spa-navigation).
+- `sitemap` — `SitemapOptions`, or `false` to skip sitemap.xml/robots.txt entirely. See [Sitemap and robots.txt](#sitemap-and-robotstxt).
+- `redirects` — a `{ '/old': '/new/' }` map of static redirects. See [Redirects](#redirects).
+- `search` — `true` (or `SearchOptions`) to emit a `search-index.json` over the rendered pages. See [Built-in search](#built-in-search).
+- `linkCheck` — `'warn'` (default), `'error'`, or `'off'` for internal link & anchor validation. See [Link checking](#link-checking).
+- `routes` — a function that returns programmatic routes merged with the filesystem scan. See [Programmatic routes](#programmatic-routes).
+- `data` — build-time data loaders exposed via `virtual:ssg-data`. See [Build-time data loaders](#build-time-data-loaders).
+- `hooks` — build pipeline hooks. See [Build hooks](#build-hooks).
 - `clientEntry` / `serverEntry` / `htmlTemplate` — explicit entry/template paths that win over convention detection (`htmlTemplate: false` forces the generated template). A configured path that doesn't exist fails the build.
-- `navigation.sectionOrder` — per-category sort order for auto-generated sidebars, merged over the built-in defaults.
-- `clientImports` — side-effect imports added to the generated client entry; the usual home for `'@sigx/ssg/styles.css'`, the base stylesheet for ssg-emitted markup (code windows, package-manager tabs, heading anchors, dual-theme Shiki).
-
-The previously documented `vite`, `autoEntries`, and `ThemeConfig.css` options were never functional and have been removed.
+- `navigation.sectionOrder` — sidebar category order. See [Sidebar order](#sidebar-order).
+- `clientImports` — side-effect imports added to the generated client entry; the usual home for `'@sigx/ssg/styles.css'`, the base stylesheet for ssg-emitted markup (code windows, package-manager tabs, heading anchors, dual-theme Shiki). See [The base stylesheet](#the-base-stylesheet).
 
 ## File-based routing
 
@@ -124,7 +129,9 @@ A page selects its layout, in order of precedence, via:
 3. The collection config.
 4. The config `defaultLayout` (defaults to `default`).
 
-Themes bundle layouts, components, and CSS in a package referenced by the config `theme` field. A theme's exported `config` can also contribute markdown plugins, head tags, CSS imports, and a default layout — your own config always wins. Layouts receive the whole site config as `props.site` (including the `site.nav`, `site.logo`, and `site.repo` branding fields), so themes render your branding instead of hardcoding their own.
+Themes bundle layouts, components, and CSS in a package referenced by the config `theme` field. A theme's exported `config` can also contribute markdown plugins, head tags, CSS imports, build hooks, and a default layout — your own config always wins. Layouts receive the whole site config as `props.site` (including the `site.nav`, `site.logo`, and `site.repo` branding fields), so themes render your branding instead of hardcoding their own. See [Themes](/ssg/docs/themes) for authoring and consuming a theme, and the prebuilt `@sigx/ssg-theme-daisyui`.
+
+Layouts also receive the current page's `meta` as `props.meta` and the route `path` as `props.path`, so they can render edit-this-page links, last-updated stamps, and breadcrumbs (see [Per-page metadata](#per-page-metadata)).
 
 ## MDX and Markdown
 
@@ -149,7 +156,35 @@ Defaults that apply to content pages:
 - **GFM**, `rehype-slug`, and autolinked headings are enabled.
 - **Table of contents** headings are extracted between `toc.minLevel` (2) and `toc.maxLevel` (3).
 
-Navigation-related frontmatter fields come from `PageMeta`: `category` (a string, or an array for nesting), `order`, `sidebar`, `draft`, `toc`, and `ssr`.
+Navigation-related frontmatter fields come from `PageMeta`: `category` (a string, or an array for nesting), `order`, `sidebar`, `draft`, `toc`, and `ssr`. SEO and per-page chrome fields are documented under [Per-page metadata](#per-page-metadata).
+
+### Code highlighting and Shiki
+
+Set `markdown.shiki` to a `ShikiConfig` to tune highlighting:
+
+```ts
+import { defineSSGConfig } from '@sigx/ssg';
+import { transformerNotationDiff } from '@shikijs/transformers';
+
+export default defineSSGConfig({
+    markdown: {
+        shiki: {
+            light: 'github-light',
+            dark: 'github-dark',
+            langs: ['ts', 'bash'],
+            transformers: [transformerNotationDiff()],
+            skipLanguages: ['mermaid', 'math'],
+        },
+    },
+});
+```
+
+- `transformers` — Shiki transformers applied to every highlighted block (including each package-manager variant). The raw fence meta is exposed to transformers as `options.meta.__raw`, so the `@shikijs/transformers` meta-driven features (line highlighting `{1,3-5}`, diff, focus, word highlight) work without any core changes.
+- `skipLanguages` — fence languages the highlighter leaves untouched, so the raw `<pre><code class="language-…">` survives in the output for a later rehype plugin or island to claim — e.g. `['mermaid', 'math']`.
+
+### Package-manager code fences
+
+A shell fence whose lines are `npm`/`pnpm`/`yarn`/`bun` commands (install/add, run, dlx, create, remove, …) is rendered with an npm/pnpm/yarn/bun tab strip and all four variants pre-rendered server-side. The client switcher (from `@sigx/ssg/client`) only flips which variant is visible — it never rewrites highlighted text. `shiki.defaultPackageManager` (default `'pnpm'`) chooses which variant shows first; a visitor's saved choice overrides it. See [Client runtime → Package-manager switcher](/ssg/docs/client-runtime#package-manager-switcher) for the programmatic API.
 
 ### Draft pages
 
@@ -256,25 +291,30 @@ if (!isStaticPage()) {
 
 ## Build hooks
 
-Three hooks in `ssg.config.ts` extend the production build — the slots for search indexing, OG-image generation, link checking, redirects:
+Three `hooks` in `ssg.config.ts` extend the production build (they run on builds only, not the dev server) — the slots for feeds, custom indexing, HTML post-processing, and other build-time side effects:
 
 ```ts
 export default defineSSGConfig({
     hooks: {
         transformHtml(html, page) {
-            return html.replace('</head>', () => '<meta name="generator" content="@sigx/ssg"></head>');
+            // page: { path, params, props?, meta?, route }
+            return html.replace('</head>', '<meta name="generator" content="@sigx/ssg"></head>');
         },
         onPageRendered(page) {
-            // page is the build result entry plus the final html
+            // page is the build-result entry plus the final html: { path, file, time, size, meta?, html }
         },
         async postBuild(result, ctx) {
-            // everything is on disk; result.pages lists every page with meta
+            // result.pages lists every written page; ctx is { outDir, config }
         },
     },
 });
 ```
 
-The per-page hooks run concurrently and in no guaranteed order; `postBuild` runs exactly once. A hook that throws fails the build.
+- `transformHtml(html, page)` runs per page after head tags and app HTML are injected, returning the HTML to write.
+- `onPageRendered(page)` observes each page after it is written (the build-result entry plus its `html`).
+- `postBuild(result, ctx)` runs exactly once after every page is written and the sitemap is generated; `ctx` is `{ outDir, config }`.
+
+The per-page hooks run concurrently and in no guaranteed order, so avoid unsynchronized shared state beyond append-only collection. A hook that throws fails the build. A theme can contribute its own hooks; the theme's run first, then yours (`transformHtml` chains the output through both).
 
 ## Sitemap and robots.txt
 
@@ -292,9 +332,157 @@ const xml = generateSitemap(
 const robots = generateRobotsTxt(config);
 ```
 
-Entries are prefixed with `site.url` + `base`, and folder-route paths are normalized per the `trailingSlash` policy (default `'always'`: `/about` → `https://example.com/about/`), byte-identical with the canonical and `og:url` emitted in each page's head. The same normalization is exported as `normalizePagePath(path, trailingSlash?)`. When mapping built pages, priority is derived from depth (`/` = 1.0, depth 1 = 0.8, depth 2 = 0.6, otherwise the default 0.5) and the default change frequency is `weekly`.
+Entries are prefixed with `site.url` + `base`, and folder-route paths are normalized per the `trailingSlash` policy (default `'always'`: `/about` → `https://example.com/about/`), byte-identical with the canonical and `og:url` emitted in each page's head. The same normalization is exported as `normalizePagePath(path, trailingSlash?)`. When mapping built pages, priority is derived from depth (`/` = 1.0, depth 1 = 0.8, depth 2 = 0.6, otherwise the default 0.5) and the default change frequency is `weekly`. Pages with `robots: noindex` and the `/404` page are excluded automatically, and a `public/robots.txt` you ship is never overwritten.
+
+`SitemapOptions` carries `exclude` (glob/exact path matches), `additionalUrls`, `defaultChangefreq`, and `defaultPriority`. Freshness has three layers, applied in order — the later wins:
+
+```ts
+export default defineSSGConfig({
+    sitemap: {
+        exclude: ['/draft/**'],
+        lastmod: 'git', // 'git' | 'mtime' | false (default)
+        transform(entry, page) {
+            // adjust an entry, or return null/undefined to drop it
+            return entry;
+        },
+    },
+});
+```
+
+- `sitemap.lastmod` — derive `<lastmod>` per page from the source file. `'git'` uses each file's last commit date (one repo-wide `git log` walk — needs full history, so set `fetch-depth: 0` in CI); `'mtime'` uses the filesystem timestamp. Default `false`.
+- Per-page frontmatter `lastmod`, `changefreq`, and `priority` override the derived/default values for that page (an explicit `lastmod` always wins over the `git`/`mtime` derivation).
+- `sitemap.transform(entry, page)` runs last as a per-entry escape hatch — adjust the entry, or return `null`/`undefined` to drop it.
+
+## Redirects
+
+A `redirects` map points old paths at new ones:
+
+```ts
+export default defineSSGConfig({
+    redirects: {
+        '/old-guide': '/docs/guide/',
+        '/legacy': 'https://example.org/elsewhere',
+    },
+});
+```
+
+For each entry the build emits, at the old path, a static page with `<meta http-equiv="refresh">`, a canonical pointing at the target, `noindex`, and a fallback link — so the redirect works on any static host. It also writes a `_redirects` file (Netlify / Cloudflare Pages format) so hosts that support it answer with a real `301` before HTML is involved. Relative targets are prefixed with `base`; absolute URLs pass through untouched. A redirect whose source would overwrite a rendered page fails the build, and a `_redirects` file you ship via `public/` is appended to (your hand-written rules stay first, so they keep precedence).
+
+## Built-in search
+
+Set `search: true` to emit a `search-index.json` over the rendered pages at build time — one entry per page with its title, description, headings, tags, and visible text (`noindex` pages and the 404 page are excluded, like the sitemap):
+
+```ts
+export default defineSSGConfig({
+    search: true,
+    // or tune it:
+    // search: { output: 'search-index.json', maxTextLength: 8000 },
+});
+```
+
+Consume the index on the client with `loadSearchIndex()` and `searchPages()` from `@sigx/ssg/client` — see [Client runtime → Search](/ssg/docs/client-runtime#search). To surface a theme's search UI (such as the daisyUI theme's ⌘K command palette), also set `site.search: true`; it reaches layouts via `LayoutProps.site`. Pair it with the top-level `search: true` so the index actually exists.
+
+## Link checking
+
+After rendering, every internal `<a href>` is validated: the path must resolve to an emitted page (or a redirect source, or an on-disk asset in `public/`), and any `#fragment` must match an element id on the target page. `linkCheck` controls the outcome:
+
+```ts
+export default defineSSGConfig({
+    linkCheck: 'warn', // 'warn' (default) | 'error' | 'off'
+});
+```
+
+`'warn'` reports findings, `'error'` fails the build (use it in CI), `'off'` disables the check. External, protocol-relative, and `mailto:`/`tel:` links are skipped. The same logic is exported as `checkLinks` / `formatLinkCheckReport` for programmatic use.
+
+## Programmatic routes
+
+`routes` adds pages that don't come from the filesystem scan — CMS-backed pages, tag archives, generated indexes. It returns an array (or a promise) of routes, each pointing at a component file, and is merged with the scanned routes everywhere (dev, build, navigation):
+
+```ts
+export default defineSSGConfig({
+    routes: (ctx) => [
+        { path: '/tags/sigx', file: './src/templates/tag.tsx', meta: { title: 'sigx' } },
+        { path: '/changelog', file: './src/templates/changelog.tsx' },
+    ],
+});
+```
+
+Each route has a `path` (concrete or with `:params`), a `file` (absolute or relative to the project root), and optional `layout` and `meta`. A path collision with a scanned page, or a missing `file`, fails the build.
+
+## Build-time data loaders
+
+`data` runs a set of loaders once per build (shared across the client and SSR builds) and once per dev-server start, exposing the results through the `virtual:ssg-data` module:
+
+```ts
+export default defineSSGConfig({
+    data: {
+        versions: async () => fetch('https://registry.npmjs.org/sigx').then((r) => r.json()),
+    },
+});
+```
+
+```tsx
+import data from 'virtual:ssg-data';
+
+console.log(data.versions);
+```
+
+The module also emits one named export per key (`import { versions } from 'virtual:ssg-data'`) plus the default object. Each key must be a valid identifier (it becomes an export name), and each value must be JSON-serializable — values are baked into the bundle for both the server render and the client, so a loader that returns `undefined`, a function, or a non-serializable value fails the build. To type named imports, augment `virtual:ssg-data` in your project.
+
+## Sidebar order
+
+`navigation.sectionOrder` sets the order of categories in an auto-generated sidebar — either a name → weight map (lower first, merged over the built-in defaults) or an explicit list (listed categories come first in list order; unlisted ones follow the defaults):
+
+```ts
+export default defineSSGConfig({
+    navigation: {
+        sectionOrder: ['Getting Started', 'Guides', 'API Reference'],
+    },
+    collections: {
+        // a collection can override the site-wide order with its own
+        blog: { path: '/blog', sectionOrder: { Featured: 0, Archive: 10 } },
+    },
+});
+```
+
+A collection's own `sectionOrder` wins over the site-wide one for that collection.
+
+## SPA navigation
+
+By default (`spaNavigation: true`) same-origin internal anchor clicks — including the plain `<a>` elements that MDX content links compile to — are routed through the client router instead of triggering a full page reload. The browser keeps handling modified clicks, external/`mailto:` links, `target`/`download` anchors, same-document `#hash` scrolls, and anything that already called `preventDefault()`. Opt out per element (or any ancestor container) with a `data-no-spa` attribute, or globally with `spaNavigation: false`. The generated client entry wires this automatically; in a custom entry call `installSpaNavigation(router, { base })` from `@sigx/ssg/client`.
+
+## Per-page metadata
+
+Beyond navigation, `PageMeta` (frontmatter or an exported `meta`) carries SEO and page-chrome fields the layout/theme can render:
+
+- `robots`, `canonical`, `keywords`, `jsonLd`, and extra `head` tags feed the page's head.
+- `lastmod`, `changefreq`, and `priority` override sitemap values for the page (see [Sitemap](#sitemap-and-robotstxt)).
+- `sourceFile` (the page's root-relative source path, embedded automatically) combines with `site.editBase` to produce an edit-this-page link.
+- Frontmatter `date` becomes the page's `<lastmod>` fallback.
+
+Site-wide page chrome lives on `SiteConfig` and reaches layouts via `LayoutProps.site`:
+
+- `site.editBase` — base URL for edit-this-page links (e.g. `'https://github.com/org/repo/edit/main/'`); the page's `sourceFile` is appended.
+- `site.announcement` — `{ text, href?, id? }` rendered by the theme above the header. Change `id` to re-show an announcement a visitor dismissed.
+- `site.jsonLd`, `site.head`, `site.nav`, `site.logo`, `site.repo` — global structured data, head tags, and branding.
+
+When no `/404` page exists, the build still writes a default `404.html`.
+
+## The base stylesheet
+
+`@sigx/ssg` emits markup with its own class names — code-window chrome, the package-manager tab strip, heading anchors, copy-code buttons, and dual-theme Shiki output. Import the base stylesheet so that markup is styled, usually via `clientImports`:
+
+```ts
+export default defineSSGConfig({
+    clientImports: ['@sigx/ssg/styles.css'],
+});
+```
+
+A theme that styles this markup itself contributes the import through its `config.css`, so you don't add it twice.
 
 ## Next steps
 
+- [Client runtime](/ssg/docs/client-runtime) — the package-manager switcher, search, copy-code, prefetch, and SPA navigation helpers.
+- [Themes](/ssg/docs/themes) — authoring and consuming themes, and the prebuilt daisyUI theme.
 - [Commands](/ssg/docs/commands) — every `sigx ssg` command with its flags.
 - [API Reference](/ssg/docs/api) — the full list of public exports.

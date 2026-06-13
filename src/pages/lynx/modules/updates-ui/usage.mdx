@@ -8,16 +8,73 @@ order: 30
 
 # Using OTA Update UI
 
-<p class="lede">Prebuilt OTA update UI — the essentials.</p>
+<p class="lede">Four drop-in components cover the whole update lifecycle: a blocking gate for mandatory updates, a prompt modal for optional ones, an inline download-progress row, and a "restart to update" banner — all reading the reactive <code>useUpdates()</code> state, so there's nothing to wire up beyond <code>defineUpdates()</code>.</p>
 
-## Basic usage
+`@sigx/lynx-updates-ui` is the drop-in companion to the headless [`@sigx/lynx-updates`](/lynx/modules/updates/overview) package. The components are built from [`@sigx/lynx-daisyui`](/lynx/modules/daisyui/overview) building blocks (Modal, Progress, Button, Alert), so everything follows your daisy theme.
+
+## Quick start
+
+Configure updates once with `defineUpdates()`, then drop the components into your tree. `UpdateGate` wraps your app; `UpdatePrompt` and `UpdateReadyBanner` live anywhere inside it.
 
 ```tsx
-import * as OTAUpdateUI from '@sigx/lynx-updates-ui';
+import { component } from '@sigx/lynx';
+import { defineUpdates } from '@sigx/lynx-updates';
+import { UpdateGate, UpdatePrompt, UpdateReadyBanner } from '@sigx/lynx-updates-ui';
+
+defineUpdates({
+  provider: { url: 'https://updates.example.com/manifest.json' },
+  mode: 'manual',
+});
+
+const App = component(() => () => (
+  <UpdateGate description="A required update is being installed.">
+    {/* your app */}
+    <Screens />
+
+    {/* optional updates: ask, then restart or wait for next launch */}
+    <UpdatePrompt applyOn="next-launch" />
+    <UpdateReadyBanner />
+  </UpdateGate>
+));
 ```
 
-{/* TODO: author real guide content for @sigx/lynx-updates-ui */}
+## How the components divide the work
+
+The three coexist without overlap because each handles a different slice of the update state:
+
+- [`<UpdateGate>`](/lynx/modules/updates-ui/components/updategate) blocks only for **mandatory** updates (`state.mandatory === true`).
+- [`<UpdatePrompt>`](/lynx/modules/updates-ui/components/updateprompt) and [`<UpdateReadyBanner>`](/lynx/modules/updates-ui/components/updatereadybanner) only ever show for **non-mandatory** updates.
+- [`<UpdateProgress>`](/lynx/modules/updates-ui/components/updateprogress) is a standalone inline bar you place wherever you want to surface download progress.
+
+## A typical optional-update flow
+
+In a `'manual'` mode app, the prompt + banner pair gives users full control:
+
+1. An optional update becomes available → `<UpdatePrompt>` appears. **Update** downloads it; **Later** suppresses re-prompts for that update id (persisted).
+2. With `applyOn="next-launch"` (the default), the download stages and `<UpdateReadyBanner>` appears once it's ready. **Restart** applies immediately (in-place reload); **Later** keeps the staged update for the next cold launch.
+3. With `applyOn="restart"`, the prompt applies immediately after download instead.
+
+## Dismissals
+
+"Later" on `<UpdatePrompt>` persists across launches via `@sigx/lynx-storage` (key `__sigx_updates_dismissed:<id>`), so the same update is never re-offered. You can read or set this yourself:
+
+```ts
+import { isDismissed, dismiss } from '@sigx/lynx-updates-ui';
+
+if (!(await isDismissed(manifest.id))) showCustomPrompt();
+await dismiss(manifest.id); // suppress future prompts for it
+```
+
+On web preview and in tests (no native Storage module) dismissals degrade to session-only suppression — still correct, just not persisted.
 
 ## Notes
 
-Drop-in update gate, prompt modal, download progress and restart banner over @sigx/lynx-updates.
+- Requires [`@sigx/lynx-updates`](/lynx/modules/updates/overview) (configured via `defineUpdates()`) and [`@sigx/lynx-daisyui`](/lynx/modules/daisyui/overview) (with its styles in your CSS pipeline).
+- `@sigx/lynx-storage` is installed with this package and linked automatically at prebuild — there's nothing to set up for "Later" persistence.
+- Every component reads the reactive `useUpdates()` state, so they react to the headless package's state machine automatically.
+
+## See also
+
+- [Components](/lynx/modules/updates-ui/components) — the full catalog.
+- [API reference](/lynx/modules/updates-ui/api) — props, slots, and the dismissal helpers.
+- [OTA Updates](/lynx/modules/updates/overview) — the headless package these components sit on.

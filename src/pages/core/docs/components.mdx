@@ -27,6 +27,8 @@ render(<Greeting />, "#sandbox");
 
 The function passed to `component` is the **setup function**. It runs once when the component is created and returns a **render function**.
 
+> **Setup runs untracked.** `setup()` — and the `created`/`mounted` hooks that run during mounting — execute without dependency tracking. Reactive reads in a child's setup do **not** become dependencies of an ancestor's render effect, so they can't trigger spurious ancestor re-renders. Component reactivity belongs to the per-component render function and to explicit `watch`/`computed` scopes (which create their own subscriptions). Put reactive reads you want tracked inside the returned render function, a `watch`, or a `computed` — not bare in `setup()`.
+
 ## Setup Context
 
 The setup function receives a context object with everything you need:

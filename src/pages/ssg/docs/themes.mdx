@@ -1,0 +1,131 @@
+---
+title: Themes
+description: "Author and consume @sigx/ssg themes, and the prebuilt @sigx/ssg-theme-daisyui"
+layout: docs
+category: Guides
+order: 60
+---
+
+# Themes
+
+A theme is an npm package that bundles layouts, components, and configuration so a site can adopt a polished look without hand-rolling its shell. Reference one through the config `theme` field:
+
+```ts
+import { defineSSGConfig } from '@sigx/ssg';
+
+export default defineSSGConfig({
+    theme: '@sigx/ssg-theme-daisyui',
+});
+```
+
+The build and dev server load the theme automatically and merge its contributions; your own config always wins.
+
+## Consuming a theme
+
+A theme package exports three things, all optional:
+
+- **`layouts`** — a `Record<string, Layout>` keyed by name. A page selects one via frontmatter `layout:`, the collection config, or the config `defaultLayout`. The theme's `config.defaultLayout` is used only when your config doesn't set one.
+- **`components`** — a `Record<string, Component>` the theme's layouts use (header, sidebar, table of contents, …). You can import and reuse these in your own layouts.
+- **`config`** — a `ThemeConfig` of build-time contributions, merged so your site's config wins.
+
+Layouts receive the whole site config as `props.site`, so a theme renders *your* branding — `site.title`, `site.nav`, `site.logo`, `site.repo`, `site.announcement`, `site.editBase`, and the `site.search` flag — instead of hardcoding its own. Set those fields and the theme reflects them.
+
+## Authoring a theme
+
+Export `layouts`, `components`, and `config` from the package entry. The shapes are `ThemeModule` and `ThemeConfig`:
+
+```ts
+import type { ThemeConfig } from '@sigx/ssg';
+import DefaultLayout from './layouts/default.js';
+import DocsLayout from './layouts/docs.js';
+
+export const layouts = {
+    default: DefaultLayout,
+    docs: DocsLayout,
+};
+
+export const components = {
+    /* Header, Sidebar, TOC, … */
+};
+
+export const config: ThemeConfig = {
+    defaultLayout: 'default',
+    css: ['@my/theme/styles.css'],
+    head: [{ tag: 'script', children: '/* no-FOUC theme init */' }],
+    markdown: { rehypePlugins: [/* … */] },
+    hooks: { /* transformHtml, onPageRendered, postBuild */ },
+};
+
+export default { layouts, components, config };
+```
+
+How each `config` field merges (the site's own config always wins):
+
+- **`defaultLayout`** — used only when the site doesn't set its own.
+- **`css`** — import specifiers, prepended to the site's `clientImports` (so the theme ships its own stylesheet without the site adding it manually).
+- **`head`** — `HeadTag[]` prepended to `site.head` (the slot for a no-FOUC theme-init script, font preloads, …).
+- **`markdown`** — `remarkPlugins` / `rehypePlugins` that run *before* the site's own markdown plugins.
+- **`hooks`** — build hooks composed with the site's: the theme's run first, then the site's (`transformHtml` chains the output through both).
+
+A theme layout is an ordinary `@sigx/ssg` layout — a component that renders `slots.default()` and reads `props.meta`, `props.path`, and `props.site`. See [Configuration → Layouts](/ssg/docs/configuration#layouts).
+
+## @sigx/ssg-theme-daisyui
+
+`@sigx/ssg-theme-daisyui` is the recommended prebuilt theme — a drop-in docs/blog shell built on [daisyUI](https://daisyui.com/) and Tailwind. The SignalX docs site you are reading keeps its own custom layouts, so this is presented as an option, not a requirement.
+
+### Install
+
+```bash
+npm install @sigx/ssg-theme-daisyui daisyui tailwindcss
+```
+
+It declares `@sigx/ssg`, `@sigx/router`, `sigx`, `daisyui@>=5.0.0`, and `tailwindcss@>=4.0.0` as peer dependencies. With daisyUI v5 and Tailwind v4, the theme's styling is wired through the `@plugin` directive in your own CSS file rather than a CSS export, so add daisyUI to your Tailwind setup as usual.
+
+### Use it
+
+```ts
+import { defineSSGConfig } from '@sigx/ssg';
+
+export default defineSSGConfig({
+    theme: '@sigx/ssg-theme-daisyui',
+    search: true, // emit the index the command palette searches
+    site: {
+        title: 'My Docs',
+        repo: 'https://github.com/me/my-docs',
+        editBase: 'https://github.com/me/my-docs/edit/main/',
+        announcement: { text: 'v1 is out!', href: '/blog/v1', id: 'v1' },
+        search: true, // show the ⌘K palette
+    },
+});
+```
+
+### Layouts
+
+The package exports three layouts:
+
+- **`default`** — a header + content + footer shell for general pages.
+- **`docs`** — a documentation layout with an announcement bar, header (with the search palette), a collapsible sidebar, breadcrumbs, a table of contents, previous/next links, and a page footer with edit-this-page and last-updated.
+- **`blog`** — a layout for long-form posts.
+
+Select one per page via frontmatter `layout:`, or per collection via the collection config; `default` is the theme's default layout.
+
+### Components
+
+The theme also exports the components its layouts compose, so you can reuse them in your own layouts:
+
+- **`Header`** — site branding, nav, theme toggle, and (when `site.search` is set) the ⌘K search trigger.
+- **`Sidebar`** — auto-generated from `virtual:ssg-navigation` (or explicit `items` / `sections`), collapsible, with a `collection` override.
+- **`TOC`** — a table of contents built from the rendered headings; honors per-page `meta.toc` min/max levels (falling back to its `minLevel` / `maxLevel` props, defaults 2–3).
+- **`CommandPalette`** — the ⌘K / Ctrl+K palette over the built-in search index.
+- **`PrevNext`** — previous / next links within the collection.
+- **`Breadcrumbs`**, **`AnnouncementBar`**, **`PageFooter`** — the page-chrome pieces (`PageFooter` renders edit-this-page and last-updated from `site.editBase` + `meta.sourceFile` and `meta.lastmod` / frontmatter `updated`).
+
+### Light/dark and theming
+
+The theme contributes a no-FOUC init script (via `config.head`) that applies the persisted or OS color scheme before first paint; the `Header` toggle reads and writes the same storage key. Every daisyUI theme is available — configure them through your Tailwind/daisyUI setup as usual.
+
+## Next steps
+
+- [Configuration & Content](/ssg/docs/configuration) — layouts, collections, and the `theme` / `site` config.
+- [Client Runtime](/ssg/docs/client-runtime) — the search and switcher behaviors a theme wires for you.
+- [API Reference](/ssg/docs/api) — `ThemeModule`, `ThemeConfig`, `LayoutProps`, and theme-loading helpers.

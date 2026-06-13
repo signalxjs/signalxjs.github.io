@@ -20,11 +20,12 @@ import { PrereqCallout } from '@/components/PrereqCallout';
 - **File-based routing** — files in `src/pages` become routes (`index.tsx` to `/`, `blog/[slug].tsx` to `/blog/:slug`, and so on).
 - **MDX and Markdown** — author content with frontmatter, Shiki syntax highlighting, GFM, and automatic heading slugs.
 - **Collections and navigation** — group content under a path prefix and get a sidebar generated from your frontmatter.
-- **Layouts and themes** — wrap pages in shared shells, or pull a full theme from a package.
+- **Layouts and themes** — wrap pages in shared shells, or pull a full theme from a package (such as [`@sigx/ssg-theme-daisyui`](/ssg/docs/themes)).
 - **Island hydration** — ship static HTML and hydrate only what needs to be interactive.
 - **Build, dev, and preview** — a zero-config dev server, a static production build, sitemap and robots.txt generation.
+- **Built for content sites** — built-in search, an npm/pnpm/yarn/bun code-fence switcher, copy-code buttons, redirects, link checking, and SPA navigation all ship in the box.
 
-The current package version is `0.4.8`.
+The current package version is `0.11.0`.
 
 ## Install
 
@@ -104,5 +105,7 @@ The dev server defaults to port 5173, preview to 4173. The build renders every r
 
 - [Installation](/ssg/docs/installation) — install command, peer deps, and the required config / Vite wiring.
 - [Configuration & Content](/ssg/docs/configuration) — routing, layouts, collections, MDX, and the full config surface.
+- [Client Runtime](/ssg/docs/client-runtime) — search, the package-manager switcher, copy-code, and SPA navigation.
+- [Themes](/ssg/docs/themes) — authoring and consuming themes, and the prebuilt daisyUI theme.
 - [Commands](/ssg/docs/commands) — every `sigx ssg` command with usage and flags.
 - [API Reference](/ssg/docs/api) — every public export with its signature.
