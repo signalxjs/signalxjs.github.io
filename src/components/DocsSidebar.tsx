@@ -35,6 +35,8 @@ const CATALOG_LABEL: Record<ModuleParent, string> = {
  * runtime/runtime-main, icons/icons-*) — so the SSG groups the longer sibling's
  * pages into the shorter module's collection nav. Prune to the active module's
  * exact route prefix so its sidebar shows only its own pages.
+ * Workaround for signalxjs/ssg#143 (remove once collection assignment is
+ * longest-match / segment-boundary aware upstream).
  */
 function pruneToPrefix(items: NavItem[], prefix: string): NavItem[] {
     const out: NavItem[] = [];

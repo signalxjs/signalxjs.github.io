@@ -62,6 +62,7 @@ export function firstModuleDocHref(m: SigxModule): string | undefined {
     // The SSG nav for the shorter collection can surface the longer sibling's
     // pages, so only accept a leaf that lives under THIS module's exact route
     // prefix; fall back to the module's own overview page if none matches.
+    // Workaround for signalxjs/ssg#143 (over-broad collection assignment).
     const prefix = `${moduleRoutePrefix(m)}/`;
     for (const section of (nav.sidebar ?? []) as NavSection[]) {
         const href = firstLeaf(section.items, prefix);
