@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "OTA Updates — OTA bundle updates"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-updates` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-updates
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as OTAUpdates from '@sigx/lynx-updates';
+
+console.log(Object.keys(OTAUpdates));
+```

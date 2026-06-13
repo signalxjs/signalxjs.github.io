@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "OTA Update UI — Prebuilt OTA update UI"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-updates-ui` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-updates-ui
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as OTAUpdateUI from '@sigx/lynx-updates-ui';
+
+console.log(Object.keys(OTAUpdateUI));
+```
