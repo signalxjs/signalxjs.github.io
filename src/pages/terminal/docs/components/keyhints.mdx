@@ -1,0 +1,62 @@
+---
+title: "KeyHints"
+description: "A single-line key-shortcut footer"
+layout: docs
+category: ["Components", "Navigation"]
+order: 132
+---
+
+# KeyHints
+
+<p class="lede">A one-line shortcut footer — accent keys, dim labels, faint separators, e.g. <code>r reload · d devices · q quit</code>. Deliberately lighter than <a href="/terminal/docs/components/statusbar">StatusBar</a>: no chips, no fill.</p>
+
+## Import
+
+```tsx
+import { KeyHints } from '@sigx/terminal';
+import type { KeyHint } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, KeyHints } from '@sigx/terminal';
+import type { KeyHint } from '@sigx/terminal';
+
+const hints: KeyHint[] = [
+    { key: 'r', label: 'reload' },
+    { key: 'd', label: 'devices' },
+    { key: 'q', label: 'quit' },
+];
+
+const App = component(() => {
+    return () => (
+        <box>
+            <KeyHints hints={hints} separator=" · " />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `hints` | `KeyHint[]` | **required** — the shortcuts |
+| `separator` | `string` | between hints |
+
+## KeyHint
+
+```ts
+interface KeyHint {
+    key: string;
+    label: string;
+}
+```
+
+## See also
+
+- [StatusBar](/terminal/docs/components/statusbar) — a heavier chip footer.

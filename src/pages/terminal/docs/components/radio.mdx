@@ -1,0 +1,78 @@
+---
+title: "Radio"
+description: "Single-choice group with every option always visible"
+layout: docs
+category: ["Components", "Forms"]
+order: 115
+---
+
+# Radio
+
+<p class="lede">A single-choice group like <a href="/terminal/docs/components/select">Select</a>, but every option stays visible with a <code>●</code> / <code>○</code> marker. Arrow keys (or <code>j</code>/<code>k</code>) move the selection.</p>
+
+## Import
+
+```tsx
+import { Radio } from '@sigx/terminal';
+import type { RadioOption } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, Radio } from '@sigx/terminal';
+import type { RadioOption } from '@sigx/terminal';
+
+const options: RadioOption[] = [
+    { label: 'Small', value: 's' },
+    { label: 'Medium', value: 'm' },
+    { label: 'Large', value: 'l' },
+];
+
+const App = component(() => {
+    const size = signal('m');
+    return () => (
+        <box border="single" label="Size">
+            <Radio
+                options={options}
+                model={() => size}
+                label="Pick a size"
+                autofocus
+                onChange={(v) => console.log('size:', v)}
+            />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `options` | `RadioOption[]` | **required** — the choices |
+| `model` | `Model<string>` | two-way bound selected value |
+| `label` | `string` | caption above the group |
+| `autofocus` | `boolean` | grab focus on mount |
+
+## Events
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `change` | `string` | selection moves |
+
+## RadioOption
+
+```ts
+interface RadioOption<T = string> {
+    label: string;
+    value: T;
+}
+```
+
+## See also
+
+- [Select](/terminal/docs/components/select) — a scrolling single-choice menu.
+- [MultiSelect](/terminal/docs/components/multiselect) — choose several.

@@ -1,0 +1,171 @@
+---
+title: Prompts
+description: "Imperative CLI prompts — text, password, select, multiselect, confirm, spinner, and intro/outro/note/cancel"
+layout: docs
+category: Guides
+order: 55
+---
+
+# Prompts
+
+The prompt kit is for **linear CLI wizards** — ask a question, await the answer, ask the next — without building a JSX step machine. Each prompt mounts a one-shot inline UI, resolves on Enter, and collapses into a permanent `◇ message · answer` line, so a finished wizard reads as a tidy transcript in scrollback.
+
+Import the prompts from `@sigx/terminal` (the umbrella re-exports `@sigx/terminal-ui/prompts`). No JSX pragma is needed — these are async functions, not components.
+
+## A wizard
+
+```ts
+import { intro, text, select, confirm, outro, isCancel, cancel } from '@sigx/terminal';
+
+intro('Create a project');
+
+const name = await text({
+    message: 'Project name',
+    placeholder: 'my-app',
+    validate: (v) => (v.length === 0 ? 'Required' : undefined),
+});
+if (isCancel(name)) { cancel('Aborted.'); process.exit(0); }
+
+const template = await select({
+    message: 'Template',
+    options: [
+        { value: 'spa', label: 'Single-page app' },
+        { value: 'ssr', label: 'Server-rendered', description: 'With @sigx/server-renderer' },
+    ],
+});
+if (isCancel(template)) { cancel('Aborted.'); process.exit(0); }
+
+const install = await confirm({ message: 'Install dependencies now?' });
+
+outro('Done — happy hacking!');
+```
+
+## Cancellation
+
+Esc or Ctrl+C resolves a prompt to the `CANCEL` symbol instead of throwing. Test for it with `isCancel(value)`; until you do, the value's type still includes the symbol. This is why prompts set `exitOnCtrlC: false` under the hood — Ctrl+C becomes a graceful cancel, not a process kill.
+
+```ts
+import { text, isCancel } from '@sigx/terminal';
+
+const value = await text({ message: 'Name' });
+if (isCancel(value)) {
+    // user pressed Esc or Ctrl+C
+}
+```
+
+## The prompts
+
+### `text(opts)` → `string | CANCEL`
+
+Single-line text. Enter validates and resolves; editing is end-of-line.
+
+```ts
+await text({
+    message: 'Email',
+    placeholder: 'you@example.com',
+    initialValue: '',
+    validate: (v) => (v.includes('@') ? undefined : 'Enter a valid email'),
+});
+```
+
+`TextOptions`: `message`, `placeholder?`, `initialValue?`, `validate?(value) => string | undefined` (return an error string to reject and keep editing), `mask?` (render every character as this string).
+
+### `password(opts)` → `string | CANCEL`
+
+`text` with masking — same options minus `placeholder`, plus a `mask` defaulting to a dot.
+
+```ts
+await password({ message: 'Password' });
+```
+
+### `select(opts)` → `T | CANCEL`
+
+Single choice. ↑/`k` ↓/`j` move (wrapping), Enter resolves.
+
+```ts
+await select({
+    message: 'Environment',
+    options: [
+        { value: 'dev', label: 'Development' },
+        { value: 'prod', label: 'Production', description: 'Live' },
+    ],
+    initialValue: 'dev',
+});
+```
+
+`SelectOptions<T>`: `message`, `options: PromptOption<T>[]`, `initialValue?`. A `PromptOption<T>` is `{ value, label?, description?, group? }` (`label` defaults to `String(value)`).
+
+### `multiselect(opts)` → `T[] | CANCEL`
+
+Multiple choice. ↑/`k` ↓/`j` move, Space toggles, `a` toggles all, Enter resolves the checked values in option order.
+
+```ts
+await multiselect({
+    message: 'Features',
+    options: [
+        { value: 'ts', label: 'TypeScript' },
+        { value: 'eslint', label: 'ESLint' },
+        { value: 'vitest', label: 'Vitest' },
+    ],
+    required: true,
+});
+```
+
+`MultiSelectPromptOptions<T>`: `message`, `options`, `initialValues?`, `required?` (block an empty Enter and show a hint; default `false`). Set an option's `group` to render a section header above it — pre-sort options by group.
+
+### `confirm(opts)` → `boolean | CANCEL`
+
+Yes/No. `y`/`n` answer immediately, ←/→ (or `h`/`l`) flip, Enter resolves the current value.
+
+```ts
+await confirm({ message: 'Overwrite?', initialValue: false, active: 'Yes', inactive: 'No' });
+```
+
+`ConfirmOptions`: `message`, `initialValue?`, `active?` (label for `true`, default `'Yes'`), `inactive?` (label for `false`, default `'No'`).
+
+### `spinner()` → `SpinnerHandle`
+
+An imperative spinner for the gaps between prompts:
+
+```ts
+import { spinner } from '@sigx/terminal';
+
+const s = spinner();
+s.start('Installing dependencies');
+await install();
+s.message('Almost there');
+s.stop('Dependencies installed');           // leaves a permanent ✔ line
+// s.stop('Install failed', 'error');       // ✖ line
+```
+
+`SpinnerHandle`: `start(label?)`, `message(label)` (update while spinning), `stop(label?, code?)` where `code` is `'success'` (default) or `'error'`. Don't `await` another prompt between `start()` and `stop()` — the spinner holds the live region and would deadlock. Ctrl+C stays the renderer default (exit) during a spinner so a long task is interruptible; on non-TTY output `start()` renders nothing and `stop()` prints the summary line.
+
+## Static lines
+
+These print a permanent line without prompting:
+
+- `intro(title)` — open a wizard with a titled header.
+- `outro(message)` — close it.
+- `note(message, title?)` — a boxed note between steps.
+- `cancel(message)` — a cancellation line (pair with `isCancel`).
+
+## The `prompt` namespace
+
+For collision-free imports, everything is also bundled on a `prompt` object:
+
+```ts
+import { prompt } from '@sigx/terminal';
+
+const name = await prompt.text({ message: 'Name' });
+if (prompt.isCancel(name)) prompt.cancel('Aborted.');
+```
+
+## Non-TTY behaviour
+
+Piped or in CI, prompts fall back to their `initialValue` (or `initialValues`) without blocking, so a wizard can run unattended. Spinners print only their final summary line. See [Render modes](/terminal/docs/render-modes).
+
+## Next steps
+
+- [Components](/terminal/docs/components) — the same widgets as embeddable components.
+- [Command-line args](/terminal/docs/args) — parse `argv` before you prompt.
+- [API Reference](/terminal/docs/api) — `CANCEL`, `isCancel` and the option types.

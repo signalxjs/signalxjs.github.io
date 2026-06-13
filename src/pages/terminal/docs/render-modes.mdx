@@ -1,0 +1,101 @@
+---
+title: Render modes
+description: "Inline vs fullscreen rendering, the non-TTY fallback, resize handling and clean exits"
+layout: docs
+category: Guides
+order: 35
+---
+
+# Render modes
+
+The renderer paints your app one of two ways. You choose with the `mode` option on `renderTerminal` / `terminalMount` (and the `.mount()` options object). The default is `inline`.
+
+```tsx
+defineApp(<App />).mount({ mode: 'inline' });      // default
+defineApp(<App />).mount({ mode: 'fullscreen' });
+```
+
+## Inline
+
+`mode: 'inline'` (the default) paints a **live region** at the cursor's current position in the normal screen buffer. Each frame repaints only its own lines (cursor-up, then erase), so the scrollback above the app is never touched. Frames taller than the viewport are clamped to their bottom rows, and lines are truncated to the terminal width so soft-wrapping can't corrupt the cursor arithmetic.
+
+The defining trait of inline mode: **the final frame persists in scrollback** after the app exits. A wizard or build view leaves a tidy record behind instead of vanishing. To opt out — for a transient spinner or one-shot prompt that should leave no trace — set `persistOnExit: false`, and the live region is erased on unmount with the cursor returned to where it began.
+
+```tsx
+defineApp(<App />).mount({ mode: 'inline', persistOnExit: false });
+```
+
+`clearConsole: true` in inline mode **scrolls** the user's existing content up into scrollback (it never erases it) and homes the cursor, so the app starts at the top of an empty viewport — the shell-app look.
+
+### Static output above the live region
+
+While an inline app is mounted, `console.log` and friends are routed through the renderer by default (`patchConsole`), so stray logs become permanent lines **above** the live region instead of tearing through it. To emit transcript lines yourself, use `writeStatic(text)` (alias `printStatic`): the text scrolls into permanent scrollback, cleanly separated from the repainting frame.
+
+```tsx
+import { writeStatic } from '@sigx/terminal';
+
+writeStatic('✔ Built in 1.2s');   // permanent line, above the live frame
+```
+
+## Fullscreen
+
+`mode: 'fullscreen'` gives the app the **whole screen**. Mount enters the terminal's alternate screen buffer; unmount restores the user's prior terminal contents exactly as they were — nothing is left in scrollback. The themed canvas fills the empty viewport below your content (see [Theming](/terminal/docs/theming)).
+
+Use fullscreen for dashboards, editors and long-running TUIs that own the screen; use inline for wizards, build runners and anything that should read as part of the command's output.
+
+> `fullscreen: true` is accepted as an alias for `mode: 'fullscreen'`.
+
+## Non-TTY fallback
+
+When stdout is **not** a TTY — piped to a file, captured in CI — there is no live region and no escape codes. The app renders, and the final frame is emitted once as plain text at teardown. Animated components freeze on a single frame, and a `LogStore` switches to streaming complete, ordered lines (see [LogView](/terminal/docs/components/logview)). You write the same app; the renderer degrades it automatically.
+
+## Color depth
+
+The renderer detects terminal color support and honours `FORCE_COLOR` / `NO_COLOR`. Theme tokens resolve to truecolor or 256-color hex where supported, and degrade to the nearest 16-color ANSI name on limited terminals — handled entirely by `resolveColor` (see [Theming](/terminal/docs/theming)).
+
+## Resize
+
+The renderer listens for `SIGWINCH` and exposes the current dimensions as a **reactive** read:
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, getTerminalSize } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => {
+        const { columns, rows } = getTerminalSize();
+        return (
+            <box border="single" label="Size">
+                <text>{columns} × {rows}</text>
+            </box>
+        );
+    };
+});
+
+defineApp(<App />).mount({ mode: 'fullscreen' });
+```
+
+Reading `getTerminalSize()` **inside a render function** tracks it, so the component re-renders whenever the terminal is resized. Prefer it over `getOutputTarget().columns/rows`, which are live but not reactive.
+
+## Exiting
+
+The renderer intercepts **Ctrl+C** (raw mode delivers it as the key ``): it tears down cleanly — persisting the inline frame or leaving the alt screen, restoring raw mode and the cursor — then exits with the conventional code 130. For a programmatic exit, call `exitTerminal()`, which performs the same teardown.
+
+To handle Ctrl+C yourself (prompts turn it into a graceful cancel), set `exitOnCtrlC: false` and it is delivered to your `onKey` handlers like any other key.
+
+```tsx
+import { exitTerminal, onKey } from '@sigx/terminal';
+
+onKey((key) => {
+    if (key === 'q') { exitTerminal(); return true; }
+});
+```
+
+See [Input & Interactive Components](/terminal/docs/input-and-components) for the layered key-dispatch model.
+
+## Next steps
+
+- [Theming](/terminal/docs/theming) — tokens, themes and the screen canvas.
+- [Input & Interactive Components](/terminal/docs/input-and-components) — layered key dispatch and focus.
+- [Components](/terminal/docs/components) — the full component library.
+- [API Reference](/terminal/docs/api) — `RenderTerminalOptions`, `getTerminalSize`, `writeStatic` and more.

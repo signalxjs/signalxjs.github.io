@@ -1,0 +1,92 @@
+---
+title: Theming
+description: "The token contract, the built-in themes, resolveColor and the screen canvas"
+layout: docs
+category: Guides
+order: 50
+---
+
+# Theming
+
+Terminal components don't hard-code colors — they ask for **semantic tokens** (`accent`, `fg`, `line`, `success`, …) that resolve against the active theme at render time. Switching the theme repaints everything that read a token. This pipeline lives in `@sigx/terminal-zero`; `@sigx/terminal-ui` registers the concrete themes.
+
+## The token contract
+
+A theme is a flat record of color tokens. The roles:
+
+| Group | Tokens |
+| --- | --- |
+| Surfaces | `bg`, `panel`, `chrome`, `line`, `shadow` |
+| Text | `fg`, `dim`, `faint` |
+| Accent | `accent`, `accentSoft`, `accentText`, `selSoft` |
+| Status | `success`, `warn`, `danger`, `info` |
+| ANSI | `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white` |
+
+Every token's value is a hex string. The `ColorToken` type is the union of these keys; component `color` props accept a `ColorValue` — a token name **or** a raw `#hex` (which passes straight through).
+
+## resolveColor
+
+`resolveColor(token)` turns a token into a concrete color the renderer can paint:
+
+```ts
+import { resolveColor } from '@sigx/terminal';
+
+resolveColor('accent');    // active theme's accent hex
+resolveColor('#ff8800');   // raw hex — passes through unchanged
+resolveColor(undefined);   // '' (no color)
+```
+
+It is **reactive**: it reads both the active-theme signal and the renderer's detected color depth, so a component that resolves a token during render re-renders when you call `setTheme()`. On a 16-color terminal it degrades a token to the nearest ANSI name; on truecolor / 256-color terminals it hands the renderer the theme hex (the renderer quantizes for 256). This is how component colors stay legible across terminals without per-component code.
+
+## Switching themes
+
+Importing `@sigx/terminal-ui` (which the umbrella does) registers the five built-in SigX-tui themes and makes **obsidian** active. Switch at runtime:
+
+```tsx
+import { setTheme, getTheme, listThemes } from '@sigx/terminal';
+
+listThemes();         // registered theme ids
+getTheme();           // the active id
+setTheme('paper');    // switch — repaints every component using tokens
+```
+
+`setTheme` throws on an unknown id. `getActiveTheme()` returns the active theme object, and `hasTheme(id)` tests for one.
+
+The five built-in themes are **`obsidian`** (the default, dark), `nord`, `gum`, `classic` (dark) and `paper` (light). The `THEMES` record exports them all by id.
+
+## Registering your own theme
+
+Provide every token and register it. The first theme registered becomes active, so register before mount (or call `setTheme`):
+
+```ts
+import { registerTheme, setTheme, type Theme } from '@sigx/terminal';
+
+const midnight: Theme = {
+    name: 'Midnight', mode: 'dark',
+    bg: '#0b0f1a', panel: '#121829', chrome: '#0b0f1a', line: '#2a3350',
+    fg: '#d7dcea', dim: '#8b93a7', faint: '#4a516a', shadow: '#000000',
+    accent: '#6ea8ff', accentSoft: '#16203a', accentText: '#0b0f1a', selSoft: '#161d33',
+    success: '#5fd17f', warn: '#e0b341', danger: '#e0606a', info: '#5fc4e0',
+    black: '#0b0f1a', red: '#e0606a', green: '#5fd17f', yellow: '#e0b341',
+    blue: '#6ea8ff', magenta: '#b07cff', cyan: '#5fc4e0', white: '#d7dcea',
+};
+
+registerTheme('midnight', midnight);
+setTheme('midnight');
+```
+
+## The screen canvas
+
+The renderer can paint a screen background and default foreground from the active theme — the app-level canvas behind every line. `@sigx/terminal-ui` binds it automatically via `applyThemeCanvas()`, so a light theme is legible on a dark terminal. It is **on in fullscreen** and **off in inline** by default (full-width background padding looks broken once an inline frame persists into scrollback) — control it per mount with the `canvas` option:
+
+```tsx
+defineApp(<App />).mount({ mode: 'inline', canvas: true });
+```
+
+`disableThemeCanvas()` stops the binding and clears the canvas so the terminal's own background shows through.
+
+## Next steps
+
+- [Render modes](/terminal/docs/render-modes) — where the canvas applies.
+- [Typography](/terminal/docs/typography) — `Text` and `Heading` consume tokens.
+- [Components](/terminal/docs/components) — every component is token-themed.

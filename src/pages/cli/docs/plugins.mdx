@@ -17,17 +17,21 @@ When the CLI runs, it scans the current project's `package.json` `dependencies` 
 ```json
 {
     "name": "my-sigx-plugin",
-    "sigx-cli": { "plugin": "./dist/plugin.js" }
+    "sigx-cli": {
+        "plugin": "./dist/plugin.js",
+        "requires": ">=0.4.0"
+    }
 }
 ```
 
-The `plugin` value is a path, relative to the dependency's package root, to a module that **default-exports** a `SigxPlugin`. The CLI dynamically imports that module, takes its default export, calls `detect(cwd)`, and registers the plugin's commands only if `detect` returns `true`.
+- **`plugin`** is a path, relative to the dependency's package root, to a module that **default-exports** a `SigxPlugin`. The CLI dynamically imports that module, takes its default export, calls `detect(cwd)`, and registers the plugin's commands only if `detect` returns `true`.
+- **`requires`** (optional) is the semver range of `@sigx/cli` your plugin's contract needs — `^x.y.z`, `>=x.y.z`, or an exact version. If the running `sigx` binary is older than your range, the plugin still loads (best effort) but the CLI prints a prominent warning telling the user to update. Declare `"requires": ">=0.4.0"` for any plugin written against the `@sigx/args` arg contract described below — that is the floor where it landed.
 
 Discovery inspects the current working directory's `package.json` and `node_modules`. All discovery failures are swallowed silently, so a broken plugin never crashes the CLI.
 
 ## Defining a plugin
 
-Use `definePlugin` for type-safe authoring. It is an identity function — it returns the plugin unchanged but gives you full type checking against the `SigxPlugin` contract. Import it from `@sigx/cli/plugin` (it is also re-exported from `@sigx/cli`):
+Use `definePlugin` for type-safe authoring. It is an identity function — it returns the plugin unchanged but gives you full type checking against the `SigxPlugin` contract. Import it from `@sigx/cli/plugin` (it is also re-exported from `@sigx/cli`); the same module re-exports `a`, the `@sigx/args` builder you declare arguments with, so plugins keep a single import surface:
 
 ```ts
 import { definePlugin } from '@sigx/cli/plugin';
@@ -87,10 +91,10 @@ export default definePlugin({
 
 ## Declaring command arguments
 
-Commands can declare named arguments through the `args` map. Each entry is an `ArgDef` with a `type` of `'string'` or `'boolean'`, an optional `description`, and an optional `default`. These map onto the underlying argument parser, and the parsed values arrive in `ctx.args`:
+Commands declare their arguments through the `args` map, using the fluent [`@sigx/args`](/terminal/docs/args) builders exposed as `a` (re-exported from `@sigx/cli/plugin`). Each entry is a builder you chain to describe its type, aliases, default, and help — and the chain drives the type your handler receives in `ctx.args`:
 
 ```ts
-import { definePlugin } from '@sigx/cli/plugin';
+import { definePlugin, a } from '@sigx/cli/plugin';
 
 export default definePlugin({
     name: 'deployer',
@@ -99,26 +103,42 @@ export default definePlugin({
         deploy: {
             description: 'Deploy the built site',
             args: {
-                target: {
-                    type: 'string',
-                    description: 'Deploy target',
-                    default: 'staging',
-                },
-                force: {
-                    type: 'boolean',
-                    description: 'Skip confirmation',
-                },
+                target: a.enum(['staging', 'production']).default('staging').describe('Deploy target'),
+                port: a.number().alias('p').default(8788).describe('Port to listen on'),
+                force: a.boolean().describe('Skip confirmation'),
+                files: a.rest().describe('Files to deploy'),
             },
             async run({ args, logger }) {
-                logger.log(`Deploying to ${String(args.target)}`);
-                if (args.force) {
-                    logger.warn('Forcing deploy without confirmation');
-                }
+                logger.log(`Deploying to ${args.target} on :${args.port}`);
+                if (args.force) logger.warn('Forcing deploy without confirmation');
             },
         },
     },
 });
 ```
+
+The common builders:
+
+| Builder | Parses | Inferred type |
+| --- | --- | --- |
+| `a.string()` | `--name value`, `--name=value` | `string` |
+| `a.number()` | finite numbers (incl. negative) | `number` |
+| `a.boolean()` | `--flag`, `--no-flag`, `--flag=false` | `boolean` |
+| `a.enum(['a', 'b'])` | exact member | `'a' \| 'b'` |
+| `a.positional()` | non-flag tokens, in declaration order | `string` |
+| `a.rest()` | the remaining positional tokens | `string[]` |
+
+Chain refiners to shape them: `.alias('p', …)` (single characters become short flags like `-p`), `.default(v)`, `.required()`, `.multiple()` (repeatable → array), `.describe(text)`. Builders are immutable — each refiner returns a new builder. For the full builder/refiner reference see the [`@sigx/args` guide](/terminal/docs/args).
+
+**Parsing behavior** flows straight from `@sigx/args`, so plugin commands inherit it:
+
+- **Unknown flags are an error.** An undeclared `--flag` fails with a clear message rather than being silently accepted.
+- **Positionals bind only to declared builders.** Bare positional tokens fill your `a.positional()` / `a.rest()` args in order; there is no loose positional bag.
+- **`--` is a strict separator.** Everything after a bare `--` lands verbatim in `ctx.args._` (a `string[]`) and is never parsed as flags.
+- **Booleans negate** with `--no-<flag>`, and kebab/camel spellings both resolve (`--dry-run` ↔ `dryRun`).
+- **`--help` is generated** from the `@sigx/args` help catalog — don't hand-write usage text. `sigx <your-command> --help` lists every declared arg, its type, default, and description automatically.
+
+A malformed `args` schema (e.g. an alias collision) throws a `DefinitionError` at registration. The CLI catches it, logs a warning, and skips just that command — one bad schema never takes down the whole CLI.
 
 ## The command context
 
@@ -126,18 +146,49 @@ Every command's `run` handler receives a single `CommandContext` object:
 
 ```ts
 async run(ctx) {
-    ctx.cwd;     // process.cwd()
-    ctx.args;    // parsed args object (Record<string, unknown>)
-    ctx.logger;  // prefixed Logger with log/warn/error
+    ctx.cwd;        // process.cwd()
+    ctx.args;       // parsed args, typed by your `args` builders; ctx.args._ = post-`--` tokens
+    ctx.logger;     // prefixed Logger with log/warn/error
+    ctx.plugins;    // every plugin discovered for this project (for runShell)
+    ctx.cliVersion; // the running `sigx` binary's version, for feature detection
 }
 ```
+
+`ctx.plugins` and `ctx.cliVersion` exist so a shell-hosting command (for example a long-running `dev`) can merge peer plugins' TUI contributions and adapt to the CLI version. See [The shell runtime](/cli/docs/shell).
+
+## Contributing to the shell (TUI)
+
+Beyond plain commands, a plugin can ship a **TUI contribution** — tabs, slash commands, single-key shortcuts, and status-line items that get merged into whichever plugin hosts the [shell runtime](/cli/docs/shell). Add a `tui` field to your plugin:
+
+```ts
+import { definePlugin } from '@sigx/cli/plugin';
+
+export default definePlugin({
+    name: 'my-plugin',
+    detect: () => true,
+    commands: { /* … */ },
+    tui: {
+        tabs: [{ id: 'routes', label: 'Routes', render: () => myRoutesView() }],
+        commands: [{ name: '/reload', description: 'reload config', run: (shell) => shell.say('reloaded') }],
+        shortcuts: [{ key: 'r', label: 'reload', run: (shell) => shell.say('reloaded') }],
+        status: () => [{ label: 'mode', value: 'dev', tone: 'success' }],
+        setup(shell) {
+            const server = startWatcher();
+            // Returned teardown runs before the process exits (also on Ctrl+C / SIGTERM).
+            return () => server.close();
+        },
+    },
+});
+```
+
+The host plugin's command merges these by passing `ctx.plugins` to `runShell({ plugins })`; host entries win conflicts (a duplicate tab `id`, command `name`, or shortcut `key` from a contributor is skipped). The `setup(shell)` lifecycle runs once when the shell comes up — start servers and watchers there, and return a function (or call `shell.onExit`) to tear them down cleanly. See [The shell runtime](/cli/docs/shell) for the host side, the `ShellHandle` API, and the non-TTY fallback.
 
 ## Packaging checklist
 
 To ship a plugin:
 
 1. Build a module that **default-exports** a `SigxPlugin` (via `definePlugin` or `satisfies SigxPlugin`).
-2. Point your package's `package.json` `sigx-cli.plugin` field at that built module.
+2. Point your package's `package.json` `sigx-cli.plugin` field at that built module, and set `"requires": ">=0.4.0"` (or higher) so the CLI can warn users on too-old a binary.
 3. Publish the package and add it to a project's dependencies.
 
 Once installed, run `npx sigx <your-command>` in a project where your `detect` returns `true`.
@@ -152,5 +203,7 @@ If two plugins register a command with the same name, the last one discovered wi
 
 ## See also
 
-- [API Reference](/cli/docs/api) — the full `SigxPlugin`, `PluginCommand`, `CommandContext`, `ArgDef`, and `Logger` types.
+- [API Reference](/cli/docs/api) — the full `SigxPlugin`, `PluginCommand`, `CommandContext`, `TuiContribution`, and `Logger` types.
+- [The shell runtime](/cli/docs/shell) — `runShell`, the `ShellHandle` API, and the TUI contribution model.
+- [`@sigx/args` guide](/terminal/docs/args) — the fluent arg builders behind `PluginCommand.args`.
 - [Commands](/cli/docs/commands) — the built-in and plugin-provided commands.

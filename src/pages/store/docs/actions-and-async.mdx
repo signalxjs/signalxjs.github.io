@@ -61,6 +61,36 @@ render(<Uploader />, "#sandbox");
 
 `pending` is per-action — `store.save.pending` and `store.load.pending` are independent. For a store-wide "anything in flight" flag, derive one with `computed` in the setup.
 
+## Don't call state-writing actions from inside a render
+
+Reading `store.x` inside a render function subscribes that render to `x` — that's the whole point of the reactive surface. **Calling an action whose body writes state from inside the render closure self-loops by design:** the write changes state the render depends on, which schedules the render again, which calls the action again. That's not a store quirk; it's the same loop you'd get writing a signal you read in the same render.
+
+```tsx
+// ✗ self-loop: the render reads `count`, and calling load() writes it
+const Bad = component(() => {
+    const store = useThingStore();
+    return () => {
+        store.load();              // writes state the render reads → re-render → load() → …
+        return <p>{store.count}</p>;
+    };
+});
+```
+
+Do data work in a lifecycle hook or a `watch`, not in the render body — the render should only *read*:
+
+```tsx
+import { component, onMounted, watch } from 'sigx';
+
+const Good = component(() => {
+    const store = useThingStore();
+    onMounted(() => store.load());                 // once, on mount
+    watch(() => route.params.id, (id) => store.load(id)); // again when the input changes
+    return () => <p>{store.count}</p>;              // render only reads
+});
+```
+
+The action wrapper helps you here in one specific way: its own bookkeeping — the inflight counter behind `.pending` and the lifecycle-topic plumbing — runs **untracked**. So merely *calling* an action from a reactive context never subscribes that context to the wrapper's internals; only the reads your action body actually performs get tracked. That's why `.pending` stays reactive (you can read it in render to drive a spinner) without a call itself dragging the render into a loop. The loop above comes purely from your action *writing state the render reads* — keep state writes out of render and you're fine.
+
 ## The lifecycle events
 
 Each action carries three subscribable events, in dispatch order:

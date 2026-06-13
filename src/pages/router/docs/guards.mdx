@@ -112,7 +112,7 @@ Register global guards that run on every navigation:
 ```tsx
 router.beforeEach((to, from) => {
     // Log all navigation
-    console.log(`Navigating from ${from.path} to ${to.path}`);
+    console.log(`Navigating from ${from?.path ?? '(initial)'} to ${to.path}`);
     return true;
 });
 
@@ -121,3 +121,62 @@ router.afterEach((to, from) => {
     analytics.pageView(to.path);
 });
 ```
+
+## Guards run on the initial navigation
+
+The full guard pipeline — `beforeEach`, per-route `beforeEnter`, `beforeResolve`, route-record `redirect`s, and `afterEach` — runs on the **initial** route resolution too, not only on later `navigate()` calls. A direct load or refresh of a guarded URL (server or client) goes through the same guards as any in-app navigation, kicked off by `app.use(router)` (or the first `router.isReady()` call). Two things to know:
+
+- **`from` is `null` on the initial navigation.** There is no previous route on a fresh load, so always treat `from` as nullable in guards and `afterEach` hooks:
+
+  ```tsx
+  router.beforeEach((to, from) => {
+      if (from === null) {
+          // first resolution — direct load or refresh
+      }
+      return true;
+  });
+  ```
+
+- **A guard returning `false` on the initial navigation keeps the matched route.** There is no previous route to stay on, so a bare `false` leaves the protected component showing. To actually protect content on a direct load, **redirect** (return a path or location) instead of returning `false`:
+
+  ```tsx
+  router.beforeEach((to, from) => {
+      if (to.meta.requiresAuth && !isAuthenticated()) {
+          return '/login';   // redirect — works on initial load and later navigations
+      }
+      return true;
+  });
+  ```
+
+A redirect on the initial load lands with **replace** semantics (Back can't return to the guarded URL) and records the original location on `to.redirectedFrom` — which is what makes real server-side 30x redirects possible (see [SSR Routing](/router/docs/ssr#redirects-during-ssr)).
+
+`router.isReady()` resolves once that initial navigation — guards included — has completed:
+
+```tsx
+const app = defineApp(<App />).use(router);
+await router.isReady();   // initial route resolved, guards have run
+```
+
+## Guards run in the app's DI context
+
+When the router is installed into an app (`defineApp(...).use(router)`), guards and `afterEach` hooks are invoked inside that app's DI context. A `defineFactory` / `defineInjectable` use-function called from a guard resolves the **same app-scoped instance your components receive** — so an auth guard that reads an injected auth store sees the same state the rest of the app sees:
+
+```tsx
+router.beforeEach((to) => {
+    const auth = useAuthStore();        // resolves the app's instance, same as components
+    return auth.isLoggedIn || to.path === '/login' ? true : '/login';
+});
+```
+
+> **Async-guard caveat.** The app context covers only the **synchronous** portion of each guard — it does not survive an `await`. Resolve your injected dependencies at the **top** of the guard, before the first `await`:
+>
+> ```tsx
+> router.beforeEach(async (to) => {
+>     const auth = useAuthStore();      // ✓ resolve before awaiting
+>     await auth.refresh();
+>     // useOtherStore() here would resolve the realm fallback, not the app instance
+>     return auth.isLoggedIn ? true : '/login';
+> });
+> ```
+>
+> When the router runs standalone (no app), guards are invoked directly, as they always are.

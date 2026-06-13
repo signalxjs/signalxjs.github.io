@@ -1,0 +1,48 @@
+---
+title: "QRCode"
+description: "A scannable QR code rendered as terminal cells"
+layout: docs
+category: ["Components", "Data"]
+order: 151
+---
+
+# QRCode
+
+<p class="lede">Renders a string as a scannable QR code, drawn with half-block cells.</p>
+
+## Import
+
+```tsx
+import { QRCode } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, QRCode } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <box border="single" label="Scan to open">
+            <QRCode text="https://sigx.dev/terminal/" quiet={2} />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `text` | `string` | **required** — the data to encode |
+| `invert` | `boolean` | swap dark/light modules (for light terminals) |
+| `quiet` | `number` | quiet-zone border width in modules |
+
+The headless `generateQR(text)` helper produces the underlying matrix if you want to render it yourself.
+
+## See also
+
+- [Table](/terminal/docs/components/table) — tabular data.

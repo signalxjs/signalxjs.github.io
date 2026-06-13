@@ -1,0 +1,62 @@
+---
+title: "StatusBar"
+description: "A footer of keyed status chips"
+layout: docs
+category: ["Components", "Navigation"]
+order: 131
+---
+
+# StatusBar
+
+<p class="lede">A footer row of status chips — each item is a <code>key</code> in an accent fill followed by a <code>label</code>.</p>
+
+## Import
+
+```tsx
+import { StatusBar } from '@sigx/terminal';
+import type { StatusItem } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, StatusBar } from '@sigx/terminal';
+import type { StatusItem } from '@sigx/terminal';
+
+const items: StatusItem[] = [
+    { key: 'MODE', label: 'insert' },
+    { key: 'BRANCH', label: 'main' },
+    { key: 'LSP', label: 'ready' },
+];
+
+const App = component(() => {
+    return () => (
+        <box>
+            <StatusBar items={items} />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `items` | `StatusItem[]` | **required** — the chips |
+
+## StatusItem
+
+```ts
+interface StatusItem {
+    key: string;
+    label: string;
+}
+```
+
+## See also
+
+- [KeyHints](/terminal/docs/components/keyhints) — a lighter shortcut footer.
+- [Badge](/terminal/docs/components/badge) — a single tag.

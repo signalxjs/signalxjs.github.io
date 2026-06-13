@@ -10,22 +10,23 @@ order: 10
 
 `@sigx/terminal` lets you build terminal user interfaces (TUIs) and interactive CLI apps using the same reactive model and TSX components you use on the web. It is built on `@sigx/reactivity` and `@sigx/runtime-core`, and ships a cell renderer that paints your component tree to the terminal as ANSI-styled lines.
 
-The package is a thin aggregator: it re-exports the full `@sigx/reactivity` and `@sigx/runtime-core` surface plus the terminal runtime, so you can import everything you need from a single `@sigx/terminal` entry.
+The package is an umbrella: it re-exports the terminal renderer, the headless `@sigx/terminal-zero` foundation and the themed `@sigx/terminal-ui` components, so you can import everything you need from a single `@sigx/terminal` entry. See [Architecture](/terminal/docs/architecture) for how the pieces fit together.
 
 ## What you get
 
 - **TSX intrinsics** for the terminal — `box`, `text`, and `br` — with colors, borders, labels and drop shadows.
-- **A render entry** (`renderTerminal` / `terminalMount`) that wires up raw-mode stdin, hides the cursor and repaints on every reactive change.
-- **Input handling** — global keyboard dispatch with Tab/Shift+Tab focus traversal and a `focusState` signal.
-- **Ready-made interactive components** — `Input`, `Button`, `Checkbox`, `Select` and `ProgressBar`.
+- **A render entry** (`renderTerminal` / `terminalMount`) with `inline` and `fullscreen` [render modes](/terminal/docs/render-modes), a non-TTY plain-text fallback and a reactive `getTerminalSize()`.
+- **Layered keyboard input** — `onKey(handler, { layer })` dispatch with built-in Tab/Shift+Tab focus traversal and a `focusState` signal.
+- **A themed component library** — forms (`Input`, `Select`, `MultiSelect`, …), feedback (`Spinner`, `ProgressBar`, `Badge`), navigation, layout, data, fx and task components. See [Components](/terminal/docs/components).
+- **A prompt kit** — imperative `text` / `select` / `confirm` / `spinner` wizards. See [Prompts](/terminal/docs/prompts).
 
 ## Install
 
 ```bash
-npm install @sigx/terminal
+npm install @sigx/terminal @sigx/reactivity @sigx/runtime-core
 ```
 
-See [Installation](/terminal/docs/installation) for peer dependencies and the required TSX/Vite wiring.
+`@sigx/reactivity` and `@sigx/runtime-core` are **peer dependencies** — installing them alongside the umbrella keeps every `@sigx/*` package on one shared reactivity engine. See [Installation](/terminal/docs/installation) for peer dependencies and the required TSX/Vite wiring.
 
 ## A minimal app
 
@@ -81,7 +82,11 @@ defineApp(<App />).mount({ clearConsole: true });
 
 ## Next steps
 
+- [Architecture](/terminal/docs/architecture) — the renderer, headless foundation, UI library and args parser.
 - [Installation](/terminal/docs/installation) — install command, peer deps and TSX/Vite config.
 - [Layout & Styling](/terminal/docs/layout-and-styling) — boxes, borders, colors and the line layout model.
+- [Render modes](/terminal/docs/render-modes) — inline vs fullscreen, non-TTY and resize.
 - [Input & Interactive Components](/terminal/docs/input-and-components) — focus, keyboard input and the built-in widgets.
+- [Components](/terminal/docs/components) — the full themed component library.
+- [Prompts](/terminal/docs/prompts) — imperative CLI wizards.
 - [API Reference](/terminal/docs/api) — every export, grouped by kind.

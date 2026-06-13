@@ -24,7 +24,7 @@ Scaffolds a new SignalX project by copying a bundled template into `./<name>` an
 sigx create [name] [--type <basic|ssr|ssg|lynx>] [--styling <none|tailwind|daisyui>] [--yes|-y]
 ```
 
-By default it runs an interactive 3-step terminal UI wizard: **name → type → styling**. It falls back to **headless, flag-driven mode** when any of the following is true:
+By default it runs an interactive prompt-kit flow on `@sigx/terminal`: an intro, a **name** text prompt, then **type** and **styling** select prompts, a scaffolding spinner, and a "next steps" note. It falls back to **headless, flag-driven mode** when any of the following is true:
 
 - standard output / input is not a TTY (for example, in CI or when piped),
 - `--yes` / `-y` is passed,
@@ -37,7 +37,7 @@ By default it runs an interactive 3-step terminal UI wizard: **name → type →
 | `name` (positional) | any directory name | `my-sigx-app` | Target directory created under the current folder. |
 | `--type` | `basic`, `ssr`, `ssg`, `lynx` | `basic` | Project template to copy. |
 | `--styling` | `none`, `tailwind`, `daisyui` | `none` | Styling preset. `daisyui` is also offered for `lynx` (maps to `@sigx/lynx-daisyui`). |
-| `--yes` / `-y` | — | — | Skip the wizard and run headlessly with defaults/flags. |
+| `--yes` / `-y` | — | — | Skip the prompts and run headlessly with defaults/flags. |
 
 **Examples**
 
@@ -48,7 +48,7 @@ sigx create my-app --type ssg --styling daisyui
 sigx create my-app --type lynx --styling tailwind
 ```
 
-Interactive wizard:
+Interactive prompts:
 
 ```bash
 npx sigx create
@@ -63,7 +63,21 @@ npx sigx create
 
 - If the target directory is inside a pnpm workspace (a `pnpm-workspace.yaml` is found by walking up the tree), `@sigx/*` dependencies in the generated `package.json` are rewritten to `workspace:*`.
 - Templates ship a `gitignore` file that is renamed to `.gitignore` on copy (npm strips `.gitignore` from published tarballs).
-- The terminal UI (`@sigx/terminal`) is lazy-loaded, so it is only pulled in when you actually run the wizard.
+- Text files have their `{{projectName}}` placeholders substituted on copy; binary assets (PNG icons in the `lynx` template) are copied byte-for-byte.
+- The terminal prompt kit (`@sigx/terminal`) is lazy-loaded, so it is only pulled in when you actually run `create` interactively.
+
+**Templates & pinned versions**
+
+Templates pin a **matched set** of `sigx` / `@sigx/*` versions — never `latest` — so a freshly scaffolded project's peer graph resolves with a single copy of `@sigx/reactivity` under strict peer deps. The web templates (`basic`, `ssr`) pin the 0.6 core line; the `ssg` and `lynx` templates pin the matched set their plugin (`@sigx/ssg` / `@sigx/lynx-cli`) is built against. Third-party deps (`vite`, `express`, `tailwindcss`, …) keep their own caret ranges.
+
+The **SSR templates** (`ssr`, `ssr-tailwind`, `ssr-daisyui`) scaffold a server built on the 0.6 document render API:
+
+- an Express 5 **`server.js`** — Vite middleware in dev (`ssrLoadModule` for `entry-server`), static client assets + the built server bundle in prod;
+- an **`index.html`** with the standard `<!--ssr-outlet-->` marker;
+- an **`entry-server.tsx`** `render()` that serves crawlers and AI agents a blocking [`renderDocument`](/server/packages/server-renderer) (complete inline HTML, no client work) and everyone else a streaming `renderDocumentToNodeStream` (the `shell` promise settles before the first byte, so a failed render can still become a proper 500);
+- an **`entry-client.tsx`** that gates hydration on the server's completion signal (`window.__SIGX_STREAMING_COMPLETE__` / the `sigx:ready` event), emitted in both modes, so hydration always runs against finished server HTML.
+
+`npm run dev` / `start` / `preview` run `node server.js`; `build` runs `vite build` plus a `vite build --ssr` of `entry-server`.
 
 ### sigx info
 

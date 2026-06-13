@@ -1,0 +1,67 @@
+---
+title: "TextArea"
+description: "Growing multi-line text editor on the headless text buffer"
+layout: docs
+category: ["Components", "Forms"]
+order: 111
+---
+
+# TextArea
+
+<p class="lede">A focusable multi-line editor that grows with its content, built on the headless <code>textBuffer</code> layout engine. Word-wraps to a width and windows the visible rows so the cursor stays in view.</p>
+
+## Import
+
+```tsx
+import { TextArea } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, TextArea } from '@sigx/terminal';
+
+const App = component(() => {
+    const body = signal('');
+    return () => (
+        <box border="rounded" label="Message">
+            <TextArea
+                model={() => body}
+                placeholder="Write a message…"
+                width={60}
+                maxRows={8}
+                autofocus
+                onSubmit={(v) => console.log('sent:', v)}
+            />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `model` | `Model<string>` | two-way bound multi-line value |
+| `placeholder` | `string` | shown when empty |
+| `promptGlyph` | `string` | per-line prompt glyph |
+| `width` | `number` | wrap width in columns |
+| `maxRows` | `number` | max visible rows before the view windows |
+| `autofocus` | `boolean` | grab focus on mount |
+
+## Events
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `input` | `string` | the value changes |
+| `submit` | `string` | a submit keystroke |
+
+Editing supports arrow movement, line start/end and word wrapping. A trailing backslash continues a line: it is stripped and a newline inserted. Several "Shift/Ctrl+Enter" encodings insert a newline (`Ctrl+J`, `ESC`+Enter, and the CSI-u sequences); plain Enter submits where the terminal can distinguish it. Paste chunks are accepted, with control bytes stripped.
+
+## See also
+
+- [Input](/terminal/docs/components/input) — single-line input.
+- [SuggestionList](/terminal/docs/components/suggestionlist) — pair with a TextArea for completions.

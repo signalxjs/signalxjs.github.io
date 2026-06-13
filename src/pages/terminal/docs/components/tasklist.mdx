@@ -1,0 +1,79 @@
+---
+title: "TaskList"
+description: "A build-pipeline status list with per-task status glyphs"
+layout: docs
+category: ["Components", "Tasks"]
+order: 170
+---
+
+# TaskList
+
+<p class="lede">A build-pipeline status list: one row per task with a status glyph (pending <code>◌</code>, running spinner, <code>✔</code>/<code>✖</code>, skipped <code>−</code>). Mutate the <code>tasks</code> array in place — statuses are reactive.</p>
+
+## Import
+
+```tsx
+import { TaskList } from '@sigx/terminal';
+import type { TaskItem, TaskStatus } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, onMounted, TaskList } from '@sigx/terminal';
+import type { TaskItem } from '@sigx/terminal';
+
+const App = component(() => {
+    const tasks = signal<TaskItem[]>([
+        { id: 'install', label: 'Install dependencies', status: 'running' },
+        { id: 'build', label: 'Build', status: 'pending' },
+        { id: 'test', label: 'Test', status: 'pending' },
+    ]);
+
+    onMounted(() => {
+        setTimeout(() => {
+            tasks.value[0].status = 'success';
+            tasks.value[0].detail = '1.2s';
+            tasks.value[1].status = 'running';
+        }, 1500);
+    });
+
+    return () => (
+        <box border="single" label="Pipeline">
+            <TaskList tasks={tasks.value} variant="tree" />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `tasks` | `TaskItem[]` | **required** — the rows |
+| `variant` | `'plain' \| 'tree'` | flat list or `├─`/`└─` guides |
+| `log` | `LogStore` | stream a log tail under the running task |
+| `logHeight` | `number` | tail height when `log` is set |
+
+Pass a [`LogStore`](/terminal/docs/components/logview) via `log` to show a live tail of output beneath the running task.
+
+## Types
+
+```ts
+type TaskStatus = 'pending' | 'running' | 'success' | 'fail' | 'skipped';
+
+interface TaskItem {
+    id: string;
+    label: string;
+    status: TaskStatus;
+    detail?: string; // dimmed suffix, e.g. a duration
+}
+```
+
+## See also
+
+- [LogView](/terminal/docs/components/logview) — a scrollable log viewport and the `LogStore`.
+- [Spinner](/terminal/docs/components/spinner) — the running-task glyph.

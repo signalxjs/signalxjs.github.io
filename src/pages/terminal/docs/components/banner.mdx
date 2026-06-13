@@ -1,0 +1,52 @@
+---
+title: "Banner"
+description: "Large block-font headings with gradient fills"
+layout: docs
+category: ["Components", "Effects"]
+order: 162
+---
+
+# Banner
+
+<p class="lede">Renders <code>text</code> in a large block font and fills it with a gradient — a splash heading for a CLI's intro screen.</p>
+
+## Import
+
+```tsx
+import { Banner } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, Banner } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <box>
+            <Banner text="SIGX" preset="sigx" direction="diagonal" animate speed={1} />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `text` | `string` | **required** — the heading |
+| `colors` | `string[]` | gradient stops (tokens or hex) |
+| `preset` | `GradientPreset` | a named gradient preset |
+| `direction` | `'horizontal' \| 'vertical' \| 'diagonal'` | gradient direction |
+| `animate` | `boolean` | animate the fill |
+| `speed` | `number` | animation speed |
+
+The block font is 5 rows tall (`BLOCK_FONT_HEIGHT`); `renderBlock(text)` is the headless renderer.
+
+## See also
+
+- [Gradient](/terminal/docs/components/gradient) — inline gradient text and the presets.
+- [PixelArt](/terminal/docs/components/pixelart) — palette-mapped grids.

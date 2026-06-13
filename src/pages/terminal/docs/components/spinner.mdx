@@ -1,0 +1,57 @@
+---
+title: "Spinner"
+description: "Animated activity indicator that resolves to a check or cross"
+layout: docs
+category: ["Components", "Feedback"]
+order: 121
+---
+
+# Spinner
+
+<p class="lede">An animated activity indicator. When <code>done</code> it resolves to a success check (<code>✔</code>); when <code>failed</code>, a danger cross (<code>✖</code>); <code>done</code> wins. Driven by a shared ticker — one interval for every animated component, frozen on non-TTY output.</p>
+
+## Import
+
+```tsx
+import { Spinner } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, onMounted, Spinner } from '@sigx/terminal';
+
+const App = component(() => {
+    const done = signal(false);
+    onMounted(() => {
+        const t = setTimeout(() => { done.value = true; }, 2000);
+        return () => clearTimeout(t);
+    });
+    return () => (
+        <box border="single" label="Build">
+            <Spinner label={done.value ? 'Built' : 'Building…'} done={done.value} variant="dots" />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `label` | `string` | — | text beside the glyph |
+| `done` | `boolean` | — | resolve to a success check |
+| `failed` | `boolean` | — | resolve to a danger cross (`done` wins) |
+| `interval` | `number` | — | animation interval override |
+| `variant` | `SpinnerVariant` | `'dots'` | frame set |
+| `color` | token \| `#hex` | — | glyph color |
+
+`SpinnerVariant` is one of `'dots'`, `'line'`, `'arc'`, `'circle'`, `'bounce'`, `'moon'`. All frame sets are width-1 except `'moon'` (emoji — 2 cells; use only where a wider glyph column is fine).
+
+## See also
+
+- [spinner() prompt](/terminal/docs/prompts) — the imperative form for wizard flows.
+- [ProgressBar](/terminal/docs/components/progressbar) — determinate progress.

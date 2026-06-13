@@ -8,11 +8,12 @@ order: 10
 
 # API Reference
 
-`@sigx/cli` exposes three entry points:
+`@sigx/cli` exposes four entry points:
 
-- `@sigx/cli` — `definePlugin` and the plugin types.
+- `@sigx/cli` — `definePlugin`, `a` (the `@sigx/args` builder), and the plugin types.
 - `@sigx/cli/plugin` — the same plugin API surface (preferred for plugin authors).
 - `@sigx/cli/create` — `runCreate`, the `create` command entry point.
+- `@sigx/cli/shell` — `runShell` and the TUI shell runtime (documented in [The shell runtime](/cli/docs/shell)).
 
 For the command-line surface (`sigx create`, `sigx info`, and plugin-provided commands), see [Commands](/cli/docs/commands).
 
@@ -31,16 +32,24 @@ Identity helper for authoring a sigx CLI plugin with type safety. It returns the
 
 As an alternative, you can use the `satisfies SigxPlugin` pattern instead of calling `definePlugin`.
 
+### a
+
+```ts
+export const a; // the @sigx/args builder factory
+```
+
+Re-exported from `@sigx/args`. Use it to declare a command's arguments — `a.string()`, `a.number()`, `a.boolean()`, `a.enum([...])`, `a.positional()`, `a.rest()`, refined with `.alias()`, `.default()`, `.required()`, `.multiple()`, `.describe()`. See [Authoring Plugins](/cli/docs/plugins#declaring-command-arguments) and the [`@sigx/args` guide](/terminal/docs/args). The companion types `AnyArg`, `ArgsShape`, and `InferArgs` are exported alongside it.
+
 ### runCreate
 
 ```ts
-export function runCreate(): void;
+export function runCreate(opts?: CreateOptions): Promise<void>;
 ```
 
-Entry point of the `create` command, exported from `@sigx/cli/create`. In a TTY it runs the interactive `@sigx/terminal` wizard (and keeps the process alive); in non-interactive mode — no TTY, `--yes`/`-y`, or both `--type` and a positional name — it runs headless via `process.argv` flags and calls `process.exit()` with the result code.
+Entry point of the `create` command, exported from `@sigx/cli/create`. The `sigx` binary calls it with the options it already parsed via `@sigx/args`; the bare `@sigx/create` shim (`npm create @sigx@latest`) calls it with no argument, in which case it parses `process.argv` itself. In a TTY it runs the interactive `@sigx/terminal` prompts; in non-interactive mode — no TTY, `yes: true`, or both `type` and a positional `name` — it scaffolds headlessly and calls `process.exit()` with the result code.
 
-- **Parameters** — none. It reads CLI arguments directly from `process.argv`.
-- **Returns** — `void`.
+- **`opts`** — optional pre-parsed `CreateOptions` (`name?`, `type?`, `styling?`, `yes?`). Omitted, it reads `process.argv`.
+- **Returns** — `Promise<void>` (the function exits the process when it finishes).
 
 ## Interfaces
 
@@ -54,6 +63,8 @@ export interface SigxPlugin {
     detect: (cwd: string) => boolean;
     /** Commands this plugin provides */
     commands: Record<string, PluginCommand>;
+    /** Optional TUI contributions merged into any plugin-hosted shell. */
+    tui?: TuiContribution;
 }
 ```
 
@@ -62,13 +73,15 @@ The plugin contract. A plugin package default-exports one of these (created via 
 - **`name`** — unique plugin name.
 - **`detect`** — called during discovery with the current working directory; its commands are registered only when it returns `true`.
 - **`commands`** — a map of command name to `PluginCommand`.
+- **`tui`** — optional [TUI contribution](/cli/docs/shell) (tabs, slash commands, shortcuts, status items) merged into whichever plugin hosts the shell.
 
 ### PluginCommand
 
 ```ts
 export interface PluginCommand {
     description: string;
-    args?: Record<string, ArgDef>;
+    /** Fluent @sigx/args builders, e.g. `{ port: a.number().default(8788) }`. */
+    args?: ArgsShape;
     run: (ctx: CommandContext) => Promise<void>;
 }
 ```
@@ -76,7 +89,7 @@ export interface PluginCommand {
 Describes a single CLI command contributed by a plugin.
 
 - **`description`** — help text for the command.
-- **`args`** — optional map of named argument/flag definitions.
+- **`args`** — optional map of argument names to `@sigx/args` builders (`a.*`). See [Declaring command arguments](/cli/docs/plugins#declaring-command-arguments). `ArgsShape` is `Record<string, AnyArg>`.
 - **`run`** — async handler receiving a `CommandContext`; resolves when the command finishes.
 
 ### CommandContext
@@ -86,30 +99,20 @@ export interface CommandContext {
     cwd: string;
     args: Record<string, unknown>;
     logger: Logger;
+    plugins?: SigxPlugin[];
+    cliVersion?: string;
 }
 ```
 
 Passed to a `PluginCommand.run` handler.
 
 - **`cwd`** — `process.cwd()`.
-- **`args`** — the parsed arguments object.
+- **`args`** — the parsed arguments, typed by the command's `args` builders. `args._` holds the verbatim tokens after a bare `--`.
 - **`logger`** — a prefixed `Logger`.
+- **`plugins`** — every plugin discovered for this project, so a shell-hosting command can merge peer plugins' TUI contributions via `runShell({ plugins })`.
+- **`cliVersion`** — the running `sigx` binary's version, for plugin feature detection.
 
-### ArgDef
-
-```ts
-export interface ArgDef {
-    type: 'string' | 'boolean';
-    description?: string;
-    default?: string | boolean;
-}
-```
-
-Definition of a single command argument/flag declared in `PluginCommand.args`.
-
-- **`type`** — `'string'` or `'boolean'`.
-- **`description`** — optional help text.
-- **`default`** — optional default value.
+Arguments are declared with the `a` builders rather than a plain shape object; see [Declaring command arguments](/cli/docs/plugins#declaring-command-arguments) and the [`@sigx/args` guide](/terminal/docs/args) for the full builder reference.
 
 ### Logger
 
@@ -128,3 +131,7 @@ Minimal logging interface available on `CommandContext.logger`. The core impleme
 - **`error`** — print an error.
 
 Only `log`, `warn`, and `error` exist — there is no `info` method.
+
+## Shell runtime
+
+The `@sigx/cli/shell` entry point exports `runShell`, `createShellLogger`, `collectTuiContributions`, and `mergeShellConfig`, along with the `ShellConfig`, `ShellHandle`, `TuiContribution`, `ShellTab`, `SlashCommand`, `Shortcut`, and `StatusItem` types. These are documented in full in [The shell runtime](/cli/docs/shell).

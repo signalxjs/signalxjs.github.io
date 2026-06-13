@@ -1,0 +1,79 @@
+---
+title: Components
+description: "Every @sigx/terminal-ui component, grouped by category"
+layout: docs
+category: Components
+order: 100
+---
+
+# Components
+
+The themed component library (`@sigx/terminal-ui`, re-exported from `@sigx/terminal`) covers the building blocks of a TUI, grouped by role. Every component is token-themed — colors resolve against the active theme (see [Theming](/terminal/docs/theming)) — and the interactive ones plug into the [focus and layered key dispatch](/terminal/docs/input-and-components) model.
+
+Import any component from the umbrella:
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { Input, Select, Spinner, Table, Gradient } from '@sigx/terminal';
+```
+
+> Terminal components render to ANSI lines in a real terminal, so the examples on these pages are shown as code rather than live in-browser previews. Run them with a TSX-capable runner or under [dev mode](/terminal/docs/dev-mode).
+
+## Forms
+
+Focusable input widgets with two-way `model` binding.
+
+- [Input](/terminal/docs/components/input) — single-line text field.
+- [TextArea](/terminal/docs/components/textarea) — growing multi-line editor.
+- [Checkbox](/terminal/docs/components/checkbox) — boolean toggle.
+- [Confirm](/terminal/docs/components/confirm) — inline yes/no.
+- [Select](/terminal/docs/components/select) — single-choice menu.
+- [Radio](/terminal/docs/components/radio) — always-visible single-choice group.
+- [MultiSelect](/terminal/docs/components/multiselect) — checkbox list with grouping.
+
+## Feedback
+
+Status and progress indicators.
+
+- [ProgressBar](/terminal/docs/components/progressbar) — determinate progress, with gradient variants.
+- [Spinner](/terminal/docs/components/spinner) — animated activity indicator.
+- [Badge](/terminal/docs/components/badge) — a small labelled tag.
+
+## Navigation
+
+Switchers, footers and popups.
+
+- [Tabs](/terminal/docs/components/tabs) — horizontal tab switcher.
+- [StatusBar](/terminal/docs/components/statusbar) — keyed status chips.
+- [KeyHints](/terminal/docs/components/keyhints) — a key-shortcut footer.
+- [SuggestionList](/terminal/docs/components/suggestionlist) — an intellisense-style popup.
+
+## Layout
+
+Structural containers (the neutral primitives `Box`, `Row`, `Col`, `Spacer`, `Divider` are covered in [Layout & Styling](/terminal/docs/layout-and-styling)).
+
+- [Card](/terminal/docs/components/card) — a titled panel.
+
+## Data
+
+Structured data display.
+
+- [Table](/terminal/docs/components/table) — columns and rows.
+- [QRCode](/terminal/docs/components/qrcode) — a scannable QR block.
+
+## Effects
+
+Decorative text rendering.
+
+- [Gradient](/terminal/docs/components/gradient) — multi-stop colored text.
+- [Shimmer](/terminal/docs/components/shimmer) — an animated highlight sweep.
+- [Banner](/terminal/docs/components/banner) — large block-font headings.
+- [PixelArt](/terminal/docs/components/pixelart) — palette-mapped pixel grids.
+
+## Tasks
+
+Logs and pipeline status.
+
+- [TaskList](/terminal/docs/components/tasklist) — a build-pipeline status list.
+- [LogView](/terminal/docs/components/logview) — a scrollable log viewport.
+- [LogPanel](/terminal/docs/components/logpanel) — a bounded log tail.
