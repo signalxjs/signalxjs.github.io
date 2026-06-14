@@ -1,0 +1,56 @@
+---
+title: "Gradient"
+description: "Multi-stop colored text, optionally animated"
+layout: docs
+category: ["Components", "Effects"]
+order: 160
+---
+
+# Gradient
+
+<p class="lede">Colors text across multiple stops. Stops are theme tokens or raw hex — token-based presets re-color when the theme changes.</p>
+
+## Import
+
+```tsx
+import { Gradient } from '@sigx/terminal';
+import type { GradientPreset } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, Gradient } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <box>
+            <Gradient text="SignalX Terminal" preset="sigx" />
+            <br />
+            <Gradient text="Custom stops" colors={['#ff7e5f', '#feb47b', '#ffcd94']} animate speed={1} />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `text` | `string` | **required** — the text to color |
+| `colors` | `string[]` | gradient stops (tokens or hex); overrides `preset` |
+| `preset` | `GradientPreset` | a named preset |
+| `animate` | `boolean` | sweep the gradient over time |
+| `speed` | `number` | animation speed |
+
+## Presets
+
+`GRADIENT_PRESETS` provides: `sigx` (token-based, theme-aware), `rainbow`, `sunset`, `ocean`, `fire`. `GradientPreset` is the union of these names.
+
+## See also
+
+- [Shimmer](/terminal/docs/components/shimmer) — an animated highlight sweep.
+- [Banner](/terminal/docs/components/banner) — large block-font text.

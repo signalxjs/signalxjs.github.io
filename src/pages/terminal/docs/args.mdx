@@ -1,0 +1,136 @@
+---
+title: Command-line args
+description: "@sigx/args — a fluent, type-aware command & argument parser where the builders you chain drive your handler's types"
+layout: docs
+category: Guides
+order: 60
+---
+
+# Command-line args (`@sigx/args`)
+
+`@sigx/args` is a fluent, type-aware command and argument parser for CLIs. The arg builders you chain drive the **types** your handler receives — declare `port: a.number().required()` and `ctx.args.port` is `number`, not `number | undefined`. It has **zero runtime dependencies**, is platform-neutral, and is the parser behind `@sigx/cli` and the lynx CLI plugins.
+
+It's a standalone package — install it on its own, with or without a terminal UI:
+
+```bash
+npm install @sigx/args
+```
+
+## Quick start
+
+```ts
+import { a, command, runMain } from '@sigx/args';
+
+const dev = command('dev')
+    .describe('Start the dev server')
+    .args({
+        entry: a.positional().required().describe('Entry file'),
+        port: a.number().alias('p').required().describe('Port to listen on'),
+        host: a.string().default('localhost').describe('Host name'),
+        mode: a.enum(['dev', 'prod']).describe('Build mode'),
+        open: a.boolean().describe('Open the browser'),
+    })
+    .run((ctx) => {
+        ctx.args.entry; // string                    (required → non-optional)
+        ctx.args.port;  // number                    (required → non-optional)
+        ctx.args.host;  // string                    (default → non-optional)
+        ctx.args.mode;  // 'dev' | 'prod' | undefined
+        ctx.args.open;  // boolean | undefined
+        ctx.args._;     // string[]  (everything after `--`, verbatim)
+    });
+
+const main = command('sigx')
+    .version('1.0.0')
+    .describe('SignalX CLI')
+    .subcommands({ dev });
+
+await runMain(main);
+```
+
+`--help` / `-h` is handled automatically at every level (`sigx --help`, `sigx dev --help`), and `--version` at the root when `.version()` is set. The names `help` and `h` (and `version`, when set) are reserved — declaring an arg with one of them throws a `DefinitionError`.
+
+## Arg builders
+
+Declare each arg with a chainable `a.*` builder. The builder determines what it parses and the inferred type:
+
+| Builder | Parses | Inferred type |
+| --- | --- | --- |
+| `a.string()` | `--name value`, `--name=value` | `string` (`\| undefined` unless `.required()` / `.default()`) |
+| `a.number()` | finite numbers, including negative | `number` |
+| `a.boolean()` | `--flag`, `--flag=false`, `--no-flag` | `boolean` |
+| `a.enum(['a', 'b'])` | exact member match | `'a' \| 'b'` |
+| `a.positional()` | non-flag tokens, in declaration order | `string` |
+| `a.rest()` | remaining positional tokens | `string[]` (always present) |
+
+## Refiners
+
+Refiners chain, and each returns a **new** builder — they're immutable, so a base builder can be shared and re-refined safely:
+
+| Refiner | Applies to | Effect |
+| --- | --- | --- |
+| `.required()` | all but `rest` | non-optional; parse fails when absent |
+| `.default(v)` | all but `rest` | non-optional; `v` is type-checked (an enum default must be one of its options) |
+| `.multiple()` | string, number, enum | repeatable flag → array, always present (`[]` when absent) |
+| `.alias('p', …)` | flags | alternate names; single characters become short flags (`-p`) |
+| `.negatable(false)` | boolean | disable the automatic `--no-x` negation |
+| `.describe(text)` / `.valueHint(hint)` / `.hidden()` | all | help output |
+
+Invalid combinations **don't typecheck**: the refiner either doesn't exist on that builder (`a.boolean().multiple()`, `a.positional().alias()`) or the chain is rejected (`a.string().default('x').required()`). The same rules are enforced at runtime for untyped callers.
+
+## The command chain
+
+```
+command(name)
+    .describe(text)
+    .version(v)            // root only; enables --version
+    .aliases(...)
+    .hidden()
+    .allowUnknownFlags()
+    .args({ ... })         // once
+    .subcommands({ ... })  // nested commands, may have their own aliases
+    .run(handler)          // terminal: returns the finished Command
+```
+
+There is no `.build()`. A group without a handler is passed to `runMain` as-is; `.run()` is terminal, so declare `.args()` and `.subcommands()` before it.
+
+## Parsing rules
+
+- `--flag value`, `--flag=value`, short `-p value` / `-p=value`, boolean clusters `-abc`.
+- Kebab and camel spellings both resolve: `--dry-run` and `--dryRun` both hit the `dryRun` key.
+- Booleans never consume the next token; a flag-looking token is never read as a value (`--port --open` is `MISSING_VALUE`, not a silent swallow). Negative numbers (`-2`) are values.
+- Bare `--` ends flag parsing; the remainder lands verbatim in `args._`.
+- Unknown flags throw by default; `.allowUnknownFlags()` collects them into `ctx.unknownFlags` instead.
+- Repeated flags: `.multiple()` appends, otherwise last wins.
+
+## Errors
+
+Parse failures throw a typed `ParseError` with a machine-readable `code` (`UNKNOWN_FLAG`, `MISSING_REQUIRED`, `INVALID_ENUM`, …) and structured `detail` (`arg`, `received`, `expected`, `command`), so a host can render rich error UI without string matching. Definition bugs (alias collisions, a required positional after an optional one, …) throw `DefinitionError` eagerly from `.args()`.
+
+## Headless parsing
+
+`parseArgs(argv, shape)` parses against a record of builders without any command — same inference, same validation:
+
+```ts
+import { a, parseArgs } from '@sigx/args';
+
+const { args } = parseArgs(process.argv.slice(2), {
+    port: a.number().required(),
+    verbose: a.boolean(),
+});
+args.port;    // number
+args.verbose; // boolean | undefined
+```
+
+## Headless help catalog
+
+`buildHelpCatalog(cmd)` returns a fully structured `HelpCatalog` — flags, positionals, types, requiredness, defaults, enum options, subcommands, plus the synthesized `--help` / `--version` entries (`builtin: true`). The built-in `renderHelp(catalog)` formats it as plain text; a themed TUI help screen can consume the catalog directly instead of re-parsing strings. This is how a SignalX terminal app can render its own help.
+
+## Embedding
+
+`runMain` prints and sets `process.exitCode` (it never calls `process.exit`), with injectable `rawArgs` / `stdout` / `stderr`. For hosts that render errors themselves — an interactive shell, tests — `runCommand(cmd, { rawArgs })` resolves, parses, runs, and **throws** instead of printing.
+
+## Next steps
+
+- [Prompts](/terminal/docs/prompts) — gather answers interactively after parsing args.
+- [Dev mode](/terminal/docs/dev-mode) — `sigx-terminal-dev` uses `@sigx/args` for its own flags.
+- [`@sigx/cli`](/cli/) — the SignalX CLI, built on `@sigx/args`.

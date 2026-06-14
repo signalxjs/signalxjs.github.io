@@ -1,0 +1,73 @@
+---
+title: "Tabs"
+description: "Horizontal tab switcher with two-way model binding"
+layout: docs
+category: ["Components", "Navigation"]
+order: 130
+---
+
+# Tabs
+
+<p class="lede">A focusable horizontal tab switcher. The active tab fills with the accent; ←/→ (or <code>h</code>/<code>l</code>) switch.</p>
+
+## Import
+
+```tsx
+import { Tabs } from '@sigx/terminal';
+import type { TabOption } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, Tabs } from '@sigx/terminal';
+import type { TabOption } from '@sigx/terminal';
+
+const tabs: TabOption[] = [
+    { label: 'Overview', value: 'overview' },
+    { label: 'Logs', value: 'logs' },
+    { label: 'Settings', value: 'settings' },
+];
+
+const App = component(() => {
+    const active = signal('overview');
+    return () => (
+        <box border="rounded" label="Panel">
+            <Tabs options={tabs} model={() => active} autofocus onChange={(v) => console.log(v)} />
+            <br />
+            <text>Active: {active.value}</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `options` | `TabOption[]` | **required** — the tabs |
+| `model` | `Model<string>` | two-way bound active value |
+| `autofocus` | `boolean` | grab focus on mount |
+
+## Events
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `change` | `string` | active tab changes |
+
+## TabOption
+
+```ts
+interface TabOption<T = string> {
+    label: string;
+    value: T;
+}
+```
+
+## See also
+
+- [StatusBar](/terminal/docs/components/statusbar) — a status footer.
+- [Select](/terminal/docs/components/select) — a vertical single-choice menu.

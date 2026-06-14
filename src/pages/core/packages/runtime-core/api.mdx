@@ -241,16 +241,56 @@ function isLazyComponent(component: any): component is LazyComponentFactory<any>
 
 ### useAsync
 
-Composable that runs an async loader and returns a reactive `{ value, loading, error }` state; the render re-runs as the state changes.
+Composable that runs an async fetcher and returns a reactive `{ value, loading, error, refresh }` state; the render re-runs as the state changes. The fetcher receives an `AbortSignal`. Pass an explicit string key to make the call SSR-transferable — it runs during SSR, serializes its value under the key into `window.__SIGX_ASYNC__`, restores on hydration without refetching, and dedupes per key.
 
 ```ts
-function useAsync<T>(loader: () => Promise<T>): AsyncState<T>;
+// Unkeyed: client-only.
+function useAsync<T>(
+  fetcher: (ctx: AsyncFetcherContext) => Promise<T>,
+  options?: AsyncOptions
+): AsyncState<T>;
+// Keyed: runs on the server, serialized under `key`, restored on hydration.
+function useAsync<T>(
+  key: string,
+  fetcher: (ctx: AsyncFetcherContext) => Promise<T>,
+  options?: AsyncOptions
+): AsyncState<T>;
 ```
 
-- `loader` — an async function producing the value.
+- `key` — (keyed form) the cache/serialization key.
+- `fetcher` — an async function producing the value; `ctx.signal` is an `AbortSignal`.
+- `options.throwOnError` — throw the error when `.error` is read (routes to an error boundary). Default `false`.
+- `options.server` — (keyed form) run the fetcher during SSR. Default `true`.
 - Returns an `AsyncState<T>`.
 
+### useStream
+
+Composable for progressive text (LLM-token-style). Accumulates a streamed `AsyncIterable<string>` into a reactive string; SSR-aware via the key (streams on the server, restores on hydration without re-running the source, live on client navigation).
+
+```ts
+function useStream(
+  key: string,
+  source: () => AsyncIterable<string>
+): { readonly value: string };
+```
+
+- `key` — the serialization/restore key.
+- `source` — a function returning an async iterable of text chunks.
+- Returns a `{ value }` string signal that grows as chunks arrive.
+
 ## Models & two-way binding
+
+### registerModelProcessor
+
+Register an **extension** model processor for intrinsic-element `model` handling. Extension processors run **before** the platform processor (DOM/Lynx/Terminal), in registration order, and the first one returning `true` wins — so packs and apps can **add** model behavior for custom elements or widget libraries without replacing the platform's. Registering the same function twice is a no-op.
+
+```ts
+function registerModelProcessor(fn: ModelProcessor): void;
+```
+
+- `fn` — a `ModelProcessor`: `(type, props, modelBinding, originalProps) => boolean`. Return `true` to claim the binding (skip the fallback), `false` to defer to later processors.
+
+`setPlatformModelProcessor` is the separate, platform-identity seam used by renderer packages and is unchanged — `registerModelProcessor` is the additive extension tier.
 
 ### createModel
 
@@ -520,7 +560,7 @@ interface CreateTopicOptions {
 Behavior contract (Topic v2):
 
 - `publish` **isolates subscriber errors** — a throwing handler is logged via `console.error` and neither skips later subscribers nor propagates into the publisher. Publishing to a destroyed topic is a no-op.
-- `subscribe` **throws on a destroyed topic** (previously it silently re-attached a handler that could never be cleaned up).
+- `subscribe` **throws on a destroyed topic** — a handler attached after `destroy()` could never be cleaned up, so it is rejected loudly instead of leaking.
 - `onActivate` / `onDeactivate` fire on the 0 → 1 and → 0 subscriber transitions, letting producers pay for work only while observed (e.g. `@sigx/store` runs its per-key state watchers only while the key's event has subscribers). Hook errors are isolated.
 - Topics created **with** a `namespace` register in the inspection registry (see [Inspection](#inspection-sigxruntime-coreinspect)); `destroy()` unregisters.
 
@@ -634,29 +674,11 @@ type guid = string;
 
 - Returns a new GUID string.
 
-## Constants
-
-### CLIENT_DIRECTIVE_PREFIX
-
-Prefix string for selective-hydration client directives.
-
-```ts
-const CLIENT_DIRECTIVE_PREFIX: 'client:';
-```
-
-### CLIENT_DIRECTIVES
-
-Tuple of valid client directive names for selective hydration.
-
-```ts
-const CLIENT_DIRECTIVES: readonly ['client:load', 'client:idle', 'client:visible', 'client:media', 'client:only'];
-```
-
 ## Lifetimes
 
 ### Lifetime
 
-Lifetime options for `defineFactory` (and consumers like `@sigx/store`'s `defineStore`). A string-literal union — it replaces the old `InstanceLifetimes` enum, and it is enforced (see [defineFactory](#definefactory) for the semantics of each value).
+Lifetime options for `defineFactory` (and consumers like `@sigx/store`'s `defineStore`). A string-literal union; the lifetime is enforced (see [defineFactory](#definefactory) for the semantics of each value).
 
 ```ts
 type Lifetime = 'singleton' | 'scoped' | 'transient';
@@ -880,15 +902,25 @@ interface DirectiveDefinition<T = any, El = any> extends DirectiveDefinitionExte
 type ResolvedDirective<T = any, El = any> = [DirectiveDefinition<T, El>, T];
 ```
 
-### AsyncState
+### AsyncState / AsyncFetcherContext / AsyncOptions
 
-Reactive result of `useAsync`.
+Reactive result of `useAsync`, plus the fetcher context and options. `value` and `error` are mutually exclusive; `refresh()` re-runs the fetcher stale-while-revalidate (keeps `value` while loading) and repopulates the keyed cache.
 
 ```ts
 interface AsyncState<T> {
   readonly value: T | null;
   readonly loading: boolean;
   readonly error: Error | null;
+  refresh(): Promise<void>;
+}
+
+interface AsyncFetcherContext {
+  signal: AbortSignal; // pass to fetch(url, { signal })
+}
+
+interface AsyncOptions {
+  throwOnError?: boolean; // default false
+  server?: boolean;       // keyed form, default true
 }
 ```
 
@@ -926,9 +958,9 @@ interface SetupFactoryContext {
 
 `FactoryFunction` is what a parameterized `defineFactory` returns — callable with the setup's params and carrying the provide metadata so it works with `defineProvide` / `app.defineProvide`.
 
-### Subscription / Topic / ModelProcessor / ComponentPlugin / hydration types
+### Subscription / Topic / ModelProcessor / ComponentPlugin
 
-Messaging, plugin, and hydration types. `ModelProcessor` and `ComponentPlugin` are type-only public exports — their setters are internal.
+Messaging, model-processor, and plugin types. `ModelProcessor` is the signature of an intrinsic-element model handler — register one with [`registerModelProcessor`](#registermodelprocessor). `ComponentPlugin` is a type-only public export (its setter is internal).
 
 ```ts
 interface Subscription { unsubscribe(): void; }
@@ -945,9 +977,6 @@ interface Topic<T> {
 }
 type ModelProcessor = (type: string, props: Record<string, any>, modelBinding: [Record<string, any>, string], originalProps: Record<string, any>) => boolean;
 type ComponentPlugin = { onDefine?: (name: string | undefined, factory: Function, setup: Function) => void };
-type ClientDirective = 'client:load' | 'client:idle' | 'client:visible' | 'client:media' | 'client:only';
-type HydrationStrategy = 'load' | 'idle' | 'visible' | 'media' | 'only';
-interface HydrationDirective { strategy: HydrationStrategy; media?: string; }
 ```
 
 ### ModelBinding / EventDefinition

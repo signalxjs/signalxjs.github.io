@@ -1,0 +1,56 @@
+---
+title: "PixelArt"
+description: "Palette-mapped pixel grids drawn with terminal cells"
+layout: docs
+category: ["Components", "Effects"]
+order: 163
+---
+
+# PixelArt
+
+<p class="lede">Draws a grid of colored cells from <code>rows</code> of single-character keys mapped through a <code>palette</code> — a logo or sprite as terminal pixels.</p>
+
+## Import
+
+```tsx
+import { PixelArt } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, PixelArt } from '@sigx/terminal';
+
+const rows = [
+    '.rrr.',
+    'rrrrr',
+    '.ggg.',
+    '..b..',
+];
+
+const palette = { r: '#e0606a', g: '#5fd17f', b: '#6ea8ff' };
+
+const App = component(() => {
+    return () => (
+        <box border="single" label="Logo">
+            <PixelArt rows={rows} palette={palette} />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `rows` | `string[]` | **required** — rows of palette keys; `.` / space is transparent |
+| `palette` | `Record<string, string>` | **required** — key → color (token or hex) |
+
+`renderPixelArt(rows, palette)` is the headless renderer that returns the ANSI lines.
+
+## See also
+
+- [Banner](/terminal/docs/components/banner) — block-font headings.

@@ -150,7 +150,69 @@ function applyThemeConfig(config: SSGConfig, theme: ThemeModule): SSGConfig
 function resolveThemeConfig(config: SSGConfig, root: string): Promise<SSGConfig>
 ```
 
-Theme loading and config-contribution merging: a theme's exported `config` can contribute markdown plugins (run before the site's), head tags (prepended to `site.head`), CSS import specifiers (prepended to `clientImports`), and a `defaultLayout` (used when the site doesn't set one). `resolveThemeConfig` combines both: it loads `config.theme` (if set) and applies it. Build and dev call this automatically; the exports exist for tooling.
+Theme loading and config-contribution merging: a theme's exported `config` can contribute markdown plugins (run before the site's), build hooks (run before the site's), head tags (prepended to `site.head`), CSS import specifiers (prepended to `clientImports`), and a `defaultLayout` (used when the site doesn't set one). `resolveThemeConfig` combines both: it loads `config.theme` (if set) and applies it. Build and dev call this automatically; the exports exist for tooling.
+
+## Redirects, search, data, link checking
+
+These build-time helpers back the corresponding config options; the build calls them for you, and they are exported for programmatic use.
+
+### Redirects
+
+```ts
+function generateRedirectHtml(target: string, config: SSGConfig): string
+function generateRedirectsFile(redirects: Record<string, string>, config: SSGConfig): string
+function writeRedirects(
+    redirects: Record<string, string>,
+    config: SSGConfig,
+    outDir: string,
+    renderedPaths?: Iterable<string>,
+): Promise<void>
+```
+
+Emit the per-path meta-refresh pages and the Netlify/Cloudflare `_redirects` file. Relative targets are prefixed with `base`; a redirect colliding with a rendered page throws. See [Configuration → Redirects](/ssg/docs/configuration#redirects).
+
+### Search
+
+```ts
+function extractSearchText(html: string): string
+function buildSearchIndex(pages: PageBuildResult[], options?: SearchOptions): SearchIndexEntry[]
+function writeSearchIndex(/* … */): Promise<void>
+```
+
+Build the `search-index.json` over rendered pages. Consume it on the client with `loadSearchIndex` / `searchPages` from `@sigx/ssg/client`.
+
+### Data loaders
+
+```ts
+function runDataLoaders(loaders: DataLoaders): Promise<Record<string, unknown>>
+function generateDataModule(values: Record<string, unknown>): string
+```
+
+Run the config's `data` loaders and emit the `virtual:ssg-data` module source. Values must be JSON-serializable.
+
+### Link checking
+
+```ts
+function checkLinks(
+    docs: Array<{ path: string; html: string }>,
+    options?: LinkCheckOptions,
+): BrokenLink[]
+function extractLocalLinks(html: string): string[]
+function extractElementIds(html: string): Set<string>
+function formatLinkCheckReport(broken: BrokenLink[]): string
+```
+
+Validate internal links and `#fragment` anchors across rendered pages. `linkCheck: 'warn' | 'error'` in the config drives whether findings warn or fail the build.
+
+### Other build helpers
+
+```ts
+function generateDefault404(config: SSGConfig): string
+function gitLastModifiedMap(root: string): Map<string, string>
+function resolveLastmods(/* … */): Map<string, string>
+```
+
+`generateDefault404` produces the fallback `404.html` when no `/404` page exists; `gitLastModifiedMap` / `resolveLastmods` back `sitemap.lastmod`.
 
 ## Vite plugin
 
@@ -287,6 +349,53 @@ Parses the JSON embedded in the `#__SSG_STATE__` script element, or returns `nul
 
 - **Returns** — the parsed state, or `null` if absent.
 
+### Package-manager API
+
+```ts
+function getPackageManager(): Pm
+function setPackageManager(pm: Pm): void
+function onPackageManagerChange(listener: (pm: Pm) => void): () => void
+function installPackageManagerSwitcher(): () => void
+
+// pure command helpers
+function parsePackageManagerCommand(command: string): ParsedPackageManagerCommand | null
+function renderPackageManagerCommand(parsed: ParsedPackageManagerCommand, pm: Pm): string
+function translatePackageManagerCommand(command: string, pm: Pm): string
+const PACKAGE_MANAGERS: readonly Pm[]   // 'pnpm' | 'npm' | 'yarn' | 'bun'
+const DEFAULT_PACKAGE_MANAGER: Pm       // 'pnpm'
+type Pm = 'pnpm' | 'npm' | 'yarn' | 'bun'
+```
+
+The npm/pnpm/yarn/bun switcher behind package-manager code fences. `getPackageManager` reads the current selection (in-page → persisted → server default → `'pnpm'`); `setPackageManager` selects one, updating every switcher window, persisting the choice, and notifying subscribers; `onPackageManagerChange` subscribes (returns an unsubscribe). `installPackageManagerSwitcher` wires the tab clicks, cross-tab sync, and late-mounted windows — wired automatically in the generated client entry. The pure `parse`/`render`/`translate` helpers convert a single command between managers without touching the DOM. See [Client runtime](/ssg/docs/client-runtime#package-manager-switcher).
+
+### loadSearchIndex
+
+```ts
+function loadSearchIndex(options?: { base?: string; url?: string }): Promise<SearchIndexEntry[]>
+```
+
+Fetches the emitted `search-index.json` (built when `search: true`). Pass `base` for subpath deploys, or `url` to override the location. Throws with a hint if the index is missing.
+
+### searchPages
+
+```ts
+function searchPages(
+    entries: SearchIndexEntry[],
+    query: string,
+    options?: { limit?: number },
+): SearchResult[]
+```
+
+Ranks index entries against a query (AND semantics across whitespace-separated terms; title matches outrank headings outrank description outrank body). Each `SearchResult` carries `path`, `title`, `score`, an optional body `excerpt`, and an optional heading `anchor` for deep links. Pure and dependency-free. See [Client runtime → Search](/ssg/docs/client-runtime#search).
+
+### installCodeCopy
+
+```ts
+function installCodeCopy(): () => void
+```
+
+Wires the copy buttons Shiki emits in every code-window header (package-manager windows copy only the visible variant). One delegated listener; returns a disposer; safe on pages without code blocks. Wired automatically in the generated client entry.
+
 ### ssrClientPlugin
 
 ```ts
@@ -324,10 +433,15 @@ interface SSGConfig {
     toc?: TOCConfig;
     sitemap?: SitemapOptions | false;
     hooks?: BuildHooks;
+    redirects?: Record<string, string>;
+    search?: boolean | SearchOptions;
+    linkCheck?: 'off' | 'warn' | 'error';
+    routes?: (ctx: RoutesContext) => ProgrammaticRoute[] | Promise<ProgrammaticRoute[]>;
+    data?: DataLoaders;
 }
 ```
 
-The full SSG configuration object accepted by `defineSSGConfig`.
+The full SSG configuration object accepted by `defineSSGConfig`. `redirects` maps old paths to new (see [Configuration → Redirects](/ssg/docs/configuration#redirects)); `search` enables the built-in search index; `linkCheck` (default `'warn'`) validates internal links and anchors; `routes` adds programmatic pages; `data` registers build-time data loaders exposed via `virtual:ssg-data`.
 
 ### SiteConfig
 
@@ -343,10 +457,30 @@ interface SiteConfig {
     twitter?: string;
     fonts?: string[];
     themeColor?: string;
+    jsonLd?: object | object[];
+    nav?: NavItem[];
+    logo?: string;
+    repo?: string;
+    head?: HeadTag[];
+    search?: boolean | { base?: string; url?: string };
+    editBase?: string;
+    announcement?: { text: string; href?: string; id?: string };
 }
 ```
 
-Site-wide metadata used for head tags, canonical URLs, and the sitemap.
+Site-wide metadata used for head tags, canonical URLs, and the sitemap, plus the fields layouts/themes render: `nav`, `logo`, `repo`, `head`, global `jsonLd`, the `search` UI flag, an `editBase` for edit-this-page links, and an `announcement` bar. Reaches layouts via `LayoutProps.site`.
+
+### HeadTag
+
+```ts
+interface HeadTag {
+    tag: string;
+    attrs?: Record<string, string>;
+    children?: string;
+}
+```
+
+A raw tag injected into `<head>`. `attrs` values are HTML-escaped; `children` is emitted verbatim, so it can hold inline JSON, CSS, or script content.
 
 ### CollectionConfig
 
@@ -355,10 +489,11 @@ interface CollectionConfig {
     path: string;
     layout?: string;
     showDrafts?: 'dev' | 'never';
+    sectionOrder?: Record<string, number> | string[];
 }
 ```
 
-Configuration for a single content collection, keyed by name under `collections`.
+Configuration for a single content collection, keyed by name under `collections`. `sectionOrder` (a name → weight map or an explicit list) overrides the site-wide `navigation.sectionOrder` for this collection's sidebar.
 
 ### NavigationConfig
 
@@ -367,10 +502,11 @@ interface NavigationConfig {
     sidebar?: NavSection[];
     autoGenerate?: boolean;
     showDrafts?: 'dev' | 'never';
+    sectionOrder?: Record<string, number> | string[];
 }
 ```
 
-Navigation configuration: explicit sections, auto-generation (default `true`), and draft handling.
+Navigation configuration: explicit sections, auto-generation (default `true`), draft handling, and `sectionOrder` — a name → weight map (lower first, merged over the built-in defaults) or an explicit category list (listed first in order, then the rest per the defaults). A collection can override it with its own `sectionOrder`.
 
 ### NavSection
 
@@ -483,10 +619,11 @@ The shape of a layout module.
 interface LayoutProps {
     meta?: PageMeta;
     path?: string;
+    site?: SiteConfig;
 }
 ```
 
-Props passed to a layout component.
+Props passed to a layout component: the current page `meta`, the route `path`, and the whole `site` config so layouts/themes can render branding, search UI, announcement bars, and edit-this-page links without hardcoding them.
 
 ### LayoutSlots
 
@@ -515,11 +652,14 @@ The shape of a theme package referenced through the config `theme` field.
 ```ts
 interface ThemeConfig {
     defaultLayout?: string;
+    hooks?: BuildHooks;
+    markdown?: Pick<MarkdownConfig, 'remarkPlugins' | 'rehypePlugins'>;
+    head?: HeadTag[];
     css?: string[];
 }
 ```
 
-Theme-provided defaults: a default layout and CSS files to include.
+Config a theme contributes, merged so the site's own config always wins: a `defaultLayout` (used when the site doesn't set one), build `hooks` (run before the site's), `markdown` plugins (run before the site's), `head` tags (prepended to `site.head`), and `css` import specifiers (prepended to `clientImports`). See [Themes](/ssg/docs/themes).
 
 ### MarkdownConfig
 
@@ -540,10 +680,14 @@ interface ShikiConfig {
     light?: string;
     dark?: string;
     langs?: string[];
+    triggerLabel?: string;
+    defaultPackageManager?: 'pnpm' | 'npm' | 'yarn' | 'bun';
+    transformers?: ShikiTransformer[];
+    skipLanguages?: string[];
 }
 ```
 
-Shiki highlighting options (themes and languages).
+Shiki highlighting options. `transformers` (from `shiki`) are applied to every highlighted block, with the raw fence meta exposed as `options.meta.__raw`; `skipLanguages` leaves listed fences untouched for a downstream rehype plugin/island (e.g. `['mermaid', 'math']`); `defaultPackageManager` (default `'pnpm'`) chooses the first variant on package-manager fences; `triggerLabel` is the live-code "Try Live" button label.
 
 ### TOCConfig
 
@@ -575,10 +719,11 @@ interface BuildOptions {
     configPath?: string;
     verbose?: boolean;
     concurrency?: number;
+    drafts?: boolean;
 }
 ```
 
-Options for `build()`. The effective default `concurrency` is 20.
+Options for `build()`. The effective default `concurrency` is 20; `drafts: true` includes pages with `draft: true` frontmatter, otherwise excluded from production builds and the sitemap.
 
 ### BuildResult
 
@@ -600,10 +745,12 @@ interface PageBuildResult {
     file: string;
     time: number;
     size: number;
+    meta?: PageMeta;
+    source?: string;
 }
 ```
 
-Per-page build statistics.
+Per-page build statistics, carrying the page `meta` and the absolute `source` file path (read by `sitemap.lastmod` git/mtime derivation).
 
 ### DevOptions
 
@@ -666,10 +813,105 @@ interface SitemapOptions {
     exclude?: string[];
     defaultChangefreq?: SitemapEntry['changefreq'];
     defaultPriority?: number;
+    lastmod?: 'git' | 'mtime' | false;
+    transform?: (entry: SitemapEntry, page: PageBuildResult) => SitemapEntry | null | undefined;
 }
 ```
 
-Options for sitemap generation.
+Options for sitemap generation. `lastmod` derives each `<lastmod>` from the source file — `'git'` from the last commit date (needs full history), `'mtime'` from the filesystem timestamp (default `false`); explicit per-page `meta.lastmod` always wins. `transform` runs last per entry — adjust it, or return `null`/`undefined` to drop it.
+
+### BuildHooks
+
+```ts
+interface BuildHooks {
+    transformHtml?: (html: string, page: BuildHookPage) => string | Promise<string>;
+    onPageRendered?: (page: PageBuildResult & { html: string }) => void | Promise<void>;
+    postBuild?: (
+        result: { pages: PageBuildResult[]; warnings: string[] },
+        ctx: { outDir: string; config: SSGConfig },
+    ) => void | Promise<void>;
+}
+```
+
+Build pipeline hooks (production builds only). The per-page hooks run concurrently and in no guaranteed order; `postBuild` runs exactly once. See [Configuration → Build hooks](/ssg/docs/configuration#build-hooks).
+
+### BuildHookPage
+
+```ts
+interface BuildHookPage {
+    path: string;
+    params: Record<string, string>;
+    props?: Record<string, unknown>;
+    meta?: PageMeta;
+    route: SSGRoute;
+}
+```
+
+The page context passed to per-page build hooks.
+
+### SearchOptions
+
+```ts
+interface SearchOptions {
+    output?: string;
+    maxTextLength?: number;
+}
+```
+
+Built-in search options: the index filename inside `outDir` (default `'search-index.json'`) and the per-page visible-text cap in characters (default `8000`).
+
+### SearchIndexEntry
+
+```ts
+interface SearchIndexEntry {
+    path: string;
+    title: string;
+    description?: string;
+    headings: TocHeading[];
+    text: string;
+    tags?: string[];
+}
+```
+
+One page in the emitted search index. Also exported from `@sigx/ssg/client`.
+
+### RoutesContext / ProgrammaticRoute / DataLoaders
+
+```ts
+interface RoutesContext {
+    config: SSGConfig;
+    root: string;
+}
+
+interface ProgrammaticRoute {
+    path: string;
+    file: string;
+    layout?: string;
+    meta?: PageMeta;
+}
+
+type DataLoaders = Record<string, () => unknown | Promise<unknown>>;
+```
+
+`config.routes` is `(ctx: RoutesContext) => ProgrammaticRoute[] | Promise<…>` — pages added outside the filesystem scan. `config.data` is a `DataLoaders` map exposed via `virtual:ssg-data`. See [Configuration → Programmatic routes](/ssg/docs/configuration#programmatic-routes) and [Build-time data loaders](/ssg/docs/configuration#build-time-data-loaders).
+
+### BrokenLink / LinkCheckOptions
+
+```ts
+interface BrokenLink {
+    page: string;
+    href: string;
+    reason: 'missing-page' | 'missing-anchor';
+}
+
+interface LinkCheckOptions {
+    base?: string;
+    redirects?: Record<string, string>;
+    fileExists?: (path: string) => boolean;
+}
+```
+
+Returned and accepted by `checkLinks` (see [Link checking](#link-checking)).
 
 ## Virtual modules
 
@@ -716,13 +958,25 @@ declare module 'virtual:ssg-navigation' {
 
 Runtime navigation helpers: look up a collection's sidebar, detect the collection for a path, and access the full navigation map.
 
+### virtual:ssg-data
+
+```ts
+declare module 'virtual:ssg-data' {
+    const data: Record<string, unknown>;
+    export default data;
+}
+```
+
+The results of the config's build-time `data` loaders. The module also emits one named export per key, but only the default export is typed here — augment `virtual:ssg-data` in your project for typed named imports. See [Configuration → Build-time data loaders](/ssg/docs/configuration#build-time-data-loaders).
+
 ### virtual:generated-layouts
 
 ```ts
 declare module 'virtual:generated-layouts' {
     export function setupLayouts<T>(routes: T): T;
     export const LayoutRouter: unknown;
+    export function setPageProps(path: string, props: Record<string, unknown> | undefined): void;
 }
 ```
 
-Layout wiring used by the generated client and server entries: `setupLayouts` wraps routes with their layouts, and `LayoutRouter` is the root component.
+Layout wiring used by the generated client and server entries: `setupLayouts` wraps routes with their layouts, `LayoutRouter` is the root component, and `setPageProps` registers a route's `getStaticPaths` props so the `LayoutRouter` passes them to the page (the generated entries call it; you only call it in custom entries).

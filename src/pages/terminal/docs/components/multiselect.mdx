@@ -1,0 +1,87 @@
+---
+title: "MultiSelect"
+description: "Checkbox list with a movable cursor and optional group headers"
+layout: docs
+category: ["Components", "Forms"]
+order: 116
+---
+
+# MultiSelect
+
+<p class="lede">A checkbox list with a movable cursor. The <code>model</code> holds the array of checked values. ↑/<code>k</code> ↓/<code>j</code> move, Space toggles, <code>a</code> toggles all, Enter submits.</p>
+
+## Import
+
+```tsx
+import { MultiSelect } from '@sigx/terminal';
+import type { MultiSelectOption } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, MultiSelect } from '@sigx/terminal';
+import type { MultiSelectOption } from '@sigx/terminal';
+
+const options: MultiSelectOption[] = [
+    { label: 'TypeScript', value: 'ts', group: 'Language' },
+    { label: 'ESLint', value: 'eslint', group: 'Tooling' },
+    { label: 'Vitest', value: 'vitest', group: 'Tooling' },
+];
+
+const App = component(() => {
+    const features = signal<string[]>([]);
+    return () => (
+        <box border="rounded" label="Features">
+            <MultiSelect
+                options={options}
+                model={() => features}
+                label="Select features"
+                required
+                showHint
+                autofocus
+                onSubmit={(v) => console.log('chosen:', v)}
+            />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `options` | `MultiSelectOption[]` | **required** — the choices |
+| `model` | `Model<string[]>` | two-way bound array of checked values |
+| `label` | `string` | caption above the list |
+| `autofocus` | `boolean` | grab focus on mount |
+| `required` | `boolean` | block an empty submit |
+| `showHint` | `boolean` | show the keys hint |
+
+## Events
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `change` | `string[]` | the checked set changes |
+| `submit` | `string[]` | Enter (blocked with a hint when `required` and nothing is checked) |
+
+## MultiSelectOption
+
+```ts
+interface MultiSelectOption<T = string> {
+    label: string;
+    value: T;
+    description?: string;
+    group?: string; // section header when it differs from the previous option's group
+}
+```
+
+Set `group` to render section headers; the cursor skips headers. Pre-sort options by group.
+
+## See also
+
+- [Select](/terminal/docs/components/select) — single choice.
+- [multiselect() prompt](/terminal/docs/prompts) — the imperative form.

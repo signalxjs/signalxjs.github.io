@@ -1,0 +1,49 @@
+---
+title: "Card"
+description: "A titled panel container"
+layout: docs
+category: ["Components", "Layout"]
+order: 140
+---
+
+# Card
+
+<p class="lede">A titled panel — a themed bordered container with an optional <code>title</code> and drop shadow. Children go in its default slot.</p>
+
+## Import
+
+```tsx
+import { Card } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, Card } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <Card title="Summary" dropShadow>
+            <text>Build completed in 1.2s.</text>
+            <br />
+            <text>3 warnings, 0 errors.</text>
+        </Card>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `title` | `string` | caption in the top border |
+| `dropShadow` | `boolean` | cast a shadow on the right/bottom edges |
+
+The card's content is its default slot.
+
+## See also
+
+- [Layout & Styling](/terminal/docs/layout-and-styling) — the `Box`, `Row` and `Col` primitives.

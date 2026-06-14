@@ -91,12 +91,10 @@ Invokes the `mounted` hook for all directives attached to an element after DOM i
 export function registerBuiltInDirective(name: string, def: DirectiveDefinition): void
 ```
 
-Registers a built-in directive so the `use:<name>={value}` shorthand resolves it.
+Register a directive into the built-in tier so the `use:<name>={value}` shorthand resolves it globally — across every app and `render()` call, with no per-app `app.directive()` wiring. The standard built-in `show` registers itself this way on import; reach for it when shipping a directive pack that should be available everywhere.
 
 - `name` — the directive name used in `use:<name>`.
-- `def` — the directive definition.
-
-Marked `@internal` in source.
+- `def` — the directive definition (from `defineDirective`).
 
 ### `resolveBuiltInDirective`
 

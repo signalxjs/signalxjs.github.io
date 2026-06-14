@@ -38,8 +38,8 @@ export default defineLibConfig({
 ```
 
 Output files use the format `${entryName}.js` (ES format only). Sourcemaps are
-on by default, and minification produces additional `.min.js` files (Oxc-based)
-unless you set `minify: false`.
+on by default, and output is minified in place by Oxc unless you set
+`minify: false`.
 
 ## Multiple Entries
 
@@ -139,14 +139,51 @@ export default defineLibConfig({
 });
 ```
 
+## Dual-dist (development + production) builds
+
+`defineLibConfig` returns a config **function** that branches on Vite's `--mode`.
+Run it twice to emit a development dist and a parallel production dist into the
+same `outDir`:
+
+```jsonc
+// package.json
+{
+    "scripts": {
+        "build": "vite build && vite build --mode prod-dist"
+    }
+}
+```
+
+- **`vite build`** — the default (development) dist. Files are `${entryName}.js`
+  and `emptyOutDir` is on, so the directory starts clean.
+- **`vite build --mode prod-dist`** — the production dist, written **alongside**
+  the dev output (it does not empty the directory). `process.env.NODE_ENV` is
+  defined away to `'production'` so dev-only warnings and devtools plumbing are
+  stripped, and every file gets a `.prod.js` suffix.
+
+Point the package's `production` export condition at the `.prod.js` files so
+consumers building for production pick up the stripped-down runtime automatically:
+
+```jsonc
+// package.json (sketch)
+{
+    "exports": {
+        ".": {
+            "production": "./dist/index.prod.js",
+            "default": "./dist/index.js"
+        }
+    }
+}
+```
+
 ## Defaults Summary
 
 | Option | Default | Effect |
 |---|---|---|
-| `outDir` | `'dist'` | Output directory; `emptyOutDir` is always on. |
+| `outDir` | `'dist'` | Output directory; `emptyOutDir` is on for the default build and off for the `prod-dist` pass, so the two builds sit side by side. |
 | `sourcemap` | `true` | Emit sourcemaps. |
 | `external` | `[/@sigx\/.*/]` | Runtime tier is always added on top. |
-| `minify` | `true` | Emit extra `.min.js` files via Oxc (or `false`). |
+| `minify` | `true` | Minify output in place via Oxc (or `false`). |
 | `jsx` | `false` | Automatic JSX with import source `sigx` when `true`. |
 | `platform` | `'browser'` | `'node'` targets `node18`; `'neutral'` is also accepted. |
 

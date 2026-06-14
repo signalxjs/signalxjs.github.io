@@ -1,0 +1,52 @@
+---
+title: "Table"
+description: "Columns and rows of text data"
+layout: docs
+category: ["Components", "Data"]
+order: 150
+---
+
+# Table
+
+<p class="lede">A simple text table — a header row of <code>columns</code> over a grid of <code>rows</code>.</p>
+
+## Import
+
+```tsx
+import { Table } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, Table } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <box border="single" label="Packages">
+            <Table
+                columns={['Package', 'Version', 'Status']}
+                rows={[
+                    ['@sigx/terminal', '0.6.1', 'latest'],
+                    ['@sigx/args', '0.6.1', 'latest'],
+                    ['@sigx/terminal-dev', '0.6.1', 'latest'],
+                ]}
+            />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `columns` | `string[]` | **required** — header labels |
+| `rows` | `string[][]` | row cells, in column order |
+
+## See also
+
+- [QRCode](/terminal/docs/components/qrcode) — render a scannable code.

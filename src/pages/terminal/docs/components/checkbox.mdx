@@ -1,0 +1,64 @@
+---
+title: "Checkbox"
+description: "Focusable boolean toggle with two-way model binding"
+layout: docs
+category: ["Components", "Forms"]
+order: 112
+---
+
+# Checkbox
+
+<p class="lede">A focusable boolean toggle with two-way <code>model</code> binding. Enter or Space toggles it.</p>
+
+## Import
+
+```tsx
+import { Checkbox } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, Checkbox } from '@sigx/terminal';
+
+const App = component(() => {
+    const agreed = signal(false);
+    return () => (
+        <box border="single" label="Terms">
+            <Checkbox
+                model={() => agreed}
+                label="I agree"
+                autofocus
+                onChange={(v) => console.log('agreed:', v)}
+            />
+            <br />
+            <text>{agreed.value ? 'Thank you!' : 'Please accept to continue.'}</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `model` | `Model<boolean>` | two-way bound checked state |
+| `label` | `string` | text beside the box |
+| `autofocus` | `boolean` | grab focus on mount |
+| `disabled` | `boolean` | non-interactive |
+
+## Events
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `change` | `boolean` | toggled |
+
+Renders with a `◉` / `◯` marker and a focus accent bar.
+
+## See also
+
+- [Confirm](/terminal/docs/components/confirm) — yes/no with explicit labels.
+- [MultiSelect](/terminal/docs/components/multiselect) — many checkboxes in a list.

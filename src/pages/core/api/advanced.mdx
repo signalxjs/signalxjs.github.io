@@ -85,7 +85,7 @@ const usersRepo = useRepository('users');
 
 ## Lifetime
 
-String-literal union for factory instance lifetimes. Replaces the old `InstanceLifetimes` enum — and unlike the enum, lifetimes are now **enforced**.
+String-literal union for factory instance lifetimes. The lifetime you pass is **enforced** — it controls how many instances exist and when each is disposed.
 
 ```tsx
 type Lifetime = 'singleton' | 'scoped' | 'transient';

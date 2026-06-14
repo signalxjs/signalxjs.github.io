@@ -215,29 +215,44 @@ export const BlogPost = component(() => {
 
 ### Redirects During SSR
 
-Use a navigation guard to redirect before the page is rendered. On the server
-the redirect happens in memory — the Express handler can check the final URL
-and send a 302:
+Guards and route-record `redirect`s run on the **initial** route resolution, so a
+guarded or redirected URL is resolved in memory on the server before any HTML is
+produced. Wait for that to finish with `await router.isReady()`, then read the
+resolved route to emit a real 30x — don't just send the rendered HTML under the
+requested URL.
 
 ```ts
-// router.ts — add a guard to the routes
+// router.ts — a route-record redirect, or any guard that returns a location
 export const routes: RouteRecordRaw[] = [
     { path: '/old-page', redirect: '/new-page' },
     // ...other routes
 ];
 ```
 
-For programmatic redirects in the server handler:
+When a guard or `redirect` sends the navigation elsewhere, the resolved route carries
+the original location on `currentRoute.redirectedFrom`. The server handler checks for
+it (and, as a fallback, compares the resolved path to the requested one) and replies
+with a 302:
 
 ```ts
+// Imports and `const ssr = createSSR()` as in the entry-server example above.
 export async function render(url: string) {
     const router = createServerRouter(url);
     const app = defineApp(<App />).use(router);
-    const html = await ssr.render(app);
 
-    // Check if the router resolved to a different path (redirect)
-    const finalPath = router.currentRoute.path;
-    return { html, redirect: finalPath !== url ? finalPath : null };
+    // Let the initial navigation — including guards and redirects — settle.
+    await router.isReady();
+
+    const resolved = router.currentRoute;
+    const redirect =
+        resolved.redirectedFrom != null || resolved.fullPath !== url
+            ? resolved.fullPath
+            : null;
+
+    if (redirect) return { html: null, redirect };
+
+    const html = await ssr.render(app);
+    return { html, redirect: null };
 }
 
 // server.ts
@@ -249,6 +264,9 @@ app.get('*', async (req, res) => {
     res.status(200).send(/* ... */);
 });
 ```
+
+> An initial redirect uses **replace** semantics, so the redirected-away URL never
+> enters the client's history — Back won't return to it after hydration.
 
 ## Next Steps
 

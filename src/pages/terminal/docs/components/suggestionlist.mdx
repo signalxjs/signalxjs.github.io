@@ -1,0 +1,81 @@
+---
+title: "SuggestionList"
+description: "An intellisense-style completion popup that overlays an input"
+layout: docs
+category: ["Components", "Navigation"]
+order: 133
+---
+
+# SuggestionList
+
+<p class="lede">An intellisense popup for an input. Mount it to open it — typically rendered conditionally under a <a href="/terminal/docs/components/textarea">TextArea</a> while the value matches a trigger like <code>/</code>.</p>
+
+## Import
+
+```tsx
+import { SuggestionList } from '@sigx/terminal';
+import type { SuggestionItem } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, TextArea, SuggestionList } from '@sigx/terminal';
+import type { SuggestionItem } from '@sigx/terminal';
+
+const commands: SuggestionItem[] = [
+    { value: '/help', description: 'Show help' },
+    { value: '/clear', description: 'Clear the screen' },
+    { value: '/quit', description: 'Exit' },
+];
+
+const App = component(() => {
+    const input = signal('');
+    return () => (
+        <box border="rounded" label="Command">
+            <TextArea model={() => input} placeholder="Type /…" autofocus />
+            {input.value.startsWith('/') && (
+                <SuggestionList
+                    items={commands.filter((c) => c.value.startsWith(input.value))}
+                    maxVisible={5}
+                    onAccept={(v) => { input.value = v; }}
+                    onDismiss={() => { /* close */ }}
+                />
+            )}
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `items` | `SuggestionItem[]` | **required** — the suggestions |
+| `maxVisible` | `number` | rows before scrolling |
+
+## Events
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `accept` | `string` | Tab/Enter on the highlighted item |
+| `dismiss` | — | Esc |
+
+It registers an **overlay**-layer key handler (see [layered key dispatch](/terminal/docs/input-and-components)) that consumes only navigation keys — ↑/↓ move, Tab/Enter accept, Esc dismisses — while printable characters, backspace and the rest fall through to the input below, so filtering keeps working as the user types.
+
+## SuggestionItem
+
+```ts
+interface SuggestionItem {
+    value: string;
+    label?: string;       // defaults to value
+    description?: string;
+}
+```
+
+## See also
+
+- [TextArea](/terminal/docs/components/textarea) — the input it overlays.

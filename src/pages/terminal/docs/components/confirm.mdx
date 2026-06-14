@@ -1,0 +1,64 @@
+---
+title: "Confirm"
+description: "Inline yes/no toggle with custom active and inactive labels"
+layout: docs
+category: ["Components", "Forms"]
+order: 113
+---
+
+# Confirm
+
+<p class="lede">A focusable inline yes/no control with two-way <code>model</code> binding and customizable labels for each state.</p>
+
+## Import
+
+```tsx
+import { Confirm } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, Confirm } from '@sigx/terminal';
+
+const App = component(() => {
+    const overwrite = signal(false);
+    return () => (
+        <box border="single" label="Confirm">
+            <Confirm
+                model={() => overwrite}
+                label="Overwrite the existing file?"
+                activeLabel="Yes"
+                inactiveLabel="No"
+                autofocus
+                onSubmit={(v) => console.log('decided:', v)}
+            />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `model` | `Model<boolean>` | two-way bound choice |
+| `label` | `string` | the question |
+| `activeLabel` | `string` | label for `true` |
+| `inactiveLabel` | `string` | label for `false` |
+| `autofocus` | `boolean` | grab focus on mount |
+
+## Events
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `change` | `boolean` | the selection flips |
+| `submit` | `boolean` | Enter |
+
+## See also
+
+- [confirm() prompt](/terminal/docs/prompts) — the imperative wizard form.
+- [Checkbox](/terminal/docs/components/checkbox) — a plain boolean toggle.

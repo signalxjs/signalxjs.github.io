@@ -252,7 +252,7 @@ Install the router into an application instance. Called automatically when passe
 
 #### router.isReady
 
-Returns a promise that resolves when the router has completed the initial navigation.
+Returns a promise that resolves once the **initial navigation has completed** — including any guards and redirects that ran on the first route resolution. On the server, `await router.isReady()` before reading `currentRoute` to detect redirects (see [SSR Routing](/router/docs/ssr#redirects-during-ssr)).
 
 ```tsx
 await router.isReady();
@@ -519,6 +519,7 @@ A normalized, resolved route location.
 
 ```tsx
 interface RouteLocation {
+    fullPath: string;            // path including query and hash
     path: string;
     name?: string;
     params: Record<string, string>;
@@ -526,17 +527,30 @@ interface RouteLocation {
     hash: string;
     meta: RouteMeta;
     matched: RouteRecordRaw[];
+    redirectedFrom?: RouteLocation;  // set when a guard or redirect sent the navigation here
 }
 ```
 
+`redirectedFrom` is the basis for emitting real 30x redirects during SSR — see [SSR Routing](/router/docs/ssr#redirects-during-ssr).
+
 ### NavigationGuard
 
+A guard signals its decision through its **return value** (no `next` callback). `from`
+is `null` on the initial route resolution — guards run on the first load too. Guards run
+inside the app's DI context (synchronous portion only); see [Route Guards](/router/docs/guards#guards-run-in-the-apps-di-context).
+
 ```tsx
+type NavigationGuardReturn =
+    | void                 // allow (same as true)
+    | boolean              // true = allow, false = abort
+    | string               // redirect to this path
+    | RouteLocationRaw     // redirect to this location
+    | Promise<void | boolean | string | RouteLocationRaw>;
+
 type NavigationGuard = (
     to: RouteLocation,
-    from: RouteLocation,
-    next: (to?: RouteLocationRaw | false) => void
-) => void | Promise<void>;
+    from: RouteLocation | null    // null on the initial navigation
+) => NavigationGuardReturn;
 ```
 
 ### NavigationHookAfter
@@ -544,7 +558,7 @@ type NavigationGuard = (
 ```tsx
 type NavigationHookAfter = (
     to: RouteLocation,
-    from: RouteLocation
+    from: RouteLocation | null    // null on the initial navigation
 ) => void;
 ```
 

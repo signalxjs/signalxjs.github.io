@@ -1,0 +1,137 @@
+---
+title: Client Runtime
+description: "The @sigx/ssg/client helpers: the package-manager switcher, built-in search, copy-code buttons, prefetch, and SPA navigation"
+layout: docs
+category: Guides
+order: 50
+---
+
+# Client Runtime
+
+`@sigx/ssg` ships a small set of interactive behaviors for the rendered site, all exported from `@sigx/ssg/client`. The generated client entry wires every one of them automatically — this page is for when you author a custom client entry, or want to drive them programmatically.
+
+```tsx
+import {
+    setupPrefetch,
+    installSpaNavigation,
+    installPackageManagerSwitcher,
+    installCodeCopy,
+} from '@sigx/ssg/client';
+
+// after `.hydrate('#app')` in a custom entry:
+setupPrefetch();
+installSpaNavigation(router);
+installPackageManagerSwitcher();
+installCodeCopy();
+```
+
+Each `install*` helper is idempotent, client-only, and returns a disposer that removes its listeners.
+
+## Package-manager switcher
+
+A shell code fence whose lines are `npm`/`pnpm`/`yarn`/`bun` commands (install/add, run, dlx, create, remove, …) is rendered with an npm/pnpm/yarn/bun tab strip, with all four variants pre-rendered server-side. The client only flips which variant is visible and persists the choice — it never rewrites highlighted text, so it never fights hydration.
+
+```bash
+npm install @sigx/ssg
+npm install -D vite @sigx/vite
+```
+
+`installPackageManagerSwitcher()` registers the tab clicks, a cross-tab `storage` sync, and a coalesced `MutationObserver` for windows that mount after first paint (SPA navigation, late hydration). The first-shown variant comes from `markdown.shiki.defaultPackageManager` (default `'pnpm'`); a visitor's saved choice overrides it.
+
+### Reading and setting the selection
+
+```ts
+import {
+    getPackageManager,
+    setPackageManager,
+    onPackageManagerChange,
+} from '@sigx/ssg/client';
+
+getPackageManager(); // 'pnpm' | 'npm' | 'yarn' | 'bun'
+
+setPackageManager('bun'); // updates every window, persists, notifies subscribers
+
+const off = onPackageManagerChange((pm) => {
+    console.log('package manager is now', pm);
+});
+```
+
+`getPackageManager` resolves the in-page selection, else the persisted one, else the first window's server-rendered default, else `'pnpm'`. `setPackageManager` throws on an unknown value. `onPackageManagerChange` returns an unsubscribe function.
+
+### Translating a command yourself
+
+The pure parser/renderer behind the switcher is exported too — no DOM required, so it works in SSR and tests:
+
+```ts
+import {
+    parsePackageManagerCommand,
+    translatePackageManagerCommand,
+    PACKAGE_MANAGERS,
+    DEFAULT_PACKAGE_MANAGER,
+} from '@sigx/ssg/client';
+
+translatePackageManagerCommand('npm install -D vite', 'pnpm');
+// → 'pnpm add -D vite'
+
+PACKAGE_MANAGERS; // ['pnpm', 'npm', 'yarn', 'bun']
+DEFAULT_PACKAGE_MANAGER; // 'pnpm'
+```
+
+## Search
+
+Set `search: true` in `ssg.config.ts` to emit a `search-index.json` at build time (see [Configuration → Built-in search](/ssg/docs/configuration#built-in-search)). On the client, load it once and rank queries against it:
+
+```ts
+import { loadSearchIndex, searchPages } from '@sigx/ssg/client';
+
+const index = await loadSearchIndex();
+const results = searchPages(index, 'island hydration', { limit: 10 });
+
+for (const r of results) {
+    // r.path, r.title, r.score, r.excerpt?, r.anchor?
+    const href = r.anchor ? r.path + r.anchor : r.path;
+}
+```
+
+`loadSearchIndex({ base })` handles subpath deploys (pass `url` to override the location entirely). `searchPages` is pure and dependency-free: every whitespace-separated term must match the title, a heading, the description, or the body (AND semantics), and title matches rank highest. Each result carries an `excerpt` around the first body match and an `anchor` (`#id`) for the best-matching heading, for deep links.
+
+To surface a theme's built-in search UI (such as the daisyUI theme's ⌘K command palette) instead of wiring your own, set `site.search: true` alongside `search: true` — it reaches layouts via `LayoutProps.site`. See [Themes](/ssg/docs/themes).
+
+## Copy-code buttons
+
+Shiki emits a copy button in every code-window header. `installCodeCopy()` wires them with one delegated listener; package-manager windows copy only the currently visible variant. It is safe to call on pages without any code blocks.
+
+## Prefetch on hover
+
+Prefetch-on-hover is enabled by default (config `prefetch`, with a 100 ms delay) and wired automatically. Call the helpers directly in a custom entry:
+
+```ts
+import { prefetch, setupPrefetch } from '@sigx/ssg/client';
+
+setupPrefetch({ delay: 150 });
+prefetch('/blog/hello-world');
+```
+
+## SPA navigation
+
+`installSpaNavigation(router, { base })` routes same-origin internal anchor clicks — including the plain `<a>` elements MDX content links compile to — through the router instead of full page reloads. The browser keeps handling modified clicks, external/`mailto:`/`tel:` links, `target`/`download` anchors, same-document `#hash` scrolls, `data-no-spa` opt-outs, and anything that already called `preventDefault()`. Pass the deploy `base` on subpath deploys (it is stripped before the push). Returns an uninstall function.
+
+It is wired automatically in the generated client entry; opt out globally with `spaNavigation: false` (see [Configuration → SPA navigation](/ssg/docs/configuration#spa-navigation)).
+
+## Rendering-mode helpers
+
+```ts
+import { isStaticPage, getInitialState } from '@sigx/ssg/client';
+
+if (!isStaticPage()) {
+    const state = getInitialState<{ user: string }>();
+}
+```
+
+`isStaticPage()` is `true` when the document was statically generated (no `data-ssr` attribute); `getInitialState()` parses the JSON embedded in `#__SSG_STATE__`, or returns `null`.
+
+## Next steps
+
+- [Configuration & Content](/ssg/docs/configuration) — the config options these helpers back.
+- [Themes](/ssg/docs/themes) — a prebuilt theme that wires all of this for you.
+- [API Reference](/ssg/docs/api) — every `@sigx/ssg/client` export with its signature.

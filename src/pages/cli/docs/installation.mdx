@@ -38,8 +38,19 @@ Everything beyond the two core commands is provided by plugins that the CLI disc
 
 `@sigx/cli` pulls in a small set of runtime dependencies:
 
-- **`citty`** — the underlying command/argument parser.
-- **`@sigx/terminal`** — the terminal UI used by the interactive `create` wizard. It is lazy-loaded, so it is only imported when you actually run `sigx create` interactively.
+- **`@sigx/args`** — the fluent, type-aware command/argument parser. It backs both the core commands and the `args` declared by plugins (see [Authoring Plugins](/cli/docs/plugins)).
+- **`@sigx/terminal`** — the terminal UI used by the interactive `create` prompts and by the [shell runtime](/cli/docs/shell) that plugin commands host their dashboards in. The prompt kit is lazy-loaded, so it is only imported when you actually run `sigx create` interactively.
+
+## Entry points
+
+`@sigx/cli` exposes four entry points:
+
+| Import | Provides |
+| --- | --- |
+| `@sigx/cli` | `definePlugin`, `a`, and the plugin types — the public API. |
+| `@sigx/cli/plugin` | The same plugin surface (preferred for plugin authors). |
+| `@sigx/cli/create` | `runCreate` — the `create` command entry point. |
+| `@sigx/cli/shell` | `runShell` and the [shell runtime](/cli/docs/shell) for hosting a TUI dashboard. |
 
 ## Plugin packages behind each command
 

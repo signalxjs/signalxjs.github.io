@@ -30,8 +30,7 @@ them.
 
 ```tsx
 // src/App.tsx
-import { component } from 'sigx';
-import { useHead } from '@sigx/server-renderer';
+import { component, useHead } from 'sigx';
 
 export const App = component(() => {
     useHead({ title: 'My SignalX app', htmlAttrs: { lang: 'en' } });
@@ -45,22 +44,35 @@ export const App = component(() => {
 
 ## 2. The server entry
 
-Create a fresh app per request and render it. Using `createSSR()` (rather than the
-standalone functions) is the form that plugins — a router, islands — plug into:
+Create a fresh app per request and render the complete document. `renderDocument`
+takes your HTML template and owns the whole response — head injection, the app
+shell at the outlet, and the serialized state blob:
 
 ```tsx
 // src/entry-server.tsx
 import { defineApp } from 'sigx';
-import { createSSR } from '@sigx/server-renderer';
+import { renderDocument } from '@sigx/server-renderer/server';
 import { App } from './App';
 
-const ssr = createSSR();
+const template = `<!DOCTYPE html>
+<html>
+  <head><meta charset="utf-8" /></head>
+  <body>
+    <div id="root"><!--ssr-outlet--></div>
+    <script type="module" src="/entry-client.js"></script>
+  </body>
+</html>`;
 
-export async function render() {
-    const app = defineApp(<App />);
-    return await ssr.render(app);              // or ssr.renderNodeStream(app)
+export function render() {
+    const app = defineApp(<App />);            // App form preserves AppContext
+    return renderDocument(app, { template });  // Promise<string>
 }
 ```
+
+The `App` form (from `defineApp()`) preserves the `AppContext`, so `inject()` and
+plugins — a router, islands — work during render. To register plugins, build an
+SSR instance and call the same method on it:
+`createSSR().use(islandsPlugin()).renderDocument(app, { template })`.
 
 ## 3. The client entry
 
@@ -79,8 +91,8 @@ defineApp(<App />)
 
 ## 4. The HTTP server
 
-Wrap the rendered markup in a full document and serve your built client bundle as
-static files:
+`render()` already returns the complete document, so the server just sends it and
+serves the built client bundle as static files:
 
 ```ts
 // server.ts
@@ -91,22 +103,16 @@ const app = express();
 app.use(express.static('dist/client'));
 
 app.get('*', async (req, res) => {
-    const body = await render();
-    res.status(200).set('Content-Type', 'text/html').send(`<!DOCTYPE html>
-<html>
-  <head><meta charset="utf-8" /></head>
-  <body>
-    <div id="root">${body}</div>
-    <script type="module" src="/entry-client.js"></script>
-  </body>
-</html>`);
+    const html = await render();
+    res.status(200).set('Content-Type', 'text/html').send(html);
 });
 
 app.listen(3000);
 ```
 
-For streaming instead of buffering, swap `ssr.render(app)` for
-`ssr.renderNodeStream(app)` and pipe it to the response — see
+For streaming instead of buffering, swap `renderDocument` for
+`renderDocumentToNodeStream` — it returns `{ stream, shell }`; await `shell` to
+pick the status code, then pipe. See
 [Rendering & streaming](/server/packages/server-renderer/rendering).
 
 ## Adding routing

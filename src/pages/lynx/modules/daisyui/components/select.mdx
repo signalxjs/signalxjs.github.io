@@ -18,12 +18,13 @@ import { Select } from '@sigx/lynx-daisyui';
 
 ## Props
 
-`Select` is a controlled component. It does not own its value: pass the current selection through `value` and update your own signal in the `onChange` handler (see [Binding to state](#binding-to-state) below).
+`Select` supports **two-way binding** via the sigx `model` getter syntax (`model={() => state.field}`) — the dropdown writes the picked option's `value` straight back into your signal, no `onChange` plumbing. A static `value` (+ `onChange`) is still accepted for a fully-controlled setup.
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
+| `model` | `Model<string>` | &mdash; | Two-way binding to a signal string. Pass a model accessor (e.g. `() => form.fruit`) so the selection flows back into your state. |
 | `options` | `SelectOption[]` | `[]` | The choices to render. Each option is `{ label: string; value: string }` &mdash; `label` is shown, `value` is reported on change. |
-| `value` | `string` | &mdash; | The currently selected option's `value`. The matching option's `label` is shown on the trigger; if no option matches, `placeholder` is shown instead. |
+| `value` | `string` | &mdash; | Controlled selection (alternative to `model`): the currently selected option's `value`. The matching option's `label` is shown on the trigger; if no option matches, `placeholder` is shown instead. |
 | `placeholder` | `string` | `'Select...'` | Text shown on the trigger when `value` matches no option. |
 | `size` | `'xs' \| 'sm' \| 'md' \| 'lg'` | &mdash; | Control size. |
 | `variant` | `'bordered' \| 'ghost'` | &mdash; | Visual style. `bordered` adds an outline; `ghost` is borderless. |
@@ -54,7 +55,7 @@ type SelectColor =
 
 ## Binding to state
 
-`Select` is controlled, so two-way binding is wired manually: read the selection from a signal for `value`, and write it back in `onChange`.
+The simplest way is `model` — point it at a signal property, and the picked option's `value` is written straight back:
 
 ```tsx
 import { component } from '@sigx/lynx';
@@ -65,8 +66,7 @@ export const FruitPicker = component(({ signal }) => {
 
   return () => (
     <Select
-      value={state.fruit}
-      onChange={(value) => { state.fruit = value; }}
+      model={() => state.fruit}
       options={[
         { label: 'Apple', value: 'apple' },
         { label: 'Banana', value: 'banana' },
@@ -75,6 +75,16 @@ export const FruitPicker = component(({ signal }) => {
     />
   );
 });
+```
+
+If you'd rather control the value yourself, read it from a signal for `value` and write it back in `onChange`:
+
+```tsx
+<Select
+  value={state.fruit}
+  onChange={(value) => { state.fruit = value; }}
+  options={fruitOptions}
+/>
 ```
 
 ## Placeholder

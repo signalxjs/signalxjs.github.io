@@ -1,0 +1,75 @@
+---
+title: "LogView"
+description: "A scrollable log viewport backed by a LogStore"
+layout: docs
+category: ["Components", "Tasks"]
+order: 171
+---
+
+# LogView
+
+<p class="lede">A focusable, scrollable viewport over a stream of log lines. Pairs with a <code>LogStore</code> — a reactive ring buffer that handles partial lines and <code>\r</code> overwrites.</p>
+
+## Import
+
+```tsx
+import { LogView, createLogStore } from '@sigx/terminal';
+import type { LogStore } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, onMounted, LogView, createLogStore } from '@sigx/terminal';
+
+const App = component(() => {
+    const log = createLogStore();
+    onMounted(() => {
+        let n = 0;
+        const t = setInterval(() => { log.push(`line ${++n}\n`); }, 200);
+        return () => clearInterval(t);
+    });
+    return () => (
+        <box border="single" label="Build output">
+            <LogView store={log} height={10} width={60} title="output" autofocus />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `store` | `LogStore` | the reactive source (alternative to `lines`) |
+| `lines` | `string[]` | static lines (alternative to `store`) |
+| `height` | `number` | visible rows |
+| `width` | `number` | wrap width |
+| `title` | `string` | caption |
+| `autofocus` | `boolean` | grab focus on mount (for scrolling) |
+
+## LogStore
+
+`createLogStore(opts?)` returns a reactive store:
+
+```ts
+interface LogStore {
+    readonly passthrough: boolean;     // streams completed lines to printStatic
+    push(chunk: string): void;
+    end(): void;                       // commit a trailing partial line
+    clear(): void;
+    lines(): readonly string[];        // completed + live partial (reactive)
+    tail(n: number): string[];         // last n (reactive)
+    count(): number;
+}
+```
+
+`LogStoreOptions`: `limit` (retained-line ring buffer, default 10 000) and `passthrough` (stream completed lines straight to `printStatic` — defaults on for non-TTY so piped/CI logs stay complete and ordered, off when interactive). `collapseTask(opts)` collapses a finished task's output into a single line.
+
+## See also
+
+- [LogPanel](/terminal/docs/components/logpanel) — a bounded, non-scrolling tail.
+- [TaskList](/terminal/docs/components/tasklist) — stream a tail under the running task.

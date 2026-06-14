@@ -11,10 +11,11 @@ order: 50
 `@sigx/vite` ships a `sigx-types` CLI that generates TypeScript definitions for
 components declared with a tag name, so JSX gets intellisense for those tags.
 
-> **Packaging note (v0.4.9).** The published package has no `bin` field and no
-> `./cli` entry in its exports map, so `npx sigx-types` does not resolve from an
-> installed copy of this version. The command is documented here for
-> completeness; see [Gaps](#known-gap) below before relying on it.
+> **Packaging note.** The published package (current: 0.6.3) has no `bin` field
+> and no `./cli` entry in its exports map (`.`, `./hmr`, `./lib` only), so
+> `npx sigx-types` does not resolve from an installed copy. The command is
+> documented here for completeness; see [Gaps](#known-gap) below before relying
+> on it.
 
 ## sigx-types
 
@@ -86,10 +87,10 @@ the generated definitions:
 
 ## Known Gap
 
-In v0.4.9 the `sigx-types` command is not exposed by the published package (no
-`bin` field, no `./cli` export). The source compiles to `dist/cli.{js,d.ts}` but
-is not reachable via `npx` from an installed copy. Confirm the package version
-exposes the command before depending on it in your workflow.
+As of 0.6.3 the `sigx-types` command is not exposed by the published package (no
+`bin` field, no `./cli` export — only `.`, `./hmr`, and `./lib`). The CLI source
+exists but is not reachable via `npx` from an installed copy. Confirm the package
+version exposes the command before depending on it in your workflow.
 
 ## Next Steps
 

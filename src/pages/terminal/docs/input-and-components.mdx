@@ -43,7 +43,31 @@ const App = component(() => {
 defineApp(<App />).mount({ clearConsole: true });
 ```
 
-`onKey` returns an unsubscribe function. Each keypress arrives as a string — printable characters as themselves, special keys as escape sequences (for example `'\x1B[A'` for the up arrow). Some keys are intercepted by the runtime before your handler fires: **Ctrl+C** exits the process, **Tab** moves focus to the next element, and **Shift+Tab** moves to the previous one.
+`onKey` returns an unsubscribe function. Each keypress arrives as a string — printable characters as themselves, special keys as escape sequences (for example `'\x1B[A'` for the up arrow). By default **Ctrl+C** tears down and exits (code 130); set `exitOnCtrlC: false` at mount to receive it as a key instead (see [Render modes](/terminal/docs/render-modes)).
+
+## Layered key dispatch
+
+Handlers run in **layers**, so an overlay can intercept a key before the control underneath sees it. Pass a `layer` to `onKey`:
+
+```tsx
+onKey(handler, { layer: 'overlay' });   // 'overlay' | 'control' | 'view' | 'global'
+```
+
+Dispatch order is **overlay → control → view → global**, and within a layer in registration order. A handler that returns strictly `true` **consumes** the key and stops dispatch; returning anything else lets it fall through.
+
+- `overlay` — modal UI on top of everything (a suggestion popup, a confirm dialog).
+- `control` — the default; focused widgets register here.
+- `view` — page/screen-level shortcuts.
+- `global` — app-wide fallbacks. The built-in Tab / Shift+Tab focus cycling is the first `global` handler, so an overlay or control can consume Tab first (e.g. accept-completion).
+
+```tsx
+import { onKey } from '@sigx/terminal';
+
+// A view-level shortcut that doesn't fight focused inputs.
+onKey((key) => {
+    if (key === '?') { openHelp(); return true; }   // consume
+}, { layer: 'view' });
+```
 
 ## Focus traversal
 
@@ -73,6 +97,8 @@ focus('my-id');
 `focusState` is created with the object overload of `signal`, so it is a deeply reactive proxy read via property access. Reading `focusState.activeId` inside a render makes the component repaint when focus changes. Custom interactive components typically call `registerFocusable(id)` in `onMounted` and `unregisterFocusable(id)` in `onUnmounted`.
 
 ## Built-in components
+
+The examples below cover the core focusable widgets. The full themed library — forms, feedback, navigation, layout, data, fx and task components — is documented page-by-page under [Components](/terminal/docs/components).
 
 ### Input
 
@@ -260,5 +286,7 @@ defineApp(<App />).mount(mountTerminal());
 
 ## Next steps
 
+- [Components](/terminal/docs/components) — every component in the library, page by page.
+- [Prompts](/terminal/docs/prompts) — the same widgets as imperative CLI prompts.
 - [Layout & Styling](/terminal/docs/layout-and-styling) — boxes, borders and colors.
 - [API Reference](/terminal/docs/api) — the full export list.

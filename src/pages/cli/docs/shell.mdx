@@ -1,0 +1,168 @@
+---
+title: The Shell Runtime
+description: "Host a persistent TUI dashboard from a plugin command with runShell"
+layout: docs
+category: Guides
+order: 50
+---
+
+# The Shell Runtime
+
+Some plugin commands run for a long time — a dev server, a watcher, a device bridge. For these, `@sigx/cli/shell` provides a **persistent terminal-UI runtime**: a live dashboard with tabs, a command palette, single-key shortcuts, and a status line, all assembled from the contributions of every plugin in the project. A command starts it with `runShell` and gets back a `ShellHandle` to drive it.
+
+```ts
+import { runShell } from '@sigx/cli/shell';
+```
+
+The shell is built on [`@sigx/terminal`](/terminal/docs/getting-started); tabs are authored as terminal-UI components. It degrades gracefully: in a non-TTY environment (CI, a pipe) nothing mounts, and the same `ShellHandle` shape streams plain lines instead — so a host command keeps a single code path.
+
+## Hosting a shell from a command
+
+A command calls `runShell(config)` and awaits the handle. Pass `ctx.plugins` so peer plugins' [TUI contributions](#tui-contributions) get merged in:
+
+```ts
+import { definePlugin } from '@sigx/cli/plugin';
+import { runShell } from '@sigx/cli/shell';
+
+export default definePlugin({
+    name: 'my-dev',
+    detect: () => true,
+    commands: {
+        dev: {
+            description: 'Start the dev server',
+            args: {},
+            async run(ctx) {
+                const shell = await runShell({
+                    title: 'my-dev',
+                    version: ctx.cliVersion,
+                    tabs: [
+                        { id: 'logs', label: 'Logs', render: () => logsView() },
+                        { id: 'routes', label: 'Routes', render: () => routesView() },
+                    ],
+                    plugins: ctx.plugins, // merge peer plugins' tui contributions
+                    onReady(shell) {
+                        shell.say('dev server ready');
+                    },
+                    onExit() {
+                        // runs before the process exits, on quit / Ctrl+C / SIGTERM
+                        stopServer();
+                    },
+                });
+
+                shell.setStatus([{ label: 'mode', value: 'dev', tone: 'success' }]);
+            },
+        },
+    },
+});
+```
+
+## Two layouts
+
+`ShellConfig.mode` picks the frame:
+
+- **`'inline'`** (default) — a transcript shape. The header prints once into scrollback, `say()` appends permanent transcript lines, and a `/`-command input sits anchored at the bottom. The conversation *is* the terminal scrollback.
+- **`'fullscreen'`** — an alt-screen dashboard: a bordered title bar, a segmented tab strip, a full-height tab body, and a pinned status/hints line. `/` summons a command-palette overlay with intellisense. `say()` streams live into the log store and also queues into the normal terminal buffer, so quitting leaves a post-mortem trail in real scrollback.
+
+Both layouts support plugin-contributed tabs, slash commands, shortcuts, and status items; `1`–`9` switch tabs, `Esc` pops a pushed view, and `Ctrl+C` runs teardown *before* exiting.
+
+## ShellConfig
+
+```ts
+export interface ShellConfig {
+    mode?: 'inline' | 'fullscreen';
+    theme?: string;          // design theme (themed canvas in fullscreen); default 'obsidian'
+    title: string;           // shown in the header
+    version?: string;        // dim version next to the title
+    logo?: { rows: string[]; palette: Record<string, string> };
+    tabs: ShellTab[];
+    commands?: SlashCommand[];
+    shortcuts?: Shortcut[];
+    status?: () => StatusItem[];
+    plugins?: SigxPlugin[];  // peer plugins whose `tui` contributions are merged in
+    onReady?: (shell: ShellHandle) => void | Promise<void>;
+    onExit?: () => void | Promise<void>;
+}
+```
+
+`onReady` fires once the shell is live (or immediately in the non-TTY fallback). `onExit` runs on `shell.exit()`, `Ctrl+C`/`q`, and external `SIGTERM`/`SIGHUP`/`SIGINT` — *before* the process exits. Do cleanup there.
+
+## The ShellHandle
+
+`runShell` resolves to a `ShellHandle` — the live control surface, also passed to slash commands, shortcuts, and `setup`/`onReady`:
+
+```ts
+export interface ShellHandle {
+    isInteractive: boolean;                  // false in non-TTY fallback
+    say: (text?: string) => void;            // print a permanent transcript line
+    store: ShellLogStore;                    // streaming log store (feeds a Logs tab)
+    setStatus: (items: StatusItem[]) => void;
+    switchTab: (id: string) => void;
+    pushView: (id: string) => void;          // push a focused sub-view
+    popView: () => void;                     // pop it (also via Esc)
+    onExit: (cb: () => void | Promise<void>) => () => void; // register teardown; returns unsubscribe
+    exit: (code?: number) => void;
+}
+```
+
+`onExit` subscribers run *after* the host's `ShellConfig.onExit`, most-recently-registered first; each returns an unsubscribe. Register servers, watchers, and locks here so they tear down on every exit path. In the non-TTY fallback `isInteractive` is `false`, `say` writes plain lines, the store streams through, and the navigation methods are no-ops.
+
+## TUI contributions
+
+A plugin doesn't have to host a shell to appear in one. By adding a `tui` field, any installed plugin contributes tabs, slash commands, shortcuts, and status items to whichever plugin *does* host the shell — see [Contributing to the shell](/cli/docs/plugins#contributing-to-the-shell-tui) in the plugin guide.
+
+```ts
+export interface TuiContribution {
+    tabs?: ShellTab[];
+    commands?: SlashCommand[];
+    shortcuts?: Shortcut[];
+    status?: () => StatusItem[];
+    setup?: (shell: ShellHandle) => void
+        | (() => void | Promise<void>)
+        | Promise<void | (() => void | Promise<void>)>;
+}
+```
+
+The host's command passes `ctx.plugins` to `runShell({ plugins })`; the runtime merges every plugin's `tui` in discovery order. **Host entries win conflicts** — a duplicate tab `id`, command `name`, or shortcut `key` from a contributor is skipped. `status` providers concatenate. The `setup(shell)` lifecycle runs once when the shell comes up (interactive or plain); start servers/watchers there, and an optionally returned function is registered as teardown (equivalent to `shell.onExit(fn)`).
+
+### Tabs, slash commands, shortcuts, status
+
+```ts
+export interface ShellTab {
+    id: string;
+    label: string;
+    render: () => ShellNode;   // a @sigx/terminal component (JSX via @jsxImportSource @sigx/terminal)
+}
+
+export interface SlashCommand {
+    name: string;              // includes the leading slash, e.g. '/reload'
+    description: string;
+    run: (shell: ShellHandle) => void | Promise<void>;
+}
+
+export interface Shortcut {
+    key: string;               // single key, active only while the command input is empty
+    label: string;
+    run: (shell: ShellHandle) => void | Promise<void>;
+}
+
+export interface StatusItem {
+    label: string;
+    value: string;
+    tone?: string;             // theme token: 'success' | 'warn' | 'danger' | 'dim' | 'accent'
+}
+```
+
+Tab `render()` returns a `ShellNode` — an opaque renderable you author with `@sigx/terminal` JSX (`@jsxImportSource @sigx/terminal`). The runtime passes it straight to the renderer.
+
+## Helpers
+
+`@sigx/cli/shell` also exports:
+
+- **`createShellLogger(shell)`** — wraps a `ShellHandle` as a `Logger` (`log`/`warn`/`error`), so existing `Logger`-based code paths route into the shell transcript.
+- **`collectTuiContributions(plugins)`** / **`mergeShellConfig(config, contributions, logger?)`** — the lower-level merge primitives `runShell` uses internally, exported for hosts that want to merge contributions themselves.
+
+## See also
+
+- [Authoring Plugins](/cli/docs/plugins) — declaring commands, args, and the `tui` contribution field.
+- [API Reference](/cli/docs/api) — the plugin and shell types.
+- [`@sigx/terminal`](/terminal/docs/getting-started) — the terminal-UI toolkit tabs are built with.

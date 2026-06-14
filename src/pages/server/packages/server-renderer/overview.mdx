@@ -22,15 +22,22 @@ only ship what you use. For `client:*` selective hydration, add
 
 ## What you get
 
-- **Render APIs** — `renderToString`, `renderToStream` (web `ReadableStream`),
-  `renderToNodeStream` (Node `Readable`), and a callback-based variant for fine
-  control.
-- **Streaming with async data** — components fetch on the server via `ssr.load()`,
-  and async subtrees stream in as placeholders that get swapped client-side.
+- **Document render APIs** — `renderDocument` (string), `renderDocumentToNodeStream`
+  (Node), and `renderDocumentToWebStream` (edge) take an HTML template with an
+  outlet and own the **complete** response: head injection, app shell, state
+  serialization, and async content — no hand-splicing in your server.
+- **Lower-level render APIs** — `renderToString`, `renderToStream` (web
+  `ReadableStream`), `renderToNodeStream` (Node `Readable`), and a callback-based
+  variant when you assemble the document yourself.
+- **Server data loading** — components fetch on the server via keyed
+  [`useAsync`](/core/docs/data-loading) / `useStream` (from `sigx`); their resolved
+  values are serialized into the page and restored on hydration, so the fetch does
+  not run twice.
 - **Hydration** — `defineApp(<App/>).use(ssrClientPlugin).hydrate('#root')`
-  re-attaches handlers and effects to server-rendered DOM.
-- **Head management** — `useHead()` collects title/meta/link/script from inside
-  components and the renderer appends them to the document head.
+  re-attaches handlers and effects to server-rendered DOM, with structural
+  mismatch self-healing.
+- **Head management** — `useHead()` (from `sigx`) collects title/meta/link/script
+  from inside components; the document renderer injects them before `</head>`.
 - **A plugin SPI** — `createSSR().use(plugin)` plus `registerClientPlugin()` — the
   extension points islands, resumable, and Suspense strategies build on.
 
@@ -41,9 +48,13 @@ The package splits into three tree-shakeable entry points (all
 
 | Import path | Use it for |
 |---|---|
-| `@sigx/server-renderer` | `useHead`, `createSSR`, `ssrClientPlugin`, shared types |
-| `@sigx/server-renderer/server` | `renderToString`, `renderToStream`, `renderToNodeStream` — Node render APIs |
+| `@sigx/server-renderer` | `createSSR`, `renderDocument`, `ssrClientPlugin`, `renderHeadToString`, shared types |
+| `@sigx/server-renderer/server` | `renderDocument*`, `renderToString`, `renderToStream`, `renderToNodeStream` — Node render APIs |
 | `@sigx/server-renderer/client` | `hydrate`, `ssrClientPlugin`, hydration internals |
+
+> `useHead`, `useAsync`, and `useStream` are part of core **`sigx`**, not this
+> package — they work the same in any component and gain server behavior when this
+> renderer drives them.
 
 ## A minimal end-to-end example
 
@@ -68,21 +79,26 @@ export const App = component(({ signal }) => {
 
 ### 2. Render on the server
 
+Give the renderer a template with an `<!--ssr-outlet-->` marker and it assembles
+the whole document — the app shell at the outlet, head tags before `</head>`, and
+the serialized state blob:
+
 ```tsx
 // src/entry-server.tsx
-import { renderToString } from '@sigx/server-renderer/server';
+import { renderDocument } from '@sigx/server-renderer/server';
 import { App } from './App';
 
-export async function render() {
-    const appHtml = await renderToString(<App />);
-    return `<!DOCTYPE html>
+const template = `<!DOCTYPE html>
 <html>
   <head><meta charset="utf-8" /></head>
   <body>
-    <div id="root">${appHtml}</div>
+    <div id="root"><!--ssr-outlet--></div>
     <script type="module" src="/src/entry-client.tsx"></script>
   </body>
 </html>`;
+
+export function render() {
+    return renderDocument(<App />, { template });
 }
 ```
 
@@ -106,7 +122,7 @@ reactive effects — no DOM is re-created. If the container has no SSR content,
 ## Next steps
 
 - [Installation](/server/packages/server-renderer/installation) — install, the `sigx` dependency, and the subpath import map.
-- [Rendering & streaming](/server/packages/server-renderer/rendering) — wire the render APIs into Express, Fastify, or an edge runtime, plus async data with `ssr.load()`.
+- [Rendering & streaming](/server/packages/server-renderer/rendering) — wire the document render APIs into Express, Fastify, or an edge runtime, plus server data with `useAsync`/`useStream`.
 - [Hydration & head](/server/packages/server-renderer/hydration) — the hydration entry, head management, and the plugin SPI.
 - [Building a full SSR app](/server/packages/server-renderer/full-app) — entry wiring, an HTTP server, and routing with `@sigx/router`.
 - [API reference](/server/packages/server-renderer/api) — every export with signatures.

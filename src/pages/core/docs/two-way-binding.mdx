@@ -689,6 +689,27 @@ This is useful when:
 
 ---
 
+## Custom Model Handling
+
+`model={() => …}` on native elements is handled by the platform's model processor (the DOM processor knows about text inputs, checkboxes, radios, selects, and textareas). To teach `model` about a **custom element or widget library**, register an extension processor with `registerModelProcessor`:
+
+```tsx code
+import { registerModelProcessor } from 'sigx';
+
+// Add model handling for a custom <color-picker> element
+registerModelProcessor((type, props, [obj, key], originalProps) => {
+    if (type !== 'color-picker') return false; // defer to other processors
+
+    props.value = obj[key];
+    props.onColorChange = (e: any) => { obj[key] = e.detail.value; };
+    return true; // handled — skip the generic fallback
+});
+```
+
+Extension processors run **before** the platform processor, in registration order, and the **first one returning `true` wins**. This means packs and apps can *add* model behaviors without replacing the platform's built-in handling — the platform processor remains the final fallback. (Platform packages register their processor via the separate `setPlatformModelProcessor` seam, which is part of platform identity and unaffected.)
+
+---
+
 ## Complete Example
 
 Here's a complete form example showing the full model binding architecture:

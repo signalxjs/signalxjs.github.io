@@ -259,6 +259,34 @@ const App = component(({ }) => {
 });
 ```
 
+### Resolving DI Outside Component Setup
+
+Use-functions from `defineInjectable` / `defineFactory` (and `inject`) resolve against the *current* DI context, which is normally set up only while a component's setup runs. Code that runs **outside** setup — router navigation guards, socket message handlers, entry-scope bootstrap — has no current context, so those calls silently fall back to a realm-level instance instead of the app's.
+
+`app.runWithContext(fn)` runs `fn` with the app's context current, so use-functions resolve to the **same** instances your components receive:
+
+```tsx
+const app = defineApp(<App />);
+
+router.beforeEach((to) => {
+    // Without runWithContext, useAuth() here resolves a different instance
+    app.runWithContext(() => {
+        const auth = useAuthService();
+        if (to.meta.requiresAuth && !auth.isAuthenticated) {
+            return '/login';
+        }
+    });
+});
+
+socket.on('message', (msg) => {
+    app.runWithContext(() => {
+        useMessageStore().receive(msg);
+    });
+});
+```
+
+The context applies to the **synchronous** portion of `fn` only — re-enter `runWithContext` after an `await`. Nested calls restore the previous context, and plugins can capture the `app` they receive in `install()` to wrap their own callbacks.
+
 ## Lifecycle Hooks
 
 Register global hooks to observe all components in your application:
@@ -448,6 +476,7 @@ Creates an app instance.
 | `use(plugin, options?)` | Install a plugin |
 | `provide(token, value)` | Provide a value to all components |
 | `hook(hooks)` | Register lifecycle hooks |
+| `runWithContext(fn)` | Run `fn` with the app's DI context current (for use-functions called outside setup) |
 | `mount(container, mountFn?)` | Mount the app |
 | `unmount()` | Unmount and cleanup |
 | `config` | App configuration object |

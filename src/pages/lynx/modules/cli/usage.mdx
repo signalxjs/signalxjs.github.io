@@ -20,6 +20,8 @@ Install both packages into a Lynx app:
 pnpm add -D @sigx/cli @sigx/lynx-cli
 ```
 
+`@sigx/lynx-cli` requires `@sigx/cli` **≥ 0.4** — it builds on the 0.4 plugin API (typed args via `@sigx/cli`'s re-exported `a` builders, and the dashboard shell).
+
 A project is detected as a Lynx project when `signalx.config.ts` (or `.js`/`.mjs`) or `lynx.config.ts` exists at its root. From there, the day-to-day commands are:
 
 ```bash
@@ -92,9 +94,32 @@ Notes:
 - **Device support.** `ios.supportsTablet` toggles iPad support (Xcode's device family); `ios.requiresFullScreen` opts the iPad out of multitasking — only then may it follow the phone's orientation lock, otherwise iPad apps must allow all four orientations. `android.features` emits `<uses-feature>` manifest entries (`{ name, required }`) to declare hardware your app uses.
 - **Cleartext HTTP is debug-only.** Prebuild emits an Android network-security config that blocks cleartext (non-HTTPS) traffic in release builds and permits it only in the debug source set, so use `https://` for production endpoints.
 
+### Native config passthrough
+
+Most native settings have a dedicated config field, but when an SDK needs a key the CLI doesn't model directly, typed escape hatches merge arbitrary values into the rendered native projects on every prebuild — so a custom key survives without post-prebuild patching:
+
+- **`ios.infoPlist`** — arbitrary `Info.plist` keys (`Record<string, PlistValue>`; values may be scalars, arrays, or nested dicts) merged over the generated plist (last-write-wins).
+- **`ios.usesNonExemptEncryption`** — a boolean convenience for the near-universal `ITSAppUsesNonExemptEncryption` key; set `false` for apps using only exempt encryption (e.g. HTTPS) to clear App Store Connect's "Missing Compliance" prompt. An explicit `infoPlist.ITSAppUsesNonExemptEncryption` wins if both are set.
+- **`android.applicationAttributes`** — arbitrary attributes merged onto the `<application>` element in `AndroidManifest.xml` (`Record<string, string | boolean | number>`, e.g. `{ usesCleartextTraffic: false, largeHeap: true }`). The `android:` namespace prefix is added automatically; booleans/numbers are stringified. It's the `<application>`-attribute counterpart to `manifestMetaData` (which only adds `<meta-data>` children).
+
+```ts
+export default defineLynxConfig({
+    name: 'My App',
+    ios: {
+        usesNonExemptEncryption: false,
+        infoPlist: { LSApplicationQueriesSchemes: ['tel', 'mailto'] },
+    },
+    android: {
+        applicationAttributes: { largeHeap: true },
+    },
+});
+```
+
+Each of these merges with values contributed by linked native modules — modules declare the same keys in their `signalx-module.json`, and the app-level entries win on a name collision.
+
 ## Running the dev server
 
-`sigx dev` starts the rspeedy dev server, probes for a free port (default `8788`), and prints a QR code plus your LAN IP so a device on the same network can load the bundle.
+`sigx dev` starts the rspeedy dev server, probes for a free port (default `8788`), and — in an interactive terminal — renders a **full-screen dev dashboard**: live status (port, build id, selected targets), the QR code and LAN-IP URLs for loading the bundle on a device, streaming device logs, and keyboard shortcuts / slash-commands. (In a non-TTY environment it falls back to plain banner output.)
 
 ```bash
 sigx dev                  # interactive target picker (TTY)
@@ -206,6 +231,33 @@ sigx upgrade --dry-run            # preview without writing
 ```
 
 `outdated` exits non-zero on lockstep drift, and on an available update for the default `latest` check. `upgrade` writes exact pins by default (`--caret` for caret ranges) and refuses to run on a dirty git tree unless you pass `--force`.
+
+## How commands declare their flags
+
+Every `sigx` command's flags are declared with `@sigx/cli`'s fluent arg builders (re-exported as `a` from `@sigx/cli/plugin`, backed by `@sigx/args`). A command's `args` shape maps each flag to a typed builder, and the parsed values arrive on `ctx.args`:
+
+```ts
+import { a } from '@sigx/cli/plugin';
+
+const dev = {
+    description: 'Start the dev server',
+    args: {
+        port: a.number().default(8788),
+        device: a.string().alias('d'),
+        deviceLogs: a.boolean().negatable(true), // --no-device-logs forces false
+        targets: a.rest(),                        // trailing positional tokens
+    },
+    run: async (ctx) => { /* ctx.args is fully typed */ },
+};
+```
+
+Behavior worth knowing for anyone authoring a command (or a sibling plugin):
+
+- **Unknown flags error** by default — a mistyped flag fails fast rather than being silently ignored.
+- **`--no-<name>` negation** is on by default for boolean flags (`.negatable(false)` to opt out).
+- **`a.rest()`** collects trailing positional tokens as `string[]`; refiners like `.required()`, `.default(v)`, `.multiple()`, and `.alias('d')` set requiredness, defaults, repeat behavior, and short aliases.
+
+This is what types the `--flag` columns in the [command table](/lynx/modules/cli/api#cli-commands).
 
 ## See also
 

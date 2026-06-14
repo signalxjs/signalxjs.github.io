@@ -194,3 +194,13 @@ const WebSocketComponent = component(({ signal, props }) => {
 - Calling them outside a component setup will log a warning
 - Effects automatically clean up when the component unmounts
 - Multiple lifecycle hook calls are allowed - all callbacks will run
+- `setup()`, `onCreated`, and `onMounted` run **untracked** — reactive reads in them don't become dependencies of any render effect. Use the render function, `watch`, or `computed` for reactivity (see [Components → setup runs untracked](/core/docs/components#defining-components)).
+
+## Dev-Mode Runaway-Loop Guards
+
+If a component's render writes reactive state that the same render reads — directly, or through a store action called mid-render — the synchronous flush would otherwise re-queue itself forever and freeze the page. **Development builds** turn this into an actionable error instead:
+
+- The render scheduler bounds each flush, catching both ping-pong loops between existing components and loops that remount fresh components each iteration.
+- The reactivity layer bounds each notification wave (`Runaway notification wave`) for runaway effect cascades outside the render queue.
+
+These limits sit far above anything a legitimate update produces, and **all of them are compiled out of production builds** — they cost nothing in shipped apps. They surface real bugs (a render that mutates state it depends on) early, with a stack trace, rather than as a silent hang.

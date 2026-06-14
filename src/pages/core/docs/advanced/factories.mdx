@@ -46,7 +46,7 @@ The setup function must return an object or a function — returning a primitive
 
 ## Instance Lifetimes
 
-The second argument is a `Lifetime` string literal — `'singleton'`, `'scoped'`, or `'transient'`. (It replaces the old `InstanceLifetimes` enum, and unlike the enum the lifetimes are now **enforced**.)
+The second argument is a `Lifetime` string literal — `'singleton'`, `'scoped'`, or `'transient'`. The lifetime is **enforced**: it determines how many instances exist and when each is disposed.
 
 ```tsx
 import { defineFactory } from 'sigx';

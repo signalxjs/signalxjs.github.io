@@ -29,6 +29,41 @@ component plus `AppContext`, then hydrates the existing SSR DOM. If the containe
 has **no** SSR content, it falls back to a fresh client render — so the same entry
 works for both pre-rendered and client-only pages.
 
+### Gate hydration on the completion script
+
+The document renderer emits a trailing script — `__SIGX_STREAMING_COMPLETE__` plus
+a `sigx:ready` event — in **both** `'blocking'` and `'stream'` modes, so a
+blocking-rendered page hydrates the same way a streamed one does. The inline
+script runs during HTML parse, before any deferred module script, so your entry
+can safely check the flag and otherwise wait for the event before hydrating:
+
+```tsx
+// src/entry-client.tsx
+import { defineApp } from 'sigx';
+import { ssrClientPlugin } from '@sigx/server-renderer/client';
+import { App } from './App';
+
+function start() {
+    defineApp(<App />).use(ssrClientPlugin).hydrate('#root');
+}
+
+if ((window as any).__SIGX_STREAMING_COMPLETE__) {
+    start();                                    // document already complete
+} else {
+    window.addEventListener('sigx:ready', start, { once: true });
+}
+```
+
+### Self-healing on a structural mismatch
+
+Hydration is resilient to SSR/client drift. For a small cursor offset the walk
+scans forward for the matching node (dev-warns about skipped siblings). For a
+genuine structural mismatch — the server emitted a different element than the
+client VNode expects — it **self-heals**: it creates the expected element fresh,
+mounts the subtree into it, and advances past the orphaned server node. The page
+stays correct and reactive instead of duplicating content or leaving a dead
+subtree. These recoveries warn in dev so you can fix the underlying drift.
+
 ### Low-level hydration
 
 For custom setups you can call the core `hydrate` function directly. It normalizes
@@ -50,13 +85,13 @@ attaches events/props/directives/refs, skips SSR comment markers
 
 ## Head management
 
-Call `useHead()` inside any component to manage `<head>` elements. During SSR the
-configs are collected into the active context; on the client `useHead()` mutates
-the DOM directly and registers cleanup on unmount:
+Call `useHead()` — exported from core **`sigx`** — inside any component to manage
+`<head>` elements. During SSR the configs are collected onto the per-request
+context; on the client `useHead()` mutates the DOM directly and registers cleanup
+on unmount:
 
 ```tsx
-import { component } from 'sigx';
-import { useHead } from '@sigx/server-renderer';
+import { component, useHead } from 'sigx';
 
 export const ArticlePage = component((props) => {
     useHead({
@@ -74,34 +109,43 @@ export const ArticlePage = component((props) => {
 });
 ```
 
-The render APIs auto-collect head configs during render and append the head HTML
-to the context (read it via `ctx.getHead()`). `titleTemplate` uses `%s` as the
-title placeholder, and `renderHeadToString()` dedupes meta by
-`name`/`property`/`http-equiv`/`charset`.
+`renderDocument*` collects these configs during render and injects the rendered
+head HTML before `</head>` in your template automatically — there is nothing to
+wire up. `titleTemplate` uses `%s` as the title placeholder, and the renderer
+dedupes meta by `name`/`property`/`http-equiv`/`charset`.
 
-### Manual head rendering
+`renderDocument` injects the collected head into the document for you, so a
+`useHead()` call anywhere in the tree just works — no manual wiring.
 
-If you manage the document yourself, the lifecycle is explicit:
+## Hydrating server-resolved Suspense
+
+The server resolves `lazy()` components inline (and streams a `<Suspense>`
+fallback then swaps in the real children — see
+[Rendering & streaming](/server/packages/server-renderer/rendering)). To hydrate
+that server-resolved subtree, the lazy component must be available **synchronously**
+during the hydration walk — otherwise the client would render the fallback again
+and mismatch the server output.
+
+Preload the lazy chunk before calling `hydrate()`. Every `lazy()` factory exposes
+a `.preload()` promise for exactly this:
 
 ```tsx
-import {
-    enableSSRHead,
-    collectSSRHead,
-    renderHeadToString,
-} from '@sigx/server-renderer';
-import { renderToString } from '@sigx/server-renderer/server';
+// src/entry-client.tsx
+import { defineApp, lazy } from 'sigx';
+import { ssrClientPlugin } from '@sigx/server-renderer/client';
 import { App } from './App';
+import { HeavyChart } from './HeavyChart'; // a lazy() component used under <Suspense>
 
-enableSSRHead();                       // switch useHead() into collection mode
-const body = await renderToString(<App />);
-const configs = collectSSRHead();      // disable + return collected configs
-const headHtml = renderHeadToString(configs);
+// Resolve the chunk first, then hydrate — the component is ready when the
+// hydration walk reaches it, so it matches the server-rendered DOM.
+await HeavyChart.preload();
 
-const doc = `<!DOCTYPE html><html><head>${headHtml}</head><body><div id="root">${body}</div></body></html>`;
+defineApp(<App />).use(ssrClientPlugin).hydrate('#root');
 ```
 
-The render APIs already enable head collection for you; reach for these functions
-only when driving the lifecycle by hand.
+For selective hydration where each island owns its own lazy chunk, the islands
+plugin handles this for you — see
+[`@sigx/ssr-islands`](/server/packages/ssr-islands/registry-and-code-splitting).
 
 ## The plugin SPI
 

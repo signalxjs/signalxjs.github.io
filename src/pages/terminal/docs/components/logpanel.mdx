@@ -1,0 +1,57 @@
+---
+title: "LogPanel"
+description: "A bounded log tail with bar, plain or panel chrome"
+layout: docs
+category: ["Components", "Tasks"]
+order: 172
+---
+
+# LogPanel
+
+<p class="lede">A bounded tail of recent log lines — the non-scrolling companion to <a href="/terminal/docs/components/logview">LogView</a>. Shows the last <code>height</code> lines of a <code>LogStore</code> (or static <code>lines</code>).</p>
+
+## Import
+
+```tsx
+import { LogPanel, createLogStore } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, onMounted, LogPanel, createLogStore } from '@sigx/terminal';
+
+const App = component(() => {
+    const log = createLogStore();
+    onMounted(() => {
+        let n = 0;
+        const t = setInterval(() => { log.push(`event ${++n}\n`); }, 300);
+        return () => clearInterval(t);
+    });
+    return () => (
+        <box>
+            <LogPanel store={log} height={5} title="recent" variant="panel" color="dim" />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `store` | `LogStore` | the reactive source |
+| `lines` | `string[]` | static lines (alternative to `store`) |
+| `height` | `number` | number of tail lines to show |
+| `width` | `number` | wrap width |
+| `title` | `string` | caption |
+| `variant` | `'bar' \| 'plain' \| 'panel'` | chrome style |
+| `color` | token \| `#hex` | text color |
+
+## See also
+
+- [LogView](/terminal/docs/components/logview) — a scrollable viewport and the `LogStore` API.
+- [TaskList](/terminal/docs/components/tasklist) — task status with a streamed tail.

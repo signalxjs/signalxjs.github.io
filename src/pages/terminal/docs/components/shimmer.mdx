@@ -1,0 +1,49 @@
+---
+title: "Shimmer"
+description: "An animated highlight sweep across text"
+layout: docs
+category: ["Components", "Effects"]
+order: 161
+---
+
+# Shimmer
+
+<p class="lede">Sweeps a brighter <code>highlight</code> band across <code>text</code> over a base <code>color</code> — a subtle loading/attention effect.</p>
+
+## Import
+
+```tsx
+import { Shimmer } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, Shimmer } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <box>
+            <Shimmer text="Loading…" color="dim" highlight="accent" speed={1} />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `text` | `string` | **required** — the text |
+| `color` | token \| `#hex` | base color |
+| `highlight` | token \| `#hex` | sweep color |
+| `width` | `number` | width of the highlight band |
+| `speed` | `number` | sweep speed |
+
+## See also
+
+- [Gradient](/terminal/docs/components/gradient) — multi-stop coloring.
+- [Spinner](/terminal/docs/components/spinner) — an activity indicator.

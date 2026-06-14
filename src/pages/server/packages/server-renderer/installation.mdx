@@ -33,26 +33,30 @@ in Node code:
 
 | Import path | Use it for | Notes |
 |---|---|---|
-| `@sigx/server-renderer` | `useHead`, `createSSR`, `ssrClientPlugin`, shared types | Universal — head + plugin system, re-exports `renderToString`/`renderToStream` |
-| `@sigx/server-renderer/server` | `renderToString`, `renderToStream`, `renderToNodeStream`, `renderToStreamWithCallbacks` | Node-only render APIs |
+| `@sigx/server-renderer` | `createSSR`, `renderDocument`, `ssrClientPlugin`, `renderHeadToString`, shared types | Universal — plugin system + convenience re-exports of the render APIs |
+| `@sigx/server-renderer/server` | `renderDocument*`, `renderToString`, `renderToStream`, `renderToNodeStream`, `renderToStreamWithCallbacks` | Node-only render APIs |
 | `@sigx/server-renderer/client` | `hydrate`, `ssrClientPlugin`, plugin hooks | Browser-only hydration |
 
 A typical app uses all three across its entry files:
 
 ```tsx
 // entry-server.tsx
-import { renderToNodeStream } from '@sigx/server-renderer/server';
+import { renderDocument } from '@sigx/server-renderer/server';
 
 // entry-client.tsx
 import { ssrClientPlugin } from '@sigx/server-renderer/client';
 
 // any component
-import { useHead } from '@sigx/server-renderer';
+import { useHead, useAsync } from 'sigx';     // head + data loading live in core sigx
 ```
 
 `renderToNodeStream` and `renderToStreamWithCallbacks` are exported **only** from
 `/server`, not from the main entry. Hydration internals (`hydrate`, `hydrateNode`,
 `registerClientPlugin`, …) are exported **only** from `/client`.
+
+> `useHead`, `useAsync`, and `useStream` come from core **`sigx`**, not this
+> package. They are plain composables that gain server behavior when this renderer
+> drives them.
 
 ## Import side effects
 

@@ -1,0 +1,45 @@
+---
+title: "Installation"
+description: "OTA Updates — OTA bundle updates"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-updates` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-updates
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+Prebuild also computes a **runtime fingerprint** from the linked native modules, the Lynx SDK version, and the scaffold revision, and bakes it into the binary. `sigx updates:publish` stamps the same fingerprint into the manifest so the client only applies bundles compatible with the installed native build (see [Runtime-version compatibility](/lynx/modules/updates/usage#runtime-version-compatibility)).
+
+## Configure
+
+Declare the update behavior once in `main.tsx`, before `defineApp()`:
+
+```tsx
+import { defineApp } from '@sigx/lynx';
+import { defineUpdates } from '@sigx/lynx-updates';
+import App from './App';
+
+defineUpdates({
+  provider: { url: 'https://cdn.example.com/myapp/production/manifest.json' },
+});
+
+defineApp(<App />).mount(null);
+```
+
+For prebuilt UI (prompt, blocking gate, progress, restart banner), add [`@sigx/lynx-updates-ui`](/lynx/modules/updates-ui/overview).

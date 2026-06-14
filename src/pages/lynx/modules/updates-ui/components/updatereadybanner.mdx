@@ -1,0 +1,46 @@
+---
+title: "UpdateReadyBanner"
+description: "UpdateReadyBanner — @sigx/lynx-updates-ui component"
+layout: module-docs
+category: ["Components", "Update flow"]
+order: 104
+---
+
+# UpdateReadyBanner
+
+<p class="lede">A bottom banner shown when a non-mandatory update is downloaded and staged, offering an immediate in-place restart — or "Later" to apply it on the next cold launch.</p>
+
+## Import
+
+```tsx
+import { UpdateReadyBanner } from '@sigx/lynx-updates-ui';
+```
+
+## Usage
+
+`<UpdateReadyBanner>` appears at the bottom of the screen when the headless state reaches `status: 'ready'` and the update is not mandatory. It reads "Update ready — v1.2.3" (the version is appended to `label`) and offers a Restart button.
+
+```tsx
+import { UpdateReadyBanner } from '@sigx/lynx-updates-ui';
+
+<UpdateReadyBanner />
+```
+
+- **Restart** → `Updates.apply()` (in-place reload).
+- **Later** → hides the banner for this session and fires `onDismiss`; the staged update still applies on the next cold launch (the headless package's default — nothing to persist here).
+
+This is the natural pairing for [`UpdatePrompt`](/lynx/modules/updates-ui/components/updateprompt) with `applyOn="next-launch"`: the prompt downloads, the banner offers the restart. Mandatory updates never reach this banner — [`UpdateGate`](/lynx/modules/updates-ui/components/updategate) blocks and auto-applies those.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `label` | `string` | `'Update ready'` | Banner text (the version is appended). |
+| `restartLabel` | `string` | `'Restart'` | Restart button text. |
+| `class` | `string` | — | Extra class for the banner container. |
+
+## Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `onDismiss` | `() => void` | Fired when the user taps "Later". |

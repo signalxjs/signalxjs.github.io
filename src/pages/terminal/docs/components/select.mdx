@@ -1,0 +1,86 @@
+---
+title: "Select"
+description: "Single-choice menu with keyboard navigation and optional descriptions"
+layout: docs
+category: ["Components", "Forms"]
+order: 114
+---
+
+# Select
+
+<p class="lede">A focusable single-choice menu. ↑/<code>k</code> and ↓/<code>j</code> move the selection (wrapping); the chosen option is marked with <code>❯</code>.</p>
+
+## Import
+
+```tsx
+import { Select } from '@sigx/terminal';
+import type { SelectOption } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, Select } from '@sigx/terminal';
+import type { SelectOption } from '@sigx/terminal';
+
+const options: SelectOption[] = [
+    { label: 'Development', value: 'dev', description: 'Local dev build' },
+    { label: 'Staging', value: 'staging', description: 'Pre-production' },
+    { label: 'Production', value: 'prod', description: 'Live environment' },
+];
+
+const App = component(() => {
+    const env = signal('dev');
+    return () => (
+        <box border="rounded" label="Deploy target">
+            <Select
+                options={options}
+                model={() => env}
+                label="Environment"
+                showDescription
+                autofocus
+                onChange={(v) => console.log('selected:', v)}
+                onSubmit={(v) => console.log('confirmed:', v)}
+            />
+            <br />
+            <text>Target: {env.value}</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `options` | `SelectOption[]` | **required** — the choices |
+| `model` | `Model<string>` | two-way bound selected value |
+| `label` | `string` | caption above the list |
+| `autofocus` | `boolean` | grab focus on mount |
+| `showDescription` | `boolean` | render the selected option's `description` below |
+
+## Events
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `change` | `string` | selection moves |
+| `submit` | `string` | Enter |
+
+## SelectOption
+
+```ts
+interface SelectOption<T = string> {
+    label: string;
+    value: T;
+    description?: string;
+}
+```
+
+## See also
+
+- [Radio](/terminal/docs/components/radio) — every option always visible.
+- [MultiSelect](/terminal/docs/components/multiselect) — choose several.
+- [select() prompt](/terminal/docs/prompts) — the imperative form.

@@ -1,6 +1,6 @@
 ---
 title: Rendering & streaming
-description: "Wire renderToString/Stream/NodeStream into Express, Fastify, or an edge runtime, and stream async data with ssr.load()"
+description: "Render a complete document with renderDocument into Express, Fastify, or an edge runtime, and load server data with useAsync/useStream"
 layout: module-docs
 category: Guides
 order: 30
@@ -8,81 +8,116 @@ order: 30
 
 # Rendering & streaming
 
-<p class="lede">Pick a render API, wire it into a real HTTP server, and stream async data to the client.</p>
+<p class="lede">Hand the renderer an HTML template, let it own the whole response — head, shell, state, async content — and stream it into a real HTTP server.</p>
 
-## Picking a render API
+## The document render APIs
 
-| API | Returns | Best for |
-|---|---|---|
-| `renderToString` | `Promise<string>` | Buffer the full document, then send it once |
-| `renderToStream` | web `ReadableStream<string>` | Web-standard runtimes (Workers, Deno, edge) |
-| `renderToNodeStream` | Node `Readable` | Node servers — Express, Fastify, H3 — pipe directly to the response |
-| `renderToStreamWithCallbacks` | `Promise<void>` | Fine-grained control over shell / async chunks |
+The `renderDocument*` family takes a full HTML template containing an outlet
+marker and assembles the complete document: collected `useHead()` tags injected
+before `</head>`, the app shell at the outlet, the serialized state blob, any
+streamed async chunks, and the template tail. You no longer hand-splice
+`template.replace('<!--ssr-outlet-->', html)` in your server.
 
-Streaming is the recommended default: the renderer sends the synchronous shell
-first, then interleaves replacement scripts for async components as they resolve,
-and finishes with a completion script.
+| API | Returns | Default mode | Best for |
+|---|---|---|---|
+| `renderDocument` | `Promise<string>` | `'blocking'` | Buffer the full document, then send it once — crawlers, AI agents |
+| `renderDocumentToNodeStream` | `{ stream: Readable; shell: Promise<void> }` | `'stream'` | Node servers — Express, Fastify, H3 |
+| `renderDocumentToWebStream` | `ReadableStream<Uint8Array>` | `'stream'` | Web-standard runtimes — Workers, Deno, edge |
 
-## Passing an App vs a raw element
+All three accept a raw JSX element **or** an `App` from `defineApp()` (the `App`
+form preserves `AppContext` for `inject()` and plugins such as a router), plus a
+`DocumentOptions` object.
 
-All render APIs accept either a raw JSX element **or** an `App` from `defineApp()`.
-Prefer the `App` form on the server — it preserves the `AppContext` so dependency
-injection (`inject()`) and plugins (like a router) work during render:
+### The template and outlet
 
 ```tsx
-import { defineApp } from 'sigx';
-import { renderToNodeStream } from '@sigx/server-renderer/server';
-import { App } from './App';
-
-// Raw element — simplest, no DI/plugins:
-const a = renderToNodeStream(<App />);
-
-// App form — preserves AppContext for inject() and plugins:
-const app = defineApp(<App />);
-const b = renderToNodeStream(app);
+const template = `<!DOCTYPE html>
+<html>
+  <head><meta charset="utf-8" /></head>
+  <body>
+    <div id="root"><!--ssr-outlet--></div>
+    <script type="module" src="/entry-client.js"></script>
+  </body>
+</html>`;
 ```
+
+The outlet marker defaults to `<!--ssr-outlet-->`; override it with the `outlet`
+option. The renderer also splits the tail at `</body>`: everything up to it —
+including your entry `<script>` — flushes with the shell so the browser starts
+downloading the client bundle immediately, while only the closing tags wait for
+the stream to finish.
+
+## Blocking vs streaming
+
+The `mode` option controls how keyed `useAsync()` / `useStream()` data is
+delivered:
+
+- **`'blocking'`** — every keyed async value resolves **inline**: complete
+  content, no placeholders, no replacement scripts. This is the default for
+  `renderDocument`. Ideal for crawlers and AI agents that read the first response
+  without executing JavaScript — pick it per `User-Agent`.
+- **`'stream'`** — the synchronous shell flushes first with placeholders, then
+  out-of-order replacement chunks swap in real content as each async value
+  resolves. This is the default for the two streaming variants.
+
+Both modes emit the trailing completion script (`__SIGX_STREAMING_COMPLETE__` +
+the `sigx:ready` event) so the client can gate hydration on a complete document,
+and both serialize state unless you opt out with `serializeState: false`.
 
 ## Express (Node)
 
-On Node, `renderToNodeStream` avoids web-stream overhead. Pipe it straight to the
-response:
+`renderDocumentToNodeStream` returns the stream **and** a `shell` promise that
+settles *before* the first byte. Await it to choose a real HTTP status code, then
+pipe:
 
 ```tsx
 import express from 'express';
-import { renderToNodeStream } from '@sigx/server-renderer/server';
+import { renderDocumentToNodeStream } from '@sigx/server-renderer/server';
 import { App } from './App';
 
+const template = await readTemplate(); // your index.html with <!--ssr-outlet-->
 const server = express();
+server.use(express.static('dist/client'));
 
-server.get('*', (req, res) => {
-    res.setHeader('Content-Type', 'text/html');
-    res.write(`<!DOCTYPE html><html><head><meta charset="utf-8" /></head><body><div id="root">`);
-
-    const stream = renderToNodeStream(<App />);
-    stream.pipe(res, { end: false });
-    stream.on('end', () => {
-        res.end(`</div><script type="module" src="/entry-client.js"></script></body></html>`);
+server.get('*', async (req, res) => {
+    const { stream, shell } = renderDocumentToNodeStream(<App />, {
+        template,
+        onError: (err, phase) => console.error(`[ssr:${phase}]`, err),
     });
+
+    try {
+        await shell;                       // shell ready → status is safe to set
+    } catch {
+        return res.status(500).send('<!doctype html><h1>Server error</h1>');
+    }
+
+    res.status(200).setHeader('Content-Type', 'text/html');
+    stream.pipe(res);
 });
 
 server.listen(3000);
 ```
 
+Because `shell` settles before any byte goes out, a shell-phase failure still
+lets you send a clean 500 page — the stream has not started yet.
+
 ## Fastify / H3
 
-The same `Readable` works with any Node HTTP framework. With Fastify, hand the
-stream to `reply.send()`:
+The same `{ stream, shell }` shape works with any Node HTTP framework. Await the
+shell, set the status, then hand the `Readable` to `reply.send()`:
 
 ```tsx
 import Fastify from 'fastify';
-import { renderToNodeStream } from '@sigx/server-renderer/server';
+import { renderDocumentToNodeStream } from '@sigx/server-renderer/server';
 import { App } from './App';
 
 const fastify = Fastify();
 
 fastify.get('*', async (req, reply) => {
+    const { stream, shell } = renderDocumentToNodeStream(<App />, { template });
+    await shell;
     reply.type('text/html');
-    return renderToNodeStream(<App />);
+    return reply.send(stream);
 });
 
 await fastify.listen({ port: 3000 });
@@ -90,16 +125,16 @@ await fastify.listen({ port: 3000 });
 
 ## Web ReadableStream (edge / Workers)
 
-For web-standard runtimes, `renderToStream` returns a `ReadableStream<string>`
-(pull-based, batched at 4KB with natural backpressure). Wrap it in a `Response`:
+`renderDocumentToWebStream` returns a `ReadableStream<Uint8Array>` of UTF-8 bytes,
+ready to use as a `Response` body:
 
 ```tsx
-import { renderToStream } from '@sigx/server-renderer/server';
+import { renderDocumentToWebStream } from '@sigx/server-renderer/server';
 import { App } from './App';
 
 export default {
-    fetch() {
-        const stream = renderToStream(<App />);
+    fetch(request: Request) {
+        const stream = renderDocumentToWebStream(<App />, { template });
         return new Response(stream, {
             headers: { 'Content-Type': 'text/html' },
         });
@@ -107,82 +142,143 @@ export default {
 };
 ```
 
-## Async data with ssr.load()
+## Serving complete content to crawlers
 
-To fetch data during SSR, call `ssr.load()` from inside `setup`. The callback runs
-on the **server**; its resolved HTML is streamed to the client:
+Because `renderDocument` defaults to `'blocking'`, a string render delivers full,
+inline content with no client round-trip — exactly what search crawlers and AI
+agents want. A single server can branch on the request:
 
 ```tsx
-import { component } from 'sigx';
+import { renderDocument, renderDocumentToNodeStream } from '@sigx/server-renderer/server';
 
-export const UserCard = component(({ signal, props, ssr }) => {
-    const user = signal<{ name: string } | null>(null, 'user');
+const isBot = /bot|crawler|spider|gptbot|claudebot/i.test(req.headers['user-agent'] ?? '');
 
-    ssr.load(async () => {
-        const res = await fetch(`https://api.example.com/users/${props.id}`);
-        user(await res.json());
+if (isBot) {
+    const html = await renderDocument(<App />, { template, mode: 'blocking' });
+    res.status(200).type('text/html').send(html);
+} else {
+    const { stream, shell } = renderDocumentToNodeStream(<App />, { template });
+    await shell;
+    res.status(200).type('text/html');
+    stream.pipe(res);
+}
+```
+
+## Aborting & error handling
+
+`DocumentOptions` carries two controls for the request lifecycle:
+
+- **`signal`** — an `AbortSignal` (client disconnect, timeout). A stream ends
+  early without the document tail; a `renderDocument` string render rejects so a
+  truncated render never looks successful.
+- **`onError(error, phase)`** — `phase` is `'shell'` when the failure happens
+  *before* any byte is produced (you can still send a 500 page), or `'stream'`
+  when it happens mid-stream after the shell flushed. Per-component errors stream
+  their own fallbacks and do **not** reach `onError` — only stream-level failures
+  do.
+
+```tsx
+const ac = new AbortController();
+req.on('close', () => ac.abort());
+
+const { stream, shell } = renderDocumentToNodeStream(<App />, {
+    template,
+    signal: ac.signal,
+    onError(err, phase) {
+        if (phase === 'shell') metrics.shellFailures.inc();
+        else metrics.streamFailures.inc();
+    },
+});
+```
+
+## Server data with useAsync / useStream
+
+Data loading lives in the `useAsync` / `useStream` composables from **`sigx`** —
+not in this package. The rule is **keyed = server-transferable**:
+
+```tsx
+import { component, useAsync } from 'sigx';
+
+export const UserCard = component(({ props }) => {
+    // Keyed: runs on the server, serialized under 'user', restored on hydration.
+    const user = useAsync(`user:${props.id}`, async ({ signal }) => {
+        const res = await fetch(`https://api.example.com/users/${props.id}`, { signal });
+        return res.json();
     });
 
-    return () => <div>{user()?.name ?? 'Loading…'}</div>;
+    return () => {
+        if (user.loading) return <p>Loading…</p>;
+        if (user.error) return <p>Failed to load.</p>;
+        return <div>{user.value?.name}</div>;
+    };
 });
 ```
 
-Default behavior by render mode:
+- **Keyed `useAsync(key, fetcher)`** runs the fetcher on the server, awaits it
+  (blocking mode) or streams its placeholder then result (streaming mode),
+  serializes the resolved value under `key` into the page's
+  `window.__SIGX_ASYNC__` blob, and restores it on hydration — so the fetch does
+  **not** run again on the client. Pass `{ server: false }` to render the loading
+  branch during SSR and fetch on the client instead.
+- **Unkeyed `useAsync(fetcher)`** is client-only — the fetcher never runs on the
+  server.
+- **`useStream(key, source)`** is for progressive text (LLM-token-style). On the
+  server in streaming mode the tokens append into the page as they arrive and the
+  final text is serialized under `key`; in blocking mode it is drained fully and
+  inlined. On hydration the final text is restored and the source is **not**
+  re-run, so there is no duplicate LLM call.
 
-- **String mode** (`renderToString`) — async components default to `block`: the
-  renderer awaits `ssr.load()` and emits the resolved HTML inline.
-- **Streaming mode** (`renderToStream` / `renderToNodeStream`) — async components
-  default to `stream`: a placeholder is emitted immediately, then a
-  `$SIGX_REPLACE` script swaps in the real HTML once `ssr.load()` resolves.
+`renderDocument*` serializes this state automatically (`serializeState: false`
+opts out). The `ssr` helper on the component context is now just two flags —
+`ctx.ssr.isServer` and `ctx.ssr.isHydrating` — for the rare branch that must know
+which environment it is in.
 
-### State transfer needs the islands plugin
+## Suspense & lazy on the server
 
-The bare render APIs produce correct HTML, but they do **not** serialize signal
-state. In the core render path `ctx.signal` is the plain, non-tracking signal, so
-no server state is sent to the client. On hydration of a core-rendered async
-component there is nothing to restore, and `ssr.load()` runs again on the client.
+`lazy()` components and `<Suspense>` boundaries render correctly on the server:
 
-Automatic skip-on-hydration and state restoration — so `ssr.load()` does **not**
-re-run and you avoid a duplicate fetch — require a tracking plugin like
-[`@sigx/ssr-islands`](/server/packages/ssr-islands/overview), which swaps in a
-tracking signal during render and a restoring signal during hydration.
+- **`lazy()`** resolves **inline** — the renderer awaits the component's module
+  (`preload()`) during render, then renders the resolved component. No empty
+  output, no fallback-forever.
+- **`<Suspense>` in streaming mode** emits its `fallback` immediately, then swaps
+  in the real children once their lazy dependencies resolve.
+- **`<Suspense>` in blocking / string mode** needs no special handling: the lazy
+  deps are awaited inline and the children render directly.
 
-## Naming signals for hydration parity
+To hydrate a server-resolved Suspense subtree, **preload the lazy chunk before
+calling `hydrate()`** so the component is available synchronously during the
+hydration walk — see
+[Hydration & head](/server/packages/server-renderer/hydration).
 
-When a tracking plugin is in use, hydration matches server-captured state to
-client signals by key. Name the context `signal` that holds server-loaded state —
-`signal(value, 'name')`, using the `signal` destructured from the component
-context — so the keys line up. Unnamed signals fall back to positional keys
-(`$0`, `$1`, …); the dev build warns once because declaration-order drift between
-server and client builds can silently mismatch state.
+## Lower-level render APIs
 
-The module-level `signal` exported from `sigx` takes only a value and ignores a
-name; the name parameter exists on the context `signal` (typed `SSRSignalFn`).
+When you assemble the document yourself (or only need a fragment), the renderer
+also exposes the building blocks `renderDocument*` are built on:
 
-## Handling component errors
+| API | Returns | Notes |
+|---|---|---|
+| `renderToString` | `Promise<string>` | The app shell only — no template, head injection, or state serialization |
+| `renderToStream` | web `ReadableStream<string>` | Pull-based, 4 KB batching, natural backpressure |
+| `renderToNodeStream` | Node `Readable` | Object-mode stream of HTML chunks |
+| `renderToStreamWithCallbacks` | `Promise<void>` | `onShellReady` / `onAsyncChunk` / `onComplete` / `onError` |
 
-Pass `onComponentError` so a single failing component yields fallback HTML instead
-of failing the whole render. Return a string of fallback HTML, or `null` for the
-default error placeholder:
+These stay **opt-in** for state serialization and head injection — reach for them
+only when you have a reason to own the document assembly. For everything else,
+`renderDocument*` is the zero-config entry point.
+
+## Plugin-driven rendering
+
+`renderDocument` and the lower-level functions all delegate to a shared
+`createSSR()` pipeline. Register plugins (islands, a custom strategy) on an
+instance and call the same methods on it:
 
 ```tsx
-import { createSSRContext, renderToString } from '@sigx/server-renderer/server';
-import { App } from './App';
+import { createSSR } from '@sigx/server-renderer';
+import { islandsPlugin } from '@sigx/ssr-islands';
 
-const ctx = createSSRContext({
-    onComponentError: (error, name) => `<!-- ${name} failed: ${error.message} -->`,
-});
-
-const html = await renderToString(<App />, ctx);
+const ssr = createSSR().use(islandsPlugin());
+const html = await ssr.renderDocument(app, { template });
 ```
-
-## Completion signal
-
-The streaming render forms emit a trailing `<script>` that sets
-`window.__SIGX_STREAMING_COMPLETE__ = true` and dispatches a `sigx:ready` event,
-so client code can wait for the full document before running deferred logic.
-`renderToString` does **not** emit this script — it returns the complete document
-as a string, so there is nothing to wait for.
 
 ## Next steps
 

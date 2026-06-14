@@ -8,9 +8,9 @@ order: 10
 
 # API Reference
 
-Every export of `@sigx/terminal`, grouped by kind. Import all of these from the `@sigx/terminal` entry.
+The terminal-specific exports of `@sigx/terminal`, grouped by kind. Import all of these from the `@sigx/terminal` entry.
 
-`@sigx/terminal` is an aggregator that re-exports the entire `@sigx/reactivity` and `@sigx/runtime-core` surfaces (`signal`, `computed`, `effect`, `component`, `defineApp`, `onMounted`, `onUnmounted`, `Define`, `VNode`, etc.). Those belong to their own units and are documented there. The exports below are the terminal-specific additions.
+`@sigx/terminal` is an umbrella that re-exports the `@sigx/reactivity` and `@sigx/runtime-core` surfaces (`signal`, `computed`, `effect`, `component`, `defineApp`, `onMounted`, `onUnmounted`, `Define`, `VNode`, etc.) — those belong to their own units and are documented there — plus the renderer (`@sigx/runtime-terminal`), the headless foundation (`@sigx/terminal-zero`) and the themed components (`@sigx/terminal-ui`). The component library is documented page-by-page under [Components](/terminal/docs/components); this page covers the renderer, focus/input, theming and intrinsics. `@sigx/reactivity` and `@sigx/runtime-core` are **peer dependencies** (see [Installation](/terminal/docs/installation)).
 
 ## Render & mount
 
@@ -102,13 +102,42 @@ The core cell/line renderer. Recursively walks a `TerminalNode` tree into an arr
 ### onKey
 
 ```ts
-function onKey(handler: (key: string) => void): () => void
+type KeyLayer = 'overlay' | 'control' | 'view' | 'global';
+type KeyHandler = (key: string) => boolean | void;
+
+function onKey(handler: KeyHandler, opts?: { layer?: KeyLayer }): () => void
 ```
 
-Subscribes a handler to raw keyboard input. Each keypress arrives as a string (for example `'\r'` for Enter, or `'\x1B[A'` for the up arrow). Ctrl+C, Tab (focus next) and Shift+Tab (focus previous) are intercepted by the runtime before handlers fire.
+Subscribes a handler to raw keyboard input. Each keypress arrives as a string (for example `'\r'` for Enter, or `'\x1B[A'` for the up arrow). Handlers run in layers — **overlay → control → view → global** (default `control`) — and within a layer in registration order; returning strictly `true` **consumes** the key and stops dispatch. The built-in Tab / Shift+Tab focus cycling is the first `global` handler, so higher layers can consume Tab first. See [layered key dispatch](/terminal/docs/input-and-components).
 
-- **handler** — called with each raw key string.
+- **handler** — called with each raw key string; return `true` to consume.
+- **opts.layer** — dispatch layer; default `'control'`.
 - **Returns** — an unsubscribe function.
+
+### dispatchKey
+
+```ts
+function dispatchKey(key: string): void
+```
+
+Injects a key as if it arrived on stdin — runs the exact input path (Ctrl+C policy, Tab focus cycling, `onKey` fan-out). For tests, embedders and automation driving an app without a TTY.
+
+### getTerminalSize
+
+```ts
+function getTerminalSize(): { columns: number; rows: number }
+```
+
+The terminal dimensions as a **reactive** read: a component that calls this in its render function re-renders when the terminal is resized (SIGWINCH). Prefer it over `getOutputTarget().columns/rows`, which are live but not reactive.
+
+### writeStatic / printStatic
+
+```ts
+function writeStatic(text: string): void
+const printStatic = writeStatic
+```
+
+Emit a permanent line above the live region (inline) or into the alt-screen transcript (fullscreen), composed atomically with the next frame so it never tears through the repaint. `console.*` is routed here automatically while an inline TTY app is mounted (`patchConsole`).
 
 ### focusState
 
@@ -158,97 +187,34 @@ function focusPrev(): void
 
 Moves focus to the previous registered focusable (wraps around). Bound to Shift+Tab.
 
+## Theme engine
+
+The token-to-color pipeline (`@sigx/terminal-zero`, re-exported). Full guide: [Theming](/terminal/docs/theming).
+
+### resolveColor
+
+```ts
+function resolveColor(token: string | undefined): string
+```
+
+Resolves a theme token (or raw `#hex`) to a concrete color for the renderer, **reactively** — it reads the active theme and the detected color depth, degrading to a 16-color ANSI name on limited terminals. A component that resolves a token during render re-renders on `setTheme()`.
+
+### setTheme / getTheme / listThemes / registerTheme
+
+```ts
+function setTheme(id: string): void            // switch the active theme (throws on unknown id)
+function getTheme(): string                    // active theme id (reactive)
+function getActiveTheme(): Theme               // active theme object (reactive)
+function hasTheme(id: string): boolean
+function listThemes(): string[]
+function registerTheme(id: string, theme: Theme): void   // first registered becomes active
+```
+
+The built-in themes (`obsidian` default, `nord`, `gum`, `classic`, `paper`) are also exported as the `THEMES` record. `applyThemeCanvas()` / `disableThemeCanvas()` bind or clear the renderer's themed screen canvas.
+
 ## Components
 
-### Input
-
-```ts
-const Input: Component<
-    Define.Model<string> &
-    Define.Prop<"placeholder", string, false> &
-    Define.Prop<"autofocus", boolean, false> &
-    Define.Prop<"label", string, false> &
-    Define.Event<"input", string> &
-    Define.Event<"submit", string>
->
-```
-
-Focusable single-line text input with two-way model binding. Renders as a single-bordered box (green border when focused) with a blinking-style cursor. Backspace deletes; Enter emits `submit`; printable characters emit `input`.
-
-- **Props** — `model` (string), `placeholder`, `autofocus`, `label`.
-- **Events** — `input(value)`, `submit(value)`.
-
-A 50ms ready delay prevents a stray Enter from the previous focus triggering submit.
-
-### Button
-
-```ts
-const Button: Component<
-    Define.Prop<"label", string, false> &
-    Define.Prop<"dropShadow", boolean, false> &
-    Define.Event<"click">
->
-```
-
-Focusable clickable button rendered as a single-bordered box. Enter or Space triggers a brief (120ms) press visual (yellow border / red background) and emits `click`. Shows a green border with a blue background when focused.
-
-- **Props** — `label` (default `'Button'`), `dropShadow`.
-- **Event** — `click`.
-
-A 50ms ready delay guards against stray activation on mount.
-
-### Checkbox
-
-```ts
-const Checkbox: Component<
-    Define.Model<boolean> &
-    Define.Prop<"label", string, false> &
-    Define.Prop<"autofocus", boolean, false> &
-    Define.Prop<"disabled", boolean, false> &
-    Define.Event<"change", boolean>
->
-```
-
-Focusable toggle checkbox with two-way model binding. Renders as `> [x] Label` / `  [ ] Label` with a focus indicator and color cues. Enter or Space toggles, updating the model and emitting `change`. Also exported as `default`.
-
-- **Props** — `model` (boolean), `label`, `autofocus`, `disabled`.
-- **Event** — `change(value)`.
-
-### Select
-
-```ts
-const Select: Component<
-    Define.Model<string> &
-    Define.Prop<"options", SelectOption[], true> &
-    Define.Prop<"label", string, false> &
-    Define.Prop<"autofocus", boolean, false> &
-    Define.Prop<"showDescription", boolean, false> &
-    Define.Event<"change", string> &
-    Define.Event<"submit", string>
->
-```
-
-Focusable option list with keyboard navigation. Up / `k` and Down / `j` move the selection (wrapping), updating the model and emitting `change`; Enter emits `submit`. The selected option is marked with `❯` in cyan. Optionally renders the selected option's description below when `showDescription` is set. Also exported as `default`.
-
-- **Props** — `options` (required `SelectOption[]`), `model` (string value), `label`, `autofocus`, `showDescription`.
-- **Events** — `change(value)`, `submit(value)`.
-
-### ProgressBar
-
-```ts
-const ProgressBar: Component<
-    Define.Prop<"value", number, false> &
-    Define.Prop<"max", number, false> &
-    Define.Prop<"width", number, false> &
-    Define.Prop<"char", string, false> &
-    Define.Prop<"emptyChar", string, false> &
-    Define.Prop<"color", string, false>
->
-```
-
-Read-only visual progress indicator. Renders a bar of filled characters (default `█`) and empty characters (default `░`) plus a percentage label. No events.
-
-- **Props** — `value` (default `0`), `max` (default `100`), `width` (default `20`), `char`, `emptyChar`, `color` (named color applied via ANSI).
+The themed component library (`@sigx/terminal-ui`) is documented page-by-page under [Components](/terminal/docs/components): forms (`Input`, `TextArea`, `Checkbox`, `Confirm`, `Select`, `Radio`, `MultiSelect`), feedback (`ProgressBar`, `Spinner`, `Badge`), navigation (`Tabs`, `StatusBar`, `KeyHints`, `SuggestionList`), layout (`Card` plus the `Box` / `Row` / `Col` / `Spacer` / `Divider` primitives), data (`Table`, `QRCode`), effects (`Gradient`, `Shimmer`, `Banner`, `PixelArt`) and tasks (`TaskList`, `LogView`, `LogPanel`). Typography (`Text`, `Heading`) is covered in [Typography](/terminal/docs/typography); the imperative prompt functions in [Prompts](/terminal/docs/prompts).
 
 ## Types & interfaces
 
@@ -283,15 +249,21 @@ The host node type for the terminal renderer — the equivalent of a DOM element
 
 ```ts
 interface RenderTerminalOptions {
-    clearConsole?: boolean;
+    mode?: 'inline' | 'fullscreen';   // how the app paints; default 'inline'
+    fullscreen?: boolean;             // alias for mode: 'fullscreen'
+    clearConsole?: boolean;           // start from a clean viewport
+    patchConsole?: boolean;           // route console.* to writeStatic (default: on for inline TTY)
+    canvas?: boolean;                 // themed screen canvas (default: on fullscreen, off inline)
+    persistOnExit?: boolean;          // keep the final inline frame in scrollback (default true)
+    exitOnCtrlC?: boolean;            // Ctrl+C tears down + exits 130 (default true)
 }
 ```
 
-Options accepted by `renderTerminal`, `terminalMount` and `mountTerminal`. Only `clearConsole` is supported (clears the screen on mount).
+Options accepted by `renderTerminal`, `terminalMount` and `mountTerminal`. See [Render modes](/terminal/docs/render-modes) for what each one does and how the renderer degrades on a non-TTY.
 
 ## JSX intrinsic elements
 
-The terminal runtime declares three intrinsic elements that share the `TerminalAttributes` shape:
+The terminal runtime declares the host elements. `box`, `text` and `br` share the `TerminalAttributes` shape; `row` is a horizontal layout element with its own attributes:
 
 ```ts
 namespace JSX {
@@ -299,27 +271,47 @@ namespace JSX {
         box: TerminalAttributes;
         text: TerminalAttributes;
         br: TerminalAttributes;
+        row: RowAttributes;
     }
 
     interface TerminalAttributes {
-        color?: 'red' | 'green' | 'blue' | 'yellow' | 'cyan' | 'white' | 'black' | string;
-        backgroundColor?: 'red' | 'green' | 'blue' | 'yellow' | 'cyan' | 'white' | 'black' | string;
-        border?: 'single' | 'double' | 'rounded' | 'none';
-        borderColor?: 'red' | 'green' | 'blue' | 'yellow' | 'cyan' | 'white' | 'black' | string;
+        color?: string;            // foreground (named color or #hex)
+        backgroundColor?: string;
+        border?: 'single' | 'double' | 'rounded' | 'thick' | 'none';
+        borderColor?: string;
         dropShadow?: boolean;
-        label?: string;
+        shadowColor?: string;
+        padX?: number;             // horizontal padding inside a box
+        label?: string;            // centered caption in the top border
+        labelColor?: string;
+        // Text-style attributes (rendered on <text>; inert on <box>):
+        bold?: boolean;
+        faint?: boolean;
+        italic?: boolean;
+        underline?: boolean;
+        inverse?: boolean;
+        lineThrough?: boolean;
+        children?: any;
+    }
+
+    interface RowAttributes {
+        gap?: number;                                       // columns between cells (default 2)
+        align?: 'start' | 'center' | 'end' | 'top' | 'bottom';
         children?: any;
     }
 }
 ```
 
-Although `color`, `backgroundColor` and `borderColor` accept arbitrary strings in the types, only the named palette resolves to an ANSI code at render time — hex values produce no color.
+`color`, `backgroundColor`, `borderColor` and the text-style attributes accept a named ANSI color, a `#hex`, or a theme token resolved via [`resolveColor`](/terminal/docs/theming). On a 16-color terminal, hex and tokens degrade to the nearest ANSI name. For typed, themed text prefer the [`Text` and `Heading`](/terminal/docs/typography) components over the raw `<text>` intrinsic.
 
 ## Re-exports
 
-`@sigx/terminal` also re-exports two full surfaces:
+`@sigx/terminal` re-exports the surfaces it sits on:
 
-- **`@sigx/reactivity`** — `signal`, `computed`, `effect`, `untrack`, and the rest of the reactivity primitives.
-- **`@sigx/runtime-core`** — `component`, `defineApp`, `onMounted`, `onUnmounted`, `Define`, `VNode`, and the rest of the core runtime (including `defineApp`, used throughout these docs).
+- **`@sigx/reactivity`** — `signal`, `computed`, `effect`, `untrack`, and the rest of the reactivity primitives. (A peer dependency — see [Installation](/terminal/docs/installation).)
+- **`@sigx/runtime-core`** — `component`, `defineApp`, `onMounted`, `onUnmounted`, `Define`, `VNode`, and the rest of the core runtime. (Also a peer.)
+- **`@sigx/runtime-terminal`** — the renderer and input APIs documented above.
+- **`@sigx/terminal-zero`** — the theme engine, layout primitives and prompt engine.
+- **`@sigx/terminal-ui`** — the themed [components](/terminal/docs/components) and [prompts](/terminal/docs/prompts).
 
-These belong to the reactivity and runtime-core units and are documented there.
+The reactivity and runtime-core exports belong to their own units and are documented there. `@sigx/args` and `@sigx/terminal-dev` are separate installs — see [Command-line args](/terminal/docs/args) and [Dev mode](/terminal/docs/dev-mode).

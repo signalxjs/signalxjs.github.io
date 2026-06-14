@@ -1,0 +1,59 @@
+---
+title: "ProgressBar"
+description: "Determinate progress indicator with solid, gradient and rainbow variants"
+layout: docs
+category: ["Components", "Feedback"]
+order: 120
+---
+
+# ProgressBar
+
+<p class="lede">A read-only progress indicator: a bar of filled and empty cells plus a percentage. Not focusable, emits no events.</p>
+
+## Import
+
+```tsx
+import { ProgressBar } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, onMounted, ProgressBar } from '@sigx/terminal';
+
+const App = component(() => {
+    const value = signal(0);
+    onMounted(() => {
+        const t = setInterval(() => { value.value = Math.min(100, value.value + 5); }, 200);
+        return () => clearInterval(t);
+    });
+    return () => (
+        <box border="single" label="Download">
+            <ProgressBar value={value.value} max={100} width={30} variant="gradient" smooth showPercent />
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `value` | `number` | `0` | current value |
+| `max` | `number` | `100` | full value |
+| `width` | `number` | `20` | bar width in cells |
+| `char` | `string` | `█` | filled cell glyph |
+| `emptyChar` | `string` | `░` | empty cell glyph |
+| `color` | token \| `#hex` | — | bar color (solid variant) |
+| `variant` | `'solid' \| 'gradient' \| 'rainbow'` | `'solid'` | fill style |
+| `colors` | `string[]` | — | gradient stops (tokens or hex) |
+| `smooth` | `boolean` | — | sub-cell leading edge for a finer bar |
+| `showPercent` | `boolean` | — | append the percentage label |
+
+## See also
+
+- [Spinner](/terminal/docs/components/spinner) — indeterminate activity.
+- [TaskList](/terminal/docs/components/tasklist) — per-task progress.

@@ -55,14 +55,50 @@ So to stack content vertically, wrap each row in its own `box`, or separate runs
 </box>
 ```
 
+## Layout primitives
+
+For real horizontal and vertical layout, the foundation ships components that compose `box` for you:
+
+- **`Box`** — the themed container: `border` (`single` / `double` / `rounded` / `thick` / `none`), `borderColor`, `backgroundColor`, `label`, `labelColor`, `padX`, `dropShadow`.
+- **`Row`** — lays children out **horizontally** with a `gap` and `align` (`start` / `center` / `end`, plus `top` / `bottom`).
+- **`Col`** — stacks children **vertically** with a `gap`.
+- **`Spacer`** — inserts blank `size` lines (vertical spacing).
+- **`Divider`** — a horizontal rule with an optional centered `label` and `color`.
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, Box, Row, Col, Divider } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <Box border="rounded" label="Dashboard">
+            <Row gap={2} align="center">
+                <Box border="single" label="Left"><text>A</text></Box>
+                <Box border="single" label="Right"><text>B</text></Box>
+            </Row>
+            <Divider label="logs" />
+            <Col gap={1}>
+                <text>line one</text>
+                <text>line two</text>
+            </Col>
+        </Box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+The `box`/`text`/`br` intrinsics below are the lower-level host elements these primitives render to. Use the intrinsics for fine control or the primitives for ordinary layout.
+
 ## Borders
 
-The `border` prop accepts `single`, `double` or `rounded`. To draw **no** border, omit the prop entirely:
+The `border` prop accepts `single`, `double`, `rounded` or `thick`. To draw **no** border, use `none` (the `Box` component) or omit the prop entirely (the `box` intrinsic):
 
 ```tsx
 <box border="single">...</box>    {/* ┌─┐ │ └─┘ */}
 <box border="double">...</box>    {/* ╔═╗ ║ ╚═╝ */}
 <box border="rounded">...</box>   {/* ╭─╮ │ ╰─╯ */}
+<box border="thick">...</box>     {/* ┏━┓ ┃ ┗━┛ */}
 <box>...</box>                     {/* no border */}
 ```
 
@@ -133,7 +169,14 @@ const App = component(() => {
 defineApp(<App />).mount({ clearConsole: true });
 ```
 
+## Tokens vs named colors
+
+The named palette above maps to fixed ANSI codes. The themed components and the `Box`/`Text` primitives instead accept **theme tokens** (`accent`, `fg`, `line`, …) that resolve against the active theme and adapt to the terminal's color depth — see [Theming](/terminal/docs/theming). Use named colors for quick scripts; use tokens for themed apps.
+
 ## Next steps
 
+- [Typography](/terminal/docs/typography) — `Text` and `Heading` for styled, token-aware text.
+- [Theming](/terminal/docs/theming) — semantic tokens and the built-in themes.
 - [Input & Interactive Components](/terminal/docs/input-and-components) — focus and the built-in widgets.
+- [Components](/terminal/docs/components) — the full component library.
 - [API Reference](/terminal/docs/api) — the full export list.

@@ -1,0 +1,79 @@
+---
+title: Typography
+description: "Token-aware Text and Heading spans, and the SGR text attributes the renderer supports"
+layout: docs
+category: Guides
+order: 45
+---
+
+# Typography
+
+For styled text, the foundation provides two components — `Text` and `Heading` — that resolve theme tokens and carry the full set of SGR (Select Graphic Rendition) attributes. They are the typed, themed alternative to the raw `<text>` intrinsic: use `Text` for app content, the `<text>` intrinsic when you want a plain colored run.
+
+## Text
+
+`Text` is an inline span with attribute props. `color` and `bg` take a theme token or a raw `#hex`; the boolean attributes map to terminal SGR codes:
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, Text } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <box border="single" label="Type">
+            <Text bold color="accent">Bold accent</Text>
+            <br />
+            <Text faint>Faint / dimmed</Text>
+            <br />
+            <Text italic>Italic</Text>
+            <br />
+            <Text underline color="info">Underlined</Text>
+            <br />
+            <Text lineThrough>Struck through</Text>
+            <br />
+            <Text inverse>Inverse video</Text>
+            <br />
+            <Text color="warn" bg="panel">Warning on a panel fill</Text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+### Props
+
+| Prop | Type | Effect |
+| --- | --- | --- |
+| `color` | token \| `#hex` | foreground color |
+| `bg` | token \| `#hex` | background fill behind the text |
+| `bold` | boolean | bold weight |
+| `faint` | boolean | dim / faint |
+| `italic` | boolean | italic |
+| `underline` | boolean | underline |
+| `lineThrough` | boolean | strikethrough |
+| `inverse` | boolean | swap foreground and background |
+
+Attributes combine — `<Text bold underline color="accent">` is all three. Because `color`/`bg` resolve through the theme, a `Text` styled with tokens re-colors when the theme changes (see [Theming](/terminal/docs/theming)).
+
+## Heading
+
+`Heading` is a section title — an accent-weighted line. It takes a `color` token (defaulting to the theme's accent) and renders its children as a prominent heading:
+
+```tsx
+<box>
+    <Heading>Settings</Heading>
+    <br />
+    <Text faint>Configure your project.</Text>
+</box>
+```
+
+## SGR attributes and color depth
+
+The boolean attributes emit standard SGR codes, so `bold`, `underline`, `inverse` and friends work on any ANSI terminal. Colors degrade by terminal: truecolor and 256-color terminals get the resolved hex; 16-color terminals get the nearest ANSI name. `faint` and `italic` are honoured where the terminal supports them. You write the same attributes regardless — the renderer adapts the output. See [Render modes](/terminal/docs/render-modes) for the color-depth detection.
+
+## Next steps
+
+- [Layout & Styling](/terminal/docs/layout-and-styling) — boxes, borders and the line layout model.
+- [Theming](/terminal/docs/theming) — the tokens `color`/`bg` resolve against.
+- [Components](/terminal/docs/components) — components that build on `Text`.

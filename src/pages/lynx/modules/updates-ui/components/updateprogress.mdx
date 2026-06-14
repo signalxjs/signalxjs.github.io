@@ -1,0 +1,40 @@
+---
+title: "UpdateProgress"
+description: "UpdateProgress — @sigx/lynx-updates-ui component"
+layout: module-docs
+category: ["Components", "Update flow"]
+order: 103
+---
+
+# UpdateProgress
+
+<p class="lede">An inline progress bar + percent label, visible only while an update is downloading. Place it wherever you want to surface download progress.</p>
+
+## Import
+
+```tsx
+import { UpdateProgress } from '@sigx/lynx-updates-ui';
+```
+
+## Usage
+
+`<UpdateProgress>` renders a `Progress` bar bound to the download plus a percent label while `status === 'downloading'`, and an out-of-flow zero-size placeholder otherwise — so you can leave it mounted anywhere (a settings row, a toolbar) without it taking up space when idle.
+
+```tsx
+import { UpdateProgress } from '@sigx/lynx-updates-ui';
+
+<UpdateProgress color="primary" />
+```
+
+When the server sent no `Content-Length` the percent is unknown, so the label falls back to the received byte count.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` | `ProgressColor` | theme default | Progress bar color (a daisy semantic color). |
+| `class` | `string` | — | Extra class for the row container. |
+
+`ProgressColor` comes from [`@sigx/lynx-daisyui`](/lynx/modules/daisyui/overview).
+
+> The closed-state placeholder uses the same out-of-flow zero-size shape as daisyUI's Modal (the lynx `display:none` caveat).

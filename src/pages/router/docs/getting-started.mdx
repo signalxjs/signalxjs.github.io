@@ -23,6 +23,12 @@ The SignalX Router provides declarative, type-safe routing for your SignalX appl
 pnpm add @sigx/router
 ```
 
+`@sigx/router` declares the SignalX core — `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`, and `sigx` — as **peer dependencies**, so the app owns the single copy of the reactivity engine the router runs against. With a package manager that auto-installs peers (npm 7+, pnpm 8+), having `sigx` 0.6.x in your app is enough; otherwise add the core packages alongside it:
+
+```bash
+pnpm add @sigx/router sigx @sigx/reactivity @sigx/runtime-core @sigx/runtime-dom
+```
+
 ## Basic Setup
 
 Create a router instance and define your routes:

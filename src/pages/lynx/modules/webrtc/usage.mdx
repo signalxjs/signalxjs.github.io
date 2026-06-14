@@ -1,0 +1,153 @@
+---
+title: "Usage"
+description: "WebRTC — W3C-shaped WebRTC"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using WebRTC
+
+<p class="lede">Peer connections, microphone audio tracks, and data channels backed by libwebrtc — with the W3C API shape, so code written against browser WebRTC ports nearly unchanged.</p>
+
+`@sigx/lynx-webrtc` mirrors the standard browser WebRTC surface: `RTCPeerConnection`, `RTCDataChannel`, `MediaStream`/`MediaStreamTrack`, and `mediaDevices.getUserMedia()`. The native side is libwebrtc ([webrtc-sdk](https://github.com/webrtc-sdk) builds).
+
+> **Platforms:** Android and iOS. WebRTC is **not** available on the web runtime (the background thread has no `RTCPeerConnection`) — gate with [`isWebRTCAvailable()`](/lynx/modules/webrtc/api#iswebrtcavailable) before using it.
+
+## Capturing the microphone
+
+`mediaDevices.getUserMedia({ audio: true })` shows the OS permission prompt when needed and resolves to a `MediaStream`. v1 is audio-only — a video constraint rejects with `NotSupportedError`, and a denied permission rejects with `NotAllowedError`.
+
+```ts
+import { mediaDevices } from '@sigx/lynx-webrtc';
+
+const stream = await mediaDevices.getUserMedia({ audio: true });
+const [micTrack] = stream.getAudioTracks();
+```
+
+## Setting up a peer connection
+
+`new RTCPeerConnection(config?)` accepts the standard `iceServers` config. Add the local track, open a data channel, and wire the event handlers — all synchronous, just like the browser.
+
+```ts
+import { RTCPeerConnection } from '@sigx/lynx-webrtc';
+
+const peer = new RTCPeerConnection({
+  iceServers: [{ urls: 'stun:stun.example.com' }],
+});
+
+peer.addTrack(micTrack, stream);
+
+const events = peer.createDataChannel('events');
+events.onmessage = (e) => console.log('peer says', e.data);
+
+// Remote audio plays automatically through the device — no element to attach.
+peer.ontrack = (e) => console.log('remote track', e.track.id);
+```
+
+`iceServers` entries take a `urls` string or array plus optional `username`/`credential` (for TURN).
+
+## Negotiating (offer / answer)
+
+The offer/answer dance is the W3C one. For an HTTP (non-trickle) SDP exchange, wait for ICE gathering to complete so `localDescription` carries every candidate before you POST it.
+
+```ts
+const offer = await peer.createOffer();
+await peer.setLocalDescription(offer);
+
+// Wait for ICE gathering to finish (non-trickle exchange).
+await new Promise<void>((resolve) => {
+  if (peer.iceGatheringState === 'complete') return resolve();
+  peer.onicegatheringstatechange = () => {
+    if (peer.iceGatheringState === 'complete') resolve();
+  };
+});
+
+const answerSdp = await postOfferSomewhere(peer.localDescription!.sdp);
+await peer.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+```
+
+`localDescription` is refreshed on every `icegatheringstatechange`, so it carries the full SDP once gathering completes. The no-arg implicit form of `setLocalDescription()` is supported, per the modern spec.
+
+### Trickle ICE
+
+For a signaling channel that can deliver candidates incrementally, send each candidate as it's discovered and add remote candidates as they arrive. A `null`/omitted candidate (or an empty candidate string) is the end-of-candidates marker.
+
+```ts
+peer.onicecandidate = (e) => {
+  if (e.candidate) signaling.send({ candidate: e.candidate });
+  else signaling.send({ candidate: null }); // end-of-candidates
+};
+
+signaling.onCandidate((c) => peer.addIceCandidate(c));
+```
+
+## Data channels
+
+`createDataChannel(label, init?)` is synchronous (like W3C); the channel starts `'connecting'` and fires `open`. Send strings or binary (`ArrayBuffer`/typed arrays); `binaryType` is always `'arraybuffer'`.
+
+```ts
+const dc = peer.createDataChannel('chat', { ordered: true });
+dc.onopen = () => dc.send('hello');
+dc.onmessage = (e) => console.log(e.data);
+
+// Remote-initiated channels arrive via ondatachannel.
+peer.ondatachannel = (e) => {
+  e.channel.onmessage = (m) => console.log('remote channel', m.data);
+};
+```
+
+`id` (the SCTP stream id) is `null` until the channel opens. `bufferedAmount` is a write-through approximation (bytes handed to the bridge) — the same caveat as `WebSocket.bufferedAmount`, since native doesn't ack flushes.
+
+## Muting and hanging up
+
+Setting `track.enabled = false` mutes without releasing the microphone; `track.stop()` releases the capturer. `peer.close()` also ends remote tracks and closes child data channels.
+
+```ts
+micTrack.enabled = false; // mute
+peer.close();             // hang up
+micTrack.stop();          // release the mic
+```
+
+`track.muted` (read-only) reports whether the **remote** side is currently sending media; `track.enabled` is the local mute switch.
+
+## Audio session and routing
+
+While at least one peer connection is live, the module holds the platform in call mode (Android `MODE_IN_COMMUNICATION`; iOS `AVAudioSession` `.playAndRecord`/`.voiceChat` via WebRTC's manual-audio mode) and routes output to the loudspeaker by default; the previous state is restored when the last peer closes. Switch the route with `WebRTC.setAudioOutput`:
+
+```ts
+import { WebRTC } from '@sigx/lynx-webrtc';
+
+await WebRTC.setAudioOutput('earpiece'); // default route while live is 'speaker'
+```
+
+To pre-prompt for the microphone (an explainer flow before the OS dialog), use `WebRTC.requestPermission()` / `WebRTC.getPermissionStatus()`.
+
+## Gating on availability
+
+WebRTC is native-only. Before using any of it on a shared (web-capable) codebase, check `isWebRTCAvailable()`:
+
+```ts
+import { isWebRTCAvailable } from '@sigx/lynx-webrtc';
+
+if (!isWebRTCAvailable()) {
+  // web preview, or the native module isn't linked — fall back gracefully
+  return;
+}
+```
+
+## Notes & deviations from W3C
+
+- **Remote audio renders automatically** through the platform audio device — there is no `<audio>` element. Guard any element-attach code with a platform check when sharing a store with web.
+- **No `RTCSessionDescription`/`RTCIceCandidate` constructors** — `localDescription`/`remoteDescription` return plain frozen `{ type, sdp }` objects with `toJSON()`; init dictionaries are accepted everywhere.
+- **`addTrack` returns a minimal sender** (`{ track }`) — no `replaceTrack`/`getParameters`.
+- **No `getStats()`, transceivers, video tracks, or renderer views** in v1.
+- **Backgrounding (iOS):** the manifest contributes the `audio` background mode, so an active call keeps streaming when backgrounded.
+- **Bluetooth headsets:** Android SCO routing is not wired up yet — calls use the built-in speaker or earpiece (iOS allows Bluetooth via `.allowBluetooth`).
+- **`@sigx/lynx-audio` interplay:** avoid starting/stopping its recorders or players during an active call — both packages manage the audio session.
+- **iOS simulator:** WebRTC's audio unit is unreliable there — SDP and data channels work, but verify audio on a physical device.
+
+## See also
+
+- [API reference](/lynx/modules/webrtc/api) — every export and its signature.
+- [Installation](/lynx/modules/webrtc/installation) — project setup and native permissions.

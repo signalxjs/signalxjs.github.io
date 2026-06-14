@@ -1,0 +1,30 @@
+---
+title: "Overview"
+description: "OTA Updates — OTA bundle updates"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# OTA Updates
+
+<p class="lede">Over-the-air bundle updates with pluggable backends, update modes, native streaming + SHA-256 verification and two-phase apply with crash rollback.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/lynx-updates" /> <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/lynx-updates
+sigx prebuild   # auto-links the native module
+```
+
+## About
+
+`@sigx/lynx-updates` is a Lynx module — over-the-air bundle updates. It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.
+
+## Next steps
+
+Continue with [Installation](/lynx/modules/updates/installation) for project setup, or jump to the [API reference](/lynx/modules/updates/api).

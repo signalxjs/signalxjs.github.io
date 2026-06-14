@@ -12,14 +12,89 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Every public export of `@sigx/server-renderer` <PkgVersion npm="@sigx/server-renderer" />, grouped by kind. The import path for each symbol is noted, since the package splits into three subpaths: `@sigx/server-renderer` (main), `@sigx/server-renderer/server`, and `@sigx/server-renderer/client`.</p>
 
+## Document render functions
+
+These take a full HTML template with an outlet marker and assemble the complete
+response (head injection, app shell, state serialization, async content). State
+serialization is **on** by default here (`serializeState: false` opts out) — these
+are the zero-config entry points. All accept a JSX element or an `App` and a
+`DocumentOptions`. Exported from the main entry and `/server`; also available as
+methods on `createSSR()` (where registered plugins apply).
+
+### renderDocument
+
+Render a complete HTML document to a string. Default mode: `'blocking'` — every
+keyed `useAsync`/`useStream` resolves inline (no placeholders or replacement
+scripts), which is ideal for crawlers and AI agents. The `sigx:ready` completion
+script is still emitted so gated hydration runs.
+
+```ts
+function renderDocument(input: JSXElement | App, options: DocumentOptions): Promise<string>
+```
+
+- **Returns** — a promise resolving to the full document HTML. Rejects if
+  `options.signal` aborts.
+
+### renderDocumentToNodeStream
+
+Stream a complete document as a Node `Readable`, plus a `shell` promise that
+settles **before** the first byte — await it to decide the HTTP status code, then
+pipe. Default mode: `'stream'`.
+
+```ts
+function renderDocumentToNodeStream(
+  input: JSXElement | App,
+  options: DocumentOptions
+): { stream: import('node:stream').Readable; shell: Promise<void> }
+```
+
+- **Returns** — `{ stream, shell }`. The stream is byte-mode (not object mode) so
+  backpressure is measured in bytes.
+
+### renderDocumentToWebStream
+
+Stream a complete document as a web `ReadableStream<Uint8Array>` of UTF-8 bytes,
+ready as a `Response` body (edge runtimes, Workers, Deno). Default mode:
+`'stream'`.
+
+```ts
+function renderDocumentToWebStream(input: JSXElement | App, options: DocumentOptions): ReadableStream<Uint8Array>
+```
+
+### DocumentOptions
+
+Options for the `renderDocument*` family. Extends `SSRContextOptions`.
+
+```ts
+interface DocumentOptions extends SSRContextOptions {
+  template: string;                                   // full HTML with the outlet marker
+  outlet?: string;                                    // default: '<!--ssr-outlet-->'
+  mode?: 'stream' | 'blocking';                       // default: 'blocking' (string) / 'stream' (streams)
+  signal?: AbortSignal;                               // abort: stream ends early, string render rejects
+  onError?: (error: Error, phase: 'shell' | 'stream') => void;
+  serializeState?: boolean;                           // default: true
+}
+```
+
+- **template** — the HTML document; must contain `outlet`. Head tags inject before
+  `</head>`; the tail splits at `</body>` so entry scripts flush with the shell.
+- **mode** — `'blocking'` resolves all keyed async inline; `'stream'` flushes the
+  shell then swaps in async chunks out of order.
+- **onError** — `'shell'` fires before any byte is produced (you can still send a
+  500); `'stream'` fires mid-stream. Per-component errors stream their own
+  fallbacks and do **not** reach this.
+- **serializeState** — serialize resolved `useAsync`/`useStream` values for
+  hydration pickup. Set `false` to opt out.
+
 ## Render functions
 
 ### renderToString
 
-Render a JSX element or `App` to a complete HTML string. Awaits all async
-(`ssr.load`) components and plugin streaming chunks before resolving. Accepts an
-`App` from `defineApp()` (extracts the root component + `AppContext` for DI) or a
-raw JSX element.
+Render a JSX element or `App` to the app-shell HTML string — no template, head
+injection, or state serialization (use `renderDocument` for those). Awaits all
+keyed `useAsync`/`useStream` components and plugin streaming chunks before
+resolving. Accepts an `App` from `defineApp()` (extracts the root component +
+`AppContext` for DI) or a raw JSX element.
 
 ```ts
 function renderToString(input: JSXElement | App, context?: SSRContext): Promise<string>
@@ -98,10 +173,13 @@ function renderVNodeToString(element: JSXElement, ctx: SSRContext, appContext?: 
 ### createSSR
 
 Creates a plugin-driven SSR instance. Register plugins via `.use()`, then render
-with `.render()`/`.renderStream()`/`.renderNodeStream()`/`.renderStreamWithCallbacks()`.
-With no plugins, the hooks are no-ops and it behaves like the standalone
-`renderToString`/`renderToStream` functions. The strategy-agnostic core —
-islands/selective/resumable hydration are layered on as `SSRPlugin`s.
+with `.renderDocument()`/`.renderDocumentToNodeStream()`/`.renderDocumentToWebStream()`
+(complete documents) or the lower-level `.render()`/`.renderStream()`/
+`.renderNodeStream()`/`.renderStreamWithCallbacks()`. With no plugins the hooks are
+no-ops and it behaves like the standalone functions. The strategy-agnostic core —
+islands/selective/resumable hydration are layered on as `SSRPlugin`s. The
+`renderDocument*` methods append `stateSerializationPlugin()` automatically unless
+the instance already registered it or `serializeState: false` is passed.
 
 ```ts
 function createSSR(): SSRInstance
@@ -125,19 +203,10 @@ function createSSRContext(options?: SSRContextOptions): SSRContext
 
 ## Head management
 
-### useHead
-
-Composable to manage `<head>` elements (title, titleTemplate, meta, link, script,
-htmlAttrs, bodyAttrs) from inside a component. During SSR it collects configs into
-the active `SSRContext`; on the client it mutates the DOM directly and registers
-cleanup on component unmount.
-
-```ts
-function useHead(config: HeadConfig): void
-```
-
-- **config** — a `HeadConfig`.
-- Exported from the main entry.
+> `useHead()` itself lives in core **`sigx`** (a browser-standalone composable).
+> During server rendering it collects configs onto the per-request `SSRContext`;
+> this package only renders them. `renderDocument*` injects the result
+> automatically.
 
 ### renderHeadToString
 
@@ -149,32 +218,37 @@ by name/property/http-equiv/charset, applies the last title (through
 function renderHeadToString(configs: HeadConfig[]): string
 ```
 
-- **configs** — collected `HeadConfig` objects.
+- **configs** — collected `HeadConfig` objects (the `HeadConfig` type is exported
+  from `sigx`).
 - **Returns** — the head HTML string.
 - Exported from the main entry.
 
-### enableSSRHead
+## State serialization
 
-Switch head management into SSR-collection mode and reset the buffer. Called by the
-renderer before rendering so `useHead()` collects instead of touching the DOM.
+### stateSerializationPlugin
+
+The built-in `SSRPlugin` (name `'sigx:state'`) that ships values resolved by keyed
+`useAsync`/`useStream` to the client as `window.__SIGX_ASYNC__`, keyed by the
+calls' explicit keys, so fetchers don't re-run after hydration. **Opt-in** for the
+lower-level render APIs (`createSSR().use(stateSerializationPlugin())`); the
+`renderDocument*` family enables it by default.
 
 ```ts
-function enableSSRHead(): void
+function stateSerializationPlugin(): SSRPlugin
 ```
 
 - Exported from the main entry.
 
-### collectSSRHead
+### serializeAsyncScript / asyncAssignmentJs
 
-Disable SSR head mode and return (and clear) the `HeadConfig`s collected since
-`enableSSRHead()`. Pass the result to `renderHeadToString()`.
+Low-level helpers behind the state plugin: `serializeAsyncScript` builds the
+`<script>` that assigns the `__SIGX_ASYNC__` blob; `asyncAssignmentJs` produces the
+assignment JS for a set of key/value pairs. Both exported from `/server`.
 
 ```ts
-function collectSSRHead(): HeadConfig[]
+function serializeAsyncScript(values: Record<string, unknown>): string
+function asyncAssignmentJs(values: Record<string, unknown>): string
 ```
-
-- **Returns** — the collected `HeadConfig[]`.
-- Exported from the main entry.
 
 ## Streaming script helpers
 
@@ -198,13 +272,28 @@ Generate the `<script>$SIGX_REPLACE(id, "...escaped html...")</script>` for a
 resolved async component, used during streaming to replace its placeholder.
 
 ```ts
-function generateReplacementScript(id: number, html: string, extraScript?: string): string
+function generateReplacementScript(id: number, html: string, extraScript?: string, preScript?: string): string
 ```
 
 - **id** — the async component id.
 - **html** — rendered HTML to inject.
-- **extraScript** — optional extra script appended after the replacement call.
+- **extraScript** — optional script appended after the replacement call.
+- **preScript** — optional script run **before** the replacement call (the state
+  plugin installs per-component keys here, ahead of hydration listeners).
 - **Returns** — the replacement script HTML.
+- Exported from `/server`.
+
+### generateAppendBootstrap / generateAppendScript
+
+Progressive-text streaming helpers for `useStream`. `generateAppendBootstrap`
+returns the one-time `window.$SIGX_APPEND(id, text)` bootstrap; `generateAppendScript`
+returns a per-chunk append call that grows a streaming text node as tokens arrive.
+
+```ts
+function generateAppendBootstrap(): string
+function generateAppendScript(id: number, text: string): string
+```
+
 - Exported from `/server`.
 
 ### escapeJsonForScript
@@ -282,10 +371,10 @@ function hydrateNode(vnode: VNode, dom: Node | null, parent: Node): Node | null
 ### hydrateComponent
 
 Hydrate a single component: locates its trailing `<!--$c:N-->` marker, builds
-reactive props/slots, creates the `ComponentSetupContext` (with a client `ssr`
-helper whose `load()` is a no-op when `serverState` is present), runs setup, and
-creates the reactive effect that hydrates-on-first-run then patches. Used by SSR
-strategy plugins for selective/island hydration.
+reactive props/slots, creates the `ComponentSetupContext` (with the client `ssr`
+flags and any `serverState` to restore keyed `useAsync`/`useStream` values), runs
+setup, and creates the reactive effect that hydrates-on-first-run then patches.
+Used by SSR strategy plugins for selective/island hydration.
 
 ```ts
 function hydrateComponent(vnode: VNode, dom: Node | null, parent: Node, serverState?: Record<string, any>, trailingMarker?: Comment | null): Node | null
@@ -365,6 +454,11 @@ The object returned by `createSSR()`. `use()` is chainable. Render methods accep
 ```ts
 interface SSRInstance {
   use(plugin: SSRPlugin): SSRInstance;
+  // Complete-document rendering (state serialization on by default)
+  renderDocument(input: JSXElement | App, options: DocumentOptions): Promise<string>;
+  renderDocumentToNodeStream(input: JSXElement | App, options: DocumentOptions): { stream: import('node:stream').Readable; shell: Promise<void> };
+  renderDocumentToWebStream(input: JSXElement | App, options: DocumentOptions): ReadableStream<Uint8Array>;
+  // Lower-level shell rendering
   render(input: JSXElement | App, options?: SSRContextOptions | SSRContext): Promise<string>;
   renderStream(input: JSXElement | App, options?: SSRContextOptions | SSRContext): ReadableStream<string>;
   renderNodeStream(input: JSXElement | App, options?: SSRContextOptions | SSRContext): import('node:stream').Readable;
@@ -464,8 +558,8 @@ interface RenderOptions {
 ### CorePendingAsync
 
 A core-managed pending async component: its component id plus a promise resolving
-to its rendered HTML once `ssr.load()` completes. Populated by render-core in
-streaming mode when no plugin overrides.
+to its rendered HTML once its keyed `useAsync`/`useStream` data resolves. Populated
+by render-core in streaming mode when no plugin overrides.
 
 ```ts
 interface CorePendingAsync {
@@ -494,15 +588,15 @@ interface StreamCallbacks {
 
 ### SSRHelper
 
-The `ssr` object injected into every `ComponentSetupContext`. `ssr.load(fn)` runs
-async data fetching on the server and is skipped on the client during hydration
-(state restored from server). `isServer`/`isHydrating` flags.
+The `ssr` object exposed as `ctx.ssr` on every `ComponentSetupContext` — two
+environment flags for the rare branch that must know where it is running. Async
+data loading lives in the `useAsync`/`useStream` composables (from `sigx`), not
+here.
 
 ```ts
 interface SSRHelper {
-  load(fn: () => Promise<void>): void;
-  readonly isServer: boolean;
-  readonly isHydrating: boolean;
+  readonly isServer: boolean;     // running on the server
+  readonly isHydrating: boolean;  // hydrating server-rendered DOM on the client
 }
 ```
 

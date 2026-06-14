@@ -298,6 +298,41 @@ function useCustomHook() {
 
 ---
 
+## Data Loading
+
+### useAsync
+
+Run an async fetcher and get reactive `{ value, loading, error, refresh }` state. Pass an explicit string key as the first argument to make the call SSR-transferable (runs on the server, serialized under the key into `window.__SIGX_ASYNC__`, restored on hydration, deduped per key). The fetcher receives an `AbortSignal`.
+
+```tsx
+// Unkeyed: client-only.
+function useAsync<T>(
+    fetcher: (ctx: { signal: AbortSignal }) => Promise<T>,
+    options?: { throwOnError?: boolean }
+): AsyncState<T>;
+// Keyed: SSR + hydration state transfer.
+function useAsync<T>(
+    key: string,
+    fetcher: (ctx: { signal: AbortSignal }) => Promise<T>,
+    options?: { throwOnError?: boolean; server?: boolean }
+): AsyncState<T>;
+```
+
+`value` and `error` are mutually exclusive. `refresh()` re-runs the fetcher stale-while-revalidate. `{ throwOnError: true }` routes errors to the nearest error boundary. See the [Data Loading](/core/docs/data-loading) guide.
+
+### useStream
+
+Accumulate a streamed `AsyncIterable<string>` into a reactive string — progressive text (LLM-token-style), SSR-aware via the key.
+
+```tsx
+function useStream(
+    key: string,
+    source: () => AsyncIterable<string>
+): { readonly value: string };
+```
+
+---
+
 ## Helper Functions
 
 ### supportsMoveBefore
@@ -374,5 +409,16 @@ type ViewFn = () => JSXElement | JSXElement[] | undefined;
 ```tsx
 interface ComponentOptions {
     name?: string;
+}
+```
+
+### AsyncState
+
+```tsx
+interface AsyncState<T> {
+    readonly value: T | null;   // null while loading or after an error
+    readonly loading: boolean;
+    readonly error: Error | null; // mutually exclusive with value
+    refresh(): Promise<void>;     // stale-while-revalidate re-run
 }
 ```

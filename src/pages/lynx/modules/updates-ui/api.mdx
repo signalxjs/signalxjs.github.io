@@ -1,0 +1,83 @@
+---
+title: "API reference"
+description: "OTA Update UI — Prebuilt OTA update UI"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-updates-ui` <PkgVersion npm="@sigx/lynx-updates-ui" />.</p>
+
+```ts
+import {
+  UpdateGate,
+  UpdatePrompt,
+  UpdateProgress,
+  UpdateReadyBanner,
+  isDismissed,
+  dismiss,
+  DISMISSED_KEY_PREFIX,
+} from '@sigx/lynx-updates-ui';
+import type {
+  UpdateGateProps,
+  UpdatePromptProps,
+  UpdateProgressProps,
+  UpdateReadyBannerProps,
+  UpdateApplyOn,
+} from '@sigx/lynx-updates-ui';
+```
+
+## Components
+
+Each component has its own page with import, usage, props, slots, and events — see the **[Components](/lynx/modules/updates-ui/components)** catalog:
+
+- [**UpdateGate**](/lynx/modules/updates-ui/components/updategate) — full-screen blocking gate for mandatory updates.
+- [**UpdatePrompt**](/lynx/modules/updates-ui/components/updateprompt) — modal offering an optional update.
+- [**UpdateProgress**](/lynx/modules/updates-ui/components/updateprogress) — inline download-progress bar.
+- [**UpdateReadyBanner**](/lynx/modules/updates-ui/components/updatereadybanner) — bottom "restart to update" banner.
+
+All four read the reactive `useUpdates()` state from [`@sigx/lynx-updates`](/lynx/modules/updates/api#useupdates), so there is nothing to wire up beyond `defineUpdates()`.
+
+## Dismissal helpers
+
+Storage-backed "don't ask again" suppression for update prompts. Persistence goes through `@sigx/lynx-storage`; when the native Storage module is unavailable (web preview, tests) it degrades gracefully to an in-process Set.
+
+### isDismissed
+
+True when the user has dismissed the update with this id before.
+
+```ts
+export function isDismissed(id: string): Promise<boolean>;
+```
+
+### dismiss
+
+Record that the update with this id was dismissed ("Later").
+
+```ts
+export function dismiss(id: string): Promise<void>;
+```
+
+### DISMISSED_KEY_PREFIX
+
+The storage key prefix — the full key is `__sigx_updates_dismissed:<update id>`.
+
+```ts
+export const DISMISSED_KEY_PREFIX = '__sigx_updates_dismissed:';
+```
+
+## Types
+
+### UpdateApplyOn
+
+When a downloaded update takes effect after the user taps "Update" in [`UpdatePrompt`](/lynx/modules/updates-ui/components/updateprompt).
+
+```ts
+export type UpdateApplyOn = 'restart' | 'next-launch';
+```
+
+The prop types — `UpdateGateProps`, `UpdatePromptProps`, `UpdateProgressProps`, `UpdateReadyBannerProps` — are documented inline on each component's page.

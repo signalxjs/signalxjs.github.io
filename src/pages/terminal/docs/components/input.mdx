@@ -1,0 +1,67 @@
+---
+title: "Input"
+description: "Single-line text field with two-way model binding"
+layout: docs
+category: ["Components", "Forms"]
+order: 110
+---
+
+# Input
+
+<p class="lede">A focusable single-line text field with two-way <code>model</code> binding. Renders as a bordered box (accent border when focused) with a block cursor.</p>
+
+## Import
+
+```tsx
+import { Input } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, signal, Input } from '@sigx/terminal';
+
+const App = component(() => {
+    const name = signal('');
+    return () => (
+        <box border="single" label="Form">
+            <Input
+                model={() => name}
+                label="Name"
+                placeholder="Type here"
+                autofocus
+                onInput={(v) => console.log('changed:', v)}
+                onSubmit={(v) => console.log('submitted:', v)}
+            />
+            <br />
+            <text>You typed: {name.value}</text>
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `model` | `Model<string>` | two-way bound value |
+| `placeholder` | `string` | shown when empty |
+| `autofocus` | `boolean` | grab focus on mount |
+| `label` | `string` | caption above the field |
+
+## Events
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `input` | `string` | a printable character changes the value |
+| `submit` | `string` | Enter |
+
+Backspace deletes; control bytes and escape sequences (including Tab, which cascades to focus cycling) are ignored. A brief ready delay after mount prevents the activating Enter from a previous focus from triggering submit.
+
+## See also
+
+- [TextArea](/terminal/docs/components/textarea) — multi-line input.
+- [Input & Interactive Components](/terminal/docs/input-and-components) — focus and key dispatch.
