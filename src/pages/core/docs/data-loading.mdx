@@ -14,7 +14,7 @@ The single rule that controls server behavior: **give the call a key and it beco
 
 ## useAsync
 
-`useAsync` runs an async fetcher and returns reactive `{ value, loading, error }` state. Reading any of those inside the render subscribes it, so the component re-renders as the request settles.
+`useAsync` runs an async fetcher and returns reactive `{ value, loading, error, refreshing, refresh }` state — the resolved `value` (or `error`), a `loading` flag for the first run, a `refreshing` flag while a `refresh()` re-fetch is in flight, and a `refresh()` method that re-runs the fetcher stale-while-revalidate. Reading any of those inside the render subscribes it, so the component re-renders as the request settles.
 
 ### Client-only (unkeyed)
 

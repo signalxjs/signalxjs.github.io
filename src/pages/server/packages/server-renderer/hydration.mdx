@@ -114,32 +114,8 @@ head HTML before `</head>` in your template automatically — there is nothing t
 wire up. `titleTemplate` uses `%s` as the title placeholder, and the renderer
 dedupes meta by `name`/`property`/`http-equiv`/`charset`.
 
-### Manual head rendering
-
-If you assemble the document yourself with the lower-level `renderToString`
-instead of `renderDocument`, render the collected configs by hand with
-`renderHeadToString()`:
-
-```tsx
-import { renderHeadToString } from '@sigx/server-renderer';
-import { renderToString } from '@sigx/server-renderer/server';
-import { App } from './App';
-
-// useHead() configs are collected onto the SSRContext during render; pass a
-// shared context to read them back. With renderDocument this is automatic.
-const body = await renderToString(<App />);
-const headHtml = renderHeadToString(/* collected HeadConfig[] */ []);
-
-const doc = `<!DOCTYPE html><html><head>${headHtml}</head><body><div id="root">${body}</div></body></html>`;
-```
-
-Reach for this only when driving the document assembly by hand — `renderDocument`
-handles head injection for you.
-
-{/* TODO: verify the exact way to read collected HeadConfig[] back from an
-SSRContext when using the lower-level renderToString path (ctx._headConfigs is
-internal). renderDocument injects head automatically, so this manual path is the
-edge case. */}
+`renderDocument` injects the collected head into the document for you, so a
+`useHead()` call anywhere in the tree just works — no manual wiring.
 
 ## Hydrating server-resolved Suspense
 

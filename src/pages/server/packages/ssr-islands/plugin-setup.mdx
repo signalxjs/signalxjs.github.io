@@ -14,12 +14,16 @@ order: 50
 
 Add it to your SSR instance with `.use()`:
 
-```ts
+```tsx
 import { createSSR } from '@sigx/server-renderer';
 import { islandsPlugin } from '@sigx/ssr-islands';
+import { App } from './App';
+
+// Minimal HTML shell — the rendered app replaces the outlet marker.
+const template = `<!DOCTYPE html><html><body><!--ssr-outlet--></body></html>`;
 
 const ssr = createSSR().use(islandsPlugin());
-const html = await ssr.renderDocument(app, { template });   // or ssr.render(app) for a shell
+const html = await ssr.renderDocument(<App />, { template });   // or ssr.render(<App />) for a shell
 ```
 
 That single registration wires both the server hooks (during render) and the
