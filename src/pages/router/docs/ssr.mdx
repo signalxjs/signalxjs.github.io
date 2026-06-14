@@ -235,6 +235,7 @@ it (and, as a fallback, compares the resolved path to the requested one) and rep
 with a 302:
 
 ```ts
+// Imports and `const ssr = createSSR()` as in the entry-server example above.
 export async function render(url: string) {
     const router = createServerRouter(url);
     const app = defineApp(<App />).use(router);

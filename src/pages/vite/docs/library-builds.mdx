@@ -180,7 +180,7 @@ consumers building for production pick up the stripped-down runtime automaticall
 
 | Option | Default | Effect |
 |---|---|---|
-| `outDir` | `'dist'` | Output directory; `emptyOutDir` is always on. |
+| `outDir` | `'dist'` | Output directory; `emptyOutDir` is on for the default build and off for the `prod-dist` pass, so the two builds sit side by side. |
 | `sourcemap` | `true` | Emit sourcemaps. |
 | `external` | `[/@sigx\/.*/]` | Runtime tier is always added on top. |
 | `minify` | `true` | Minify output in place via Oxc (or `false`). |
