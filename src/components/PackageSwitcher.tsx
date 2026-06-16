@@ -9,6 +9,7 @@ import { component, onMounted, onUnmounted, type Define } from 'sigx';
 import { useRouter } from '@sigx/router';
 import { CATEGORIES, STATUS, inCategory, type SigxPackage } from '@/lib/family';
 import { docsHref } from '@/lib/packageLinks';
+import { canonicalPath } from '@/lib/url';
 import { Icon } from '@/components/ui/Icon';
 import { PkgTile } from '@/components/ui/PkgTile';
 
@@ -20,7 +21,7 @@ export const PackageSwitcher = component<PackageSwitcherProps>(({ props, signal 
 
     const pick = (pkg: SigxPackage) => {
         state.open = false;
-        router.push(docsHref(pkg.id) ?? `/${pkg.id}`);
+        router.push(canonicalPath(docsHref(pkg.id) ?? `/${pkg.id}`));
     };
 
     // Close on outside click (single switcher per page, class check suffices).

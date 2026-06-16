@@ -10,6 +10,7 @@ import { component, onMounted, type Define } from 'sigx';
 import { useRouter } from '@sigx/router';
 import { moduleById, moduleRoutePrefix } from '@/lib/modules';
 import { firstModuleDocHref } from '@/lib/packageLinks';
+import { canonicalPath } from '@/lib/url';
 import { SxLink } from '@/components/ui/SxLink';
 
 type ModuleIndexRedirectProps = Define.Prop<'id', string, true>;
@@ -20,7 +21,7 @@ export const ModuleIndexRedirect = component<ModuleIndexRedirectProps>(({ props 
     // First doc page (overview); never the bare root, so we can't self-redirect.
     const target = (mod && firstModuleDocHref(mod)) || (mod ? `${moduleRoutePrefix(mod)}/overview` : '/');
 
-    onMounted(() => router.replace(target));
+    onMounted(() => router.replace(canonicalPath(target)));
 
     return () => (
         <div class="redirect-note">

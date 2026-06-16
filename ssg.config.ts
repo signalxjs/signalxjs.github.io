@@ -31,9 +31,7 @@ export default defineSSGConfig({
     // Additional client imports (live code playground support)
     // Note: live-code-config must be imported BEFORE @sigx/live-code/client
     // so that modules are registered before client auto-initializes.
-    // trailing-slash canonicalises internal links (see the module header).
     clientImports: [
-        './src/trailing-slash',
         './src/live-code-config',
         '@sigx/live-code/client',
     ],

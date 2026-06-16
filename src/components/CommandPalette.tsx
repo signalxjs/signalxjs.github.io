@@ -10,6 +10,7 @@ import { component, onMounted, onUnmounted, type Define } from 'sigx';
 import { useRouter } from '@sigx/router';
 import { buildCommands, type Command } from '@/lib/commands';
 import { byId } from '@/lib/family';
+import { canonicalPath } from '@/lib/url';
 import { Icon } from '@/components/ui/Icon';
 import { Kbd } from '@/components/ui/Kbd';
 
@@ -35,7 +36,7 @@ export const CommandPalette = component<CommandPaletteProps>(({ signal, emit }) 
     };
 
     const pick = (c: Command) => {
-        router.push(c.href);
+        router.push(canonicalPath(c.href));
         emit('close');
     };
 

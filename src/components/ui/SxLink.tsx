@@ -10,6 +10,7 @@
 
 import { component, type Define } from 'sigx';
 import { useRouter } from '@sigx/router';
+import { canonicalPath } from '@/lib/url';
 
 type SxLinkProps =
     & Define.Prop<'to', string, true>
@@ -22,16 +23,21 @@ type SxLinkProps =
 export const SxLink = component<SxLinkProps>(({ props, slots, emit }) => {
     const router = useRouter();
 
+    // Canonicalise to the trailing-slash form so both the rendered href and the
+    // imperative push match the hard-load URL (router.push bypasses ssg's
+    // installSpaNavigation, which would otherwise normalise it).
+    const href = () => canonicalPath(props.to);
+
     const onClick = (e: MouseEvent) => {
         if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         e.preventDefault();
         emit('click');
-        router.push(props.to);
+        router.push(href());
     };
 
     return () => (
         <a
-            href={props.to}
+            href={href()}
             class={props.class}
             /* '' not undefined: the server renderer stringifies the style
                value unconditionally, so undefined would emit style="undefined" */
