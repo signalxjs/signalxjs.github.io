@@ -106,7 +106,7 @@ export default component<{ params: { slug: string } }>(({ props }) => {
 
 ## Layouts
 
-Layouts live in `src/layouts`. A layout default-exports a component and renders the page content through `slots.default()`:
+Layouts live in `src/layouts`. A layout default-exports a component and renders the page content through `slots.default?.()`:
 
 ```tsx
 import { component } from 'sigx';

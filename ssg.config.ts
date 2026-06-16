@@ -138,13 +138,20 @@ export default defineSSGConfig({
 
     // Redirects for routes that have moved. `@sigx/lynx-device-info` folded into
     // `@sigx/lynx-core`, so its former module pages now live under the core module —
-    // keep old inbound links alive instead of 404ing.
+    // keep old inbound links alive instead of 404ing. Both the canonical
+    // trailing-slash form (the site uses `trailingSlash: 'always'`) and the
+    // slash-less form are mapped so neither variant misses.
     redirects: {
         '/lynx/modules/device-info': '/lynx/modules/core/overview/',
+        '/lynx/modules/device-info/': '/lynx/modules/core/overview/',
         '/lynx/modules/device-info/overview': '/lynx/modules/core/overview/',
+        '/lynx/modules/device-info/overview/': '/lynx/modules/core/overview/',
         '/lynx/modules/device-info/api': '/lynx/modules/core/api/',
+        '/lynx/modules/device-info/api/': '/lynx/modules/core/api/',
         '/lynx/modules/device-info/usage': '/lynx/modules/core/usage/',
+        '/lynx/modules/device-info/usage/': '/lynx/modules/core/usage/',
         '/lynx/modules/device-info/installation': '/lynx/modules/core/installation/',
+        '/lynx/modules/device-info/installation/': '/lynx/modules/core/installation/',
     },
 
     // Navigation configuration
