@@ -22,7 +22,7 @@ pnpm add -D @sigx/lynx-updates-publisher
 
 ## About
 
-`@sigx/lynx-updates-publisher` is a build-time Node library — not a native module. It packages a built bundle into the static-host layout that [`@sigx/lynx-updates`](/lynx/modules/updates/overview)' `StaticManifestProvider` consumes, and returns structured metadata (`updateId`, `bundleUrl`, `sha256`, …) so CI can assert on it directly.
+`@sigx/lynx-updates-publisher` is a build-time Node library — not a native module. It packages a built bundle into the static-host layout that the `StaticManifestProvider` in [`@sigx/lynx-updates`](/lynx/modules/updates/overview) consumes, and returns structured metadata (`updateId`, `bundleUrl`, `sha256`, …) so CI can assert on it directly.
 
 It is **intentionally dependency-light** — only Node built-ins — so a release job can `import { publishUpdate } from '@sigx/lynx-updates-publisher'` without pulling in the CLI's build toolchain. The same function is re-exported from [`@sigx/lynx-cli`](/lynx/modules/cli/overview), which uses it to back the `sigx updates:publish` command.
 
