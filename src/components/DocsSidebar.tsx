@@ -23,6 +23,19 @@ type DocsSidebarProps =
     & Define.Prop<'collection', string, false>
     & Define.Event<'close', void>;
 
+/**
+ * Compare two route paths ignoring a trailing slash. The site canonicalises to
+ * `trailingSlash: 'always'`, so `route.path` carries the slash (`/x/`) while the
+ * raw nav `item.href`s from the SSG navigation data are slash-less (`/x`). An
+ * exact `===` would never match, dropping the active state; compare ignoring the
+ * trailing slash so the current page highlights regardless of either side's form.
+ */
+const samePath = (a: string | undefined, b: string | undefined): boolean => {
+    if (!a || !b) return false;
+    const norm = (p: string): string => (p.length > 1 ? p.replace(/\/+$/, '') : p);
+    return norm(a) === norm(b);
+};
+
 /** "All Lynx modules · 32" / "All Core packages · 6" / "All Server packages · 2" catalog link. */
 const CATALOG_LABEL: Record<ModuleParent, string> = {
     lynx: 'All Lynx modules',
@@ -61,7 +74,7 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
      * Check if a nav item or any of its children is active
      */
     const isItemActive = (item: NavItem): boolean => {
-        if (item.href && route.path === item.href) {
+        if (item.href && samePath(route.path, item.href)) {
             return true;
         }
         if (item.items) {
@@ -74,7 +87,7 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
      * Render a navigation item (handles nested items recursively)
      */
     const renderNavItem = (item: NavItem, depth: number = 0) => {
-        const isActive = item.href ? route.path === item.href : false;
+        const isActive = item.href ? samePath(route.path, item.href) : false;
         const hasActiveChild = item.items ? item.items.some(isItemActive) : false;
 
         if (item.items && item.items.length > 0) {

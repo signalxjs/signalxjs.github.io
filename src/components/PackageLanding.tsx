@@ -17,6 +17,7 @@ import { byId, PACKAGES, type SigxPackage } from '@/lib/family';
 import { modulesByParent, type SigxModule } from '@/lib/modules';
 import { featuresFor } from '@/lib/landing-features';
 import { docsHref, apiHref, moduleHref } from '@/lib/packageLinks';
+import { canonicalPath } from '@/lib/url';
 import { Icon } from '@/components/ui/Icon';
 import { CopyLine } from '@/components/ui/CopyLine';
 import { PkgTile } from '@/components/ui/PkgTile';
@@ -29,7 +30,7 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
     const router = useRouter();
 
     const moduleCard = (m: SigxModule) => (
-        <button key={m.id} class="lynx-mod-card" style={`--pkg-h:${m.hue}`} onClick={() => router.push(moduleHref(m))}>
+        <button key={m.id} class="lynx-mod-card" style={`--pkg-h:${m.hue}`} onClick={() => router.push(canonicalPath(moduleHref(m)))}>
             <span class="lmc-tile">{m.glyph}</span>
             <span class="lmc-meta">
                 <span class="lmc-name">{m.name}{m.role && <> <span class="lmc-role">{m.role}</span></>}</span>
@@ -166,7 +167,7 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                             class="works-card"
                             key={p.id}
                             style={`--pkg-h:${p.hue}`}
-                            onClick={() => router.push(`/${p.id}`)}
+                            onClick={() => router.push(canonicalPath(`/${p.id}`))}
                         >
                             <PkgTile pkg={p} size={30} />
                             <div>

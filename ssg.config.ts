@@ -30,7 +30,7 @@ export default defineSSGConfig({
     
     // Additional client imports (live code playground support)
     // Note: live-code-config must be imported BEFORE @sigx/live-code/client
-    // so that modules are registered before client auto-initializes
+    // so that modules are registered before client auto-initializes.
     clientImports: [
         './src/live-code-config',
         '@sigx/live-code/client',

@@ -11,6 +11,7 @@ import { component } from 'sigx';
 import { useRouter } from '@sigx/router';
 import { STATUS, TARGETS, byId, inTarget } from '@/lib/family';
 import { modulesByParent } from '@/lib/modules';
+import { canonicalPath } from '@/lib/url';
 import { Icon } from '@/components/ui/Icon';
 import { PkgTile } from '@/components/ui/PkgTile';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -49,7 +50,7 @@ export const FamilyGrid = component(() => {
                                 key={pkg.id}
                                 class="pkg-card"
                                 style={`--pkg-h:${pkg.hue};--st-h:${STATUS[pkg.status].hue}`}
-                                onClick={() => router.push(`/${pkg.id}`)}
+                                onClick={() => router.push(canonicalPath(`/${pkg.id}`))}
                             >
                                 <div class="pkg-card-top">
                                     <PkgTile pkg={pkg} size={38} />
@@ -70,7 +71,7 @@ export const FamilyGrid = component(() => {
                             <div
                                 class="pkg-card pkg-card-browse"
                                 style={`--pkg-h:${byId.lynx.hue}`}
-                                onClick={() => router.push('/lynx/modules')}
+                                onClick={() => router.push(canonicalPath('/lynx/modules'))}
                             >
                                 <div class="pkg-card-top">
                                     <span class="pkg-tile" style="width:38px;height:38px;font-size:19px">

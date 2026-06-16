@@ -17,6 +17,7 @@ import {
     cloneThemeConfig,
 } from '@sigx/daisyui';
 import type { ThemeConfigData } from '@sigx/daisyui';
+import { canonicalPath } from '@/lib/url';
 
 const ThemeGeneratorPage = component(() => {
     const config = signal<ThemeConfigData>(cloneThemeConfig(DEFAULT_THEME_CONFIG));
@@ -31,7 +32,7 @@ const ThemeGeneratorPage = component(() => {
         if (position > 0) {
             router.back();
         } else {
-            router.push('/daisyui/docs/getting-started');
+            router.push(canonicalPath('/daisyui/docs/getting-started'));
         }
     };
 

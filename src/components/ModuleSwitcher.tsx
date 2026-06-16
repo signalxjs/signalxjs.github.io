@@ -11,6 +11,7 @@ import { useRouter } from '@sigx/router';
 import { STATUS } from '@/lib/family';
 import { MODULE_CATEGORIES, modulesInCategory, type SigxModule } from '@/lib/modules';
 import { moduleHref } from '@/lib/packageLinks';
+import { canonicalPath } from '@/lib/url';
 import { Icon } from '@/components/ui/Icon';
 
 type ModuleSwitcherProps = Define.Prop<'currentModule', SigxModule, true>;
@@ -21,7 +22,7 @@ export const ModuleSwitcher = component<ModuleSwitcherProps>(({ props, signal })
 
     const pick = (m: SigxModule) => {
         state.open = false;
-        router.push(moduleHref(m));
+        router.push(canonicalPath(moduleHref(m)));
     };
 
     // Close on outside click (single switcher per page, class check suffices).

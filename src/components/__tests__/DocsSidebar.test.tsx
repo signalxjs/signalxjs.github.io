@@ -90,8 +90,9 @@ describe('DocsSidebar grouped nav hydration', () => {
         const groupsAfterHydrate = container.querySelectorAll('details.side-group').length;
         expect(groupsAfterHydrate).toBe(groupsAfterParse);
 
-        // Each leaf link should appear exactly once.
-        const buttonLinks = container.querySelectorAll('a[href="/daisyui/docs/components/button"]');
+        // Each leaf link should appear exactly once (SxLink renders the
+        // canonical trailing-slash href).
+        const buttonLinks = container.querySelectorAll('a[href="/daisyui/docs/components/button/"]');
         expect(buttonLinks.length).toBe(1);
     });
 });

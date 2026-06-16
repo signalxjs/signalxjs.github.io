@@ -101,7 +101,7 @@ export const Navbar = component<NavbarProps>(({ props, signal, emit }) => {
                             API
                         </SxLink>
                     )}
-                    <SxLink to="/examples" class="nav-link" active={route.path === '/examples'}>
+                    <SxLink to="/examples" class="nav-link" active={/^\/examples\/?$/.test(route.path)}>
                         Examples
                     </SxLink>
                 </nav>

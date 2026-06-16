@@ -11,6 +11,7 @@ import { useRouter } from '@sigx/router';
 import { STATUS, byId } from '@/lib/family';
 import { MODULE_CATEGORIES, modulesByParent, type ModuleParent, type SigxModule } from '@/lib/modules';
 import { moduleHref } from '@/lib/packageLinks';
+import { canonicalPath } from '@/lib/url';
 import { Icon } from '@/components/ui/Icon';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { SxLink } from '@/components/ui/SxLink';
@@ -104,7 +105,7 @@ export const ModuleCatalog = component<ModuleCatalogProps>(({ props, signal }) =
                             key={m.id}
                             class="module-card"
                             style={`--pkg-h:${m.hue};--st-h:${STATUS[m.status].hue}`}
-                            onClick={() => router.push(moduleHref(m))}
+                            onClick={() => router.push(canonicalPath(moduleHref(m)))}
                         >
                             <div class="mc-head">
                                 <span class="mc-tile">{m.glyph}</span>

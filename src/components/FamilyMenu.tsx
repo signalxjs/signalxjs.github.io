@@ -19,6 +19,7 @@ import {
 } from '@/lib/family';
 import { LYNX_FEATURED, MODULES, moduleById, type SigxModule } from '@/lib/modules';
 import { moduleHref } from '@/lib/packageLinks';
+import { canonicalPath } from '@/lib/url';
 import { Icon } from '@/components/ui/Icon';
 import { PkgTile } from '@/components/ui/PkgTile';
 
@@ -30,7 +31,7 @@ export const FamilyMenu = component<FamilyMenuProps>(({ props, emit }) => {
     const router = useRouter();
 
     const go = (href: string) => {
-        router.push(href);
+        router.push(canonicalPath(href));
         emit('close');
     };
     const pick = (pkg: SigxPackage) => go(`/${pkg.id}`);
