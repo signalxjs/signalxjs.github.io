@@ -6,5 +6,5 @@
 import { component } from 'sigx';
 
 export const Kbd = component(({ slots }) => {
-    return () => <kbd class="sx-kbd">{slots.default()}</kbd>;
+    return () => <kbd class="sx-kbd">{slots.default?.()}</kbd>;
 });

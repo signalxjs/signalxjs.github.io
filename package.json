@@ -21,20 +21,20 @@
         "wt": "node scripts/worktree.mjs"
     },
     "dependencies": {
-        "@sigx/daisyui": "^0.6.0",
-        "@sigx/live-code": "^0.2.2",
-        "@sigx/monaco-editor": "^0.1.2",
-        "@sigx/router": "^0.6.1",
-        "@sigx/server-renderer": "^0.6.3",
-        "@sigx/ssg": "^0.11.1",
-        "@sigx/store": "^0.6.1",
-        "@sigx/vite": "^0.6.3",
+        "@sigx/daisyui": "^0.7.0",
+        "@sigx/live-code": "^0.3.0",
+        "@sigx/monaco-editor": "^0.2.0",
+        "@sigx/router": "^0.7.0",
+        "@sigx/server-renderer": "^0.7.0",
+        "@sigx/ssg": "^0.12.0",
+        "@sigx/store": "^0.7.0",
+        "@sigx/vite": "^0.7.0",
         "monaco-editor": "^0.55.1",
-        "sigx": "^0.6.3"
+        "sigx": "^0.7.0"
     },
     "devDependencies": {
         "@mdx-js/rollup": "^3.1.0",
-        "@sigx/cli": "^0.2.8",
+        "@sigx/cli": "^0.3.1",
         "@tailwindcss/vite": "4.3.0",
         "@typescript/native-preview": "7.0.0-dev.20260614.1",
         "daisyui": "5.5.23",
@@ -62,15 +62,18 @@
     },
     "pnpm": {
         "overrides": {
-            "@sigx/reactivity": "^0.6.3",
-            "@sigx/runtime-core": "^0.6.3",
-            "@sigx/runtime-dom": "^0.6.3",
-            "@sigx/server-renderer": "^0.6.3",
-            "sigx": "^0.6.3"
+            "@sigx/reactivity": "^0.7.0",
+            "@sigx/runtime-core": "^0.7.0",
+            "@sigx/runtime-dom": "^0.7.0",
+            "@sigx/server-renderer": "^0.7.0",
+            "sigx": "^0.7.0"
         },
         "peerDependencyRules": {
             "allowedVersions": {
-                "sigx": "0.6.x"
+                "sigx": "0.7.x",
+                "@sigx/reactivity": "0.7.x",
+                "@sigx/runtime-core": "0.7.x",
+                "@sigx/runtime-dom": "0.7.x"
             }
         }
     }
