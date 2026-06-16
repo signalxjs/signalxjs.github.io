@@ -481,21 +481,48 @@ interface SSRPlugin {
   server?: {
     setup?(ctx: SSRContext): void;
     transformComponentContext?(ctx: SSRContext, vnode: VNode, componentCtx: ComponentSetupContext): ComponentSetupContext | void;
+    suppressComponentRender?(id: number, vnode: VNode, ctx: SSRContext): { placeholder?: string } | void;
     afterRenderComponent?(id: number, vnode: VNode, html: string, ctx: SSRContext): string | void;
     handleAsyncSetup?(id: number, ssrLoads: Promise<void>[], renderFn: () => any, ctx: SSRContext): { mode: 'block' | 'stream' | 'skip'; placeholder?: string } | void;
-    onAsyncComponentResolved?(id: number, html: string, ctx: SSRContext): { html?: string; script?: string } | void;
+    onAsyncComponentResolved?(id: number, html: string, ctx: SSRContext): { html?: string; script?: string; preScript?: string } | void;
     getInjectedHTML?(ctx: SSRContext): string | Promise<string>;
     getStreamingChunks?(ctx: SSRContext): AsyncGenerator<string> | void;
   };
   client?: {
     beforeHydrate?(container: Element): boolean | void;
+    transformComponentContext?(vnode: VNode, componentCtx: ComponentSetupContext): ComponentSetupContext | void;
     hydrateComponent?(vnode: VNode, dom: Node | null, parent: Node): Node | null | undefined;
     afterHydrate?(container: Element): void;
   };
 }
 ```
 
+Server hooks, in lifecycle order around each component:
+
+- `server.transformComponentContext` runs after the `ComponentSetupContext` is
+  built but **before `setup()`** — mutate or replace it (swap `ctx.signal`,
+  adjust the `ssr` helper, transform props). Return a new context, or void to
+  accept as-is.
+- `server.suppressComponentRender` runs after `transformComponentContext` (id
+  assigned), still **before `setup()`** — return an object to **skip** the
+  component's setup/render entirely and emit its (optional) `placeholder` string
+  followed by the `<!--$c:id-->` hydration marker; return void to render normally.
+  First plugin to return an object wins. This is how islands make `client:only`
+  ship no server HTML, and it works in both string and streaming modes.
+- `server.afterRenderComponent` receives the rendered HTML and can transform it.
+- `server.handleAsyncSetup` chooses `block`/`stream`/`skip` per async component;
+  `onAsyncComponentResolved` can rewrite the streamed replacement (with `script` /
+  `preScript`); `getInjectedHTML` and `getStreamingChunks` emit extra markup.
+
+Client hooks (during hydration):
+
 - `client.beforeHydrate` returning `false` skips the default DOM walk (resumable).
+- `client.transformComponentContext` is the **hydration-time mirror** of
+  `server.transformComponentContext`: it runs after the context is built and
+  before `setup()` during hydration (no `SSRContext` is available then, so only
+  the vnode and built context are passed). A strategy can swap `ctx.signal` for a
+  variant that restores each signal from server-captured state — keeping render
+  and hydration symmetric.
 - `client.hydrateComponent` returning a `Node` claims a component (islands
   intercept `client:*` props).
 - Exported as a type from the main entry.

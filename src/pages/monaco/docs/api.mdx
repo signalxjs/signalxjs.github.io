@@ -87,7 +87,8 @@ export const MonacoEditor: (props: MonacoEditorProps) => /* sigx component */
 
 SignalX component wrapper (created via `component<MonacoEditorProps>()`). On mount it lazy-loads Monaco and calls `createEditor()` with the props; disposes the editor on unmount. Reactively mirrors prop changes onto the live editor:
 
-- `value` — applied to the model (guards against echo loops from `onChange`).
+- `model` — two-way bound content. When supplied it is the source of truth and takes precedence over `value`; editor edits are written back through `props.model.value`. See [Two-way model binding](/monaco/docs/getting-started#two-way-model-binding).
+- `value` — one-way content (pair with `onChange`); applied to the model (guards against echo loops from `onChange`).
 - `language` — applied via `monaco.editor.setModelLanguage`.
 - `theme` — applied via `monaco.editor.setTheme` (global; affects all editors).
 - `readOnly` — applied via `editor.updateOptions`.
@@ -221,8 +222,8 @@ Options for `createEditor()`. `language` may be a generic id (`'typescript'`) or
 ### MonacoEditorProps
 
 ```ts
-export interface MonacoEditorProps {
-    value: string;
+export interface MonacoEditorProps extends Define.Model<string> {
+    value?: string;
     language?: string;
     theme?: string;
     readOnly?: boolean;
@@ -237,7 +238,7 @@ export interface MonacoEditorProps {
 }
 ```
 
-Props for the `<MonacoEditor />` component. `value`/`language`/`theme`/`readOnly` are reactive. `class`/`style` control the container. `onReady` fires once with the live editor instance after creation.
+Props for the `<MonacoEditor />` component. Extends [`Define.Model<string>`](/core/api/types#definemodel), adding a `model` prop for [two-way binding](/monaco/docs/getting-started#two-way-model-binding) — when supplied it takes precedence over `value`. Use `value` (paired with `onChange`) for one-way binding. `value`/`language`/`theme`/`readOnly` are reactive. `class`/`style` control the container. `onReady` fires once with the live editor instance after creation.
 
 ### TypescriptPackOptions
 

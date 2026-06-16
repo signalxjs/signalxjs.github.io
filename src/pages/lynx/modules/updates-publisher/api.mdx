@@ -1,0 +1,110 @@
+---
+title: "API reference"
+description: "OTA Publisher — CI bundle publisher"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-updates-publisher` <PkgVersion npm="@sigx/lynx-updates-publisher" />.</p>
+
+```ts
+import { publishUpdate } from '@sigx/lynx-updates-publisher';
+import type {
+  PublishUpdateOptions,
+  PublishUpdateResult,
+  PublishPlatform,
+} from '@sigx/lynx-updates-publisher';
+```
+
+The same `publishUpdate` is re-exported from `@sigx/lynx-cli`.
+
+## publishUpdate
+
+Publish a built bundle as an OTA update. Reads the bundle, hashes it, writes the static-hosting layout under `<out>/<channel>/`, and returns structured metadata. No logging and no process side effects beyond the written files — so CI can assert on the result directly.
+
+```ts
+export function publishUpdate(opts: PublishUpdateOptions): Promise<PublishUpdateResult>;
+```
+
+**Throws** if the bundle is missing or empty, or if no runtime-version fingerprint can be resolved (no `runtimeVersion`, no explicit `runtimeVersions`, and no `.sigx/runtime-versions.json` sidecar).
+
+## Types
+
+### PublishUpdateOptions
+
+```ts
+export interface PublishUpdateOptions {
+  /** Project root. Used to resolve relative paths and the sidecar. */
+  cwd: string;
+  /** Bundle path (absolute, or relative to `cwd`). Default: `dist/main.lynx.bundle`. */
+  bundle?: string;
+  /** Output directory (absolute, or relative to `cwd`). Default: `updates-dist`. */
+  out?: string;
+  /** Release channel. Default: `'production'`. */
+  channel?: string;
+  /** Human-readable JS app version stamped on the entry. Default: `'0.0.0'`. */
+  appVersion?: string;
+  /** Mark this update mandatory (blocking UI + forced install). Default: false. */
+  mandatory?: boolean;
+  /** Release notes attached as `metadata.releaseNotes`. */
+  notes?: string;
+  /**
+   * Override the runtime-version fingerprint for BOTH platforms. Takes
+   * precedence over `runtimeVersions` and the sidecar.
+   */
+  runtimeVersion?: string;
+  /**
+   * Explicit per-platform runtime-version fingerprints. Takes precedence over
+   * the `.sigx/runtime-versions.json` sidecar — provide this in CI when the
+   * fingerprints are computed elsewhere.
+   */
+  runtimeVersions?: { android?: string; ios?: string };
+}
+```
+
+Runtime versions resolve in this order: `runtimeVersion` (pins both platforms) → `runtimeVersions` → the `.sigx/runtime-versions.json` sidecar written by `sigx prebuild`. The `channel` is used as both a directory and a URL segment, so it must match `/^[A-Za-z0-9._-]+$/` (and not be `.` / `..`).
+
+### PublishUpdateResult
+
+```ts
+export interface PublishUpdateResult {
+  /** Content-addressed update id (`sha256.slice(0, 16)`). */
+  updateId: string;
+  /** Full hex SHA-256 of the bundle bytes (verified natively after download). */
+  sha256: string;
+  /** Relative bundle URL written into the manifest entries. */
+  bundleUrl: string;
+  /** Absolute path the bundle was read from. */
+  bundlePath: string;
+  /** Absolute path of the written `manifest.json`. */
+  manifestPath: string;
+  /** Resolved release channel. */
+  channel: string;
+  /** Resolved app version stamped on the entries. */
+  appVersion: string;
+  /** Bundle size in bytes. */
+  sizeBytes: number;
+  /** Whether the entries were marked mandatory. */
+  mandatory: boolean;
+  /** ISO-8601 timestamp stamped on the published entries. */
+  createdAt: string;
+  /** The (platform, runtimeVersion) entries written this publish. */
+  runtimeVersions: Array<{ platform: PublishPlatform; runtimeVersion: string }>;
+}
+```
+
+### PublishPlatform
+
+```ts
+export type PublishPlatform = 'android' | 'ios';
+```
+
+## See also
+
+- [Usage](/lynx/modules/updates-publisher/usage) — a CI publish example.
+- [OTA Updates](/lynx/modules/updates/overview) — the client side that consumes the published manifest.

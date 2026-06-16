@@ -162,6 +162,14 @@ import { createSSR, type SSRPlugin } from '@sigx/server-renderer';
 const myPlugin: SSRPlugin = {
     name: 'my-strategy',
     server: {
+        // mutate/replace a component's context after it's built, before setup()
+        transformComponentContext(ctx, vnode, componentCtx) {
+            return; // accept as-is
+        },
+        // skip a component's setup/render and emit a placeholder string
+        suppressComponentRender(id, vnode, ctx) {
+            return; // render normally
+        },
         // choose block | stream | skip for async components, inject HTML, etc.
         handleAsyncSetup(id, ssrLoads, renderFn, ctx) {
             return { mode: 'stream' };
@@ -171,6 +179,10 @@ const myPlugin: SSRPlugin = {
         // return false to skip the default DOM walk (resumable SSR)
         beforeHydrate(container) {
             return; // run normal hydration
+        },
+        // hydration-time mirror of server.transformComponentContext
+        transformComponentContext(vnode, componentCtx) {
+            return; // accept as-is
         },
         // return a Node to "claim" a component during the hydration walk
         hydrateComponent(vnode, dom, parent) {
@@ -185,6 +197,17 @@ const html = await ssr.render(<App />);
 
 Key hook semantics:
 
+- `server.transformComponentContext` runs after a component's context is built and
+  **before `setup()`**, letting a plugin mutate or replace it — e.g. swap
+  `ctx.signal` for a state-capturing variant. `client.transformComponentContext` is
+  its **hydration-time mirror** (same timing, no `SSRContext` argument), so a
+  strategy can swap `ctx.signal` for a state-*restoring* variant. The pair keeps
+  render and hydration symmetric while core stays strategy-agnostic.
+- `server.suppressComponentRender` runs after `transformComponentContext` and
+  **before `setup()`**; returning an object skips the component's setup/render and
+  emits the (optional) `placeholder` string in its place. This is how islands make
+  `client:only` ship no server HTML — an empty `<div data-island>` placeholder.
+  Works in both string and streaming modes.
 - `client.beforeHydrate` returning `false` **skips** the default DOM walk — the
   basis for resumable SSR.
 - `client.hydrateComponent` returning a `Node` **claims** that component — the hook

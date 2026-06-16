@@ -1,0 +1,89 @@
+---
+title: "Usage"
+description: "OTA Publisher — CI bundle publisher"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using OTA Publisher
+
+<p class="lede">Publish a built bundle to your OTA channel from a CI job — programmatically, with structured metadata to assert on, and no CLI toolchain to install.</p>
+
+`@sigx/lynx-updates-publisher` is the publish step of OTA, factored out of the CLI so a release pipeline can call it directly. It writes the same static-host layout that the `StaticManifestProvider` in [`@sigx/lynx-updates`](/lynx/modules/updates/overview) reads.
+
+## Publishing from CI
+
+Build the bundle, then call `publishUpdate()` and upload the output directory:
+
+```ts
+import { publishUpdate } from '@sigx/lynx-updates-publisher';
+
+const result = await publishUpdate({
+  cwd: process.cwd(),
+  bundle: 'dist/main.lynx.bundle', // the default
+  out: 'updates-dist',             // the default
+  channel: 'production',
+  appVersion: '1.4.2',
+  mandatory: false,
+  notes: 'Bug fixes and performance improvements.',
+});
+
+console.log(`Published ${result.updateId} (${result.sizeBytes} bytes)`);
+console.log(`Manifest: ${result.manifestPath}`);
+// → upload updates-dist/production/ to your static host / CDN.
+```
+
+A typical pipeline:
+
+```bash
+sigx build                # produces dist/main.lynx.bundle
+node ./scripts/publish.mjs  # calls publishUpdate(...)
+# rsync / aws s3 sync updates-dist/production/ → CDN
+```
+
+## Runtime-version fingerprints
+
+Each published entry carries a runtime-version fingerprint so the client only offers an update to a binary that can run it. `publishUpdate()` resolves the fingerprints in order:
+
+1. `runtimeVersion` — pins **both** platforms (user-managed scheme).
+2. `runtimeVersions: { android, ios }` — explicit per-platform values, for when CI computes them elsewhere.
+3. `.sigx/runtime-versions.json` — the sidecar written by `sigx prebuild`.
+
+If none resolve, `publishUpdate()` throws rather than writing an entry no client would accept. In CI that doesn't run `sigx prebuild`, pass the fingerprints explicitly:
+
+```ts
+await publishUpdate({
+  cwd: process.cwd(),
+  channel: 'production',
+  appVersion: '1.4.2',
+  runtimeVersions: {
+    android: process.env.ANDROID_RUNTIME_VERSION,
+    ios: process.env.IOS_RUNTIME_VERSION,
+  },
+});
+```
+
+## Output layout
+
+`publishUpdate()` writes, under the output directory:
+
+```
+updates-dist/
+  production/
+    manifest.json                          ← the moving pointer
+    updates/<updateId>/main.lynx.bundle    ← content-addressed, accumulates
+```
+
+Publishing appends or replaces the entry for each `(platform, runtimeVersion)` pair and leaves older bundles in place, so the channel keeps serving every binary still in the field. Drop the directory onto any static host unchanged — `bundleUrl` is relative and resolves against the manifest URL on the client.
+
+## Notes
+
+- **Dependency-light**: only Node built-ins, so it adds no build toolchain to a CI job. Install it as a dev dependency.
+- **Same function, two entry points**: `publishUpdate` is also re-exported from `@sigx/lynx-cli` (which backs `sigx updates:publish`).
+- **Self-healing manifest**: republishing normalizes the existing `manifest.json`, dropping any malformed entry so the channel never breaks on a stray bad record.
+
+## See also
+
+- [API reference](/lynx/modules/updates-publisher/api) — `publishUpdate`, options and result.
+- [OTA Updates](/lynx/modules/updates/usage) — the client lifecycle and the static manifest format.

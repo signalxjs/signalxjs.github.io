@@ -1,0 +1,99 @@
+---
+title: Platform-specific code
+description: Branch between iOS, Android and web — at runtime, at build time, or per file
+layout: docs
+category: Core Concepts
+order: 80
+---
+
+# Platform-specific code
+
+<p class="lede">One component tree runs on iOS, Android and the web. Where they need to diverge, SignalX gives you three tools — pick by <em>when</em> the split happens.</p>
+
+There are two axes to keep straight:
+
+- **web ↔ native** is a **build-time** split. The web and native bundles are produced separately, so you can fully drop code from the bundle that doesn't need it. Branch on the `__WEB__` / `__NATIVE__` defines, or split by file extension (`.web.tsx` / `.lynx.tsx`).
+- **iOS ↔ Android** is a **runtime** split. iOS and Android share one native bundle, so there is nothing to drop at build time — discriminate at runtime with `Platform.OS` / `Platform.select`.
+
+> **Key constraint:** file/define splitting is **web↔native only**. iOS and Android share one native bundle; there is no `__IOS__` define and no `.ios.tsx` resolution. Split those two at runtime.
+
+## Runtime: `Platform`
+
+`Platform` is re-exported from `@sigx/lynx` (it lives in `@sigx/lynx-core`) and is read once from the Lynx `SystemInfo` global. Use it for iOS-vs-Android differences and for reading display metrics.
+
+```tsx
+import { Platform } from '@sigx/lynx';
+
+Platform.OS;       // 'ios' | 'android' | 'web'
+Platform.Version;  // '17.4' / '14'
+Platform.isPad;    // best-effort iPad detection
+Platform.pixelRatio;
+Platform.pixelWidth;
+Platform.pixelHeight;
+```
+
+`Platform.select` picks a value for the current platform. Precedence is exact OS key → `native` (matches `ios`/`android`) → `default`. It is presence-based, not truthiness, so an explicit `undefined` for the matching key is honored.
+
+```tsx
+import { Platform } from '@sigx/lynx';
+
+// Providing `default` makes the return non-optional.
+const spacing = Platform.select({ ios: 12, android: 8, default: 10 }); // number
+
+// `native` matches both iOS and Android; `web` takes the other branch.
+const transport = Platform.select({ web: webTransport, native: nativeTransport });
+```
+
+`Platform.OS === 'web'` is a *runtime* check — it does **not** tree-shake, because a property read can't fold across modules. For dropping code from a bundle, use the build-time tools below.
+
+## Build-time: `__WEB__` / `__NATIVE__` defines
+
+`@sigx/lynx-plugin` injects the `__WEB__` and `__NATIVE__` defines per environment, folding each to a literal `true` / `false`. Branch on the raw globals and the minifier eliminates the dead branch from the other bundle:
+
+```tsx
+if (__WEB__) {
+  // only the web bundle keeps this; dropped from native
+} else {
+  // only the native bundle keeps this
+}
+```
+
+`__NATIVE__` is always `!__WEB__`. Use this when a branch imports something that only exists on one platform — the dead branch (and its imports) never reach the other bundle.
+
+To type the defines, reference the client types once at your source root (`env.d.ts`):
+
+```ts
+/// <reference types="@sigx/lynx/client" />
+```
+
+That declares `__WEB__` and `__NATIVE__` as `boolean` so they typecheck everywhere.
+
+## Build-time: file-extension resolution
+
+For a whole-module split, give a module platform-specific files. The plugin resolves `.web.tsx` / `.lynx.tsx` / `.native.tsx` ahead of the generic file, so the importer never names a platform:
+
+```
+Map.web.tsx     // resolved for the web bundle
+Map.lynx.tsx    // resolved for the native bundle
+Map.tsx         // fallback
+```
+
+```tsx
+import { Map } from './Map'; // picks Map.web.tsx or Map.lynx.tsx per bundle
+```
+
+Each file exports the same shape; the importer is platform-agnostic. As with the defines, this is **web↔native only** — there is no `.ios.tsx` / `.android.tsx` resolution.
+
+## Choosing
+
+| Difference | Tool |
+|---|---|
+| iOS vs Android | `Platform.OS` / `Platform.select` (runtime) |
+| A few lines differ between web and native | `__WEB__` / `__NATIVE__` (build-time, tree-shaken) |
+| A whole module differs between web and native | `.web.tsx` / `.lynx.tsx` files |
+| A per-platform constant or display metric | `Platform.select` / `Platform.pixelRatio` etc. |
+
+## See also
+
+- [`@sigx/lynx-core` API](/lynx/modules/core/api#platform) — every `Platform` and `DeviceInfo` export.
+- [Reactivity bridge](/lynx/docs/reactivity) — the background ↔ main-thread model.

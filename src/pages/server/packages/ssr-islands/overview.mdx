@@ -14,10 +14,17 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="mod-meta-row"><PkgVersion npm="@sigx/ssr-islands" /> <span class="mmr-dot" /> ESM-only <span class="mmr-dot" /> MIT</p>
 
-It is a **plugin on top of [`@sigx/server-renderer`](/server/packages/server-renderer/overview)**
-(installed automatically as a dependency). The base renderer hydrates the whole
-tree; islands lets you hydrate just the parts marked with `client:*` directives —
-everything else stays as cheap static HTML.
+It is the **first-party reference strategy pack** built entirely on the pluggable
+[`@sigx/server-renderer`](/server/packages/server-renderer/overview) plugin API —
+**not** baked into core. The base renderer is strategy-agnostic; islands is just an
+`SSRPlugin` registered on top (installed automatically as a dependency). The base
+renderer hydrates the whole tree; islands lets you hydrate just the parts marked
+with `client:*` directives — everything else stays as cheap static HTML. Because it
+ships against the same public hooks, a third party can author their own strategy
+pack the same way.
+
+It ships from the core monorepo (`signalxjs/core`, `packages/ssr-islands`) and is
+released in lockstep with `@sigx/server-renderer`.
 
 ## Why islands
 
@@ -72,7 +79,7 @@ its strategy.
 | `client:idle` | during browser idle time (`requestIdleCallback`) |
 | `client:visible` | when the element scrolls into view (`IntersectionObserver`) |
 | `client:media` | when a media query matches (`client:media="(min-width: 768px)"`) |
-| `client:only` | mount fresh on the client — no SSR content rendered |
+| `client:only` | skip SSR entirely — empty placeholder on the server, mount fresh on the client |
 
 See [Client directives](/server/packages/ssr-islands/client-directives) for the
 details of each.

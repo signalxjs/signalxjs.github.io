@@ -94,6 +94,26 @@ render(<App />, document.getElementById('app')!);
 
 The component lazy-loads Monaco on mount, applies the registered language packs, and disposes the editor automatically on unmount. The container fills its parent by default (`width: 100%; height: 100%;`), so give it a sized parent element.
 
+## Two-way model binding
+
+The example above uses one-way binding: `value` flows into the editor and `onChange` writes edits back by hand. For a single source of truth, bind `model` instead — typing in the editor updates your state, and updating your state updates the editor, with no `onChange` wiring. `MonacoEditorProps` is defined as `Define.Model<string>`, so the prop accepts the same [model binding](/core/docs/two-way-binding) syntax as any other SignalX component. When `model` is supplied it takes precedence over `value`.
+
+```tsx
+const App = component(({ signal }) => {
+    const state = signal({ code: 'const greeting: string = "Hello, Monaco";\n' });
+
+    return () => (
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <MonacoEditor model={() => state.code} language="typescript" theme="vs-dark" />
+            {/* Edits in the editor flow into state.code; this stays in sync. */}
+            <p>{state.code.length} characters</p>
+        </div>
+    );
+});
+```
+
+`model={() => state.code}` is the accessor form. You can also pass an explicit binding tuple — `model={[state, 'code']}` — when the state object and key are more convenient to forward. Inside the component the editor reads and writes through `props.model.value`.
+
 ## How loading works
 
 You never import `monaco-editor` directly in client code. The Vite plugin replaces every `monaco-editor` import with a throwing stub and keeps it out of `optimizeDeps`. Instead, Monaco is fetched at runtime by `loadMonaco()` — which the `<MonacoEditor />` component and `createEditor()` call for you. The plugin and the runtime loader agree on a strategy through a `window.__MONACO_LOADER_CONFIG__` snippet the plugin injects into your HTML.

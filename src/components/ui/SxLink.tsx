@@ -39,7 +39,7 @@ export const SxLink = component<SxLinkProps>(({ props, slots, emit }) => {
             data-active={props.active === undefined ? undefined : String(props.active)}
             onClick={onClick}
         >
-            {slots.default()}
+            {slots.default?.()}
         </a>
     );
 });

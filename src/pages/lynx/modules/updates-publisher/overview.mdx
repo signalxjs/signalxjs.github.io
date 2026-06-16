@@ -1,0 +1,45 @@
+---
+title: "Overview"
+description: "OTA Publisher — CI bundle publisher"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# OTA Publisher
+
+<p class="lede">Package a built <code>.lynx.bundle</code> into the static-manifest OTA layout from a CI job — <code>publishUpdate()</code> is the programmatic core of <code>sigx updates:publish</code>, returning structured metadata instead of stdout.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/lynx-updates-publisher" /> <span class="mmr-dot" /> Node (CI / build) <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add -D @sigx/lynx-updates-publisher
+```
+
+## About
+
+`@sigx/lynx-updates-publisher` is a build-time Node library — not a native module. It packages a built bundle into the static-host layout that the `StaticManifestProvider` in [`@sigx/lynx-updates`](/lynx/modules/updates/overview) consumes, and returns structured metadata (`updateId`, `bundleUrl`, `sha256`, …) so CI can assert on it directly.
+
+It is **intentionally dependency-light** — only Node built-ins — so a release job can `import { publishUpdate } from '@sigx/lynx-updates-publisher'` without pulling in the CLI's build toolchain. The same function is re-exported from [`@sigx/lynx-cli`](/lynx/modules/cli/overview), which uses it to back the `sigx updates:publish` command.
+
+It is versioned in lockstep with the rest of the Lynx module family.
+
+## What it does
+
+`publishUpdate(options)` reads a built bundle, content-addresses it by `sha256.slice(0, 16)`, and writes the static-hosting layout:
+
+```
+<out>/<channel>/
+  manifest.json                          ← the moving pointer
+  updates/<updateId>/main.lynx.bundle    ← content-addressed, accumulates
+```
+
+Drop that directory onto any static host or CDN unchanged — `bundleUrl` is relative and the client resolves it against the manifest URL. Each publish appends or replaces one entry per platform (runtime-version fingerprints differ per platform), so old binaries keep matching their old entries while new binaries pick up new ones.
+
+## Next steps
+
+Continue with [Usage](/lynx/modules/updates-publisher/usage) for a CI example, or jump to the [API reference](/lynx/modules/updates-publisher/api).

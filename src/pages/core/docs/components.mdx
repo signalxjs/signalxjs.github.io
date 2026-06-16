@@ -100,7 +100,7 @@ const Button = component<ButtonProps>(({ props, slots }) => {
             class={`btn btn-${props.variant || 'primary'}`}
             disabled={props.disabled}
         >
-            {slots.default()}
+            {slots.default?.()}
         </button>
     );
 });
@@ -124,7 +124,7 @@ const Card = component<CardProps>(({ slots }) => {
                 {slots.header?.() ?? <span>Default Header</span>}
             </div>
             <div class="card-body" style="padding: 16px;">
-                {slots.default()}
+                {slots.default?.()}
             </div>
         </div>
     );
@@ -169,6 +169,43 @@ render(
     "#sandbox"
 );
 ```
+
+### Slot presence
+
+A slot accessor is a **callable only when the parent actually provided content**;
+when it didn't, the slot reads as `undefined`. So testing presence is a plain
+truthiness check, and you always call a slot **optionally** with `?.()`:
+
+```tsx
+const Card = component<CardProps>(({ slots }) => {
+    return () => (
+        <div class="card">
+            {/* render a header region only when one was passed */}
+            {slots.header && <header>{slots.header?.()}</header>}
+
+            {/* always call optionally — body is provided or it isn't */}
+            <div class="body">{slots.default?.()}</div>
+
+            {/* fall back when a slot is absent */}
+            <footer>{slots.footer?.() ?? <small>No footer</small>}</footer>
+        </div>
+    );
+});
+```
+
+Things to know:
+
+- **Always call slots optionally** — `slots.default?.()`. Invoking a slot the
+  parent never supplied (`slots.default()` when it's `undefined`) throws.
+- **Presence is a plain check** — `slots.x` for "is it there?", `slots.x?.()` to
+  render it, `slots.x?.() ?? fallback` to substitute when absent.
+- **Presence is reactive.** A slot appearing or disappearing re-renders the
+  consumer, so a region that depends on `slots.x` updates on its own.
+- **A slot passed via the `slots` prop counts as present** regardless of what its
+  function returns — even a slot that returns `null` is "provided", so the
+  presence check reflects what the parent passed, not what it rendered.
+- **SSR matches the client** — presence resolves identically on the server and
+  during hydration, so there's no mismatch.
 
 ## Events
 
