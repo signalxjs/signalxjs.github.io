@@ -24,10 +24,11 @@ type DocsSidebarProps =
     & Define.Event<'close', void>;
 
 /**
- * Compare two route paths ignoring a trailing slash. The site uses
- * `trailingSlash: 'always'`, so on a hard load `route.path` carries the slash
- * (`/x/`) while nav `item.href`s are emitted without it (`/x`) — an exact `===`
- * would drop the active state until an SPA navigation strips the slash.
+ * Compare two route paths ignoring a trailing slash. The site canonicalises to
+ * `trailingSlash: 'always'`, so `route.path` carries the slash (`/x/`) while the
+ * raw nav `item.href`s from the SSG navigation data are slash-less (`/x`). An
+ * exact `===` would never match, dropping the active state; compare ignoring the
+ * trailing slash so the current page highlights regardless of either side's form.
  */
 const samePath = (a: string | undefined, b: string | undefined): boolean => {
     if (!a || !b) return false;
