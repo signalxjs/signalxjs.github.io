@@ -181,7 +181,7 @@ const Card = component<CardProps>(({ slots }) => {
     return () => (
         <div class="card">
             {/* render a header region only when one was passed */}
-            {slots.header && <header>{slots.header()}</header>}
+            {slots.header && <header>{slots.header?.()}</header>}
 
             {/* always call optionally — body is provided or it isn't */}
             <div class="body">{slots.default?.()}</div>

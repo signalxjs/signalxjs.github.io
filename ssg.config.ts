@@ -136,6 +136,17 @@ export default defineSSGConfig({
         ...moduleCollections,
     },
 
+    // Redirects for routes that have moved. `@sigx/lynx-device-info` folded into
+    // `@sigx/lynx-core`, so its former module pages now live under the core module —
+    // keep old inbound links alive instead of 404ing.
+    redirects: {
+        '/lynx/modules/device-info': '/lynx/modules/core/overview/',
+        '/lynx/modules/device-info/overview': '/lynx/modules/core/overview/',
+        '/lynx/modules/device-info/api': '/lynx/modules/core/api/',
+        '/lynx/modules/device-info/usage': '/lynx/modules/core/usage/',
+        '/lynx/modules/device-info/installation': '/lynx/modules/core/installation/',
+    },
+
     // Navigation configuration
     navigation: {
         // Show draft pages in development
