@@ -80,20 +80,24 @@ if (typeof window !== 'undefined' && typeof history !== 'undefined') {
     }
 
     // 2) Cosmetic: keep rendered hrefs in their canonical form across re-renders.
-    const run = () => sweep(document);
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', run, { once: true });
-    } else {
-        run();
-    }
-    new MutationObserver((records) => {
-        for (const r of records) {
-            for (const node of r.addedNodes) {
-                if (node.nodeType !== 1) continue;
-                const el = node as Element;
-                if (el.matches('a[href]')) normalizeAnchor(el as HTMLAnchorElement);
-                sweep(el);
+    // Deferred until the document is ready so `document.body` is guaranteed to
+    // exist (this module may run from <head>, before <body> is parsed).
+    const start = () => {
+        sweep(document);
+        new MutationObserver((records) => {
+            for (const r of records) {
+                for (const node of r.addedNodes) {
+                    if (node.nodeType !== 1) continue;
+                    const el = node as Element;
+                    if (el.matches('a[href]')) normalizeAnchor(el as HTMLAnchorElement);
+                    sweep(el);
+                }
             }
-        }
-    }).observe(document.body, { childList: true, subtree: true });
+        }).observe(document.body, { childList: true, subtree: true });
+    };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start, { once: true });
+    } else {
+        start();
+    }
 }
