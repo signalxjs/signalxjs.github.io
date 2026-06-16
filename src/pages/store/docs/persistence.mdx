@@ -254,8 +254,13 @@ const usePrefs = defineStore('prefs', (ctx) => {
 });
 ```
 
+## Composing with SSR state transfer
+
+`persist` covers device-local state; [`ssrState`](/store/docs/ssr-state) carries state from the server render to client hydration. They layer cleanly — call `ssrState` **first** so its synchronous seed lands before `persist`'s (possibly async) hydration overrides it with device-local data when present. See [composing with `persist()`](/store/docs/ssr-state#composing-with-persist) for the ordering.
+
 ## Next steps
 
+- [SSR state transfer](/store/docs/ssr-state) — seed a store from the server render; composes with `persist`.
 - [Composables & Plugins](/store/docs/composables-and-plugins) — `persist` is the case study for writing your own setup composables.
 - [Defining a Store](/store/docs/defining-a-store) — state, actions, derived values, and events.
 - [API Reference](/store/docs/api#sigxstorepersist) — `persist`, `StorageLike`, `PersistOptions`, and `PersistHandle` signatures.

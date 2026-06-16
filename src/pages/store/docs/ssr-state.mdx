@@ -1,0 +1,104 @@
+---
+title: SSR state transfer
+description: "Seed a store on hydration from the server render with ssrState — fetch on the server, no client refetch"
+layout: docs
+category: Guides
+order: 56
+---
+
+# SSR state transfer
+
+`@sigx/store/ssr` is a composable that carries a state slice from the **server render** to the **client hydration**: you compute or fetch the data once on the server, ship it inside the page, and the store seeds itself from it on the client — no refetch. Call it inside a store setup, exactly like [`persist`](/store/docs/persistence), passing the setup context and the `{ state, patch }` pair from `defineState`:
+
+```ts
+import { defineStore } from '@sigx/store';
+import { ssrState } from '@sigx/store/ssr';
+
+const useTodos = defineStore('todos', (ctx) => {
+    const { state, signals, patch } = ctx.defineState({ items: [] as Todo[] });
+
+    ssrState(ctx, { state, patch });
+
+    return { ...signals };
+});
+```
+
+On the server the store renders with whatever its actions put in `state` during the request; that final state is serialized into the page. On the client the same store seeds from the serialized value as it's created, so the first render matches the server's and nothing re-fetches.
+
+## Server: register, serialize at emit time
+
+On the server, `ssrState` registers the slice's **live** state under the key `store:<storeName>` on the per-request render context. It does not snapshot eagerly: the entry is `toJSON`-deferred, so the snapshot is taken when the shell is emitted — *after* rendering. Mutations the store makes during the request (an action that fetches, a computed that fills in) therefore ship with their **final** values.
+
+The core `stateSerializationPlugin` emits that registry into `window.__SIGX_ASYNC__`. It runs automatically under `renderDocument` (and the other document renderers), or you can add it explicitly:
+
+```ts
+import { createSSR, stateSerializationPlugin } from '@sigx/server-renderer';
+
+const ssr = createSSR().use(stateSerializationPlugin());
+```
+
+Detection of the server is **duck-typed** via the component instance's `ssr` helper — `@sigx/store` has **no dependency on `@sigx/server-renderer`**. A store created on the server outside a render context (no instance to detect) serializes nothing; it never falls through to the client path, so one request's state can't leak into another.
+
+## Client: seed once, atomically
+
+On the client, `ssrState` seeds the slice from `window.__SIGX_ASYNC__['store:<name>']` as **one atomic `patch()`** — a single reactivity flush over the defaults, so the first render is already populated. Seeding is **consume-once**: the entry is removed as it's read, so a later instance of the same store starts from defaults instead of forking from a stale seed.
+
+Client seeding only runs in a **browser-like environment** (`window` present); it never runs on the server. `ssrState` returns `{ hydrated }`, `true` only when a server seed was actually applied (always `false` on the server):
+
+```ts
+const useTodos = defineStore('todos', (ctx) => {
+    const { state, signals, patch } = ctx.defineState({ items: [] as Todo[] });
+
+    const { hydrated } = ssrState(ctx, { state, patch });
+    // hydrated === true on the client when the page carried server state for
+    // this store; false on the server and on a cold client load.
+
+    return { ...signals, hydrated };
+});
+```
+
+## `pick` — limit what crosses the wire
+
+By default every key of the slice is serialized and seeded. `pick` narrows it to a subset — the same list governs **both** the server snapshot and the client seed:
+
+```ts
+ssrState(ctx, { state, patch }, {
+    pick: ['items'],   // serialize + seed only these keys — default: all slice keys
+});
+```
+
+Whatever the page carries, only keys that actually exist on the slice are ever applied; unknown keys and reserved/`__proto__`-style keys are filtered out on both ends, so a tampered or mismatched blob can never assign unexpected keys onto your reactive state.
+
+## Composing with `persist()`
+
+`ssrState` and [`persist`](/store/docs/persistence) layer cleanly — server-rendered data first, then device-local overrides. **Call `ssrState` first:**
+
+```ts
+import { persist } from '@sigx/store/persist';
+import { ssrState } from '@sigx/store/ssr';
+
+const useTodos = defineStore('todos', (ctx) => {
+    const { state, signals, patch } = ctx.defineState({ items: [] as Todo[] });
+
+    ssrState(ctx, { state, patch });   // 1. synchronous seed from the server render
+    persist(ctx, { state, patch });    // 2. then device-local data, if any
+
+    return { ...signals };
+});
+```
+
+The ordering is what makes it work: `ssrState` seeds **synchronously** as the store is created. `persist`'s hydration — which may be **async** with stores like AsyncStorage — then overwrites with device-local data **when present**. So a returning visitor sees their saved state, while a first-time visitor keeps the server-rendered values. (See [the hydration race](/store/docs/persistence#the-hydration-race) for how `persist` orders its own writes.)
+
+## Relationship to `useAsync` / `useStream`
+
+This is the store-shaped entry point to the **same** SSR state-transfer mechanism that core's [`useAsync` and `useStream`](/core/docs/data-loading) use. They share one wire format — `window.__SIGX_ASYNC__`, a prototype-pollution-safe, page-lifetime blob the server renderer emits — and `store:<name>` is simply the **store keyspace** within it. Component-level fetches use `useAsync`; store-owned state uses `ssrState`. The server half of both is owned by `@sigx/server-renderer`'s document renderers; see the [data-loading guide](/core/docs/data-loading) for the component side and the [server renderer guide](/server) for the document-rendering APIs.
+
+## Requirements
+
+SSR state transfer needs the server renderer in the picture: `sigx` (or `@sigx/server-renderer` directly) on the server, rendering through `renderDocument` or a `createSSR()` pipeline with `stateSerializationPlugin()`. The store package itself adds no SSR dependency — on a purely client-rendered page `ssrState` is a no-op that returns `{ hydrated: false }`, and the store renders from defaults.
+
+## Next steps
+
+- [Persistence](/store/docs/persistence) — device-local state; composes with `ssrState`.
+- [Data loading (`useAsync` / `useStream`)](/core/docs/data-loading) — the component-level half of the same SSR transfer.
+- [Composables & Plugins](/store/docs/composables-and-plugins) — how setup composables like `ssrState` and `persist` are built.

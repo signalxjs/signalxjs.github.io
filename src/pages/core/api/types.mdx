@@ -159,7 +159,7 @@ const Card = component<CardProps>(({ slots }) => {
     return () => (
         <div class="card">
             {slots.header?.()}
-            <div class="body">{slots.default()}</div>
+            <div class="body">{slots.default?.()}</div>
             {slots.footer?.()}
         </div>
     );
@@ -195,6 +195,13 @@ const List = component<ListProps<any>>(({ props, slots }) => {
     }}
 />
 ```
+
+> **Slot presence.** A slot accessor on `slots` is callable **only when the parent
+> provided that slot**, and is `undefined` otherwise. Check presence with plain
+> truthiness (`slots.x`), render with an optional call (`slots.x?.()`), and supply
+> a fallback with `slots.x?.() ?? fallback`. Always call optionally — invoking an
+> unprovided slot throws. Presence is reactive (a slot appearing/disappearing
+> re-renders the consumer) and resolves identically under SSR and hydration.
 
 ---
 

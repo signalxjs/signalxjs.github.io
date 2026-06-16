@@ -67,7 +67,7 @@ const Card = component<CardProps>(({ props, slots, emit }) => {
                 {props.title}
                 <button onClick={() => emit('close')}>×</button>
             </header>
-            <main>{slots.default()}</main>
+            <main>{slots.default?.()}</main>
             {slots.footer?.()}
         </div>
     );

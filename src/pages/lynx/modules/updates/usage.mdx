@@ -43,6 +43,28 @@ sigx updates:publish        # writes updates-dist/production/{manifest.json, upd
 
 `sigx updates:publish` maintains the [static manifest](#static-manifest-format) and content-addresses each update by `sha256.slice(0, 16)`. Pass `--mandatory` to mark a release mandatory.
 
+## Publishing from CI
+
+CI pipelines can publish a bundle programmatically with `@sigx/lynx-updates-publisher` instead of shelling out to the CLI and scraping stdout. `publishUpdate()` is the dependency-light core of `sigx updates:publish` — only Node built-ins — so a release job can import it without the CLI's build toolchain. It is also re-exported from `@sigx/lynx-cli`.
+
+```ts
+import { publishUpdate } from '@sigx/lynx-updates-publisher';
+
+const result = await publishUpdate({
+  cwd: process.cwd(),
+  channel: 'production',
+  appVersion: '1.4.2',
+  mandatory: false,
+  notes: 'Bug fixes.',
+});
+
+// Assert / log structured metadata — no stdout scraping.
+console.log(result.updateId, result.bundleUrl, result.sha256);
+// → upload `updates-dist/<channel>/` to your static host / CDN.
+```
+
+`publishUpdate(options)` resolves a [`PublishUpdateResult`](/lynx/modules/updates-publisher/api#publishupdateresult): `updateId`, `manifestPath`, `bundleUrl`, `sha256`, `channel`, `appVersion`, `sizeBytes`, `mandatory`, `createdAt`, and the per-platform `runtimeVersions` it stamped. It reads the runtime-version fingerprints from `.sigx/runtime-versions.json` (written by `sigx prebuild`) unless you pass `runtimeVersion` / `runtimeVersions` explicitly. See [`@sigx/lynx-updates-publisher`](/lynx/modules/updates-publisher/overview).
+
 ## Update modes
 
 | Mode | Behavior |
@@ -124,6 +146,51 @@ defineUpdates({ provider: myBackend });
 
 The byte transfer + SHA-256 verification always happen natively — providers only decide *what* to download. Core re-validates `runtimeVersion` and downgrades a mismatch to `incompatible` regardless of what the provider returns.
 
+## Self-hosted & authenticated backends
+
+You don't need a custom provider for a self-hosted or authenticated manifest — the built-in `StaticManifestProvider` covers it through three options.
+
+**Discover the endpoint after launch.** Pass `url` as an async resolver instead of a string. It runs before every check and can compute the manifest URL from runtime context (sign-in, environment selection, per-deployment config). Return the URL, or `{ url, headers }`. Relative `bundleUrl`s in the manifest resolve against whatever URL the resolver returned.
+
+```ts
+import { StaticManifestProvider } from '@sigx/lynx-updates';
+import { defineUpdates } from '@sigx/lynx-updates';
+
+defineUpdates({
+  provider: new StaticManifestProvider({
+    url: async (ctx) => {
+      const base = await resolveBackendForUser(); // known only after sign-in
+      return { url: `${base}/${ctx.channel}/manifest.json` };
+    },
+  }),
+});
+```
+
+**Inject fresh per-request auth.** `onBeforeCheck(ctx)` and `onBeforeDownload(manifest, ctx)` return headers merged over the static `headers` map — refresh a short-lived token inside the hook so each request carries a valid one. `onBeforeCheck` guards the manifest request; `onBeforeDownload` guards the (separate, often longer-lived) bundle download.
+
+```ts
+new StaticManifestProvider({
+  url: 'https://updates.example.com/production/manifest.json',
+  headers: { 'X-App': 'myapp' },              // static, sent on both requests
+  onBeforeCheck: async (ctx) => ({
+    Authorization: `Bearer ${await auth.token()}`,
+  }),
+  onBeforeDownload: async () => ({
+    Authorization: `Bearer ${await auth.token()}`,
+  }),
+});
+```
+
+**Swap the backend later.** Call `Updates.configure()` on a later call to swap the provider (or channel / mode) — for example after the user picks an environment or signs in:
+
+```ts
+import { Updates, StaticManifestProvider } from '@sigx/lynx-updates';
+
+Updates.configure({
+  provider: new StaticManifestProvider({ url: `${chosenBackend}/manifest.json` }),
+});
+```
+
 ## Static manifest format
 
 `sigx updates:publish` maintains this document; serve it from any static host. One URL serves every channel/runtime-version: old binaries keep matching their entries while new binaries pick up new ones. `bundleUrl` may be relative (resolved against the manifest URL).
@@ -151,9 +218,11 @@ The byte transfer + SHA-256 verification always happen natively — providers on
 - **Dev builds**: when running from a dev server URL, OTA is inert (the dev server owns the bundle). Baked-bundle debug runs DO consult the update store, so rollback can be exercised locally.
 - **Web**: no-ops gracefully — every API degrades like the other native modules (`Updates.isAvailable()` reports false).
 - **Prebuilt UI** (update prompt, blocking gate, progress, restart banner): [`@sigx/lynx-updates-ui`](/lynx/modules/updates-ui/overview).
+- **CI publishing**: [`@sigx/lynx-updates-publisher`](/lynx/modules/updates-publisher/overview) — `publishUpdate()`, the dependency-light core of `sigx updates:publish`.
 
 ## See also
 
 - [API reference](/lynx/modules/updates/api) — every export and its signature.
 - [Updates UI](/lynx/modules/updates-ui/overview) — the drop-in companion components.
+- [Updates Publisher](/lynx/modules/updates-publisher/overview) — publish from CI without the CLI.
 - [Installation](/lynx/modules/updates/installation) — project setup.

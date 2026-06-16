@@ -39,6 +39,7 @@ import type {
   StaticManifestDocument,
   StaticManifestEntry,
   StaticManifestProviderOptions,
+  ManifestEndpoint,
 } from '@sigx/lynx-updates';
 ```
 
@@ -58,6 +59,8 @@ The runtime object — a thin facade over the controller, the store, and the nat
 
 ```ts
 export declare const Updates: {
+  /** (Re)apply config — swap the provider, channel or mode on a later call. */
+  configure(config: UpdatesConfig): void;
   /** Ask the provider for the best available update. Works in every mode. */
   checkForUpdate(): Promise<UpdateCheckResult>;
   /** Download + verify + stage the given (or last-checked) update for next launch. */
@@ -101,15 +104,49 @@ export declare class StaticManifestProvider implements UpdateProvider {
   resolveDownload(manifest: UpdateManifest): Promise<DownloadSpec>;
 }
 
-export interface StaticManifestProviderOptions {
-  /** Absolute URL of the manifest JSON. */
+export interface ManifestEndpoint {
   url: string;
-  /** Extra headers sent with the manifest request AND the bundle download. */
   headers?: Record<string, string>;
+}
+
+export interface StaticManifestProviderOptions {
+  /**
+   * Manifest JSON location. Either an absolute URL, or an async resolver
+   * invoked before every check — return the URL (or `{ url, headers }`)
+   * computed from `ctx`. Use the resolver when the backend host isn't known
+   * until after launch (sign-in, environment selection, per-deployment
+   * config). Relative `bundleUrl`s resolve against whichever URL the resolver
+   * returned for that check.
+   */
+  url:
+    | string
+    | ((ctx: UpdateCheckContext) =>
+        | string | ManifestEndpoint
+        | Promise<string | ManifestEndpoint>);
+  /** Static headers, merged into every manifest request AND bundle download. */
+  headers?: Record<string, string>;
+  /**
+   * Per-check auth hook. Returned headers are merged over `headers` (and over
+   * any headers from the `url` resolver) for the manifest request — inject a
+   * fresh short-lived token here.
+   */
+  onBeforeCheck?: (
+    ctx: UpdateCheckContext,
+  ) => Record<string, string> | Promise<Record<string, string>>;
+  /**
+   * Per-download auth hook. Returned headers are merged over `headers` for the
+   * bundle download (a separate, often longer-lived request than the check).
+   */
+  onBeforeDownload?: (
+    manifest: UpdateManifest,
+    ctx: UpdateCheckContext,
+  ) => Record<string, string> | Promise<Record<string, string>>;
   /** Injectable fetch for tests. Defaults to globalThis.fetch. */
   fetchImpl?: typeof globalThis.fetch;
 }
 ```
+
+The `url` resolver and the `onBeforeCheck` / `onBeforeDownload` hooks make self-hosted, authenticated backends work without writing a custom provider — see [Self-hosted & authenticated backends](/lynx/modules/updates/usage#self-hosted--authenticated-backends).
 
 ### validateUpdatesManifest
 

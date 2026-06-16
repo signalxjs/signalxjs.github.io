@@ -21,9 +21,9 @@ A native-module wrapper guards that its module is linked, then calls a bridge me
 ```ts
 import { guardModule, callSync, callAsync, isModuleAvailable } from '@sigx/lynx-core';
 
-export function getDeviceName(): string {
-  guardModule('DeviceInfo');
-  return callSync<string>('DeviceInfo', 'getDeviceName');
+export function hasClipboardString(): boolean {
+  guardModule('Clipboard');
+  return callSync<boolean>('Clipboard', 'hasString');
 }
 
 export async function vibrate(): Promise<void> {
@@ -139,6 +139,42 @@ export async function readFile(path: string): Promise<ArrayBuffer> {
 ```
 
 `arrayBufferToBase64` accepts an `ArrayBuffer`, a `Uint8Array`, or any `ArrayBufferView`, and honors a view's `byteOffset`/`byteLength` — so you can encode a slice without copying the whole backing buffer. The encoder chunks internally to stay clear of call-stack limits on large (tens of kilobytes and up) payloads, and both codecs ship pure-JS fallbacks for hosts that lack `atob`/`btoa`.
+
+## Reading the platform and device info
+
+App code doesn't reach for the bridge helpers — it uses the `Platform` and `DeviceInfo` surfaces (both also re-exported from `@sigx/lynx`).
+
+`Platform` is synchronous and sourced from the Lynx `SystemInfo` global. Use it to branch between iOS and Android at runtime (they share one native bundle) and to pick per-platform values:
+
+```ts
+import { Platform } from '@sigx/lynx';
+
+if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+  // Android 13+ behaviour
+}
+
+const spacing = Platform.select({ ios: 12, android: 8, default: 10 }); // number
+```
+
+`DeviceInfo.getInfo()` resolves one async snapshot of hardware, OS, screen and app metadata. The result is a **platform-discriminated union** — switch on `info.platform` to read the per-platform extras type-safely:
+
+```ts
+import { DeviceInfo } from '@sigx/lynx';
+
+const info = await DeviceInfo.getInfo();
+console.log(info.manufacturer, info.model, info.systemVersion);
+
+switch (info.platform) {
+  case 'ios':
+    console.log(info.modelName, info.bundleId, info.appBuildNumber);
+    break;
+  case 'android':
+    console.log(info.sdkVersion, info.appPackage);
+    break;
+}
+```
+
+`screenWidth` / `screenHeight` are density-independent points (dp/pt) on both platforms, and `screenScale` is the dp→px multiplier — physical pixels ≈ `info.screenWidth * info.screenScale`. The snapshot is one-shot: call `getInfo()` again to refresh. Guard with `DeviceInfo.isAvailable()` in builds where the native module may be absent.
 
 ## Native setup
 

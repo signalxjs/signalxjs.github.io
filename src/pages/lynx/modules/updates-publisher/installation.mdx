@@ -1,0 +1,27 @@
+---
+title: "Installation"
+description: "OTA Publisher — CI bundle publisher"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-updates-publisher` as a build/CI dev dependency.</p>
+
+## Install the package
+
+```bash
+pnpm add -D @sigx/lynx-updates-publisher
+```
+
+It is a Node library used in your build/release scripts — there is no native module and no `sigx prebuild` step. If you already depend on `@sigx/lynx-cli`, `publishUpdate` is re-exported from there too.
+
+## Verify
+
+```ts
+import { publishUpdate } from '@sigx/lynx-updates-publisher';
+
+console.log(typeof publishUpdate); // 'function'
+```

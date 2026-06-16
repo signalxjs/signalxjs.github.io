@@ -266,7 +266,7 @@ const useAuthService = defineFactory((ctx) => {
 // Provide a fresh instance for a subtree (disposed when the provider unmounts)
 const AccountArea = component(({ slots }) => {
     defineProvide(useAuthService);
-    return () => <>{slots.default()}</>;
+    return () => <>{slots.default?.()}</>;
 });
 
 // Usage in components

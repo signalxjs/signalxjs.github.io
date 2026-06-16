@@ -116,7 +116,7 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots }) => {
     return () => (
         <div class="site">
             <header>My Site</header>
-            <main>{slots.default()}</main>
+            <main>{slots.default?.()}</main>
         </div>
     );
 });
@@ -192,7 +192,7 @@ Pages with `draft: true` frontmatter are visible in dev but excluded from produc
 
 ## Collections and navigation
 
-A collection groups pages under a path prefix and generates its own sidebar from their `category` / `order` frontmatter:
+A collection groups pages under a path prefix and generates its own sidebar from their `category` / `order` frontmatter. A page is assigned to a collection on a **path-segment boundary** — `/docs` claims `/docs` and `/docs/intro`, but never `/docs-internal` — and to the **most specific (longest-matching)** collection when several apply, so nested collection paths are fully supported. A page like `/modules/updates-ui/x` belongs to the `/modules/updates-ui` collection, not the shorter `/modules/updates` one.
 
 ```ts
 import { defineSSGConfig } from '@sigx/ssg';
@@ -239,6 +239,8 @@ import nav, { getSidebar, detectCollection } from 'virtual:ssg-navigation';
 const collection = detectCollection('/docs/intro');
 const sidebar = collection ? getSidebar(collection) : nav.navigation;
 ```
+
+`detectCollection` applies the same rule the build uses: it matches on a path-segment boundary and returns the longest-matching collection, so a path under a nested collection resolves to that nested collection rather than its parent.
 
 ## Client and island hydration
 

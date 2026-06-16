@@ -81,7 +81,7 @@ For absolutely-positioned overlays, compute the inner safe rectangle with `useSa
 
 ```tsx
 import { useSafeAreaFrame } from '@sigx/lynx-safe-area';
-import { DeviceInfo } from '@sigx/lynx-device-info';
+import { DeviceInfo } from '@sigx/lynx';
 
 const Overlay = async () => {
   const { screenWidth, screenHeight } = await DeviceInfo.getInfo();
@@ -100,7 +100,7 @@ const Overlay = async () => {
 };
 ```
 
-See [Device Info](/lynx/modules/device-info/overview) for obtaining the viewport size.
+See [`DeviceInfo`](/lynx/modules/core/api#deviceinfo) (part of `@sigx/lynx-core`, re-exported from `@sigx/lynx`) for obtaining the viewport size.
 
 ## Animating insets on the main thread
 

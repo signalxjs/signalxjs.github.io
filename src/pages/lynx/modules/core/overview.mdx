@@ -22,7 +22,12 @@ pnpm add @sigx/lynx-core
 
 ## About
 
-`@sigx/lynx-core` is a Lynx module — low-level NativeModules bridge. It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.
+`@sigx/lynx-core` is a Lynx module — the low-level NativeModules bridge. It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.
+
+It also ships two app-facing surfaces, both re-exported from `@sigx/lynx`:
+
+- **`Platform`** — synchronous platform checks (`Platform.OS`, `Platform.Version`, `pixelRatio` / `pixelWidth` / `pixelHeight`, best-effort `isPad`) and `Platform.select({ ios, android, web, native, default })`, sourced from the Lynx `SystemInfo` global. See the [platform-specific code guide](/lynx/docs/platform-specific-code).
+- **`DeviceInfo`** — `DeviceInfo.getInfo()` resolves a platform-discriminated snapshot of hardware, OS, screen and app metadata. Its native side is served by core's own `SigxCore` module — no separate package to install.
 
 ## Next steps
 

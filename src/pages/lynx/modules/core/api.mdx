@@ -23,11 +23,25 @@ import {
   guardModule,
   base64ToArrayBuffer,
   arrayBufferToBase64,
+  Platform,
+  OS,
+  select,
+  DeviceInfo,
 } from '@sigx/lynx-core';
-import type { PermissionStatus, PermissionResponse } from '@sigx/lynx-core';
+import type {
+  PermissionStatus,
+  PermissionResponse,
+  PlatformOS,
+  PlatformSelectSpec,
+  DeviceInfoResult,
+  IosDeviceInfo,
+  AndroidDeviceInfo,
+} from '@sigx/lynx-core';
 ```
 
-These helpers read from a global `NativeModules` object that the Lynx runtime injects — a `Record` whose properties are the registered native modules. It is not itself an export; it is the surface `getModule` and `isModuleAvailable` inspect.
+Everything here is also re-exported from the `@sigx/lynx` barrel, so app code can import `Platform`, `DeviceInfo` and friends straight from `@sigx/lynx`.
+
+The bridge helpers read from a global `NativeModules` object that the Lynx runtime injects — a `Record` whose properties are the registered native modules. It is not itself an export; it is the surface `getModule` and `isModuleAvailable` inspect.
 
 ## Functions
 
@@ -121,6 +135,100 @@ Encodes an `ArrayBuffer` or typed-array view to base64 for native transport. Hon
 - **Returns** — the base64-encoded string.
 - **Platform** — iOS and Android.
 
+## Platform
+
+Synchronous platform information and a `select()` helper, read once from the Lynx `SystemInfo` global at module load. Use it for runtime branching between iOS and Android (which share one native bundle) and for reading display metrics.
+
+### Platform
+
+```ts
+const Platform: {
+  /** `'ios' | 'android' | 'web'`. */
+  OS: PlatformOS;
+  /** OS version string, e.g. '17.4' / '14'. Empty when unknown. */
+  Version: string;
+  /** Best-effort iPad detection (iOS + logical min edge ≥ 600dp). */
+  isPad: boolean;
+  /** Device pixel ratio (physical px per dp). `1` when unknown. */
+  pixelRatio: number;
+  /** Physical screen width in px. `0` when unknown. */
+  pixelWidth: number;
+  /** Physical screen height in px. `0` when unknown. */
+  pixelHeight: number;
+  /** Lynx engine version string. Empty when unknown. */
+  engineVersion: string;
+  /** JS runtime, e.g. 'v8' | 'jsc' | 'quickjs'. Empty when unknown. */
+  runtimeType: string;
+  select: typeof select;
+};
+```
+
+Fields fall back to neutral defaults under tests, SSR, and non-Lynx hosts. On the web bundle, `OS` is `'web'`; on native it is `'ios'` or `'android'`, discriminated from `SystemInfo`.
+
+- **Platform** — iOS, Android and web.
+
+### Platform.select
+
+```ts
+export function select<T>(spec: PlatformSelectSpec<T> & { default: T }): T;
+export function select<T>(spec: PlatformSelectSpec<T>): T | undefined;
+```
+
+Picks a value for the current platform. Precedence: the exact OS key (`ios` / `android` / `web`) → `native` (matches `ios`/`android` only) → `default`. Presence-based, not truthiness — an explicit `undefined` for the matching key is honored. Providing `default` makes the return type non-optional `T`; omitting it makes it `T | undefined`.
+
+```ts
+const padding = Platform.select({ ios: 12, android: 8, default: 10 }); // number
+const transport = Platform.select({ web: webTransport, native: nativeTransport });
+```
+
+- **Platform** — iOS, Android and web.
+
+### OS
+
+```ts
+export const OS: PlatformOS; // 'ios' | 'android' | 'web'
+```
+
+The bare current-platform constant, also exposed as `Platform.OS`. Note that `Platform.OS === 'web'` is a *runtime* check and does not tree-shake — for build-time, tree-shakeable web↔native splitting, branch on the `__WEB__` / `__NATIVE__` defines (see the [platform-specific code guide](/lynx/docs/platform-specific-code)).
+
+- **Platform** — iOS, Android and web.
+
+## Device info
+
+Async, native-backed device metadata served by core's own `SigxCore` native module. Complements the synchronous `Platform` surface.
+
+### DeviceInfo
+
+```ts
+const DeviceInfo: {
+  getInfo(): Promise<DeviceInfoResult>;
+  isAvailable(): boolean;
+};
+```
+
+- **Platform** — iOS and Android.
+
+### DeviceInfo.getInfo
+
+Resolves a single snapshot of the device's hardware, OS, screen and app metadata as a platform-discriminated [`DeviceInfoResult`](#deviceinforesult). It calls the native `SigxCore` module's `getDeviceInfo` method. Values are a point-in-time snapshot and are not reactive — call it again to refresh.
+
+```ts
+getInfo(): Promise<DeviceInfoResult>
+```
+
+- **Returns** — a Promise resolving to a [`DeviceInfoResult`](#deviceinforesult). Switch on its `platform` field to read the per-platform extras type-safely.
+- **Platform** — iOS and Android.
+
+### DeviceInfo.isAvailable
+
+```ts
+isAvailable(): boolean
+```
+
+Returns whether the native `SigxCore` module is registered in the current build (delegates to `isModuleAvailable`). Use it to guard `getInfo()` where the module may not be linked.
+
+- **Platform** — iOS and Android.
+
 ## Types
 
 ### PermissionStatus
@@ -153,6 +261,73 @@ The shape returned by `requestPermission()` / `getPermissionStatus()` across per
 - **`status`** — the current `PermissionStatus`.
 - **`canAskAgain`** — `false` once the user picked "Don't ask again" on Android, or after the first denial on iOS.
 - **Platform** — iOS and Android.
+
+### PlatformOS
+
+```ts
+export type PlatformOS = 'ios' | 'android' | 'web'
+```
+
+The current platform string — the type of `Platform.OS` and `OS`. Type-only export.
+
+### PlatformSelectSpec
+
+```ts
+export interface PlatformSelectSpec<T> {
+  ios?: T;
+  android?: T;
+  web?: T;
+  /** Matches any native platform (ios/android), after the exact-OS key. */
+  native?: T;
+  /** Fallback when no platform key matches. */
+  default?: T;
+}
+```
+
+The spec object accepted by [`Platform.select`](#platformselect). Type-only export.
+
+### DeviceInfoResult
+
+The platform-discriminated shape resolved by [`DeviceInfo.getInfo`](#deviceinfogetinfo) — a guaranteed common core plus per-platform extras, discriminated by `platform`.
+
+```ts
+export type DeviceInfoResult = IosDeviceInfo | AndroidDeviceInfo;
+
+interface DeviceInfoCommon {
+  platform: 'ios' | 'android'; // discriminant
+  manufacturer: string;
+  model: string;               // Android: friendly name ('Pixel 9'); iOS: generic ('iPhone')
+  brand: string;
+  systemName: string;
+  systemVersion: string;
+  appVersion: string;
+  deviceId: string;            // iOS: stable per-vendor UUID; Android: Build.ID (a build id)
+  screenWidth: number;         // density-independent points (dp/pt) on BOTH platforms
+  screenHeight: number;        // density-independent points (dp/pt) on BOTH platforms
+  screenScale: number;         // dp→px multiplier (physical px ≈ screenWidth * screenScale)
+}
+
+export interface IosDeviceInfo extends DeviceInfoCommon {
+  platform: 'ios';
+  modelName: string;           // hardware identifier, e.g. 'iPhone16,2'
+  appBuildNumber: string;      // CFBundleVersion
+  bundleId: string;
+}
+
+export interface AndroidDeviceInfo extends DeviceInfoCommon {
+  platform: 'android';
+  sdkVersion: number;          // Build.VERSION.SDK_INT
+  appPackage: string;
+}
+```
+
+**Field semantics worth noting:**
+
+- `screenWidth` / `screenHeight` are density-independent points (dp/pt) on **both** platforms; `screenScale` is the dp→px multiplier, so physical pixels ≈ `screenWidth * screenScale`.
+- `model` is a friendly name on Android but generic (`'iPhone'`) on iOS — the iOS hardware identifier lives in the iOS-only `modelName`.
+- `deviceId` is a per-vendor stable UUID on iOS but `Build.ID` (a build id, not a stable device id) on Android.
+
+Type-only export. **Platform** — iOS and Android.
 
 ## See also
 

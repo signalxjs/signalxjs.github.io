@@ -111,7 +111,7 @@ const useStore = defineInjectable(() => ({ count: signal(0) }));
 
 const Provider = component(({ slots }) => {
   defineProvide(useStore); // new instance for descendants
-  return () => <>{slots.default()}</>;
+  return () => <>{slots.default?.()}</>;
 });
 
 const Consumer = component(() => {

@@ -58,9 +58,20 @@ visitor never pays for the mobile menu's JavaScript, and vice versa.
 
 ### client:only
 
-Renders **no** SSR HTML for the component and mounts it fresh on the client. Use
-for components that cannot render on the server — ones that read `window`,
+**Genuinely skips server rendering.** The component is **not** run on the server:
+its `setup`/render never execute, and the server emits an empty
+`<div data-island>` placeholder in its place — no server HTML for the component
+itself. The island still appears in `__SIGX_ISLANDS__` (so the client knows to
+mount it), but with **no captured signal `state`**, since nothing ran server-side.
+On the client it mounts **fresh**.
+
+Use it for components that cannot render on the server — ones that read `window`,
 `localStorage`, or other browser-only globals during setup.
+
+Contrast with `client:load`, which **does** render on the server (you get the SSR
+HTML immediately) and then hydrates that existing DOM, resuming from the captured
+signal state. Reach for `client:only` only when server rendering is impossible or
+unwanted; otherwise a server-rendered strategy gives a faster first paint.
 
 ## The strategy type
 

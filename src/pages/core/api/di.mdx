@@ -80,7 +80,7 @@ const Button = component(({ slots }) => {
 
     return () => (
         <button style={{ background: theme?.primary }}>
-            {slots.default()}
+            {slots.default?.()}
         </button>
     );
 });
@@ -373,7 +373,7 @@ const ThemeProvider = component(({ slots }) => {
     
     return () => (
         <div class={`theme-${theme.mode}`}>
-            {slots.default()}
+            {slots.default?.()}
         </div>
     );
 });

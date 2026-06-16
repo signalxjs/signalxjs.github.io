@@ -1,0 +1,111 @@
+---
+title: Directives
+description: Element-level use:* directives — lifecycle hooks on a native view, plus the built-in show
+layout: docs
+category: Core Concepts
+order: 90
+---
+
+# Directives
+
+<p class="lede">Attach reusable lifecycle behavior to a single element with the <code>use:*</code> prop syntax — including the built-in <code>show</code>, which toggles visibility while keeping the element mounted.</p>
+
+A directive is a small object of lifecycle hooks that runs against the native element it's attached to. SignalX's runtime-core directive system is wired into the Lynx renderer, so directives work on the background-thread `ShadowElement` — no DOM required.
+
+## The `use:*` syntax
+
+Attach a directive with a `use:<name>` prop:
+
+```tsx
+import { signal } from '@sigx/lynx';
+
+const isOpen = signal(true);
+
+// Shorthand — `name` resolves a registered directive (built-in, then app):
+<view use:show={isOpen.value}>Content</view>;
+```
+
+There are two ways to give a directive its definition and value:
+
+```tsx
+import { show } from '@sigx/lynx';
+
+// Shorthand: use:name={value} — resolves `name` from the registry.
+<view use:show={isOpen.value} />;
+
+// Explicit tuple: use:name={[definition, value]} — pass the definition directly.
+<view use:show={[show, isOpen.value]} />;
+```
+
+The shorthand resolves `name` first from the built-in registry (where `show` lives), then from per-app `app.directive()` registrations. The explicit tuple skips resolution by passing the definition itself — handy for custom directives you import locally.
+
+## Lifecycle hooks
+
+A directive definition has four optional hooks, all receiving the host element and a binding `{ value, oldValue }`:
+
+| Hook | When |
+|---|---|
+| `created` | After the element is created, on the directive's first sight. |
+| `mounted` | After the element is inserted into the tree. |
+| `updated` | When the bound value changes (`oldValue` is the previous value). |
+| `unmounted` | Before the element is removed — or when the `use:*` prop is removed from a still-mounted element. |
+
+## Defining a directive
+
+Use `defineDirective` (re-exported from `@sigx/lynx`). The `LynxDirective<T>` helper types the definition against Lynx's `ShadowElement` host:
+
+```tsx
+import { defineDirective, type LynxDirective } from '@sigx/lynx';
+
+const autofocus: LynxDirective<boolean> = defineDirective({
+  mounted(el, { value }) {
+    if (value) {
+      // focus the element…
+    }
+  },
+});
+```
+
+To type the `use:autofocus` attribute on a `use:*` prop, the `DirectiveAttribute<T>` helper describes one directive attribute in a line.
+
+## Registering directives
+
+A directive must be resolvable for the shorthand `use:name={value}` form to work. Two options:
+
+- **Globally** — `registerBuiltInDirective(name, def)` makes a directive available app-wide. This is the seam for directive packs.
+
+  ```tsx
+  import { registerBuiltInDirective } from '@sigx/lynx';
+  registerBuiltInDirective('autofocus', autofocus);
+  ```
+
+- **Per app** — `app.directive(name, def)` registers on a single app context. Preferred when an app context exists.
+
+  ```tsx
+  app.directive('autofocus', autofocus);
+  ```
+
+You can always skip registration by using the explicit tuple form `use:name={[def, value]}` with an imported definition.
+
+## The `show` directive
+
+`show` ships built in and is registered with the platform automatically, so `use:show` works out of the box.
+
+```tsx
+import { signal } from '@sigx/lynx';
+
+const isOpen = signal(false);
+
+<view use:show={isOpen.value}>Content that stays mounted</view>;
+```
+
+`use:show` toggles the element's visibility via `display` while keeping it **mounted** — a single style op instead of an unmount/remount. Because the element stays alive, it preserves native state: input focus and value, scroll position, and any expensive subtree.
+
+**Tradeoff:** a hidden subtree stays mounted as live native views, so it still costs memory. Prefer conditional rendering (`{cond && <view/>}`, which unmounts/remounts) for large branches that are rarely shown; reach for `use:show` when toggling is frequent or you want to keep element state.
+
+`show` here is a **Lynx-native** implementation — it toggles a Lynx style op directly, distinct from the runtime-dom `show` on the web. It is mobile-only; there is no SSR for it.
+
+## See also
+
+- [Native elements](/lynx/docs/elements) — the built-in `view` / `text` / `image` set directives attach to.
+- [Styling & layout](/lynx/docs/styling) — the style model `show` toggles.

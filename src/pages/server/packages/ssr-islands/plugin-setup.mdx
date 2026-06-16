@@ -43,6 +43,11 @@ During render, the plugin:
 
 During hydration, it intercepts those same components in the DOM walk and schedules
 each according to its strategy (`load` / `idle` / `visible` / `media` / `only`).
+When an island hydrates it **resumes from the server-captured signal state** in
+`__SIGX_ISLANDS__[id].state` instead of re-initialising — each signal is seeded
+back to its server value. Named signals key by their name; unnamed signals fall
+back to a positional `$index` key (declaration order). A `client:only` island has
+no captured `state`, so it simply mounts fresh.
 
 ## Options
 
