@@ -297,6 +297,8 @@ const RAW_MODULES: SigxModule[] = [
       hue: 268, glyph: '⇩', status: 'beta', version: '0.8.0',
       tag: 'Prebuilt OTA update UI',
       blurb: 'Drop-in update gate, prompt modal, download progress and restart banner over @sigx/lynx-updates.' },
+
+    // ---- New in 0.8.0 ----
     { id: 'updates-publisher', parent: 'lynx', npm: '@sigx/lynx-updates-publisher', name: 'OTA Publisher', category: 'devtools',
       hue: 128, glyph: '⇧', status: 'beta', version: '0.8.0',
       tag: 'CI bundle publisher',
