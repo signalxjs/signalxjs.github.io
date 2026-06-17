@@ -15,7 +15,7 @@ import { useRoute } from '@sigx/router';
 import { detectCollection } from 'virtual:ssg-navigation';
 import { byId, moduleForCollection, packageForCollection } from '@/lib/family';
 import { moduleRoutePrefix } from '@/lib/modules';
-import { apiHref, docsHref, examplesHref } from '@/lib/packageLinks';
+import { apiHref, docsHref } from '@/lib/packageLinks';
 import { FamilyMenu } from '@/components/FamilyMenu';
 import { Icon } from '@/components/ui/Icon';
 import { Kbd } from '@/components/ui/Kbd';
@@ -50,10 +50,6 @@ export const Navbar = component<NavbarProps>(({ props, signal, emit }) => {
         // no link: jumping to another package's API would just mislead.
         const mod = moduleForCollection(detectCollection(route.path));
         const api = apiHref(pkg.id) ?? (mod ? `${moduleRoutePrefix(mod)}/api` : undefined);
-        // Examples follow the package too: its own examples collection when one
-        // exists, else the global page (core's) — and nothing for other packages,
-        // so we never send a lynx/daisyui visitor to core-flavoured examples.
-        const examples = examplesHref(pkg.id) ?? (pkg.id === 'core' ? '/examples' : undefined);
         return (
             <header class="topbar">
                 <div class="topbar-left">
@@ -103,15 +99,6 @@ export const Navbar = component<NavbarProps>(({ props, signal, emit }) => {
                             active={/^\/[^/]+\/api(\/|$)|\/(modules|packages)\/[^/]+\/api(\/|$)/.test(route.path)}
                         >
                             API
-                        </SxLink>
-                    )}
-                    {examples && (
-                        <SxLink
-                            to={examples}
-                            class="nav-link"
-                            active={/^\/examples\/?$|^\/[^/]+\/examples(\/|$)/.test(route.path)}
-                        >
-                            Examples
                         </SxLink>
                     )}
                 </nav>
