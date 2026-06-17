@@ -28,6 +28,10 @@ export function hasApi(pkgId: string): boolean {
     return !!navigation[`${pkgId}-api`];
 }
 
+export function hasExamples(pkgId: string): boolean {
+    return !!navigation[`${pkgId}-examples`];
+}
+
 /** First docs page of a package, or undefined if it has no docs collection yet. */
 export function docsHref(pkgId: string): string | undefined {
     const nav = navigation[`${pkgId}-docs`];
@@ -42,6 +46,17 @@ export function docsHref(pkgId: string): string | undefined {
 /** API reference index of a package, or undefined if it has no API collection yet. */
 export function apiHref(pkgId: string): string | undefined {
     return hasApi(pkgId) ? `/${pkgId}/api` : undefined;
+}
+
+/** First examples page of a package, or undefined if it has no examples collection yet. */
+export function examplesHref(pkgId: string): string | undefined {
+    const nav = navigation[`${pkgId}-examples`];
+    if (!nav) return undefined;
+    for (const section of (nav.sidebar ?? []) as NavSection[]) {
+        const href = firstLeaf(section.items);
+        if (href) return href;
+    }
+    return undefined;
 }
 
 // ---- Sub-package / module links (lib/modules.ts collections) ----
