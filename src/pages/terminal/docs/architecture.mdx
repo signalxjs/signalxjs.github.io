@@ -28,7 +28,7 @@ order: 15
 ├── @sigx/terminal-ui      themed components (obsidian + 4 themes)
 │     └── @sigx/terminal-zero    tokens · theme engine · layout · prompts engine
 │             └── @sigx/runtime-terminal   the cell renderer + key dispatch
-└── @sigx/runtime-core / @sigx/reactivity  (peers — your reactive model)
+└── @sigx/runtime-core / @sigx/reactivity  (the reactive engine, bundled in)
 ```
 
 The renderer sits at the bottom; `terminal-zero` adds a semantic token layer over it; `terminal-ui` paints concrete components against those tokens. Because the colours your components ask for are **tokens** (`accent`, `fg`, `line`, …) resolved at render time, switching the active theme repaints the whole app — see [Theming](/terminal/docs/theming).
@@ -44,12 +44,12 @@ import { component, signal, defineApp, Input, Button } from '@sigx/terminal';
 
 The split only matters when you want a piece in isolation — for example building a custom design system on `@sigx/terminal-zero`, or using `@sigx/args` in a CLI with no terminal UI.
 
-## Peer dependencies
+## The reactive engine
 
-The SignalX core packages — `@sigx/reactivity` and `@sigx/runtime-core` (`0.6.x`) — are **peer dependencies** of every terminal package. Your app installs them once and all `@sigx/*` packages share that single copy, so signals and effects always run on one reactivity engine. npm 7+ and pnpm with `auto-install-peers` resolve them automatically; listing them explicitly works everywhere.
+The SignalX core packages — `@sigx/reactivity` and `@sigx/runtime-core` — are **bundled into the umbrella**, just as `sigx` does on the web and `@sigx/lynx` does on native. Installing `@sigx/terminal` brings exactly one copy of core, so signals and effects across every `@sigx/*` package run on one shared reactivity engine. There is nothing extra to install:
 
 ```bash
-npm install @sigx/terminal @sigx/reactivity @sigx/runtime-core
+npm install @sigx/terminal
 ```
 
 See [Installation](/terminal/docs/installation) for the full setup.

@@ -11,12 +11,10 @@ order: 20
 ## Install the package
 
 ```bash
-npm install @sigx/terminal @sigx/reactivity @sigx/runtime-core
+npm install @sigx/terminal
 ```
 
-`@sigx/terminal` is an umbrella package. Its own dependencies — the renderer (`@sigx/runtime-terminal`), the headless foundation (`@sigx/terminal-zero`) and the themed components (`@sigx/terminal-ui`) — install automatically, so you import `signal`, `component`, `defineApp`, the terminal intrinsics and every built-in component all from `@sigx/terminal`.
-
-The SignalX core packages — `@sigx/reactivity` and `@sigx/runtime-core` (`0.6.x`) — are **peer dependencies**. Install them alongside the umbrella so every `@sigx/*` package shares one reactivity engine; otherwise a mismatched core copy would give you two engines whose signals and effects can't see each other. npm 7+ and pnpm with `auto-install-peers` add them automatically, but listing them explicitly works everywhere.
+`@sigx/terminal` is the terminal umbrella — the sibling of `sigx` (web) and `@sigx/lynx` (native). Installing it brings the whole TUI stack: the reactive engine (`@sigx/reactivity`, `@sigx/runtime-core`), the renderer (`@sigx/runtime-terminal`), the headless foundation (`@sigx/terminal-zero`) and the themed components (`@sigx/terminal-ui`). You import `signal`, `component`, `defineApp`, the terminal intrinsics and every built-in component all from `@sigx/terminal` — there is nothing else to add.
 
 The package is ESM-only (`"type": "module"`) and runs under Node. It is a library, not a CLI — there is no `bin` entry; you build your own TUI/CLI app on top of it.
 
