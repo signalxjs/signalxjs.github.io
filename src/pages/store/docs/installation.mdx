@@ -25,13 +25,7 @@ The package is ESM-only and ships two entry points:
 
 `@sigx/store` builds on the reactive core but never bundles its own copy — it always uses the *same* core your components do. This matters because core keeps process-wide singletons: the topic registry, the DI app-context token, `instanceof` identity. A second, separate copy would silently split that shared state.
 
-You don't install core separately, though. The `sigx` umbrella already bundles `@sigx/reactivity` and `@sigx/runtime-core`, so with `sigx` in your app, installing the store next to it is all you need:
-
-```bash
-npm install sigx @sigx/store
-```
-
-`sigx` provides `component`, `render`, `signal`, and `computed`; `@sigx/store` adds `defineStore` on top.
+You don't install core separately, though. The `sigx` umbrella your app already runs on bundles `@sigx/reactivity` and `@sigx/runtime-core`, so `npm install @sigx/store` above is all you add — `sigx` provides `component`, `render`, `signal`, and `computed`, and `@sigx/store` adds `defineStore` on top. (Starting from scratch? Install `sigx` first — see [Project setup](#project-setup) below.)
 
 ## Project setup
 
