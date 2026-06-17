@@ -23,10 +23,10 @@ The package is an umbrella: it re-exports the terminal renderer, the headless `@
 ## Install
 
 ```bash
-npm install @sigx/terminal @sigx/reactivity @sigx/runtime-core
+npm install @sigx/terminal
 ```
 
-`@sigx/reactivity` and `@sigx/runtime-core` are **peer dependencies** — installing them alongside the umbrella keeps every `@sigx/*` package on one shared reactivity engine. See [Installation](/terminal/docs/installation) for peer dependencies and the required TSX/Vite wiring.
+The umbrella brings the reactive engine (`@sigx/reactivity`, `@sigx/runtime-core`) and the whole TUI stack with it — there is nothing else to add. See [Installation](/terminal/docs/installation) for the required TSX/Vite wiring.
 
 ## A minimal app
 

@@ -23,24 +23,9 @@ The package is ESM-only and ships two entry points:
 
 ## Dependencies
 
-`@sigx/store` declares the reactive core as **peer dependencies**, so the app provides them — the store always uses the *same* copy of core that your components do:
+`@sigx/store` builds on the reactive core but never bundles its own copy — it always uses the *same* core your components do. This matters because core keeps process-wide singletons: the topic registry, the DI app-context token, `instanceof` identity. A second, separate copy would silently split that shared state.
 
-- `@sigx/runtime-core` (`>=0.5.0 <0.7.0`) — factory/DI runtime (real lifetimes) and topic/subscription primitives.
-- `@sigx/reactivity` (`>=0.5.0 <0.7.0`) — the signal core the state is built on.
-
-This matters because core keeps process-wide singletons — the topic registry, the DI app-context token, `instanceof` identity. A second, separate copy of core next to the app's would silently split that shared state. Declaring them as peers guarantees one copy: whatever the app installs.
-
-You almost certainly already have them: the `sigx` component package depends on the core, so `npm install sigx` brings `@sigx/reactivity` and `@sigx/runtime-core` along. With a package manager that auto-installs peers (npm 7+, pnpm 8+) installing `@sigx/store` next to `sigx` is enough. Otherwise add them explicitly:
-
-```bash
-npm install @sigx/store @sigx/runtime-core @sigx/reactivity
-```
-
-You use the store alongside `sigx`, which provides `component`, `render`, `signal`, and `computed`:
-
-```bash
-npm install sigx
-```
+You don't install core separately, though. The `sigx` umbrella your app already runs on bundles `@sigx/reactivity` and `@sigx/runtime-core`, so `npm install @sigx/store` above is all you add — `sigx` provides `component`, `render`, `signal`, and `computed`, and `@sigx/store` adds `defineStore` on top. (Starting from scratch? Install `sigx` first — see [Project setup](#project-setup) below.)
 
 ## Project setup
 

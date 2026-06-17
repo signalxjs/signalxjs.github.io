@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: "Install @sigx/devtools, satisfy its peer dependencies, and wire the plugin into your app"
+description: "Install @sigx/devtools and wire the plugin into your app"
 layout: docs
 category: Getting Started
 order: 20
@@ -24,20 +24,18 @@ version reported in the `hello` event is `0.0.3`.
 
 Node `^20.19.0 || >=22.12.0`.
 
-## Peer dependencies
+## Reactive core
 
-Both of these are required — they provide the global devtools hook the plugin attaches
-to:
-
-```bash
-pnpm add @sigx/reactivity@^0.5.0 @sigx/runtime-core@^0.5.0
-```
+The plugin attaches to the global devtools hook on `@sigx/reactivity` and reads the
+component/inspection events from `@sigx/runtime-core` — but you don't install those
+separately. They come bundled in the SignalX umbrella your app already runs on
+(`sigx` on the web, `@sigx/lynx` on native, `@sigx/terminal` in the terminal), so
+adding `@sigx/devtools` is enough.
 
 `@sigx/reactivity` supplies the shared reactivity hook (the plugin calls
 `ensureDevtoolsHook()` to attach), and `@sigx/runtime-core` emits the component
 lifecycle events and hosts the inspection registry (`@sigx/runtime-core/inspect`)
-that store discovery is built on. If you already build SignalX apps you almost
-certainly have both.
+that store discovery is built on.
 
 ## No build configuration required
 
