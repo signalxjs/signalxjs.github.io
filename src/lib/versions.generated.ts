@@ -57,6 +57,7 @@ export const VERSIONS: Record<string, string> = {
     "@sigx/lynx-updates-publisher": "0.8.0",
     "@sigx/lynx-updates-ui": "0.8.0",
     "@sigx/lynx-video": "0.8.0",
+    "@sigx/lynx-webauth": "0.9.1",
     "@sigx/lynx-webrtc": "0.8.0",
     "@sigx/lynx-websocket": "0.8.0",
     "@sigx/lynx-webview": "0.8.0",
