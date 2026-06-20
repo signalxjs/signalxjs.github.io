@@ -304,7 +304,7 @@ const RAW_MODULES: SigxModule[] = [
       tag: 'CI bundle publisher',
       blurb: 'Dependency-light publishUpdate() that packages a built bundle into the static-manifest OTA layout — the programmatic core of `sigx updates:publish` for CI pipelines.' },
 
-    // ---- New in 0.9.0 ----
+    // ---- New in 0.9.1 ----
     { id: 'webauth', parent: 'lynx', npm: '@sigx/lynx-webauth', name: 'Web Auth', category: 'native',
       hue: 270, glyph: '⊕', status: 'stable', version: '0.9.1',
       tag: 'System web-auth session for OAuth',
