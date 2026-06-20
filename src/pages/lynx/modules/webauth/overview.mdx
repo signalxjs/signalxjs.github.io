@@ -27,7 +27,7 @@ sigx prebuild   # auto-links the native module
 
 The call **always resolves**: a user backing out is `{ canceled: true }` and a failure is `{ error }`, never a thrown promise. An opt-in [`@sigx/lynx-webauth/oauth`](/lynx/modules/webauth/api#oauth-helpers) helper covers the frozen parts of the PKCE authorization-code flow (PKCE per RFC 7636, `state`, callback parsing); token exchange stays in your app.
 
-It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.
+It is part of the Lynx module family, designed to drop in alongside the other native modules.
 
 ## Next steps
 
