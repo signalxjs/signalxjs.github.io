@@ -1,0 +1,121 @@
+---
+title: "Usage"
+description: "Web Auth — System web-auth session for OAuth"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Web Auth
+
+<p class="lede">Open a system web-auth sheet for an OAuth / OpenID-Connect flow and read the callback URL inline — no global deep-link listener, no polling.</p>
+
+## Basic usage
+
+`openAuthSession(authorizeUrl, callbackScheme, options?)` presents the OS web-auth UI over your app, waits for the provider to redirect to `callbackScheme://…`, then dismisses itself and resolves with the callback URL. The `callbackScheme` is the bare scheme you registered in `signalx.config.ts` (see [Installation](/lynx/modules/webauth/installation#register-your-callback-scheme)).
+
+The call **always resolves** to a three-way result, so the common "user backed out" case needs no `try/catch`:
+
+```tsx
+import { openAuthSession } from '@sigx/lynx-webauth';
+
+const result = await openAuthSession(
+  'https://provider.com/authorize?response_type=code&client_id=…&redirect_uri=myapp://cb',
+  'myapp',
+);
+
+if (result.url) {
+  // Provider redirected back — parse the callback URL.
+  const code = new URL(result.url).searchParams.get('code');
+  // exchange `code` for tokens via your backend
+} else if (result.canceled) {
+  // user dismissed the sheet
+} else {
+  console.error(result.error); // the session could not start or failed
+}
+```
+
+The result is discriminated by which field is present — `{ url }`, `{ canceled: true }`, or `{ error }` — so a truthy `result.url` is the signal that the provider redirected back.
+
+## PKCE authorization-code recipe
+
+For the standard PKCE authorization-code flow, the opt-in `@sigx/lynx-webauth/oauth` subpath covers the frozen parts of the spec — PKCE generation (RFC 7636, `S256`), a random `state`, and callback parsing. Token exchange is provider-specific and stays in your app. The helpers are pure JS and tree-shake away when unused.
+
+```tsx
+import { openAuthSession } from '@sigx/lynx-webauth';
+import { generatePKCE, generateState, parseCallback } from '@sigx/lynx-webauth/oauth';
+
+async function signIn() {
+  const { verifier, challenge, method } = await generatePKCE(); // method: 'S256'
+  const state = generateState();
+
+  const authorizeUrl =
+    `https://provider.com/authorize?response_type=code&client_id=…` +
+    `&redirect_uri=myapp://cb&scope=openid%20profile&state=${state}` +
+    `&code_challenge=${challenge}&code_challenge_method=${method}`;
+
+  const result = await openAuthSession(authorizeUrl, 'myapp');
+  if (!result.url) return; // canceled or error — nothing to exchange
+
+  const { code, state: returned, error } = parseCallback(result.url);
+  if (error) throw new Error(error);
+  if (returned !== state) throw new Error('state mismatch'); // CSRF / mix-up guard
+  if (!code) throw new Error('no authorization code in callback');
+
+  // POST { code, code_verifier: verifier } to YOUR token endpoint, then store
+  // the tokens — e.g. with @sigx/lynx-secure-storage.
+  return { code, verifier };
+}
+```
+
+`parseCallback` merges params from both the `?query` and the `#fragment`, so implicit / token-in-fragment responses are covered too. Keep the `verifier` until token exchange and send it as `code_verifier`; never put it in the authorize URL.
+
+## Customising the sheet
+
+`options` tailors the per-platform UI; each flag is ignored on the platform it doesn't apply to:
+
+```tsx
+await openAuthSession(authorizeUrl, 'myapp', {
+  ephemeral: true,                               // iOS: fresh login, no SSO cookies
+  toolbarColor: '#0088ff',                       // Android: Custom Tabs toolbar color
+  preferredBrowserPackage: 'com.android.chrome', // Android: pin a browser
+});
+```
+
+- **`ephemeral`** (iOS) — don't share or persist the system browser's cookies, so the user always sees a fresh login. Use it for "add another account" flows.
+- **`toolbarColor`** / **`preferredBrowserPackage`** (Android) — theme the Custom Tabs toolbar, or pin a specific Custom Tabs provider instead of the user's default browser.
+
+## Cancelling an in-flight session
+
+Pass an `AbortSignal` to tear down a session you no longer need (e.g. the user navigated away). Aborting resolves the promise with `{ canceled: true }`:
+
+```tsx
+const controller = new AbortController();
+const pending = openAuthSession(authorizeUrl, 'myapp', { signal: controller.signal });
+
+// later…
+controller.abort(); // resolves `pending` as { canceled: true }
+```
+
+If the signal is already aborted, the call resolves immediately without opening a browser.
+
+**Android limitation.** Chrome Custom Tabs can't be force-dismissed programmatically, so on Android `abort()` settles the promise as `{ canceled: true }` right away while the system tab stays up — it returns to the foreground on its own when the user dismisses it. On iOS, abort dismisses the `ASWebAuthenticationSession` sheet directly.
+
+## Guarding for availability
+
+`isWebAuthAvailable()` is a synchronous check of whether the native module is wired into the current build — use it to fail gracefully where the module was not linked:
+
+```tsx
+import { isWebAuthAvailable } from '@sigx/lynx-webauth';
+
+if (isWebAuthAvailable()) {
+  const result = await openAuthSession(authorizeUrl, 'myapp');
+  // …
+}
+```
+
+## See also
+
+- [API reference](/lynx/modules/webauth/api) — every export, option, and result shape with its full signature.
+- [Linking](/lynx/modules/linking/overview) — the URL-scheme pipeline the callback rides in on.
+- [Secure Storage](/lynx/modules/secure-storage/overview) — encrypted at-rest storage for the tokens you exchange the code for.

@@ -304,6 +304,12 @@ const RAW_MODULES: SigxModule[] = [
       tag: 'CI bundle publisher',
       blurb: 'Dependency-light publishUpdate() that packages a built bundle into the static-manifest OTA layout — the programmatic core of `sigx updates:publish` for CI pipelines.' },
 
+    // ---- New in 0.9.0 ----
+    { id: 'webauth', parent: 'lynx', npm: '@sigx/lynx-webauth', name: 'Web Auth', category: 'native',
+      hue: 270, glyph: '⊕', status: 'stable', version: '0.9.1',
+      tag: 'System web-auth session for OAuth',
+      blurb: 'System web-auth session for OAuth — openAuthSession drives ASWebAuthenticationSession (iOS) and Chrome Custom Tabs (Android), returning the callback URL inline, with an opt-in PKCE helper.' },
+
     // ============ Core repo sub-packages ============
     // core is a collection meta-package, like lynx — the "web platform"
     // is just runtime-dom + the sigx umbrella living in here.
