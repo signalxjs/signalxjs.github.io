@@ -1,0 +1,49 @@
+---
+title: "Installation"
+description: "Web Auth — System web-auth session for OAuth"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-webauth` to your project and register your callback scheme.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-webauth
+```
+
+## Native setup
+
+Native modules are autolinked by `@sigx/lynx-cli` — run a prebuild after installing. On Android this also adds the `androidx.browser` (Custom Tabs) dependency:
+
+```bash
+sigx prebuild
+```
+
+## Register your callback scheme
+
+The `callbackScheme` you pass to `openAuthSession` is your app's registered custom scheme — the **same one Lynx already wires for [`Linking`](/lynx/modules/linking/overview)**. Declare it once in `signalx.config.ts` and run `sigx prebuild`; the CLI registers it on both platforms (iOS `CFBundleURLSchemes`, an Android `<intent-filter>`):
+
+```ts
+// signalx.config.ts
+import { defineLynxConfig } from '@sigx/lynx';
+
+export default defineLynxConfig({
+  name: 'My App',
+  scheme: 'myapp', // registers myapp:// — used as the OAuth redirect target
+});
+```
+
+Point your provider's `redirect_uri` at `myapp://…` (any path), and pass the bare scheme — `'myapp'` — as the second argument to `openAuthSession`.
+
+## Verify
+
+```tsx
+import { isWebAuthAvailable } from '@sigx/lynx-webauth';
+
+console.log(isWebAuthAvailable()); // true once the native module is linked
+```

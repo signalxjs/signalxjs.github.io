@@ -322,7 +322,7 @@ Prefetches internal links on hover (default delay 100 ms), skipping external and
 ```ts
 function installSpaNavigation(
     router: { push(path: string): unknown },
-    options?: { base?: string },
+    options?: { base?: string; trailingSlash?: TrailingSlash },
 ): () => void
 ```
 
@@ -330,6 +330,7 @@ Routes same-origin internal anchor clicks (including plain markdown links) throu
 
 - **router** — anything with a `push(path)` method.
 - **options.base** — the site base path on subpath deploys (stripped before push).
+- **options.trailingSlash** — `'always'` (the default) pushes the canonical trailing-slash URL for folder routes so SPA navigation matches the hard-load form; paths with a file extension (e.g. `/sitemap.xml`) are pushed verbatim. `'never'` strips the slash instead. Set it from the same config value as the build.
 
 ### isStaticPage
 

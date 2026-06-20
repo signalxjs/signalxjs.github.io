@@ -114,7 +114,7 @@ prefetch('/blog/hello-world');
 
 ## SPA navigation
 
-`installSpaNavigation(router, { base })` routes same-origin internal anchor clicks — including the plain `<a>` elements MDX content links compile to — through the router instead of full page reloads. The browser keeps handling modified clicks, external/`mailto:`/`tel:` links, `target`/`download` anchors, same-document `#hash` scrolls, `data-no-spa` opt-outs, and anything that already called `preventDefault()`. Pass the deploy `base` on subpath deploys (it is stripped before the push). Returns an uninstall function.
+`installSpaNavigation(router, { base, trailingSlash })` routes same-origin internal anchor clicks — including the plain `<a>` elements MDX content links compile to — through the router instead of full page reloads. The browser keeps handling modified clicks, external/`mailto:`/`tel:` links, `target`/`download` anchors, same-document `#hash` scrolls, `data-no-spa` opt-outs, and anything that already called `preventDefault()`. Pass the deploy `base` on subpath deploys (it is stripped before the push). `trailingSlash` (default `'always'`) makes pushed URLs match the canonical hard-load form — folder routes gain the trailing slash, while paths with a file extension like `/sitemap.xml` are pushed verbatim. Returns an uninstall function.
 
 It is wired automatically in the generated client entry; opt out globally with `spaNavigation: false` (see [Configuration → SPA navigation](/ssg/docs/configuration#spa-navigation)).
 

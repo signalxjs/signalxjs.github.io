@@ -1,0 +1,34 @@
+---
+title: "Overview"
+description: "Web Auth — System web-auth session for OAuth"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Web Auth
+
+<p class="lede">A system web-auth session for OAuth and OpenID-Connect sign-in — `openAuthSession` presents a secure browser sheet over your app and hands the provider's callback URL straight back to the awaited call.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/lynx-webauth" /> <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/lynx-webauth
+sigx prebuild   # auto-links the native module
+```
+
+## About
+
+`@sigx/lynx-webauth` is the right primitive for OAuth / OIDC sign-in and account-connect flows. It presents the OS web-auth UI — `ASWebAuthenticationSession` on iOS, Chrome Custom Tabs on Android — *over* your app rather than an embedded WebView, so identity providers like Google and Microsoft accept it. The sheet shares the system browser's cookies (the user is often already signed in), and when the provider redirects to your app's scheme the session dismisses itself and returns the callback URL inline — no global deep-link listener, no foreground polling.
+
+The call **always resolves**: a user backing out is `{ canceled: true }` and a failure is `{ error }`, never a thrown promise. An opt-in [`@sigx/lynx-webauth/oauth`](/lynx/modules/webauth/api#oauth-helpers) helper covers the frozen parts of the PKCE authorization-code flow (PKCE per RFC 7636, `state`, callback parsing); token exchange stays in your app.
+
+It is part of the Lynx module family, designed to drop in alongside the other native modules.
+
+## Next steps
+
+Continue with [Installation](/lynx/modules/webauth/installation) for project setup, head to the [Usage guide](/lynx/modules/webauth/usage) for the PKCE recipe, or jump to the [API reference](/lynx/modules/webauth/api).

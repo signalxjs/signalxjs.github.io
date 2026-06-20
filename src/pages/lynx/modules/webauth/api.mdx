@@ -1,0 +1,162 @@
+---
+title: "API reference"
+description: "Web Auth — System web-auth session for OAuth"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-webauth` <PkgVersion npm="@sigx/lynx-webauth" />.</p>
+
+The package root exports the `openAuthSession` primitive, an `isWebAuthAvailable` guard, and two types. The opt-in PKCE helpers live under the `@sigx/lynx-webauth/oauth` subpath so the core primitive stays unopinionated and they tree-shake away when unused.
+
+```tsx
+import { openAuthSession, isWebAuthAvailable } from '@sigx/lynx-webauth';
+import type { OpenAuthSessionOptions, OpenAuthSessionResult } from '@sigx/lynx-webauth';
+```
+
+## openAuthSession
+
+```ts
+function openAuthSession(
+  authorizeUrl: string,
+  callbackScheme: string,
+  options?: OpenAuthSessionOptions,
+): Promise<OpenAuthSessionResult>
+```
+
+Open a system web-auth session — `ASWebAuthenticationSession` on iOS, Chrome Custom Tabs on Android — for an OAuth / OpenID-Connect flow. Presents the sheet over the app, waits for the provider to redirect to `callbackScheme://…`, then dismisses itself and resolves with the callback URL. **Always resolves** — cancellation and failures are normal resolved values, never a rejected promise.
+
+- **`authorizeUrl`** — the provider's authorization URL (with `client_id`, `redirect_uri`, `scope`, `state`, PKCE params, …).
+- **`callbackScheme`** — the app's registered custom scheme, the same one Lynx wires for `Linking` (set via `signalx.config.ts`'s `scheme`). A bare scheme like `"myapp"`; a trailing `://` or `:` is tolerated.
+- **`options`** — optional [`OpenAuthSessionOptions`](#openauthsessionoptions).
+- **Returns** — `Promise<`[`OpenAuthSessionResult`](#openauthsessionresult)`>`, a three-way union discriminated by which field is present.
+- **Platform** — both.
+
+## isWebAuthAvailable
+
+```ts
+function isWebAuthAvailable(): boolean
+```
+
+Synchronous (non-Promise) check of whether the native WebAuth module is wired into the current build. Returns `true` once linked.
+
+- **Returns** — `boolean`.
+- **Platform** — both.
+
+## Types
+
+### OpenAuthSessionOptions
+
+```ts
+interface OpenAuthSessionOptions {
+  ephemeral?: boolean;
+  toolbarColor?: string;
+  preferredBrowserPackage?: string;
+  signal?: AbortSignal;
+}
+```
+
+| Option | Platform | Description |
+| --- | --- | --- |
+| `ephemeral` | iOS | Maps to `prefersEphemeralWebBrowserSession` — when `true` the sheet does not share or persist the system browser's cookies, so the user always sees a fresh login (no SSO). Ignored on Android. Defaults to `false`. |
+| `toolbarColor` | Android | Chrome Custom Tabs toolbar color as `#RRGGBB`. Ignored on iOS, where the OS controls the sheet chrome. |
+| `preferredBrowserPackage` | Android | Pin a specific Custom Tabs provider by package name (e.g. `"com.android.chrome"`) instead of the user's default browser. Ignored on iOS. |
+| `signal` | both | Abort the in-flight session. Aborting dismisses the iOS sheet (and tears down the pending Android session) and resolves with `{ canceled: true }`. If already aborted, the call resolves immediately without opening a browser. |
+
+### OpenAuthSessionResult
+
+```ts
+type OpenAuthSessionResult =
+  | { url: string }        // provider redirected back to callbackScheme://…
+  | { canceled: true }     // user dismissed the sheet, or aborted via options.signal
+  | { error: string };     // the session could not start or failed
+```
+
+A three-way union discriminated by which field is present. A truthy `result.url` is the full callback URL — parse `code` / `state` / `error` yourself, or with [`parseCallback`](#parsecallback). `result.canceled` is `true` when the user backed out or the session was aborted. `result.error` carries the failure message when the session could not start.
+
+## OAuth helpers
+
+Opt-in helpers under `@sigx/lynx-webauth/oauth`, scoped to the frozen parts of the spec — PKCE (RFC 7636), `state` generation, and callback parsing. All pure JS, no native code. Token exchange, refresh, and OIDC discovery are intentionally out of scope.
+
+```tsx
+import { generatePKCE, generateState, parseCallback } from '@sigx/lynx-webauth/oauth';
+import type { RandomOptions, PkceChallenge, CallbackParams } from '@sigx/lynx-webauth/oauth';
+```
+
+### generatePKCE
+
+```ts
+function generatePKCE(options?: RandomOptions): Promise<PkceChallenge>
+```
+
+Generate a PKCE `code_verifier` / `code_challenge` pair (RFC 7636, `S256`). The verifier is 32 random bytes → a 43-char base64url string; the challenge is `base64url(sha256(verifier))`.
+
+- **`options.randomBytes`** — supply `length` cryptographically-random bytes. Defaults to `globalThis.crypto.getRandomValues`. There is **no** insecure fallback — a missing RNG throws rather than silently weakening the flow.
+- **Returns** — `Promise<`[`PkceChallenge`](#pkcechallenge)`>`: `{ verifier, challenge, method: 'S256' }`. Keep the `verifier` and send it as `code_verifier` on token exchange.
+
+### generateState
+
+```ts
+function generateState(options?: RandomOptions): string
+```
+
+Generate a random opaque `state` value (16 bytes → base64url). Pass it on `/authorize` and compare it against the returned [`CallbackParams.state`](#callbackparams) to defend against CSRF / mix-up attacks.
+
+- **`options.randomBytes`** — as for `generatePKCE`.
+- **Returns** — `string`.
+
+### parseCallback
+
+```ts
+function parseCallback(url: string): CallbackParams
+```
+
+Parse the callback URL returned by `openAuthSession` into its OAuth params. Handles both `?query` (authorization-code) and `#fragment` (implicit / token) responses.
+
+- **`url`** — the full callback URL from `result.url`.
+- **Returns** — [`CallbackParams`](#callbackparams).
+
+### PkceChallenge
+
+```ts
+interface PkceChallenge {
+  verifier: string;       // the high-entropy code_verifier — keep it
+  challenge: string;      // the code_challenge — send it on /authorize
+  method: 'S256';         // always 'S256'; plain is never emitted
+}
+```
+
+### CallbackParams
+
+```ts
+interface CallbackParams {
+  code?: string;             // authorization code (code flow)
+  state?: string;            // the state echoed back — compare against what you sent
+  error?: string;            // OAuth error code (e.g. access_denied), if returned
+  errorDescription?: string; // human-readable error_description, if present
+  params: Record<string, string>; // all params, merged from query + fragment
+}
+```
+
+`params` merges the query string and the URL fragment, so token-in-fragment responses are covered; the query string wins on key collision.
+
+### RandomOptions
+
+```ts
+interface RandomOptions {
+  randomBytes?: (length: number) => Uint8Array;
+}
+```
+
+Override the RNG used by `generatePKCE` / `generateState` (defaults to Web Crypto). Useful in tests or RNG-less environments; there is no insecure fallback.
+
+## See also
+
+- [Usage guide](/lynx/modules/webauth/usage) — the PKCE recipe, sheet customisation, and the Android abort limitation.
+- [Linking](/lynx/modules/linking/overview) — the URL-scheme pipeline the callback rides in on.
+- [Secure Storage](/lynx/modules/secure-storage/overview) — encrypted at-rest storage for exchanged tokens.
