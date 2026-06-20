@@ -20,7 +20,9 @@ The call **always resolves** to a three-way result, so the common "user backed o
 import { openAuthSession } from '@sigx/lynx-webauth';
 
 const result = await openAuthSession(
-  'https://provider.com/authorize?response_type=code&client_id=…&redirect_uri=myapp://cb',
+  // Query params must be percent-encoded — redirect_uri=myapp%3A%2F%2Fcb here.
+  // The PKCE recipe below builds the URL safely with URLSearchParams.
+  'https://provider.com/authorize?response_type=code&client_id=…&redirect_uri=myapp%3A%2F%2Fcb',
   'myapp',
 );
 
@@ -49,10 +51,18 @@ async function signIn() {
   const { verifier, challenge, method } = await generatePKCE(); // method: 'S256'
   const state = generateState();
 
-  const authorizeUrl =
-    `https://provider.com/authorize?response_type=code&client_id=…` +
-    `&redirect_uri=myapp://cb&scope=openid%20profile&state=${state}` +
-    `&code_challenge=${challenge}&code_challenge_method=${method}`;
+  // Build the query with URLSearchParams so every value — including the
+  // redirect_uri scheme — is correctly percent-encoded.
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: '…',
+    redirect_uri: 'myapp://cb',
+    scope: 'openid profile',
+    state,
+    code_challenge: challenge,
+    code_challenge_method: method,
+  });
+  const authorizeUrl = `https://provider.com/authorize?${params}`;
 
   const result = await openAuthSession(authorizeUrl, 'myapp');
   if (!result.url) return; // canceled or error — nothing to exchange
