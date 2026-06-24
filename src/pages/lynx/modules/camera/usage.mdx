@@ -151,7 +151,7 @@ async function capturePortrait(): Promise<PhotoResult | null> {
 - **Options are mostly iOS-only.** iOS honors `facing` and JPEG `quality` (default `0.8`) for photos and `facing` / `maxDurationMs` for video; Android's capture intents ignore options (the user can still switch cameras in the system UI). `CameraOptions.maxWidth` / `maxHeight` are reserved and not yet applied on either platform.
 - **Three outcomes, not one shape.** Only a successful capture returns a `PhotoResult` / `VideoResult` with a `uri`. A cancel resolves with `{ cancelled: true }` (no `uri`); a real failure throws. Narrow on `uri` for success and `try` / `catch` failures. Metadata beyond `uri` (iOS `fileSize`, dimensions) is best-effort; `base64` is declared but not populated by either native implementation today.
 - **`isAvailable()` is JS-only** — it reports whether the native module is registered in the build; it does not check hardware. iOS additionally gates real capture on `UIImagePickerController` source availability.
-- **Test on a physical device.** The iOS simulator only exposes a synthetic camera feed.
+- **Test on a physical device.** The iOS Simulator has no camera, so `UIImagePickerController`'s camera source is unavailable there and capture fails — `isAvailable()` is a JS-only module check and won't catch this. Run capture on a real device.
 - If you customize `AndroidManifest.xml`, keep the auto-injected `FileProvider` `<provider>` (authority `${applicationId}.fileprovider`) intact — the capture intent needs it as a write target.
 
 ## See also

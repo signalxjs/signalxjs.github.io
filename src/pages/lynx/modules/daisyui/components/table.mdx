@@ -98,7 +98,12 @@ const wideCols: TableColumn[] = [
   { key: 'year', header: 'Year', width: 80, align: 'right' },
 ];
 
+const staff: TableRow[] = [
+  { name: 'Ada Lovelace', role: 'Pioneer', dept: 'Computing', year: 1843 },
+  { name: 'Grace Hopper', role: 'Admiral', dept: 'Computing', year: 1952 },
+];
+
 const Wide = component(() => () => (
-  <Table columns={wideCols} rows={rows} zebra scrollX />
+  <Table columns={wideCols} rows={staff} zebra scrollX />
 ));
 ```

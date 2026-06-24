@@ -243,6 +243,8 @@ export type VideoPlaybackState = 'playing' | 'paused' | 'buffering' | 'ended';
 
 Event passed to `onStateChange` / `bindvideostatechange`. Fires whenever playback transitions between `playing` / `paused` / `buffering` / `ended` — including pauses driven by the OS or the platform controls overlay, which the declarative `playing` prop can't observe. Lets apps mirror native play state without polling. Shared across platforms.
 
+The wire/intrinsic event is named `videostatechange` (not `statechange`) because `statechange` is a reserved event name in the Lynx engine — a `bindstatechange` handler would be silently dropped. The public wrapper prop is unchanged: use `onStateChange` on `<VideoPlayer>`.
+
 ```ts
 export interface VideoStateChangeEvent {
     type: 'videostatechange';
