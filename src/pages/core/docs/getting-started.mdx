@@ -18,7 +18,7 @@ SignalX combines the best ideas from modern reactive frameworks:
 - **Components** - Intuitive `component` API with props, slots, and events
 - **TypeScript** - Full type inference and IDE support out of the box
 - **Tiny** - Lightweight core runtime with tree-shakeable packages
-- **Multi-platform** - Run in browsers, terminals, or server-side
+- **Multi-platform** - One component model across the browser, native iOS & Android, terminals, and the server
 
 ## Quick Installation
 
@@ -180,6 +180,14 @@ defineApp(<App />)
     .use(loggingPlugin)
     .mount('#sandbox');
 ```
+
+## Beyond the Browser
+
+SignalX is multi-platform — the same components and signals render past the DOM. Bring your component tree to:
+
+- [Lynx](/lynx) - Native iOS & Android from one component tree
+- [Terminal](/terminal) - Terminal UIs (TUIs) in TSX
+- [Server](/server) - Streaming server-side rendering with hydration
 
 ## Next Steps
 
