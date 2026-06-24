@@ -98,6 +98,33 @@ const Progress = component(() => {
 
 `onTimeUpdate` fires every 250ms and crosses the native bridge on each call, so use it sparingly — for per-frame animation, read the duration once via `onLoad` and animate locally. `durationMs` is `0` for live or indeterminate-duration streams.
 
+## Resuming and observing native state
+
+Set `startTime` to seek into a clip before the first play — handy for resuming where the viewer left off, or deep-linking to a moment. It is applied once per loaded `src`. To mirror the real playback state, listen for `onStateChange`: it reports `playing` / `paused` / `buffering` / `ended` transitions, including pauses driven by the OS or the platform controls overlay that the declarative `playing` prop can't observe.
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { VideoPlayer } from '@sigx/lynx-video';
+import type { VideoPlaybackState } from '@sigx/lynx-video';
+
+const Resume = component(() => {
+  const state = signal<VideoPlaybackState>('paused');
+
+  return () => (
+    <view>
+      <VideoPlayer
+        src="https://example.com/talk.mp4"
+        startTime={90}
+        autoplay
+        onStateChange={(e) => state.set(e.detail.state)}
+        style={{ width: '100%', aspectRatio: 16 / 9 }}
+      />
+      <text>state: {state()}</text>
+    </view>
+  );
+});
+```
+
 ## Props
 
 Every prop is optional. See the [API reference](/lynx/modules/video/api#videoplayerprops) for the full type.
@@ -113,6 +140,7 @@ Every prop is optional. See the [API reference](/lynx/modules/video/api#videopla
 | `volume` | `number` | Audio volume, clamped to `0..1`. Default `1`. |
 | `controls` | `boolean` | Show the platform default controls overlay. Default `false`. |
 | `resizeMode` | `'contain' \| 'cover' \| 'stretch'` | How the frame fits the box ([`VideoResizeMode`](/lynx/modules/video/api#videoresizemode)). Default `contain`. |
+| `startTime` | `number` | One-shot seek (in seconds) applied once the asset is ready, before the first play. Applied once per loaded `src` — for resume / deep-link. |
 | `class` | `string` | Standard CSS classes. |
 | `style` | `string \| Record<string, string \| number>` | Standard styling. The player must be given a size. |
 
@@ -124,6 +152,7 @@ Every prop is optional. See the [API reference](/lynx/modules/video/api#videopla
 | `onEnd` | `(e: VideoEndEvent) => void` | Fires when playback reaches the end of the clip. Does not fire when `loop` is `true`. See [`VideoEndEvent`](/lynx/modules/video/api#videoendevent). |
 | `onError` | `(e: VideoErrorEvent) => void` | Fires on a non-recoverable load or playback error. `e.detail.message` is a human-readable string. See [`VideoErrorEvent`](/lynx/modules/video/api#videoerrorevent). |
 | `onTimeUpdate` | `(e: VideoTimeUpdateEvent) => void` | Fires ~4x/sec while playing with `e.detail.positionMs`. Crosses the bridge on each call — use sparingly. See [`VideoTimeUpdateEvent`](/lynx/modules/video/api#videotimeupdateevent). |
+| `onStateChange` | `(e: VideoStateChangeEvent) => void` | Fires on `playing` / `paused` / `buffering` / `ended` transitions with `e.detail.{ state, positionMs }` — including OS- and controls-driven pauses. See [`VideoStateChangeEvent`](/lynx/modules/video/api#videostatechangeevent). |
 
 ## See also
 

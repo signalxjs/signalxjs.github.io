@@ -8,28 +8,63 @@ order: 30
 
 # Using Camera
 
-<p class="lede">Request permission, open the system camera, and get a captured photo back — on both iOS and Android.</p>
+<p class="lede">Open the system camera to take a photo or record a video, and get the captured file back — on both iOS and Android.</p>
 
 ## Basic usage
 
-The whole surface lives on a single `Camera` object. Gate capture on permission, then call `takePicture`:
+The whole surface lives on a single `Camera` object. On Android, capture auto-requests the `CAMERA` permission, so you can call `takePicture` directly and `catch` a denial:
 
 ```tsx
 import { Camera } from '@sigx/lynx-camera';
 
 async function snap() {
-  const { status } = await Camera.requestPermission();
-  if (status !== 'granted') return;
-
-  const photo = await Camera.takePicture({ facing: 'back', quality: 0.8 });
-  if (!photo.uri) return; // cancelled or failed
-  console.log(photo.uri, photo.width, photo.height);
+  try {
+    const photo = await Camera.takePicture({ facing: 'back', quality: 0.8 });
+    if (!photo.uri) return; // user cancelled
+    console.log(photo.uri, photo.width, photo.height);
+  } catch (err) {
+    console.warn('Camera unavailable or permission denied', err);
+  }
 }
 ```
 
-`takePicture` resolves with the raw native result. On success it is a `PhotoResult` whose `uri` is platform-specific: on iOS an absolute temp filesystem path with no scheme prefix; on Android a `content://` URI from the system camera, backed by a JPEG in the app cache directory. Do not assume a uniform scheme — pass the value through as-is. Move or upload it promptly, since the OS may reclaim cached files.
+`takePicture` follows a **three-outcome contract**: it resolves with a `PhotoResult` (always carrying a `uri`) on success, resolves with `{ cancelled: true }` (no `uri`) if the user dismisses the camera, and **throws** on a real failure (permission denied, no camera, …). Narrow on `uri` for the success path and `try` / `catch` failures.
 
-Cancellation and failure do NOT reject the promise — they resolve with a different object that has no `uri` (see [Capturing and using a photo](#capturing-and-using-a-photo) below). Always check for `uri` before reading the other fields.
+The `uri` is normalized to a scheme: `file://` on iOS, `content://` on Android (backed by a JPEG in the app cache directory). Move or upload it promptly, since the OS may reclaim cached files.
+
+## Recording video
+
+`recordVideo` opens the camera in video mode and follows the exact same three-outcome contract as `takePicture`. The returned `uri` is loadable directly by `@sigx/lynx-video`'s `VideoPlayer`:
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Camera } from '@sigx/lynx-camera';
+import { VideoPlayer } from '@sigx/lynx-video';
+
+const Recorder = component(() => {
+  const clip = signal<string | null>(null);
+
+  const record = async () => {
+    try {
+      const result = await Camera.recordVideo({ maxDurationMs: 30_000 });
+      if (result.uri) clip.set(result.uri); // else: user cancelled
+    } catch (err) {
+      console.warn('Recording failed', err);
+    }
+  };
+
+  return () => (
+    <view>
+      <text bindtap={record}>Record</text>
+      {clip() ? (
+        <VideoPlayer src={clip()!} controls style={{ width: '100%', aspectRatio: 16 / 9 }} />
+      ) : null}
+    </view>
+  );
+});
+```
+
+`maxDurationMs` caps the recording length on iOS (`videoMaximumDuration`); Android's `ACTION_VIDEO_CAPTURE` intent exposes no duration cap. On Android, `recordVideo` auto-requests the `CAMERA` permission, and also microphone when the app declares `RECORD_AUDIO` (e.g. by installing `@sigx/lynx-audio`). A single in-camera photo/video toggle is iOS-only at the system level — present a "photo or video" choice in your own UI and call the matching method.
 
 ## Installing and linking
 
@@ -58,7 +93,7 @@ export default defineLynxConfig({
 
 ## Handling permissions properly
 
-`takePicture` reports a permission denial by resolving with an `error` object (not by rejecting), but the reliable pattern is to request first and branch on the result. Use `getPermissionStatus` for a silent check (it never prompts) and `requestPermission` to show the OS dialog:
+Calling `requestPermission` before capture is **optional** — `takePicture` / `recordVideo` auto-request the `CAMERA` permission on Android (iOS auto-requests at the capture layer), and a denial surfaces as a thrown error you can `catch`. Request explicitly when you want to gate your own UI ahead of time or inspect `canAskAgain`. Use `getPermissionStatus` for a silent check (it never prompts) and `requestPermission` to show the OS dialog:
 
 ```tsx
 import { Camera } from '@sigx/lynx-camera';
@@ -82,7 +117,7 @@ async function ensureCamera(): Promise<boolean> {
 
 ## Capturing and using a photo
 
-A complete capture flow. `takePicture` does NOT reject on cancel or denial — it resolves with an object that has no `uri` (carrying `cancelled: true` for a user cancel, or an `error` string for a failure). Inspect the resolved object instead of using `try`/`catch`. The promise only rejects when the native module is missing, so a `try`/`catch` here would only catch that case:
+A complete capture flow. A user cancel resolves with `{ cancelled: true }` (no `uri`); a real failure — permission denied, no camera, or a missing native module — **throws**. So narrow on `uri` for the success path and wrap the call in `try` / `catch`:
 
 ```tsx
 import { Camera } from '@sigx/lynx-camera';
@@ -94,31 +129,27 @@ async function capturePortrait(): Promise<PhotoResult | null> {
     return null;
   }
 
-  const { status } = await Camera.requestPermission();
-  if (status !== 'granted') return null;
+  try {
+    const result = await Camera.takePicture({ facing: 'front', quality: 0.9 });
 
-  const result = await Camera.takePicture({
-    facing: 'front',
-    quality: 0.9,
-    maxWidth: 1080,
-    maxHeight: 1920,
-  });
+    // Cancel resolves with { cancelled: true } and no uri.
+    if (!result.uri) {
+      console.warn('Capture cancelled', result);
+      return null;
+    }
 
-  // Cancel resolves with { cancelled: true }; failure/denial with { error }.
-  // Neither has a uri, so a missing uri means "no photo".
-  if (!result.uri) {
-    console.warn('Capture cancelled or failed', result);
+    return result;
+  } catch (err) {
+    console.warn('Capture failed or permission denied', err);
     return null;
   }
-
-  return result;
 }
 ```
 
 ## Notes
 
-- **Options are a forward-looking contract.** `facing`, `quality`, `maxWidth`, and `maxHeight` are accepted by the TypeScript API, but the current native implementations ignore them: iOS hard-codes JPEG quality `0.8`, and Android lets the system camera pick its own settings. Pass them for forward compatibility, but do not depend on their effect yet.
-- **The resolved value is not always a `PhotoResult`.** Only a successful capture matches the type. A cancel resolves with `cancelled: true` and a failure or denial with an `error` string — neither has a `uri`. Always check for `uri` before reading other fields. On success, native may also add fields not in the interface (iOS includes `fileSize`), so treat anything beyond `uri` as best-effort. `base64` is declared optional but is not populated by either native implementation today.
+- **Options are mostly iOS-only.** iOS honors `facing` and JPEG `quality` (default `0.8`) for photos and `facing` / `maxDurationMs` for video; Android's capture intents ignore options (the user can still switch cameras in the system UI). `CameraOptions.maxWidth` / `maxHeight` are reserved and not yet applied on either platform.
+- **Three outcomes, not one shape.** Only a successful capture returns a `PhotoResult` / `VideoResult` with a `uri`. A cancel resolves with `{ cancelled: true }` (no `uri`); a real failure throws. Narrow on `uri` for success and `try` / `catch` failures. Metadata beyond `uri` (iOS `fileSize`, dimensions) is best-effort; `base64` is declared but not populated by either native implementation today.
 - **`isAvailable()` is JS-only** — it reports whether the native module is registered in the build; it does not check hardware. iOS additionally gates real capture on `UIImagePickerController` source availability.
 - **Test on a physical device.** The iOS simulator only exposes a synthetic camera feed.
 - If you customize `AndroidManifest.xml`, keep the auto-injected `FileProvider` `<provider>` (authority `${applicationId}.fileprovider`) intact — the capture intent needs it as a write target.

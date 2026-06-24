@@ -1,0 +1,82 @@
+---
+title: "Build variants"
+description: "CLI Plugin — per-environment app identity with --variant"
+layout: module-docs
+category: "Guides"
+order: 35
+---
+
+# Build variants
+
+<p class="lede">Ship a dev, staging or preview build that installs <em>alongside</em> your production app — its own app id, name, scheme and output dir — from a single <code>variants</code> map and a <code>--variant</code> flag.</p>
+
+## Why variants
+
+By default every build of your app shares one application id, so installing a dev build overwrites the production one on the device. A **variant** is a named override of your config that gets a suffixed app id and its own native output directory, so the dev and production apps coexist on one device with distinct icons.
+
+## Declaring variants
+
+Add a `variants` map to `signalx.config.ts`. Each entry is a deep-partial of the whole config (override any field — `icon`, `ios.codeSignStyle`, `infoPlist`, …) plus a handful of convenience fields:
+
+```ts
+// signalx.config.ts
+import { defineLynxConfig } from '@sigx/lynx-cli/config';
+
+export default defineLynxConfig({
+    name: 'My App',
+    scheme: 'myapp',
+    android: { applicationId: 'com.example.app' },
+    ios: { bundleIdentifier: 'com.example.app' },
+    variants: {
+        dev: { idSuffix: '.dev', nameSuffix: ' (Dev)', schemeSuffix: 'dev' },
+        pr:  { extends: 'dev', idSuffix: '.pr', nameSuffix: ' (PR)' },
+        prod: { release: true },
+    },
+});
+```
+
+| Field | Type | Effect |
+|------|------|--------|
+| `idSuffix` | `string` | Appended to `android.applicationId` / `ios.bundleIdentifier` (e.g. `'.dev'` → `com.example.app.dev`), so the variant installs beside the base app. |
+| `nameSuffix` | `string` | Appended to the display `name` (e.g. `' (Dev)'` → `"My App (Dev)"`). |
+| `schemeSuffix` | `string` | Appended to the deep-link `scheme` (e.g. `'dev'` → `myappdev`) so variant deep links don't collide. An explicit `scheme` override wins. |
+| `extends` | `string` | Inherit another variant first, then apply this one on top. Resolved base-most → requested before suffixes; cycles throw. |
+| `release` | `boolean` | Treat the variant as a release build (default `false`). A non-release variant defaults `ios.codeSignStyle` to `'Automatic'` and gets an auto icon badge. |
+| `iconBadge` | `string \| false` | Label overlaid on the launcher icon. Defaults to the trimmed `nameSuffix` (or variant name) for non-release variants; set a string to customize, or `false` to disable. |
+
+Any other field (a different `icon`, an extra `infoPlist` key, a per-variant `googleMapsApiKey`, …) is deep-merged onto the base config — a non-control field replaces the base value wholesale.
+
+## Selecting a variant
+
+Pass `--variant <name>` to `prebuild`, `build`, `run:android`, `run:ios` or `dev` (or set the `SIGX_VARIANT` env var). No flag builds the base/production identity:
+
+```bash
+sigx prebuild --variant dev          # render android-dev/ + ios-dev/
+sigx run:android --variant dev       # build, install and launch the dev variant
+sigx build --variant staging         # production bundle for the staging identity
+SIGX_VARIANT=pr sigx run:ios         # env-var equivalent
+```
+
+The selected variant is deep-merged onto the base; the app id and display name are auto-suffixed; iOS signing for non-release variants defaults to Automatic (so a dev build installs on a physical device via a free personal team); the OTA update channel auto-binds to the variant; and the native project renders into its own `android-<name>/` / `ios-<name>/` output dir. Base builds (no flag) are byte-for-byte unchanged.
+
+## Reading the active variant at runtime
+
+The plugin bakes the active variant name into the bundle, exposed from `@sigx/lynx`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { variant, isVariant, isBaseBuild } from '@sigx/lynx';
+
+const EnvBadge = component(() => () => (
+  !isBaseBuild() ? <text class="badge">{variant.toUpperCase()}</text> : null
+));
+```
+
+- `variant` — the active variant name (e.g. `'dev'`, `'staging'`), or `''` for the base build.
+- `isVariant(name?)` — `true` when a variant is active; with an argument, `true` only for that name.
+- `isBaseBuild()` — `true` for the base build (no `--variant`) — the identity that ships to the store. This reflects the variant, not Debug/Release: a release-mode build of a variant still reports `false`.
+
+## See also
+
+- [Usage](/lynx/modules/cli/usage) — the full command surface and config reference.
+- [API reference](/lynx/modules/cli/api) — every command and flag.

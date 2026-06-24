@@ -18,18 +18,18 @@ These are the real user-facing API for most apps. They are registered by the plu
 
 | Command | Key flags |
 | --- | --- |
-| `dev` | `--port <n>` (8788), `--host`, `--ios`, `--android`, `--all`, `--last`, `--verbose`, `--no-device-logs` |
-| `build` | `--analyze` |
-| `prebuild` | `--android`, `--ios` (default both), `--clean` |
-| `run:android` | `--release`, `--verbose` |
-| `run:ios` | `--release`, `--simulator <name>`, `--device <name｜udid>`, `--verbose` (macOS only) |
+| `dev` | `--port <n>` (8788), `--host`, `--ios`, `--android`, `--all`, `--last`, `--variant <name>`, `--verbose`, `--no-device-logs` |
+| `build` | `--analyze`, `--variant <name>` |
+| `prebuild` | `--android`, `--ios` (default both), `--clean`, `--variant <name>` |
+| `run:android` | `--release`, `--variant <name>`, `--verbose` |
+| `run:ios` | `--release`, `--variant <name>`, `--simulator <name>`, `--device <name｜udid>`, `--verbose` (macOS only) |
 | `doctor` | — |
 | `add` | positional `@sigx/lynx-*` names, `--caret`, `--force` |
 | `remove` | positional `@sigx/lynx-*` names |
 | `outdated` | `--tag <dist-tag>` |
 | `upgrade` | `--to <version｜dist-tag>`, `--dry-run`, `--caret`, `--force` |
 
-See the [Usage guide](/lynx/modules/cli/usage) for command behavior and examples.
+`--variant <name>` (or the `SIGX_VARIANT` env var) selects a build variant from the `variants` map — see [Build variants](/lynx/modules/cli/build-variants). See the [Usage guide](/lynx/modules/cli/usage) for command behavior and examples.
 
 ## Config functions
 
@@ -259,8 +259,26 @@ export interface LynxConfig {
     ios?: IosConfig;
     platforms?: Platform[];          // defaults to both
     prebuild?: PrebuildHooksConfig;
+    variants?: Record<string, VariantConfig>; // per-environment app identity
 }
 ```
+
+### VariantConfig
+
+A build variant — a deep-partial of `LynxConfig` (override any field) plus control fields. Selected with `--variant <name>` (or `SIGX_VARIANT`); deep-merged onto the base, with the app id + display name auto-suffixed and the native project rendered into `android-<name>/` / `ios-<name>/`. See the [Build variants](/lynx/modules/cli/build-variants) guide.
+
+```ts
+export interface VariantConfig extends DeepPartial<Omit<LynxConfig, 'variants'>> {
+    extends?: string;        // inherit another variant first
+    idSuffix?: string;       // appended to applicationId / bundleIdentifier
+    nameSuffix?: string;     // appended to the display name
+    schemeSuffix?: string;   // appended to the deep-link scheme
+    release?: boolean;       // treat as a release build (default false)
+    iconBadge?: string | false; // launcher-icon badge label (auto for non-release)
+}
+```
+
+The runtime accessors `variant`, `isVariant()` and `isBaseBuild()` (from `@sigx/lynx`) report the active variant in app code.
 
 ### Platform
 

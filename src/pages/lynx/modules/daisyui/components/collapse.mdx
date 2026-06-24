@@ -1,0 +1,123 @@
+---
+title: "Collapse"
+description: "Collapse — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data display"]
+order: 103
+---
+
+# Collapse
+
+<p class="lede">A tap-to-toggle disclosure panel with arrow or plus indicators, plus a <code>Collapse.Group</code> that turns a set of panels into a single-open accordion.</p>
+
+## Import
+
+```tsx
+import { Collapse } from '@sigx/lynx-daisyui';
+```
+
+## Overview
+
+`Collapse` hides its content behind a pressable title row. Used standalone it manages its own open state (seeded by `defaultOpen`), or you can bind it two-way with `model`. Wrap several panels in `Collapse.Group` and give each a `value` to get accordion behavior — only one panel is open at a time, with the group's open `value` itself two-way bindable.
+
+## Props
+
+### `Collapse`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `title` | `string` | - | Title-row text. Override with the `title` slot for custom content. |
+| `icon` | `'arrow' \| 'plus' \| 'none'` | `'arrow'` | Indicator style. `arrow` rotates; `plus` toggles +/−; `none` hides it. |
+| `value` | `string` | - | Identity within a `Collapse.Group` (required for accordion membership). |
+| `defaultOpen` | `boolean` | `false` | Uncontrolled initial open state for standalone use. |
+| `model` | `Model<boolean>` | - | Two-way binding for standalone open state (e.g. `() => state.open`). Inside a group, the group's state wins. |
+| `class` | `string` | - | Additional CSS classes appended to the root. |
+
+| Slot | Description |
+|------|-------------|
+| `default` | The panel body, shown while open. |
+| `title` | Custom title-row content, replacing the `title` string. |
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onToggle` | `(open: boolean) => void` | Fired when the panel is toggled, with the next open state. |
+
+### `Collapse.Group`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `Model<string \| undefined>` | - | Two-way binding to the open item's `value` (or `undefined` for all-closed). |
+| `defaultValue` | `string` | - | Seeds the open item in the uncontrolled case. |
+| `class` | `string` | - | Additional CSS classes appended to the group. |
+
+| Slot | Description |
+|------|-------------|
+| `default` | The child `Collapse` panels (each with a `value`). |
+
+## Basic usage
+
+A standalone panel, expanded by default:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Collapse, Text } from '@sigx/lynx-daisyui';
+
+const Faq = component(() => () => (
+  <Collapse title="What is Lynx?" defaultOpen>
+    <Text>Lynx is a dual-thread mobile runtime. This panel starts expanded.</Text>
+  </Collapse>
+));
+```
+
+## Indicators and model binding
+
+`icon` picks the indicator; `model` binds the open state to a signal:
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Collapse, Col, Text } from '@sigx/lynx-daisyui';
+
+const Bound = component(() => {
+  const open = signal(false);
+  return () => (
+    <Col gap={8}>
+      <Collapse title="Plus indicator" icon="plus">
+        <Text>Tap the header to toggle.</Text>
+      </Collapse>
+      <Collapse title="Bound section" model={() => open.value}>
+        <Text>This section's open state is a signal.</Text>
+      </Collapse>
+      <Text class="opacity-60">open: {open.value ? 'yes' : 'no'}</Text>
+    </Col>
+  );
+});
+```
+
+## Accordion group
+
+Wrap panels in `Collapse.Group` and give each a `value` — only one stays open at a time:
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Collapse, Col, Text } from '@sigx/lynx-daisyui';
+
+const Accordion = component(() => {
+  const openItem = signal<string | undefined>('shipping');
+  return () => (
+    <Col gap={8}>
+      <Collapse.Group model={() => openItem.value}>
+        <Collapse value="shipping" title="Shipping">
+          <Text>Ships in 2–3 business days.</Text>
+        </Collapse>
+        <Collapse value="returns" title="Returns">
+          <Text>30-day return window.</Text>
+        </Collapse>
+        <Collapse value="warranty" title="Warranty">
+          <Text>One-year limited warranty.</Text>
+        </Collapse>
+      </Collapse.Group>
+      <Text class="opacity-60">open: {openItem.value || '—'}</Text>
+    </Col>
+  );
+});
+```
