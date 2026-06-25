@@ -22,6 +22,10 @@ pnpm add -D @sigx/lynx-dev-client
 
 Once `sigx dev` is running, every `console.log` / `info` / `warn` / `error` / `debug` / `trace` on the device is mirrored in your terminal. The original console methods still run, so the on-device logbox and Chrome inspector keep working too. Pass `--no-device-logs` to `sigx dev` to opt out.
 
+### Device runtime exceptions
+
+On-device runtime exceptions — the native red-screen errors, a *superset* of the JS `lynx.onError` hook that also catches main-thread-script, template, render and native-module errors — also stream into the terminal's **Logs** tab, printed as `📱 <platform> … ERR …` lines. So anything that lands on the on-device red screen is copyable in your terminal instead of trapped on the device. The native error sink POSTs to the dev log server (the dev port + 1), and errors that also travel the JS console path are de-duplicated server-side within a short window, so each one shows up once. The `--no-device-logs` opt-out still governs `console.*` streaming.
+
 The only value you typically import is the version string:
 
 ```ts

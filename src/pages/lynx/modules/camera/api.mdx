@@ -8,13 +8,20 @@ order: 40
 
 # API reference
 
-<p class="lede">Exports of `@sigx/lynx-camera` — one runtime object and three types.</p>
+<p class="lede">Exports of `@sigx/lynx-camera` — one runtime object plus the capture option, result, and cancel types.</p>
 
-The complete public surface is a single `Camera` const plus three type-only exports:
+The complete public surface is a single `Camera` const plus the type-only exports:
 
 ```ts
 import { Camera } from '@sigx/lynx-camera';
-import type { CameraOptions, PhotoResult, PermissionResponse } from '@sigx/lynx-camera';
+import type {
+  CameraOptions,
+  PhotoResult,
+  CameraVideoOptions,
+  VideoResult,
+  CameraCancelled,
+  PermissionResponse,
+} from '@sigx/lynx-camera';
 ```
 
 `PermissionResponse` is re-exported from `@sigx/lynx-core`. Every method below works on both iOS and Android.
@@ -27,7 +34,8 @@ The single namespace object exposing all camera APIs. It is backed by the native
 
 ```ts
 const Camera: {
-  takePicture(options?: CameraOptions): Promise<PhotoResult>;
+  takePicture(options?: CameraOptions): Promise<PhotoResult | CameraCancelled>;
+  recordVideo(options?: CameraVideoOptions): Promise<VideoResult | CameraCancelled>;
   requestPermission(): Promise<PermissionResponse>;
   getPermissionStatus(): Promise<PermissionResponse>;
   isAvailable(): boolean;
@@ -38,22 +46,54 @@ See the methods below for each member.
 
 ## Methods
 
-### `Camera.takePicture`
+### The three-outcome contract
 
-Opens the system camera and resolves with the raw native payload. On success the payload carries the captured photo's location (a platform-specific URI or path) and dimensions.
+Both `takePicture` and `recordVideo` follow the same contract, so you narrow them the same way:
+
+- **Success** — resolves with a result that **always carries a `uri`** ([`PhotoResult`](#photoresult) / [`VideoResult`](#videoresult)).
+- **Cancel** — resolves with [`CameraCancelled`](#cameracancelled) (`{ cancelled: true }`, no `uri`) when the user dismisses the camera. The Android `{ error: "cancelled" }` sentinel is normalized into this shape.
+- **Failure** — **throws** on a real error (permission denied, no camera, native bridge missing, …).
+
+So callers narrow on `result.uri` for the success path and `try` / `catch` failures:
 
 ```ts
-takePicture(options?: CameraOptions): Promise<PhotoResult>
+try {
+  const photo = await Camera.takePicture({ quality: 0.8 });
+  if (photo.uri) {
+    // captured — load it
+  } else {
+    // user cancelled
+  }
+} catch (err) {
+  // permission denied / no camera / …
+}
+```
+
+### `Camera.takePicture`
+
+Opens the system camera in photo mode.
+
+```ts
+takePicture(options?: CameraOptions): Promise<PhotoResult | CameraCancelled>
 ```
 
 - **`options`** — optional [`CameraOptions`](#cameraoptions). Defaults to `{}`.
-- **Returns** — a `Promise` that resolves with the native result object. The declared type is [`PhotoResult`](#photoresult), but cancellation and failure resolve with a different shape (see below).
-- **Resolves on cancel/failure** — the promise does NOT reject when the user cancels or capture is denied. A user cancellation resolves with an object carrying `cancelled: true` (both iOS and Android). A capture failure or permission denial resolves with an object carrying an `error` string field. Neither shape contains `uri`.
-- **Rejects** — only when the native `Camera` module is not registered in the build (the synchronous bridge lookup throws). Permission and capture outcomes never reject.
+- **Returns** — a [`PhotoResult`](#photoresult) (carrying `uri`) on success, or [`CameraCancelled`](#cameracancelled) on user-cancel. Throws on failure (see [the three-outcome contract](#the-three-outcome-contract) above).
 
-Because cancellations and failures resolve rather than reject, callers must inspect the resolved object instead of relying on `try`/`catch`. The reliable signal is the presence of `uri` — if `uri` is missing, treat the result as a cancel or error and read its `cancelled` / `error` fields.
+Platform notes: most option fields are iOS-only — iOS honors `facing` and JPEG `quality`; Android's `ACTION_IMAGE_CAPTURE` intent ignores capture options (the user can still switch cameras in its UI). The returned `uri` is normalized to a scheme: `file://` on iOS (a temp filesystem path) and `content://` on Android (a JPEG in the app cache directory, via `FileProvider`). On Android, `takePicture` now auto-requests the `CAMERA` runtime permission before launching the intent (see [`requestPermission`](#camerarequestpermission)).
 
-Platform notes: the options object is accepted but its fields are currently ignored by the native layer — iOS hard-codes JPEG quality `0.8`; Android uses the system camera's own settings. The returned `uri` is platform-specific: iOS returns an absolute temp filesystem path (no scheme prefix); Android returns a `content://` URI backed by a JPEG in the app cache directory. On iOS, capture is presented from the key window's root view controller; on Android it is launched via an `ACTION_IMAGE_CAPTURE` intent through a `FileProvider`.
+### `Camera.recordVideo`
+
+Opens the system camera in video mode and records a clip. The returned `uri` is loadable directly by `@sigx/lynx-video`'s `VideoPlayer`.
+
+```ts
+recordVideo(options?: CameraVideoOptions): Promise<VideoResult | CameraCancelled>
+```
+
+- **`options`** — optional [`CameraVideoOptions`](#cameravideooptions). Defaults to `{}`.
+- **Returns** — a [`VideoResult`](#videoresult) (carrying `uri`) on success, or [`CameraCancelled`](#cameracancelled) on user-cancel. Throws on failure (see [the three-outcome contract](#the-three-outcome-contract) above).
+
+Platform notes: iOS uses `UIImagePickerController` movie mode, honoring `maxDurationMs` (`videoMaximumDuration`) and `facing` (`cameraDevice`); Android launches an `ACTION_VIDEO_CAPTURE` intent, which exposes no duration cap and ignores capture options. The `uri` is `file://` on iOS and `content://` on Android. On Android, `recordVideo` auto-requests the `CAMERA` permission (and microphone too, when the app declares `RECORD_AUDIO`, e.g. via `@sigx/lynx-audio`) before launching. A single in-camera photo/video toggle is iOS-only at the system level — offer a "photo or video" choice in your own UI and call the matching method.
 
 ### `Camera.requestPermission`
 
@@ -64,6 +104,8 @@ requestPermission(): Promise<PermissionResponse>
 ```
 
 - **Returns** — a `Promise<`[`PermissionResponse`](#permissionresponse)`>` describing the resulting status.
+
+Calling this before capture is **optional**: both `takePicture` and `recordVideo` auto-request the `CAMERA` permission on Android (iOS auto-requests at the `AVCaptureDevice` layer), so you only need `requestPermission` to gate your own UI ahead of time or to inspect `canAskAgain`.
 
 Platform notes: on first denial this re-surfaces the OS dialog. Check `canAskAgain` on the response — when `false`, the user must change the permission from system Settings.
 
@@ -99,22 +141,20 @@ Options for [`Camera.takePicture`](#cameratakepicture). All fields are optional.
 
 ```ts
 interface CameraOptions {
-  /** 'front' or 'back' camera */
+  /** 'front' or 'back' camera (iOS only). */
   facing?: 'front' | 'back';
-  /** Image quality 0-1 */
+  /** JPEG quality 0-1 (default 0.8, iOS only). */
   quality?: number;
-  /** Max width in pixels */
+  /** Max width in pixels (reserved — not yet applied). */
   maxWidth?: number;
-  /** Max height in pixels */
+  /** Max height in pixels (reserved — not yet applied). */
   maxHeight?: number;
 }
 ```
 
-- **`facing`** — which camera to use; documented default is `'back'`.
-- **`quality`** — JPEG quality from `0` to `1`.
-- **`maxWidth`** / **`maxHeight`** — maximum output dimensions in pixels.
-
-Platform notes: these fields are part of the TypeScript contract but are not yet honored by the native implementations (iOS hard-codes quality `0.8`; Android ignores `quality`). Pass them for forward compatibility.
+- **`facing`** — which camera to use. **iOS only** — Android's intent ignores it (the user can switch cameras in its UI).
+- **`quality`** — JPEG quality from `0` to `1` (default `0.8`). **iOS only.**
+- **`maxWidth`** / **`maxHeight`** — reserved for forward compatibility; not yet applied on either platform.
 
 ### `PhotoResult`
 
@@ -122,24 +162,75 @@ The result returned by [`Camera.takePicture`](#cameratakepicture).
 
 ```ts
 interface PhotoResult {
-  /** File URI of the captured photo */
+  /** File URI of the captured photo (`file://` iOS, `content://` Android). */
   uri: string;
-  /** Width in pixels */
-  width: number;
-  /** Height in pixels */
-  height: number;
-  /** Base64-encoded image data (if requested) */
+  /** Width in pixels (iOS only). */
+  width?: number;
+  /** Height in pixels (iOS only). */
+  height?: number;
+  /** File size in bytes (iOS only). */
+  fileSize?: number;
+  /** Base64-encoded image data (if requested). */
   base64?: string;
 }
 ```
 
-- **`uri`** — a platform-specific locator for the captured JPEG: an absolute temp filesystem path (no scheme) on iOS, and a `content://` URI on Android. Do not assume a `file://` scheme.
-- **`width`** / **`height`** — the photo's pixel dimensions.
-- **`base64`** — optional base64-encoded image data.
+- **`uri`** — the captured JPEG, normalized to a scheme: `file://` on iOS, `content://` on Android. Always present on success.
+- **`width`** / **`height`** / **`fileSize`** — best-effort metadata (iOS only — Android's intent doesn't report dimensions).
+- **`base64`** — optional base64-encoded image data; not populated by either current native implementation.
 
-Platform notes: this is the normalized TypeScript shape, and the resolved value only matches it on a successful capture. The native payloads also carry extra fields not in the interface (iOS adds `fileSize`), so treat fields beyond `uri` as best-effort. `base64` is not populated by either current native implementation.
+This is the **success** shape. On cancel the resolved value is [`CameraCancelled`](#cameracancelled) (`{ cancelled: true }`, no `uri`); on failure the call throws. Narrow on `uri` before reading the other fields — see [the three-outcome contract](#the-three-outcome-contract).
 
-Crucially, the resolved value is NOT always a `PhotoResult`. On cancel the object is `cancelled: true` with no `uri`; on failure or denial it is an `error` string with no `uri`. The TypeScript type does not reflect these shapes, so always check for `uri` before reading `width` / `height`.
+### `CameraVideoOptions`
+
+Options for [`Camera.recordVideo`](#camerarecordvideo). All fields are optional.
+
+```ts
+interface CameraVideoOptions {
+  /** 'front' or 'back' camera (iOS only). */
+  facing?: 'front' | 'back';
+  /** Max recording length in milliseconds (iOS only). */
+  maxDurationMs?: number;
+}
+```
+
+- **`facing`** — which camera to use. **iOS only** — Android's `ACTION_VIDEO_CAPTURE` intent ignores it.
+- **`maxDurationMs`** — recording cap, honored on iOS (`videoMaximumDuration`); Android's intent exposes no duration cap.
+
+### `VideoResult`
+
+The success result returned by [`Camera.recordVideo`](#camerarecordvideo).
+
+```ts
+interface VideoResult {
+  /** File URI of the recorded clip (`file://` iOS, `content://` Android). */
+  uri: string;
+  /** Clip duration in milliseconds (if the platform reports it). */
+  durationMs?: number;
+  /** Width in pixels (if reported). */
+  width?: number;
+  /** Height in pixels (if reported). */
+  height?: number;
+  /** File size in bytes (if reported). */
+  fileSize?: number;
+}
+```
+
+- **`uri`** — the recorded clip, normalized to a scheme (`file://` iOS, `content://` Android). Loadable directly by `@sigx/lynx-video`'s `VideoPlayer`.
+- **`durationMs`** / **`width`** / **`height`** / **`fileSize`** — best-effort metadata when the platform reports it.
+
+### `CameraCancelled`
+
+The shape resolved (not thrown) when the user dismisses the camera without capturing — shared by both `takePicture` and `recordVideo`.
+
+```ts
+interface CameraCancelled {
+  cancelled: true;
+  uri?: undefined;
+}
+```
+
+`uri` is typed as `undefined` so callers can narrow on `result.uri` to tell a successful capture from a cancel.
 
 ### `PermissionResponse`
 

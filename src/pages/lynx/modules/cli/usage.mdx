@@ -117,6 +117,10 @@ export default defineLynxConfig({
 
 Each of these merges with values contributed by linked native modules — modules declare the same keys in their `signalx-module.json`, and the app-level entries win on a name collision.
 
+### Build variants
+
+A `variants` map lets a dev/staging/preview build install **alongside** production with its own app id, name and output dir, selected with `--variant <name>`. See the dedicated [Build variants](/lynx/modules/cli/build-variants) guide.
+
 ## Running the dev server
 
 `sigx dev` starts the rspeedy dev server, probes for a free port (default `8788`), and — in an interactive terminal — renders a **full-screen dev dashboard**: live status (port, build id, selected targets), the QR code and LAN-IP URLs for loading the bundle on a device, streaming device logs, and keyboard shortcuts / slash-commands. (In a non-TTY environment it falls back to plain banner output.)
@@ -128,6 +132,7 @@ sigx dev --ios            # iOS only
 sigx dev --android        # Android only
 sigx dev --last           # reuse the last selected target
 sigx dev --port 9000      # custom port
+sigx dev --variant dev    # run a build variant (see Build variants)
 sigx dev --no-device-logs # don't stream device console.* output
 ```
 
@@ -135,7 +140,7 @@ Behavior worth knowing:
 
 - The first `dev` run with no `android/` or `ios/` folder auto-runs `prebuild` for you.
 - In a TTY it shows an interactive target picker and remembers your last choice (`--last` reuses it). In a non-TTY environment it behaves like `--all`.
-- Device `console.*` logs stream back to your terminal; selected targets are auto-launched with the dev URL.
+- Device `console.*` logs stream back to your terminal; selected targets are auto-launched with the dev URL. On-device runtime exceptions (the native red-screen errors) also surface in the terminal's Logs tab — see [device runtime exceptions](/lynx/modules/dev-client/usage#device-runtime-exceptions).
 - An app with no `lynx.config.ts` (a bundle-loader client such as sigx-lynx-go) skips the JS dev server.
 
 ## Prebuilding native projects
@@ -147,6 +152,7 @@ sigx prebuild             # both platforms
 sigx prebuild --android   # Android only
 sigx prebuild --ios       # iOS only
 sigx prebuild --clean     # bypass the fingerprint fast-path, full re-render
+sigx prebuild --variant dev  # render the dev variant into android-dev/ + ios-dev/
 ```
 
 Prebuild has a **fingerprint-based fast path**: it skips work when its inputs are unchanged. Editing `signalx.config.ts` or the post-hook script re-triggers it; `--clean` forces a full re-render regardless.
@@ -179,6 +185,7 @@ sigx run:android --release             # release: bundle -> prebuild -> gradle i
 sigx run:ios --simulator "iPhone 15"   # boot a named simulator
 sigx run:ios --device "My iPhone"      # a physical device (Xcode 15+ / devicectl)
 sigx run:ios --release
+sigx run:android --variant dev         # install the dev variant alongside production
 sigx build --analyze                   # production bundle + size summary
 ```
 
@@ -263,5 +270,6 @@ This is what types the `--flag` columns in the [command table](/lynx/modules/cli
 
 - [Overview](/lynx/modules/cli/overview) — what the plugin is and how it fits the family.
 - [Installation](/lynx/modules/cli/installation) — project setup.
+- [Build variants](/lynx/modules/cli/build-variants) — per-environment app identity with `--variant`.
 - [API reference](/lynx/modules/cli/api) — the full typed surface.
 - [Your first app](/lynx/docs/your-first-app) — an end-to-end walkthrough.

@@ -28,6 +28,9 @@ import type {
   VideoErrorEventDetail,
   VideoTimeUpdateEvent,
   VideoTimeUpdateEventDetail,
+  VideoPlaybackState,
+  VideoStateChangeEvent,
+  VideoStateChangeEventDetail,
 } from '@sigx/lynx-video';
 ```
 
@@ -56,12 +59,14 @@ export type VideoPlayerProps =
     & Define.Prop<'volume', number, false>
     & Define.Prop<'controls', boolean, false>
     & Define.Prop<'resizeMode', VideoResizeMode, false>
+    & Define.Prop<'startTime', number, false>
     & Define.Prop<'class', string, false>
     & Define.Prop<'style', string | Record<string, string | number>, false>
     & Define.Prop<'onLoad', (e: VideoLoadEvent) => void, false>
     & Define.Prop<'onEnd', (e: VideoEndEvent) => void, false>
     & Define.Prop<'onError', (e: VideoErrorEvent) => void, false>
-    & Define.Prop<'onTimeUpdate', (e: VideoTimeUpdateEvent) => void, false>;
+    & Define.Prop<'onTimeUpdate', (e: VideoTimeUpdateEvent) => void, false>
+    & Define.Prop<'onStateChange', (e: VideoStateChangeEvent) => void, false>;
 ```
 
 **Props**
@@ -75,8 +80,9 @@ export type VideoPlayerProps =
 - `volume` — audio volume, clamped to `0..1`. Default `1`.
 - `controls` — show the platform default controls overlay. Default `false`.
 - `resizeMode` — how the frame fits the box; a [`VideoResizeMode`](#videoresizemode). Default `contain`.
+- `startTime` — one-shot seek (in seconds) applied once the asset is ready, before the first play. Applied once per loaded `src` — use for resuming or deep-linking into a clip.
 - `class` / `style` — standard styling. The player must be given a size.
-- `onLoad` / `onEnd` / `onError` / `onTimeUpdate` — event handlers; see the event types below.
+- `onLoad` / `onEnd` / `onError` / `onTimeUpdate` / `onStateChange` — event handlers; see the event types below.
 
 ### VideoResizeMode
 
@@ -109,10 +115,12 @@ export interface VideoPlayerAttributes extends LynxCommonAttributes {
     volume?: number;
     controls?: boolean;
     'resize-mode'?: VideoResizeMode;
+    'start-time'?: number;
     bindload?: LynxEventHandler<VideoLoadEvent>;
     bindend?: LynxEventHandler<VideoEndEvent>;
     binderror?: LynxEventHandler<VideoErrorEvent>;
     bindtimeupdate?: LynxEventHandler<VideoTimeUpdateEvent>;
+    bindvideostatechange?: LynxEventHandler<VideoStateChangeEvent>;
 }
 ```
 
@@ -221,6 +229,45 @@ export interface VideoTimeUpdateEventDetail {
 **Fields**
 
 - `positionMs` — current playback position in milliseconds (clamped `>= 0`; iOS guards against `NaN`/`Inf` from live streams).
+- Index signature for forward-compat.
+
+### VideoPlaybackState
+
+The playback state reported by [`onStateChange`](/lynx/modules/video/components/videoplayer) / `bindvideostatechange`. Shared across platforms.
+
+```ts
+export type VideoPlaybackState = 'playing' | 'paused' | 'buffering' | 'ended';
+```
+
+### VideoStateChangeEvent
+
+Event passed to `onStateChange` / `bindvideostatechange`. Fires whenever playback transitions between `playing` / `paused` / `buffering` / `ended` — including pauses driven by the OS or the platform controls overlay, which the declarative `playing` prop can't observe. Lets apps mirror native play state without polling. Shared across platforms.
+
+The wire/intrinsic event is named `videostatechange` (not `statechange`) because `statechange` is a reserved event name in the Lynx engine — a `bindstatechange` handler would be silently dropped. The public wrapper prop is unchanged: use `onStateChange` on `<VideoPlayer>`.
+
+```ts
+export interface VideoStateChangeEvent {
+    type: 'videostatechange';
+    detail: VideoStateChangeEventDetail;
+}
+```
+
+### VideoStateChangeEventDetail
+
+Detail payload of [`VideoStateChangeEvent`](#videostatechangeevent). Shared across platforms.
+
+```ts
+export interface VideoStateChangeEventDetail {
+    state: VideoPlaybackState;
+    positionMs: number;
+    [k: string]: unknown;
+}
+```
+
+**Fields**
+
+- `state` — the [`VideoPlaybackState`](#videoplaybackstate) playback just transitioned into.
+- `positionMs` — current position in milliseconds at the transition.
 - Index signature for forward-compat.
 
 ## See also

@@ -1,0 +1,109 @@
+---
+title: "Table"
+description: "Table — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data display"]
+order: 104
+---
+
+# Table
+
+<p class="lede">A data table driven by a <code>columns</code>/<code>rows</code> model, with zebra striping, a size ramp, and an opt-in horizontal-scroll container for wide tables.</p>
+
+## Import
+
+```tsx
+import { Table, type TableColumn, type TableRow } from '@sigx/lynx-daisyui';
+```
+
+## Overview
+
+`Table` is data-driven rather than markup-driven: you describe the header with `columns` and the body with `rows`, instead of writing cells by hand. Each column maps a `key` into the row objects to a header label. Columns flex to fill by default; give a column an explicit `width` and set `scrollX` to make a wide table scroll sideways (Lynx has no native table layout or `overflow-x`).
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `columns` | `TableColumn[]` | - | Column definitions (required). Each maps a row `key` to a `header`, with optional `width` and `align`. |
+| `rows` | `TableRow[]` | - | Row data (required). Each row is a `Record<string, string \| number>`; cells read `row[column.key]`. |
+| `zebra` | `boolean` | `false` | Stripe alternating rows for readability. |
+| `size` | `'xs' \| 'sm' \| 'md'` | `'md'` | Cell density. `xs`/`sm` tighten the padding. |
+| `scrollX` | `boolean` | `false` | Wrap the table in a horizontal `ScrollView`. Give every column an explicit `width` so the total can overflow and scroll. |
+| `class` | `string` | - | Additional CSS classes appended to the table. |
+
+### `TableColumn`
+
+| Field | Type | Description |
+|------|------|-------------|
+| `key` | `string` | Key into each row object. |
+| `header` | `string` | Header label for the column. |
+| `width` | `number` | Fixed column width in px; omit to let the column flex. Required for columns to participate in `scrollX`. |
+| `align` | `'left' \| 'center' \| 'right'` | Cell text alignment. Default `left`. |
+
+`TableRow` is `Record<string, string | number>` — cell values are coerced to strings for display.
+
+## Basic usage
+
+Describe the columns once, then pass an array of row objects:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Table, type TableColumn, type TableRow } from '@sigx/lynx-daisyui';
+
+const cols: TableColumn[] = [
+  { key: 'name', header: 'Name' },
+  { key: 'role', header: 'Role' },
+  { key: 'year', header: 'Year', align: 'right' },
+];
+
+const people: TableRow[] = [
+  { name: 'Ada Lovelace', role: 'Pioneer', year: 1843 },
+  { name: 'Alan Turing', role: 'Theorist', year: 1936 },
+  { name: 'Grace Hopper', role: 'Admiral', year: 1952 },
+];
+
+const People = component(() => () => (
+  <Table columns={cols} rows={people} zebra />
+));
+```
+
+## Sizes
+
+`sm` and `xs` tighten the cells for denser tables:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Col, Table } from '@sigx/lynx-daisyui';
+
+const Sizes = component(() => () => (
+  <Col gap={16}>
+    <Table columns={cols} rows={people} size="sm" zebra />
+    <Table columns={cols} rows={people} size="xs" zebra />
+  </Col>
+));
+```
+
+## Horizontal scroll
+
+For tables wider than the viewport, give every column an explicit `width` and set `scrollX` — the table drags sideways inside a scroll container:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Table, type TableColumn } from '@sigx/lynx-daisyui';
+
+const wideCols: TableColumn[] = [
+  { key: 'name', header: 'Name', width: 160 },
+  { key: 'role', header: 'Role', width: 140 },
+  { key: 'dept', header: 'Department', width: 160 },
+  { key: 'year', header: 'Year', width: 80, align: 'right' },
+];
+
+const staff: TableRow[] = [
+  { name: 'Ada Lovelace', role: 'Pioneer', dept: 'Computing', year: 1843 },
+  { name: 'Grace Hopper', role: 'Admiral', dept: 'Computing', year: 1952 },
+];
+
+const Wide = component(() => () => (
+  <Table columns={wideCols} rows={staff} zebra scrollX />
+));
+```

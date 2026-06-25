@@ -1,0 +1,95 @@
+---
+title: "Rating"
+description: "Rating — @sigx/lynx-daisyui component"
+layout: module-docs
+category: ["Components", "Data input"]
+order: 112
+---
+
+# Rating
+
+<p class="lede">A tap-to-set star rating, with two-way model binding, color and size ramps, a read-only display mode, a custom <code>max</code>, and optional half-step precision.</p>
+
+## Import
+
+```tsx
+import { Rating } from '@sigx/lynx-daisyui';
+```
+
+## Overview
+
+`Rating` renders a row of star glyphs; tapping a star sets the value to its 1-based index. Bind it two-way with `model` (the sigx way), or drive it as a controlled component with the static `value` prop plus the `onChange` event. Set `readOnly` to show a score without accepting taps, and `allowHalf` to allow half-star values (tapping the left or right half of a star sets `i - 0.5` or `i`).
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `Model<number>` | - | Two-way binding to a signal number. Pass an accessor (e.g. `() => state.stars`) so taps flow back into your state. |
+| `value` | `number` | `0` | Controlled value when no `model` is bound. A star is filled when its index is `<= value`. |
+| `max` | `number` | `5` | Number of stars. |
+| `color` | `RatingColor` | - | Fill color. One of `primary`, `secondary`, `accent`, `info`, `success`, `warning`, `error`. |
+| `size` | `'xs' \| 'sm' \| 'md' \| 'lg'` | `'md'` | Star size. |
+| `readOnly` | `boolean` | `false` | Display mode — taps are ignored. Use for showing an average. |
+| `allowHalf` | `boolean` | `false` | Allow `0.5` increments; each star can render a left-half fill. Tapping the left/right half of a star sets `i - 0.5` / `i`. |
+| `class` | `string` | - | Additional CSS classes appended to the root. |
+
+## Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onChange` | `(value: number) => void` | Fired on tap with the new value (a `0.5` increment when `allowHalf` is set). Use this for the controlled (no-`model`) case. |
+
+## Basic usage
+
+Bind a signal with `model`; tapping a star updates it:
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Col, Rating, Text } from '@sigx/lynx-daisyui';
+
+const Stars = component(() => {
+  const stars = signal(3);
+  return () => (
+    <Col gap={8}>
+      <Rating model={() => stars.value} />
+      <Text class="opacity-60">value: {stars.value}</Text>
+    </Col>
+  );
+});
+```
+
+## Half steps
+
+Set `allowHalf` for half-star precision — useful for showing and capturing fractional scores:
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Col, Rating, Text } from '@sigx/lynx-daisyui';
+
+const HalfSteps = component(() => {
+  const half = signal(2.5);
+  return () => (
+    <Col gap={8}>
+      <Rating model={() => half.value} allowHalf size="lg" />
+      <Text class="opacity-60">value: {half.value}</Text>
+    </Col>
+  );
+});
+```
+
+## Read-only and custom max
+
+Use `readOnly` to display an average (combine with `allowHalf` for fractional scores), and `max` for a different number of stars:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Col, Rating } from '@sigx/lynx-daisyui';
+
+const Display = component(() => () => (
+  <Col gap={8}>
+    <Rating value={4} readOnly color="warning" />
+    <Rating value={3.5} allowHalf readOnly />
+    <Rating value={7} max={10} color="primary" size="sm" />
+  </Col>
+));
+```
