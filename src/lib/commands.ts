@@ -52,6 +52,13 @@ export function buildCommands(): Command[] {
         path: `Lynx · Module catalog · ${modulesByParent('lynx').length} modules`,
     });
     seen.add('/lynx/modules');
+    out.push({
+        label: 'Browse Terminal packages',
+        href: '/terminal/packages',
+        pkgId: 'terminal',
+        path: `Terminal · Package catalog · ${modulesByParent('terminal').length} packages`,
+    });
+    seen.add('/terminal/packages');
 
     // Package landing pages — the most prominent jump targets.
     for (const pkg of PACKAGES) {

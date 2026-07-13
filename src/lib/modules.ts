@@ -1,11 +1,13 @@
 /**
  * SignalX sub-package registry — the modules inside the collection
- * packages (core, lynx, server — see `kind: 'collection'` in lib/family.ts).
+ * packages (core, lynx, server, terminal — see `kind: 'collection'` in
+ * lib/family.ts).
  *
  * Presentational chrome ONLY (tiles, hues, switcher groups, catalog
  * cards): docs content + navigation stay data-driven from the SSG —
  * each module owns a real MDX collection (`lynx-mod-<id>-docs` /
- * `core-pkg-<id>-docs` / `server-pkg-<id>-docs`, see ssg.config.ts +
+ * `core-pkg-<id>-docs` / `server-pkg-<id>-docs` /
+ * `terminal-pkg-<id>-docs`, see ssg.config.ts +
  * scripts/generate-module-docs.mjs).
  *
  * IMPORTANT: this file is imported by ssg.config.ts at config time —
@@ -18,7 +20,7 @@
 import type { PackageStatus } from './family';
 import { VERSIONS } from './versions.generated.ts';
 
-export type ModuleParent = 'lynx' | 'core' | 'server';
+export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal';
 
 export interface SigxModule {
     /** Stable id — also the route segment and collection infix. */
@@ -68,6 +70,10 @@ export const MODULE_CATEGORIES: Record<ModuleParent, { id: string; label: string
     ],
     server: [
         { id: 'packages', label: 'SSR packages' },
+    ],
+    terminal: [
+        { id: 'stack', label: 'TUI stack' },
+        { id: 'tooling', label: 'Standalone tooling' },
     ],
 };
 
@@ -348,6 +354,37 @@ const RAW_MODULES: SigxModule[] = [
       hue: 40, glyph: '❖', status: 'stable', version: '0.7.0', role: 'Islands',
       tag: 'Selective hydration via client:*',
       blurb: 'The first-party reference strategy pack for SignalX SSR, built on the @sigx/server-renderer plugin API — hydrate only interactive components with client:load / idle / visible / media / only, with per-island code splitting.' },
+
+    // ============ Terminal repo packages ============
+    // terminal is a collection like core — signalxjs/terminal publishes
+    // all six in lockstep. The umbrella depends on runtime-terminal +
+    // terminal-zero + terminal-ui (plus the core packages); terminal-dev
+    // (a devDependency install) and args (fully standalone — it also
+    // powers @sigx/cli) are NOT part of the umbrella.
+    { id: 'terminal', parent: 'terminal', npm: '@sigx/terminal', name: 'Terminal', category: 'stack',
+      hue: 138, glyph: '▸', status: 'experimental', version: '0.6.2', role: 'Umbrella', aliasFor: 'terminal',
+      tag: 'The public umbrella package',
+      blurb: 'The package you install — re-exports the renderer, the headless foundation and the themed components under one @sigx/terminal entry.' },
+    { id: 'runtime-terminal', parent: 'terminal', npm: '@sigx/runtime-terminal', name: 'Runtime Terminal', category: 'stack',
+      hue: 152, glyph: '⊞', status: 'experimental', version: '0.6.2', role: 'Renderer',
+      tag: 'The cell renderer',
+      blurb: 'Walks your component tree into ANSI lines and paints them — render modes, layered key dispatch, color-depth detection, output targets and reactive terminal size. The host platform for @sigx/runtime-core.' },
+    { id: 'terminal-zero', parent: 'terminal', npm: '@sigx/terminal-zero', name: 'Terminal Zero', category: 'stack',
+      hue: 96, glyph: '○', status: 'experimental', version: '0.6.2', role: 'Headless foundation',
+      tag: 'Tokens, theme engine, layout & prompts engine',
+      blurb: 'The design-system-neutral half: the token contract, the theme engine, shared glyphs, layout primitives and the prompts engine. No fixed look — skins build on it.' },
+    { id: 'terminal-ui', parent: 'terminal', npm: '@sigx/terminal-ui', name: 'Terminal UI', category: 'stack',
+      hue: 46, glyph: '❖', status: 'experimental', version: '0.6.2', role: 'Component library',
+      tag: 'Themed components — the SigX-tui skin',
+      blurb: 'The SigX-tui skin: forms, feedback, navigation, layout, data, fx and tasks components, plus five built-in themes (default obsidian). Built entirely on terminal-zero tokens.' },
+    { id: 'terminal-dev', parent: 'terminal', npm: '@sigx/terminal-dev', name: 'Terminal Dev', category: 'tooling',
+      hue: 158, glyph: '⟳', status: 'experimental', version: '0.6.2', role: 'Dev runner',
+      tag: 'HMR dev runner',
+      blurb: 'sigx-terminal-dev <entry> runs your TUI under an in-process Vite dev server — edit a component, the running app patches in place. Install as a devDependency; not part of the umbrella.' },
+    { id: 'args', parent: 'terminal', npm: '@sigx/args', name: 'Args', category: 'tooling',
+      hue: 264, glyph: '›', status: 'stable', version: '0.6.2', role: 'CLI parser',
+      tag: 'Fluent, type-aware argument parser',
+      blurb: 'A fluent, type-aware command & argument parser where the builders you chain drive your handler types. Zero runtime dependencies, fully standalone — the engine behind @sigx/cli.' },
 ];
 
 /** Registry with live npm versions overlaid (falls back to the literal). */
@@ -356,6 +393,9 @@ export const MODULES: SigxModule[] =
 
 /** Featured Lynx modules surfaced directly in the family menu's Lynx column. */
 export const LYNX_FEATURED = ['navigation', 'daisyui', 'gestures', 'motion'];
+
+/** Featured terminal packages surfaced in the family menu's Terminal column. */
+export const TERMINAL_FEATURED = ['terminal-ui', 'terminal-zero', 'terminal-dev', 'args'];
 
 /**
  * Component-library catalogs — component-heavy packages render this as
@@ -443,6 +483,7 @@ export const modulesInCategory = (parent: ModuleParent, category: string): SigxM
 export const moduleRoutePrefix = (m: SigxModule): string =>
     m.parent === 'lynx' ? `/lynx/modules/${m.id}`
         : m.parent === 'server' ? `/server/packages/${m.id}`
+        : m.parent === 'terminal' ? `/terminal/packages/${m.id}`
         : `/core/packages/${m.id}`;
 
 /**
@@ -456,4 +497,5 @@ export const moduleDocsCollection = (m: SigxModule): string | undefined =>
     m.aliasFor ? undefined
         : m.parent === 'lynx' ? `lynx-mod-${m.id}-docs`
         : m.parent === 'server' ? `server-pkg-${m.id}-docs`
+        : m.parent === 'terminal' ? `terminal-pkg-${m.id}-docs`
         : `core-pkg-${m.id}-docs`;

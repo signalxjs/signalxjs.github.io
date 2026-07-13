@@ -6,10 +6,10 @@
  *
  *   pnpm fetch:versions     # run manually, or in CI before `pnpm build`
  *
- * Leverages lockstep versioning: the two monorepos (core, lynx) are
- * fetched once each through an anchor package and fanned out to every
- * member; the standalone packages are fetched individually (~10 requests
- * total instead of ~60). Resilient by design — a failed request keeps the
+ * Leverages lockstep versioning: the three monorepos (core, lynx,
+ * terminal) are fetched once each through an anchor package and fanned out
+ * to every member; the standalone packages are fetched individually (~10
+ * requests total instead of ~60). Resilient by design — a failed request keeps the
  * previously committed value, so a flaky npm never breaks the build.
  *
  * Tracks the `latest` dist-tag (not the newest publish) so docs only ever
@@ -32,8 +32,8 @@ const TIMEOUT_MS = 10_000;
 
 /**
  * npm package → source-repo "anchor" package, per the npm→repo rule in
- * AGENTS.md. The two monorepos publish in lockstep, so one fetch covers the
- * whole family; everything else is its own repo and is its own anchor.
+ * AGENTS.md. The three monorepos publish in lockstep, so one fetch covers
+ * the whole family; everything else is its own repo and is its own anchor.
  */
 const CORE_MEMBERS = new Set([
     'sigx',
@@ -43,8 +43,17 @@ const CORE_MEMBERS = new Set([
     '@sigx/server-renderer',
     '@sigx/vite',
 ]);
+const TERMINAL_MEMBERS = new Set([
+    '@sigx/terminal',
+    '@sigx/runtime-terminal',
+    '@sigx/terminal-zero',
+    '@sigx/terminal-ui',
+    '@sigx/terminal-dev',
+    '@sigx/args',
+]);
 const anchorFor = (npm) =>
     CORE_MEMBERS.has(npm) ? 'sigx'
+        : TERMINAL_MEMBERS.has(npm) ? '@sigx/terminal'
         : npm === '@sigx/lynx' || npm.startsWith('@sigx/lynx-') ? '@sigx/lynx'
             : npm;
 

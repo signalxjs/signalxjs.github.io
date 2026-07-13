@@ -140,21 +140,24 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 | `daisyui/` (`api`, `docs`) | [`signalxjs/daisyui`](https://github.com/signalxjs/daisyui) | No |
 | `cli/` | [`signalxjs/cli`](https://github.com/signalxjs/cli) | No |
 | `devtools/` | [`signalxjs/devtools`](https://github.com/signalxjs/devtools) | No |
-| `terminal/` | [`signalxjs/terminal`](https://github.com/signalxjs/terminal) | No |
+| `terminal/` (`docs`, `packages`) | [`signalxjs/terminal`](https://github.com/signalxjs/terminal) | **Yes** — `parent: 'terminal'` rows (`@sigx/terminal`, `@sigx/runtime-terminal`, `@sigx/terminal-zero`, `@sigx/terminal-ui`, `@sigx/terminal-dev`, `@sigx/args`); published in lockstep |
 | `monaco/` | [`signalxjs/monaco-editor`](https://github.com/signalxjs/monaco-editor) | No |
 | `blog/` | (this repo) | n/a |
 
 **The npm → repo rule:** the web umbrella package is **`sigx`** (published from
 `signalxjs/core`); everything else is **`@sigx/<x>`**, published from
-**`signalxjs/<x>`** — *except the two monorepos*: `signalxjs/core` also publishes
+**`signalxjs/<x>`** — *except the three monorepos*: `signalxjs/core` also publishes
 `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`,
-`@sigx/server-renderer`, `@sigx/vite`; and `signalxjs/lynx` publishes all
-`@sigx/lynx*`. The authoritative package lists are `src/lib/modules.ts` (core +
-lynx) and the `@sigx/*` entries in `package.json` (what the site builds against).
+`@sigx/server-renderer`, `@sigx/vite`; `signalxjs/lynx` publishes all
+`@sigx/lynx*`; and `signalxjs/terminal` publishes `@sigx/terminal`,
+`@sigx/runtime-terminal`, `@sigx/terminal-zero`, `@sigx/terminal-ui`,
+`@sigx/terminal-dev` and `@sigx/args`. The authoritative package lists are
+`src/lib/modules.ts` (core + lynx + server + terminal) and the `@sigx/*` entries in
+`package.json` (what the site builds against).
 
 ### Refresh playbook — after a source repo releases
 
-1. **Find what's behind.** For a `core`/`lynx` package, compare its `version` in
+1. **Find what's behind.** For a `core`/`lynx`/`terminal` package, compare its `version` in
    `src/lib/modules.ts` to npm's latest (`npm view <pkg> version`). For the others,
    check the source repo's latest release / `CHANGELOG.md`.
 2. **Read what changed.** Start from this repo's docs-issue queue — the source
@@ -167,9 +170,9 @@ lynx) and the `@sigx/*` entries in `package.json` (what the site builds against)
    - Bump the matching `@sigx/*` / `sigx` range in `package.json` so live-code
      examples build against the new version. (Routine bumps arrive via Dependabot;
      do it by hand when you're writing the docs for a specific release.)
-   - For `core`/`lynx`: update `version` (and `downloads`, if tracked) in
+   - For `core`/`lynx`/`terminal`: update `version` (and `downloads`, if tracked) in
      `src/lib/modules.ts`.
-   - **New package/module?** Add a registry row (`core`/`lynx`) or a new
+   - **New package/module?** Add a registry row (`core`/`lynx`/`terminal`) or a new
      `src/pages/<area>/` section, then run `pnpm gen:modules` to scaffold its stub
      pages, and fill them in.
    - Write/refresh the affected MDX guide & API pages under `src/pages/<area>/`.

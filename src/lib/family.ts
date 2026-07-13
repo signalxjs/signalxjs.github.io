@@ -4,7 +4,7 @@
  * Single source of truth for the package family: identity, target,
  * category, release status, and the per-package accent HUE that drives
  * the `--pkg-h` design token across the site. Sub-packages of the
- * collection packages (core, lynx) live in lib/modules.ts.
+ * collection packages (core, lynx, server, terminal) live in lib/modules.ts.
  */
 
 import { moduleById, type SigxModule } from '@/lib/modules';
@@ -16,7 +16,7 @@ export type TargetId = 'foundation' | 'web' | 'lynx' | 'terminal';
 /**
  * leaf — a single documented package.
  * collection — a meta-package/repo containing sub-packages with their own docs
- *   (core, lynx — see lib/modules.ts).
+ *   (core, lynx, server, terminal — see lib/modules.ts).
  * component-library — exposes a categorized component catalog in its docs.
  */
 export type PackageKind = 'leaf' | 'collection' | 'component-library';
@@ -81,8 +81,8 @@ const RAW_PACKAGES: SigxPackage[] = [
       hue: 350, glyph: '◑', status: 'experimental', version: '0.2.1',
       tag: 'Native iOS & Android with Lynx',
       blurb: 'Write one SignalX component tree, render it to real native views on iOS and Android.' },
-    { id: 'terminal', npm: '@sigx/terminal', title: 'Terminal', cat: 'platform', target: 'terminal',
-      hue: 138, glyph: '▸', status: 'experimental', version: '0.3.0',
+    { id: 'terminal', npm: '@sigx/terminal', title: 'Terminal', cat: 'platform', target: 'terminal', kind: 'collection',
+      hue: 138, glyph: '▸', status: 'experimental', version: '0.6.2',
       tag: 'Build TUIs with TSX',
       blurb: 'The reactive model, rendered to the terminal — flexbox layout, input and a cell renderer.' },
 
@@ -182,15 +182,15 @@ export function packageForCollection(collection?: string | null): SigxPackage | 
 
 /**
  * Resolve a sub-package/module from a module collection name
- * (`lynx-mod-<id>-docs` / `core-pkg-<id>-docs` / `server-pkg-<id>-docs` —
- * see lib/modules.ts).
+ * (`lynx-mod-<id>-docs` / `core-pkg-<id>-docs` / `server-pkg-<id>-docs` /
+ * `terminal-pkg-<id>-docs` — see lib/modules.ts).
  * The `-mod-`/`-pkg-` infix keeps these unambiguous against top-level
  * collections (`core-api` vs a core sub-package named `api`), while
  * `packageForCollection`'s prefix split still yields the parent package.
  */
 export function moduleForCollection(collection?: string | null): SigxModule | undefined {
     if (!collection) return undefined;
-    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg)-(.+?)-(?:docs|api)$/);
+    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg|terminal-pkg)-(.+?)-(?:docs|api)$/);
     return m ? moduleById[m[1]] : undefined;
 }
 

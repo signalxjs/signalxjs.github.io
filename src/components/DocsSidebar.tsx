@@ -41,6 +41,7 @@ const CATALOG_LABEL: Record<ModuleParent, string> = {
     lynx: 'All Lynx modules',
     core: 'All Core packages',
     server: 'All Server packages',
+    terminal: 'All Terminal packages',
 };
 const CatalogLink = component<Define.Prop<'parent', ModuleParent, true> & Define.Event<'pick', void>>(
     ({ props, emit }) => () => (

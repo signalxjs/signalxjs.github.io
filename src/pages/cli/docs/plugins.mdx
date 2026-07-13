@@ -91,7 +91,7 @@ export default definePlugin({
 
 ## Declaring command arguments
 
-Commands declare their arguments through the `args` map, using the fluent [`@sigx/args`](/terminal/docs/args) builders exposed as `a` (re-exported from `@sigx/cli/plugin`). Each entry is a builder you chain to describe its type, aliases, default, and help — and the chain drives the type your handler receives in `ctx.args`:
+Commands declare their arguments through the `args` map, using the fluent [`@sigx/args`](/terminal/packages/args/overview/) builders exposed as `a` (re-exported from `@sigx/cli/plugin`). Each entry is a builder you chain to describe its type, aliases, default, and help — and the chain drives the type your handler receives in `ctx.args`:
 
 ```ts
 import { definePlugin, a } from '@sigx/cli/plugin';
@@ -128,7 +128,7 @@ The common builders:
 | `a.positional()` | non-flag tokens, in declaration order | `string` |
 | `a.rest()` | the remaining positional tokens | `string[]` |
 
-Chain refiners to shape them: `.alias('p', …)` (single characters become short flags like `-p`), `.default(v)`, `.required()`, `.multiple()` (repeatable → array), `.describe(text)`. Builders are immutable — each refiner returns a new builder. For the full builder/refiner reference see the [`@sigx/args` guide](/terminal/docs/args).
+Chain refiners to shape them: `.alias('p', …)` (single characters become short flags like `-p`), `.default(v)`, `.required()`, `.multiple()` (repeatable → array), `.describe(text)`. Builders are immutable — each refiner returns a new builder. For the full builder/refiner reference see the [`@sigx/args` guide](/terminal/packages/args/overview/).
 
 **Parsing behavior** flows straight from `@sigx/args`, so plugin commands inherit it:
 
@@ -205,5 +205,5 @@ If two plugins register a command with the same name, the last one discovered wi
 
 - [API Reference](/cli/docs/api) — the full `SigxPlugin`, `PluginCommand`, `CommandContext`, `TuiContribution`, and `Logger` types.
 - [The shell runtime](/cli/docs/shell) — `runShell`, the `ShellHandle` API, and the TUI contribution model.
-- [`@sigx/args` guide](/terminal/docs/args) — the fluent arg builders behind `PluginCommand.args`.
+- [`@sigx/args` guide](/terminal/packages/args/overview/) — the fluent arg builders behind `PluginCommand.args`.
 - [Commands](/cli/docs/commands) — the built-in and plugin-provided commands.

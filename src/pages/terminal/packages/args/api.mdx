@@ -1,0 +1,28 @@
+---
+title: "API reference"
+description: "Args — Fluent, type-aware argument parser"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/args` <PkgVersion npm="@sigx/args" />.</p>
+
+## Exports
+
+| Export | What it is |
+| --- | --- |
+| `command(name)` | Start a fluent command chain — `.describe()` / `.version()` / `.aliases()` / `.hidden()` / `.allowUnknownFlags()` / `.args()` / `.subcommands()` / `.run()`. See [the command chain](/terminal/packages/args/overview/#the-command-chain). |
+| `a` | The arg-builder namespace: `a.string()`, `a.number()`, `a.boolean()`, `a.enum([...])`, `a.positional()`, `a.rest()`, refined with `.required()` / `.default()` / `.multiple()` / `.alias()` / `.negatable()` / `.describe()` / `.valueHint()` / `.hidden()`. See [arg builders](/terminal/packages/args/overview/#arg-builders) and [refiners](/terminal/packages/args/overview/#refiners). |
+| `runMain(cmd, opts?)` | Parse `process.argv`, run the matched handler, print errors/help and set `process.exitCode`. See [embedding](/terminal/packages/args/overview/#embedding). |
+| `runCommand(cmd, opts)` | Like `runMain` but **throws** instead of printing — for hosts that render errors themselves. |
+| `parseArgs(argv, shape)` | Headless parsing against a record of builders, no command needed. See [headless parsing](/terminal/packages/args/overview/#headless-parsing). |
+| `buildHelpCatalog(cmd)` / `renderHelp(catalog)` | The structured `HelpCatalog` model plus the plain-text renderer. See [headless help catalog](/terminal/packages/args/overview/#headless-help-catalog). |
+| `ParseError` / `DefinitionError` | Typed errors with machine-readable `code` + structured `detail`. See [errors](/terminal/packages/args/overview/#errors). |
+
+The companion types `AnyArg`, `ArgsShape` and `InferArgs` are exported alongside the
+builders. See the package source for the complete typed surface.

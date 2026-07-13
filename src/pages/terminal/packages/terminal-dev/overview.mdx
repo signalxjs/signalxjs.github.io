@@ -1,14 +1,20 @@
 ---
-title: Dev mode
+title: Overview
 description: "@sigx/terminal-dev — HMR for terminal apps: edit a component, the running TUI updates in place"
-layout: docs
-category: Guides
-order: 65
+layout: module-docs
+category: Getting Started
+order: 10
 ---
 
-# Dev mode (`@sigx/terminal-dev`)
+import { PkgVersion } from '@/components/PkgVersion';
 
-`@sigx/terminal-dev` is an HMR dev runner for SignalX terminal apps. Run your TUI under an in-process Vite dev server, save a component file, and watch the **running** terminal app update in place — no restart, no lost state.
+# Terminal Dev
+
+<p class="lede">`@sigx/terminal-dev` is an HMR dev runner for SignalX terminal apps. Run your TUI under an in-process Vite dev server, save a component file, and watch the **running** terminal app update in place — no restart, no lost state.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/terminal-dev" /> <span class="mmr-dot" /> devDependency <span class="mmr-dot" /> MIT</p>
+
+It is not part of the `@sigx/terminal` umbrella — install it as a dev dependency:
 
 ```bash
 npm install -D @sigx/terminal-dev
@@ -36,7 +42,7 @@ import { App } from './App';
 defineApp(<App />).mount({ fullscreen: true }, terminalMount);
 ```
 
-Your `tsconfig.json` needs the usual SignalX JSX setup (`"jsx": "react-jsx"` and `"jsxImportSource": "@sigx/runtime-core"`, or the `@sigx/terminal` facade — see [Installation](/terminal/docs/installation)).
+Your `tsconfig.json` needs the usual SignalX JSX setup (`"jsx": "react-jsx"` and `"jsxImportSource": "@sigx/runtime-core"`, or the `@sigx/terminal` facade — see [Installation](/terminal/docs/installation/)).
 
 ## What a save does
 
@@ -86,6 +92,6 @@ These are inherent to setup-rerun HMR:
 
 ## Next steps
 
-- [Installation](/terminal/docs/installation) — the TSX/Vite config dev mode expects.
-- [Render modes](/terminal/docs/render-modes) — `terminalMount` and the mount options.
-- [Architecture](/terminal/docs/architecture) — where `terminal-dev` sits in the stack.
+- [Installation](/terminal/docs/installation/) — the TSX/Vite config dev mode expects.
+- [Render modes](/terminal/docs/render-modes/) — `terminalMount` and the mount options.
+- [Architecture](/terminal/docs/architecture/) — where `terminal-dev` sits in the stack.

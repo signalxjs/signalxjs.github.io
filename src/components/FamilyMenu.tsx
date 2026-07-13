@@ -3,8 +3,7 @@
  * Terminal), opened from the navbar package trigger. Capability is a
  * sub-group INSIDE each target column, so web UI and native UI sit in
  * parallel. Lynx & Terminal are collections: a Framework sub-group,
- * then "UI & modules" (featured Lynx modules + a catalog link; the
- * terminal equivalent is on the roadmap).
+ * then featured modules/packages + a catalog link.
  *
  * Render conditionally ({open && <FamilyMenu …/>}). Scrim click and
  * Esc close it. Reflows 4 → 2 columns ≤1024 and to a single
@@ -17,7 +16,7 @@ import {
     CATEGORIES, CAT_SHORT, STATUS, TARGETS, byId, inTarget,
     type SigxPackage, type TargetId,
 } from '@/lib/family';
-import { LYNX_FEATURED, MODULES, moduleById, type SigxModule } from '@/lib/modules';
+import { LYNX_FEATURED, MODULES, TERMINAL_FEATURED, moduleById, type SigxModule } from '@/lib/modules';
 import { moduleHref } from '@/lib/packageLinks';
 import { canonicalPath } from '@/lib/url';
 import { Icon } from '@/components/ui/Icon';
@@ -86,6 +85,7 @@ export const FamilyMenu = component<FamilyMenuProps>(({ props, emit }) => {
     );
 
     const lynxModuleCount = MODULES.filter((m) => m.parent === 'lynx').length;
+    const terminalPackageCount = MODULES.filter((m) => m.parent === 'terminal').length;
 
     return () => (
         <>
@@ -131,8 +131,14 @@ export const FamilyMenu = component<FamilyMenuProps>(({ props, emit }) => {
                                         {pkgItem(byId.terminal)}
                                     </div>
                                     <div class="mega-sub">
-                                        <div class="mega-subhead mono">UI &amp; modules</div>
-                                        <div class="mega-note">Native-style modules for the terminal are on the roadmap.</div>
+                                        <div class="mega-subhead mono">UI &amp; packages</div>
+                                        {TERMINAL_FEATURED
+                                            .map((id) => moduleById[id])
+                                            .filter(Boolean)
+                                            .map(moduleItem)}
+                                        <button class="mega-browse" onClick={() => go('/terminal/packages')}>
+                                            Browse all {terminalPackageCount} packages <Icon name="arrowRight" size={13} />
+                                        </button>
                                     </div>
                                 </>
                             ) : (

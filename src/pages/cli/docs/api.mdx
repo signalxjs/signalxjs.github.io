@@ -38,7 +38,7 @@ As an alternative, you can use the `satisfies SigxPlugin` pattern instead of cal
 export const a; // the @sigx/args builder factory
 ```
 
-Re-exported from `@sigx/args`. Use it to declare a command's arguments — `a.string()`, `a.number()`, `a.boolean()`, `a.enum([...])`, `a.positional()`, `a.rest()`, refined with `.alias()`, `.default()`, `.required()`, `.multiple()`, `.describe()`. See [Authoring Plugins](/cli/docs/plugins#declaring-command-arguments) and the [`@sigx/args` guide](/terminal/docs/args). The companion types `AnyArg`, `ArgsShape`, and `InferArgs` are exported alongside it.
+Re-exported from `@sigx/args`. Use it to declare a command's arguments — `a.string()`, `a.number()`, `a.boolean()`, `a.enum([...])`, `a.positional()`, `a.rest()`, refined with `.alias()`, `.default()`, `.required()`, `.multiple()`, `.describe()`. See [Authoring Plugins](/cli/docs/plugins#declaring-command-arguments) and the [`@sigx/args` guide](/terminal/packages/args/overview/). The companion types `AnyArg`, `ArgsShape`, and `InferArgs` are exported alongside it.
 
 ### runCreate
 
@@ -112,7 +112,7 @@ Passed to a `PluginCommand.run` handler.
 - **`plugins`** — every plugin discovered for this project, so a shell-hosting command can merge peer plugins' TUI contributions via `runShell({ plugins })`.
 - **`cliVersion`** — the running `sigx` binary's version, for plugin feature detection.
 
-Arguments are declared with the `a` builders rather than a plain shape object; see [Declaring command arguments](/cli/docs/plugins#declaring-command-arguments) and the [`@sigx/args` guide](/terminal/docs/args) for the full builder reference.
+Arguments are declared with the `a` builders rather than a plain shape object; see [Declaring command arguments](/cli/docs/plugins#declaring-command-arguments) and the [`@sigx/args` guide](/terminal/packages/args/overview/) for the full builder reference.
 
 ### Logger
 
