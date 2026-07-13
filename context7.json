@@ -1,0 +1,14 @@
+{
+    "$schema": "https://context7.com/schema/context7.json",
+    "projectTitle": "SignalX",
+    "description": "Fine-grained reactive component framework (sigx) — signals, components, router, store, SSG, SSR, native iOS/Android (Lynx), and terminal UIs. Docs source for https://sigx.dev",
+    "folders": ["src/pages"],
+    "excludeFiles": ["README.md", "AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md"],
+    "rules": [
+        "signal(primitive) returns { value: T } — read and write via .value (count.value++)",
+        "signal(object) and signal(array) return a deep reactive proxy — direct property access (user.name = 'Jane'), never .value",
+        "$set() exists only on object/array signals and replaces the whole value; primitives assign .value instead",
+        "component() setup runs once and returns a render closure; put reactive reads inside the returned () => JSX, and call slots optionally (slots.default?.())",
+        "Install the umbrella package only (sigx, or @sigx/lynx / @sigx/terminal per platform) — never @sigx/reactivity or @sigx/runtime-* directly"
+    ]
+}
