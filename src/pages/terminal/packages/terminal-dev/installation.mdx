@@ -1,0 +1,29 @@
+---
+title: "Installation"
+description: "Terminal Dev — HMR dev runner"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/terminal-dev` to your project as a dev dependency.</p>
+
+## Install the package
+
+It runs your app during development only — it is not part of the `@sigx/terminal` umbrella and never ships with your app:
+
+```bash
+pnpm add -D @sigx/terminal-dev
+```
+
+## JSX setup
+
+`@sigx/terminal-dev` lists `@sigx/runtime-core` (`0.6.x`) as a peer dependency and bundles Vite. Your `tsconfig.json` needs the usual SignalX JSX setup (`"jsx": "react-jsx"` and `"jsxImportSource": "@sigx/runtime-core"`, or the `@sigx/terminal` facade — see the umbrella's [Installation](/terminal/docs/installation/) guide).
+
+## Verify
+
+```bash
+pnpm exec sigx-terminal-dev --help
+```

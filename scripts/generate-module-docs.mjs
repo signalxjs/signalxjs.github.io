@@ -33,13 +33,19 @@ const catalogFor = (m) =>
     m.parent === 'lynx' ? COMPONENT_CATALOGS[`lynx-${m.id}`] : undefined;
 
 const pageSet = (m) => {
-    const parentTitle = m.parent === 'lynx' ? 'Lynx' : m.parent === 'server' ? 'Server' : 'Core';
+    const parentTitle =
+        m.parent === 'lynx' ? 'Lynx'
+            : m.parent === 'server' ? 'Server'
+            : m.parent === 'terminal' ? 'Terminal'
+            : 'Core';
     const noun = m.parent === 'lynx' ? 'module' : 'package';
-    // Lynx & core ship lockstep from one repo; the server packages do not.
+    // Lynx, core & terminal ship lockstep from one repo; the server packages do not.
     const lockstep = m.parent === 'lynx'
         ? ' It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.'
         : m.parent === 'core'
             ? ' It is versioned in lockstep with the rest of the Core repo, so any combination of packages just works together.'
+        : m.parent === 'terminal'
+            ? ' It is versioned in lockstep with the rest of the terminal repo, so any combination of packages just works together.'
             : '';
     const installCmd = `pnpm add ${m.npm}`;
     const importName = m.name.replace(/[^A-Za-z0-9]/g, '');
@@ -133,9 +139,12 @@ See the package source for the complete typed surface.
 `,
         },
     ];
-    // Server packages are documented with custom multi-page guides, not the
-    // generic "Usage" stub — skip it so re-runs stay idempotent.
-    return m.parent === 'server' ? pages.filter((p) => p.file !== 'usage.mdx') : pages;
+    // Server & terminal packages are documented with custom guides (terminal's
+    // live in the umbrella's docs/), not the generic "Usage" stub — skip it so
+    // re-runs stay idempotent.
+    return m.parent === 'server' || m.parent === 'terminal'
+        ? pages.filter((p) => p.file !== 'usage.mdx')
+        : pages;
 };
 
 let created = 0;

@@ -72,6 +72,11 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                                 <Icon name="cube" size={15} /> Browse packages
                             </SxLink>
                         )}
+                        {pkg.id === 'terminal' && (
+                            <SxLink to="/terminal/packages" class={`sx-btn ${docs ? 'sx-btn-outline' : 'sx-btn-primary'}`}>
+                                <Icon name="cube" size={15} /> Browse packages
+                            </SxLink>
+                        )}
                         {api && (
                             <SxLink to={api} class="sx-btn sx-btn-outline">
                                 API reference
@@ -141,6 +146,18 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         </div>
                         <div class="lynx-mod-row">
                             {modulesByParent('server').map(moduleCard)}
+                        </div>
+                    </>
+                )}
+                {pkg.id === 'terminal' && (
+                    <>
+                        <div class="section-label">
+                            <span class="sl-text">Packages in this repo</span>
+                            <span class="sl-line" />
+                            <span class="sl-note">terminal is a collection — the renderer, foundation, UI skin and tooling</span>
+                        </div>
+                        <div class="lynx-mod-row">
+                            {modulesByParent('terminal').map(moduleCard)}
                         </div>
                     </>
                 )}

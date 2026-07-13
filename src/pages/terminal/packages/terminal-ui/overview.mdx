@@ -1,0 +1,49 @@
+---
+title: "Overview"
+description: "@sigx/terminal-ui — themed components for SignalX terminal UIs: the SigX-tui skin"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Terminal UI
+
+<p class="lede">The themed component library for SignalX terminal apps — the SigX-tui skin: forms, feedback, navigation, layout, data, fx and tasks components, plus five built-in themes (default **obsidian**). Built entirely on `@sigx/terminal-zero` tokens.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/terminal-ui" /> <span class="mmr-dot" /> MIT</p>
+
+The `@sigx/terminal` umbrella re-exports this package, so most apps never install it
+directly — `pnpm add @sigx/terminal` brings it along, and importing the umbrella
+registers the five built-in themes automatically. Install it on its own only when
+you're composing a custom stack on `@sigx/terminal-zero`:
+
+```bash
+pnpm add @sigx/terminal-ui
+```
+
+## The components
+
+Every component is documented in the umbrella's **[component gallery](/terminal/docs/components/)** —
+24 components across Forms, Feedback, Navigation, Layout, Data, Effects and Tasks,
+each with its own page. The interactive ones plug into the
+[focus and layered key dispatch](/terminal/docs/input-and-components/) model.
+
+## Theming
+
+Components don't hard-code colors — they ask for semantic tokens that resolve
+against the active theme at render time. The token pipeline lives in
+`@sigx/terminal-zero`; this package registers the five concrete SigX-tui themes and
+binds the theme canvas. See **[Theming](/terminal/docs/theming/)**.
+
+## Prompts
+
+The async prompt kit (`input`, `select`, `confirm`, …) also ships from here
+(re-exported by the umbrella as `@sigx/terminal-ui/prompts`). See
+**[Prompts](/terminal/docs/prompts/)**.
+
+## Next steps
+
+Browse the [component gallery](/terminal/docs/components/), or jump to the
+[API reference](/terminal/packages/terminal-ui/api).

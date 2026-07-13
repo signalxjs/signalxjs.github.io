@@ -15,11 +15,13 @@ order: 15
 | Package | Role |
 | --- | --- |
 | `@sigx/terminal` | **Umbrella entry.** Re-exports the renderer, the headless foundation and the themed components so you can import everything from one place. Set `jsxImportSource: "@sigx/terminal"` to write TSX. |
-| `@sigx/runtime-terminal` | **The renderer.** Walks your component tree into ANSI lines and paints them: render modes, layered key dispatch, color-depth detection, output targets, reactive terminal size. The host platform for `@sigx/runtime-core`. |
-| `@sigx/terminal-zero` | **Headless foundation.** The design-system-neutral half: the token contract, the theme engine (`resolveColor`, `setTheme`), shared glyphs, layout primitives (`Box`, `Row`, `Col`, `Text`, …) and the prompts engine. No fixed look — skins build on it. |
-| `@sigx/terminal-ui` | **Themed component library.** The SigX-tui skin: forms, feedback, navigation, layout, data, fx and tasks components, plus five built-in themes (default `obsidian`). Built entirely on `terminal-zero` tokens. |
-| `@sigx/terminal-dev` | **HMR dev runner.** `sigx-terminal-dev <entry>` runs your app under Vite — edit a component, the running TUI patches in place. See [Dev mode](/terminal/docs/dev-mode). |
-| `@sigx/args` | **Command & argument parser.** A fluent, type-aware CLI parser. Independent of the renderer — it's the engine behind `@sigx/cli`. See [Command-line args](/terminal/docs/args). |
+| [`@sigx/runtime-terminal`](/terminal/packages/runtime-terminal/overview/) | **The renderer.** Walks your component tree into ANSI lines and paints them: render modes, layered key dispatch, color-depth detection, output targets, reactive terminal size. The host platform for `@sigx/runtime-core`. |
+| [`@sigx/terminal-zero`](/terminal/packages/terminal-zero/overview/) | **Headless foundation.** The design-system-neutral half: the token contract, the theme engine (`resolveColor`, `setTheme`), shared glyphs, layout primitives (`Box`, `Row`, `Col`, `Text`, …) and the prompts engine. No fixed look — skins build on it. |
+| [`@sigx/terminal-ui`](/terminal/packages/terminal-ui/overview/) | **Themed component library.** The SigX-tui skin: forms, feedback, navigation, layout, data, fx and tasks components, plus five built-in themes (default `obsidian`). Built entirely on `terminal-zero` tokens. |
+| [`@sigx/terminal-dev`](/terminal/packages/terminal-dev/overview/) | **HMR dev runner.** `sigx-terminal-dev <entry>` runs your app under Vite — edit a component, the running TUI patches in place. See [Dev mode](/terminal/packages/terminal-dev/overview/). |
+| [`@sigx/args`](/terminal/packages/args/overview/) | **Command & argument parser.** A fluent, type-aware CLI parser. Independent of the renderer — it's the engine behind `@sigx/cli`. See [Command-line args](/terminal/packages/args/overview/). |
+
+Every package ships from the [terminal monorepo](https://github.com/signalxjs/terminal) in lockstep — browse them all in the [package catalog](/terminal/packages/).
 
 ## How they layer
 

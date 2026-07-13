@@ -152,6 +152,12 @@ export default defineSSGConfig({
         '/lynx/modules/device-info/usage/': '/lynx/modules/core/usage/',
         '/lynx/modules/device-info/installation': '/lynx/modules/core/installation/',
         '/lynx/modules/device-info/installation/': '/lynx/modules/core/installation/',
+        // The @sigx/args and @sigx/terminal-dev guides moved from the terminal
+        // umbrella's docs to their own package pages (terminal is a collection).
+        '/terminal/docs/args': '/terminal/packages/args/overview/',
+        '/terminal/docs/args/': '/terminal/packages/args/overview/',
+        '/terminal/docs/dev-mode': '/terminal/packages/terminal-dev/overview/',
+        '/terminal/docs/dev-mode/': '/terminal/packages/terminal-dev/overview/',
     },
 
     // Navigation configuration

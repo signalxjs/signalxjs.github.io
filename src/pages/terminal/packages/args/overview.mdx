@@ -1,16 +1,23 @@
 ---
-title: Command-line args
+title: Overview
 description: "@sigx/args — a fluent, type-aware command & argument parser where the builders you chain drive your handler's types"
-layout: docs
-category: Guides
-order: 60
+layout: module-docs
+category: Getting Started
+order: 10
 ---
 
-# Command-line args (`@sigx/args`)
+import { PkgVersion } from '@/components/PkgVersion';
 
-`@sigx/args` is a fluent, type-aware command and argument parser for CLIs. The arg builders you chain drive the **types** your handler receives — declare `port: a.number().required()` and `ctx.args.port` is `number`, not `number | undefined`. It has **zero runtime dependencies**, is platform-neutral, and is the parser behind `@sigx/cli` and the lynx CLI plugins.
+# Args
 
-It's a standalone package — install it on its own, with or without a terminal UI:
+<p class="lede">`@sigx/args` is a fluent, type-aware command and argument parser for CLIs. The arg builders you chain drive the **types** your handler receives — declare `port: a.number().required()` and `ctx.args.port` is `number`, not `number | undefined`.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/args" /> <span class="mmr-dot" /> Zero dependencies <span class="mmr-dot" /> MIT</p>
+
+It has **zero runtime dependencies**, is platform-neutral, and is the parser behind
+`@sigx/cli` and the lynx CLI plugins. It ships from the terminal monorepo
+(`signalxjs/terminal`, `packages/args`) but is **fully standalone** — install it on
+its own, with or without a terminal UI:
 
 ```bash
 npm install @sigx/args
@@ -131,6 +138,6 @@ args.verbose; // boolean | undefined
 
 ## Next steps
 
-- [Prompts](/terminal/docs/prompts) — gather answers interactively after parsing args.
-- [Dev mode](/terminal/docs/dev-mode) — `sigx-terminal-dev` uses `@sigx/args` for its own flags.
+- [Prompts](/terminal/docs/prompts/) — gather answers interactively after parsing args.
+- [Terminal Dev](/terminal/packages/terminal-dev/overview/) — `sigx-terminal-dev` uses `@sigx/args` for its own flags.
 - [`@sigx/cli`](/cli/) — the SignalX CLI, built on `@sigx/args`.

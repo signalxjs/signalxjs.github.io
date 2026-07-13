@@ -65,6 +65,14 @@ export const ModuleCatalog = component<ModuleCatalogProps>(({ props, signal }) =
                             <code class="inline">@sigx/ssr-islands</code> layers on selective{' '}
                             <code class="inline">client:*</code> hydration. Each one carries its own docs.
                         </p>
+                    ) : props.parent === 'terminal' ? (
+                        <p>
+                            Everything in the terminal repo — the <code class="inline">@sigx/terminal</code>{' '}
+                            umbrella, the cell renderer, the headless <code class="inline">terminal-zero</code>{' '}
+                            foundation, the SigX-tui component skin, the HMR dev runner and the standalone{' '}
+                            <code class="inline">@sigx/args</code> parser. Published in lockstep; each one
+                            carries its own docs.
+                        </p>
                     ) : (
                         <p>
                             Core is a collection — the packages in this repo, from the reactive primitives to
