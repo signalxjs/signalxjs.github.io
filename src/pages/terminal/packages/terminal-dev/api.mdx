@@ -14,6 +14,11 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 ## Exports
 
-{/* TODO: document the public API of @sigx/terminal-dev */}
+| Export | What it is |
+| --- | --- |
+| `sigx-terminal-dev` (bin) | The CLI entry: `sigx-terminal-dev [entry] [--root <dir>] [--config <vite config>]`. See [running an app](/terminal/packages/terminal-dev/overview/#running-an-app). |
+| `startDev(options)` | Programmatic entry — returns `{ server, runner, restart, close }` for embedding the dev runner in your own tooling. See [programmatic API](/terminal/packages/terminal-dev/overview/#programmatic-api). |
+| `terminalDevPlugin()` | The Vite plugin that injects HMR identity registration and self-accept into component modules. |
+| `@sigx/terminal-dev/hmr` | The runtime that patches live component instances on a hot update — injected automatically; you never import it yourself. |
 
 See the package source for the complete typed surface.
