@@ -181,6 +181,30 @@ function writeSearchIndex(/* … */): Promise<void>
 
 Build the `search-index.json` over rendered pages. Consume it on the client with `loadSearchIndex` / `searchPages` from `@sigx/ssg/client`.
 
+### LLM output
+
+```ts
+function getMarkdownPath(urlPath: string): string
+function prepareLlmsPages(
+    pages: PageBuildResult[],
+    config: SSGConfig,
+    options?: LlmsOptions,
+    readSource?: (file: string) => Promise<string | null>,
+): Promise<LlmsPage[]>
+function renderPageMarkdown(source: string, options: RenderPageMarkdownOptions): string
+function buildLlmsIndex(pages: LlmsPage[], config: SSGConfig, options?: LlmsOptions): string
+function buildLlmsFullText(pages: LlmsPage[], options?: LlmsFullOptions): string
+function writeLlmsOutputs(
+    pages: PageBuildResult[],
+    config: SSGConfig,
+    outDir: string,
+    options?: LlmsOptions,
+    publicDir?: string,
+): Promise<{ files: string[]; warnings: string[] }>
+```
+
+The helper family behind the [`llms` config option](/ssg/docs/configuration#llm-friendly-output-llmstxt). `getMarkdownPath` maps a route to its `.md` rendition path (`/docs/guide/` → `docs/guide.md`, `/` → `index.md`). `prepareLlmsPages` filters the built pages to the llms-visible set (sitemap rules + `exclude` globs + frontmatter `llms: false` + `transform`) and renders each markdown-sourced page's rendition once; `buildLlmsIndex` and `buildLlmsFullText` are pure over the prepared pages, so per-area files are filtered re-invocations. `renderPageMarkdown` is the per-page rendition: frontmatter replaced with a `---\nurl/title/description\n---` header, MDX syntax stripped by a fence-aware line scanner (fence contents are never touched), and fence info strings normalized to the bare language. `writeLlmsOutputs` writes everything into `outDir` — a `llms*` file you ship via `public/` is never overwritten.
+
 ### Data loaders
 
 ```ts
@@ -875,6 +899,59 @@ interface SearchIndexEntry {
 ```
 
 One page in the emitted search index. Also exported from `@sigx/ssg/client`.
+
+### LlmsOptions
+
+```ts
+interface LlmsOptions {
+    index?: boolean;                       // llms.txt (default true)
+    title?: string;                        // default site.title
+    description?: string;                  // default site.description
+    intro?: string;                        // markdown emitted after the blockquote
+    sections?: LlmsSection[];              // curated index; default: auto per collection
+    full?: boolean | LlmsFullOptions;      // llms-full.txt (default true)
+    pageMd?: boolean;                      // per-page .md renditions (default true)
+    areas?: Record<string, LlmsAreaOptions>; // per-area sub-indexes; key = path prefix
+    exclude?: string[];                    // route globs excluded from ALL llms outputs
+    transform?: (md: string, page: PageBuildResult) => string | null | undefined;
+}
+
+interface LlmsSection {
+    title: string;            // emitted as `## title`
+    collections?: string[];   // those collections' pages, in sidebar order
+    pages?: string[];         // explicit route paths
+    links?: LlmsLink[];       // hand-authored entries
+}
+
+interface LlmsLink {
+    title: string;
+    href: string;             // route path (resolved to its .md rendition) or external URL
+    note?: string;            // rendered as the `: note` suffix
+}
+
+interface LlmsFullOptions {
+    output?: string;          // default 'llms-full.txt'
+    include?: string[];       // route globs (default: every markdown-sourced page)
+    exclude?: string[];
+}
+
+type LlmsAreaOptions = Omit<LlmsOptions, 'areas' | 'pageMd' | 'transform'>;
+```
+
+Configuration for the [LLM-friendly output](/ssg/docs/configuration#llm-friendly-output-llmstxt). An area's `full` defaults to `false` (per-area `llms-full.txt` is opt-in); the global `transform` receives every page and can branch on `page.path`.
+
+### LlmsPage
+
+```ts
+interface LlmsPage {
+    page: PageBuildResult;
+    url: string;         // absolute HTML URL
+    mdPath?: string;     // outDir-relative .md rendition path (markdown-sourced pages only)
+    markdown?: string;   // the rendition, header block included
+}
+```
+
+A built page prepared for the llms outputs by `prepareLlmsPages`.
 
 ### RoutesContext / ProgrammaticRoute / DataLoaders
 

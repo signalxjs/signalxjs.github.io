@@ -51,6 +51,7 @@ Other notable options:
 - `sitemap` — `SitemapOptions`, or `false` to skip sitemap.xml/robots.txt entirely. See [Sitemap and robots.txt](#sitemap-and-robotstxt).
 - `redirects` — a `{ '/old': '/new/' }` map of static redirects. See [Redirects](#redirects).
 - `search` — `true` (or `SearchOptions`) to emit a `search-index.json` over the rendered pages. See [Built-in search](#built-in-search).
+- `llms` — `true` (or `LlmsOptions`) to emit `llms.txt`, `llms-full.txt`, and per-page markdown renditions for LLM consumption. See [LLM-friendly output](#llm-friendly-output-llmstxt).
 - `linkCheck` — `'warn'` (default), `'error'`, or `'off'` for internal link & anchor validation. See [Link checking](#link-checking).
 - `routes` — a function that returns programmatic routes merged with the filesystem scan. See [Programmatic routes](#programmatic-routes).
 - `data` — build-time data loaders exposed via `virtual:ssg-data`. See [Build-time data loaders](#build-time-data-loaders).
@@ -383,6 +384,40 @@ export default defineSSGConfig({
 ```
 
 Consume the index on the client with `loadSearchIndex()` and `searchPages()` from `@sigx/ssg/client` — see [Client runtime → Search](/ssg/docs/client-runtime#search). To surface a theme's search UI (such as the daisyUI theme's ⌘K command palette), also set `site.search: true`; it reaches layouts via `LayoutProps.site`. Pair it with the top-level `search: true` so the index actually exists.
+
+## LLM-friendly output (llms.txt)
+
+Set `llms: true` (or an `LlmsOptions` object) to emit the [llms.txt convention](https://llmstxt.org/) over the built pages, so LLMs and agents can ingest the site as markdown instead of scraping HTML:
+
+- **`llms.txt`** — a markdown index: `# title`, a `> description` blockquote, your `intro` markdown, then one `## section` per group of `- [Title](/path.md): description` links pointing at the pages' markdown renditions.
+- **`llms-full.txt`** — the renditions concatenated, each prefixed with a `---` block carrying its canonical `url`.
+- **Per-page `.md` renditions** — a cleaned markdown file next to each markdown-sourced page's HTML: route `/docs/guide/` → `dist/docs/guide.md`, served as `/docs/guide.md`.
+- **Per-area sub-indexes** — `areas: { '/docs': {} }` emits `/docs/llms.txt` scoped to pages under that prefix, for consumers that only need one area (a per-area `llms-full.txt` is opt-in via the area's `full`).
+
+```ts
+export default defineSSGConfig({
+    llms: {
+        intro: 'Read [the cheatsheet](/start.md) first.',
+        sections: [
+            { title: 'Guides', collections: ['docs'] },
+            { title: 'More', links: [{ title: 'Playground', href: '/play', note: 'interactive' }] },
+        ],
+        full: { exclude: ['/changelog/**'] },
+        areas: { '/docs': {} },
+        exclude: ['/internal/**'],
+    },
+});
+```
+
+Behavior and knobs:
+
+- **Visibility follows the sitemap** — `robots: noindex` pages and the 404 page are excluded (drafts never reach production builds) — plus `exclude` route globs, per-page frontmatter `llms: false`, and a `transform(md, page)` escape hatch that can adjust a rendition or return `null` to drop the page.
+- **Sections** default to one `##` per collection (declaration order, links in sidebar order, frontmatter `description` as the note), with uncollected pages under `## Other`. Curate with `sections` — each entry pulls `collections`, explicit `pages`, and/or hand-authored `links`.
+- **Renditions are source-based**: the page's `.md`/`.mdx` source with frontmatter replaced by a minimal `url`/`title`/`description` header, MDX imports/exports/JSX stripped by a fence-aware scanner (fenced code is never touched), and fence info strings normalized to the bare language. `.tsx`/`.jsx` pages have no rendition — they appear in the index only when named in `sections[].links`, linked to their HTML route.
+- **`public/` wins** — an `llms.txt` (or any `llms*` file) you ship via `public/` is never overwritten, same courtesy as robots.txt.
+- **Build-time only** — like the sitemap, the outputs are written by `sigx ssg build`; the dev server doesn't serve them.
+
+The helper family (`prepareLlmsPages`, `buildLlmsIndex`, `buildLlmsFullText`, `renderPageMarkdown`, `getMarkdownPath`, `writeLlmsOutputs`) is exported for programmatic use — see [API Reference → LLM output](/ssg/docs/api#llm-output).
 
 ## Link checking
 
