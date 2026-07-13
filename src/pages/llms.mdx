@@ -1,0 +1,212 @@
+---
+title: SignalX for LLMs
+description: A condensed SignalX cheatsheet for AI assistants and code generators — the core API and the semantics that differ from React, Vue, and Solid
+layout: default
+---
+
+{/*
+    Maintenance note: this page is a condensed mirror of /core/docs/signals/,
+    /core/docs/computed/, /core/docs/effects/ and /core/docs/components/.
+    When those pages change semantics, update this one too.
+*/}
+
+# SignalX for LLMs
+
+This page is a condensed cheatsheet for AI assistants generating SignalX code. It covers the core API and — most importantly — the semantics that differ from React, Vue, and Solid.
+
+## What SignalX is
+
+SignalX (npm package `sigx`) is a fine-grained reactive component framework with a small tree-shakeable core. Components are TSX; state is signals; the component function never re-runs — only the exact DOM nodes that read a changed signal update. The same component model renders to the browser, native iOS/Android, terminals, and the server.
+
+| Area | Package | Docs |
+| --- | --- | --- |
+| Core framework (web) | `sigx` | [/core/docs/getting-started/](/core/docs/getting-started/) |
+| Router | `@sigx/router` | [/router/docs/getting-started/](/router/docs/getting-started/) |
+| Store | `@sigx/store` | [/store/docs/getting-started/](/store/docs/getting-started/) |
+| daisyUI components | `@sigx/daisyui` | [/daisyui/docs/getting-started/](/daisyui/docs/getting-started/) |
+| Static-site generator | `@sigx/ssg` | [/ssg/docs/getting-started/](/ssg/docs/getting-started/) |
+| SSR / islands | `@sigx/server-renderer`, `@sigx/ssr-islands` | [/server/](/server/) |
+| Native iOS & Android | `@sigx/lynx` | [/lynx/docs/overview/](/lynx/docs/overview/) |
+| Terminal UIs | `@sigx/terminal` | [/terminal/docs/getting-started/](/terminal/docs/getting-started/) |
+| CLI | `@sigx/cli` | [/cli/docs/getting-started/](/cli/docs/getting-started/) |
+
+## Quick start
+
+```bash
+npm create @sigx@latest my-app
+```
+
+Or add to an existing Vite project (`sigx` bundles the reactivity and runtime — never install `@sigx/reactivity` or `@sigx/runtime-*` directly):
+
+```bash
+npm install sigx @sigx/vite
+```
+
+```tsx
+import { defineApp, component } from 'sigx';
+
+const Counter = component(({ signal }) => {
+    const state = signal({ count: 0 });
+
+    return () => (
+        <div>
+            <p>Count: {state.count}</p>
+            <button onClick={() => state.count++}>Increment</button>
+        </div>
+    );
+});
+
+defineApp(<Counter />).mount('#app');
+```
+
+## Signals — the semantics LLMs get wrong
+
+`signal()` behaves differently depending on the value type. **This is the #1 source of generated-code bugs.**
+
+### Primitives are wrapped in `{ value: T }`
+
+```tsx
+import { signal } from 'sigx';
+
+const count = signal(0);       // { value: 0 }
+count.value = 5;               // write via .value
+count.value++;                 // read + write via .value
+```
+
+### Objects and arrays become reactive proxies — no `.value`
+
+```tsx
+import { signal } from 'sigx';
+
+const user = signal({ id: 1, name: 'John' });
+user.name = 'Jane';            // direct property access — reactive
+
+const items = signal([1, 2, 3]);
+items.push(4);                 // array mutators are reactive and batched
+items[0] = 10;                 // index writes are reactive
+```
+
+Reactivity is **deep**: nested properties are reactive too. `Map`, `Set`, `WeakMap`, and `WeakSet` values are also supported (`map.set(...)` is reactive).
+
+### `$set()` replaces a whole object/array — and exists ONLY on object/array signals
+
+```tsx
+const user = signal({ name: 'John', age: 25 });
+user.$set({ name: 'Jane', age: 30 });   // replace entirely
+
+const items = signal([1, 2, 3]);
+items.$set([4, 5]);                     // items.length is now 2
+
+const count = signal(0);
+count.value = 1;                        // primitives: assign .value — count.$set() does NOT exist
+```
+
+### Destructuring a proxy loses reactivity
+
+`const { count } = state` snapshots a plain value. Use `toSignal` / `toSignals` for live `{ value }` views that read and write through:
+
+```tsx
+import { signal, toSignal, toSignals } from 'sigx';
+
+const state = signal({ count: 0, name: 'Ada' });
+const count = toSignal(state, 'count');
+count.value++;                 // state.count is now 1
+
+const { name } = toSignals(state);
+name.value = 'Grace';          // state.name is now "Grace"
+```
+
+### If you're coming from another framework
+
+| Habit from | Wrong in SignalX | Correct in SignalX |
+| --- | --- | --- |
+| React | `const [count, setCount] = useState(0)`, `setCount(c => c + 1)`, re-running component body, hooks rules | `const state = signal({ count: 0 })`, then `state.count++`. The component body runs **once**; there are no hooks or dependency arrays. |
+| React | Immutable updates: `setState({ ...state, x })` | Mutate directly: `state.x = value`. Use `$set()` only to replace the whole object. |
+| Vue | `user.value.name` (treating `signal(object)` like a `ref`) | `signal(object)` is like Vue's `reactive()`, not `ref()` — `user.name`, no `.value`. Only primitives and `computed` use `.value`. |
+| Vue | Templates, `v-model`, `v-if` | TSX: `model={() => state.name}` for two-way binding, `{cond && <X />}` for conditionals. |
+| Solid | Calling signals as getters: `count()` | Signals are never functions. Primitives: `count.value`. Objects: `user.name`. |
+| Solid | `const [count, setCount] = createSignal(0)` | No tuple API — `signal()` returns one wrapper/proxy object. |
+| Any | Destructuring reactive state | Loses reactivity — read `state.x` in place, or use `toSignal`/`toSignals`. |
+
+Other signal utilities: `toRaw(proxy)` (raw object), `isReactive(v)`, `untrack(() => ...)` (read without subscribing), `batch(() => ...)` (group updates).
+
+## Computed and effects
+
+`computed` derives a lazy, cached value — always read via `.value` (even when the dependencies are object signals):
+
+```tsx
+import { signal, computed } from 'sigx';
+
+const state = signal({ firstName: 'John', lastName: 'Doe' });
+const fullName = computed(() => `${state.firstName} ${state.lastName}`);
+
+console.log(fullName.value);   // "John Doe"
+state.firstName = 'Jane';
+console.log(fullName.value);   // "Jane Doe"
+```
+
+`effect` runs immediately and re-runs when any signal it read changes; `watch` observes a specific source:
+
+```tsx
+import { signal, effect, watch } from 'sigx';
+
+const state = signal({ count: 0 });
+
+const runner = effect(() => {
+    console.log('Count is:', state.count);
+});
+runner.stop();
+
+const w = watch(
+    () => state.count,
+    (newValue, oldValue, onCleanup) => { /* ... */ },
+    { immediate: true },
+);
+w.stop();   // also: w.pause(), w.resume()
+```
+
+Dependencies are tracked automatically — there are no dependency arrays.
+
+## Components
+
+`component()` takes a **setup function** that runs **once** (untracked) and returns a **render function**. Reactive reads belong inside the returned render closure (or in a `computed`/`watch`), not bare in setup:
+
+```tsx
+import { component, type Define } from 'sigx';
+
+type CounterProps =
+    & Define.Prop<'initial', number, false>       // optional prop (false = optional, true = required)
+    & Define.Event<'change', number>              // emitted event
+    & Define.Slot<'default'>;                     // slot
+
+const Counter = component<CounterProps>(({ signal, props, emit, slots }) => {
+    // setup: runs once
+    const state = signal({ count: props.initial ?? 0 });
+
+    // render closure: re-evaluated reactively where signals are read
+    return () => (
+        <div>
+            <span>{state.count}</span>
+            <button onClick={() => { state.count++; emit('change', state.count); }}>+</button>
+            {slots.default?.()}
+        </div>
+    );
+});
+```
+
+Rules that trip up generators:
+
+- **Props stay reactive through the accessor** — read `props.x` inside the render closure; don't destructure props in setup.
+- **Slots are called optionally**: `slots.default?.()`. Calling a slot the parent never passed throws. Presence check: `slots.header && <header>{slots.header?.()}</header>`.
+- **Events**: declare with `Define.Event<'change', T>`, emit with `emit('change', value)`, parents listen with `onChange={...}` (camelCase `on` + capitalized event name).
+- **Two-way binding**: `<input model={() => state.name} />` — a thunk returning the property, not a value.
+- **Lifecycle** from the setup context: `onMounted(fn)`, `onUnmounted(fn)`, `onCreated(fn)`, `onUpdated(fn)`. Expose an API to the parent with `expose({...})` + `ref`.
+- **Multiple roots**: wrap in `<Fragment>` (or `<>...</>`).
+- **Keys**: give list items a stable `key` when mapping.
+
+## Where to go deeper
+
+- [Signals](/core/docs/signals/) — full reactivity semantics
+- [Computed](/core/docs/computed/) · [Effects](/core/docs/effects/) · [Components](/core/docs/components/) · [Two-way binding](/core/docs/two-way-binding/)
+- [Core API reference](/core/api/)
+- Every area in the table above has its own Docs and API sections under the same URL pattern
