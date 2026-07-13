@@ -18,6 +18,19 @@ const moduleCollections = Object.fromEntries(
     }),
 );
 
+/**
+ * One curated llms.txt line per module/package — links its overview page
+ * (each overview links the module's own api/usage/installation pages, which
+ * stay individually fetchable as `.md`), with the registry `tag` as the note.
+ * Alias entries are documented by their top-level package and skipped.
+ */
+const moduleLlmsLinks = (parent: 'core' | 'lynx' | 'server' | 'terminal') =>
+    MODULES.filter((m) => m.parent === parent && !m.aliasFor).map((m) => ({
+        title: m.name,
+        href: `${moduleRoutePrefix(m)}/overview`,
+        note: m.tag,
+    }));
+
 export default defineSSGConfig({
     // Pages directory
     pages: 'src/pages',
@@ -164,5 +177,61 @@ export default defineSSGConfig({
     navigation: {
         // Show draft pages in development
         showDrafts: 'dev',
+    },
+
+    // LLM-friendly output — llms.txt, llms-full.txt, per-page .md renditions,
+    // and per-area sub-indexes (@sigx/ssg ≥0.15).
+    llms: {
+        intro: [
+            'Start with [SignalX for LLMs](https://sigx.dev/llms.md) — a condensed cheatsheet of',
+            'the API and the semantics that differ from React/Vue/Solid (notably:',
+            '`signal(primitive)` returns `{ value }`; `signal(object)` returns a reactive proxy;',
+            '`$set()` exists only on object/array signals). The full docs corpus is at',
+            'https://sigx.dev/llms-full.txt, and every docs page has a markdown rendition at its',
+            'URL with the trailing slash replaced by `.md` (e.g. `/core/docs/signals.md`).',
+        ].join('\n'),
+        sections: [
+            {
+                title: 'Start Here',
+                links: [{
+                    title: 'SignalX for LLMs (cheatsheet)',
+                    href: '/llms',
+                    note: 'condensed API + the gotchas code generators get wrong',
+                }],
+                // Getting Started already leads the Core Guides section below.
+            },
+            { title: 'Core Guides', collections: ['core-docs'] },
+            { title: 'Core API', collections: ['core-api'] },
+            { title: 'Core Packages', links: moduleLlmsLinks('core') },
+            { title: 'Router', collections: ['router-docs', 'router-api'] },
+            { title: 'Store', collections: ['store-docs'] },
+            { title: 'daisyUI Components', collections: ['daisyui-docs', 'daisyui-api'] },
+            { title: 'Static Site Generation', collections: ['ssg-docs'] },
+            { title: 'Server-Side Rendering', links: moduleLlmsLinks('server') },
+            { title: 'Vite Plugin', collections: ['vite-docs'] },
+            { title: 'CLI', collections: ['cli-docs'] },
+            { title: 'Terminal UIs', collections: ['terminal-docs'] },
+            { title: 'Terminal Packages', links: moduleLlmsLinks('terminal') },
+            { title: 'DevTools', collections: ['devtools-docs'] },
+            { title: 'Monaco Editor', collections: ['monaco-docs'] },
+            { title: 'Lynx (native iOS & Android)', collections: ['lynx-docs'] },
+            // ~45 one-liners instead of ~310 page links; each overview.md links
+            // the module's api/usage/installation renditions.
+            { title: 'Lynx Modules', links: moduleLlmsLinks('lynx') },
+        ],
+        // Keep llms-full.txt ingestible in one context window — the lynx module
+        // bodies are indexed above and individually fetchable as .md instead.
+        full: { exclude: ['/lynx/modules/**'] },
+        // Per-area sub-indexes for consumers that only need one area.
+        areas: {
+            '/core': {
+                title: 'SignalX Core',
+                description: 'The sigx reactive component framework — signals, computed, effects, components.',
+            },
+            '/lynx': {
+                title: 'SignalX Lynx',
+                description: 'Native iOS & Android from one SignalX component tree, plus its native modules.',
+            },
+        },
     },
 });
