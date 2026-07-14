@@ -926,14 +926,7 @@
     }
 
     :scope table {
-        /* Scroll wide tables inside their own box instead of overflowing the
-           content column (over the TOC on desktop, off-page on mobile). A bare
-           <table> can't scroll — `display: block` makes overflow-x work; the
-           table sizes to its content up to the full column width. */
-        display: block;
-        width: max-content;
-        max-width: 100%;
-        overflow-x: auto;
+        width: 100%;
         border-collapse: separate;
         border-spacing: 0;
         margin: 2rem 0;
@@ -941,6 +934,25 @@
         border-radius: var(--r-md);
         background: var(--bg-1);
         border: var(--hair) solid var(--line);
+        overflow: hidden;
+    }
+
+    /* Let long cell text wrap to multiple lines instead of forcing the table
+       wide; break only genuinely over-long tokens (long types, URLs) so they
+       never overflow the column either. */
+    :scope td, :scope th { overflow-wrap: break-word; }
+
+    /* Narrow screens: a props table's minimum width (nowrap prop-name column +
+       type + shortest wrap of notes) can still exceed a phone/tablet content
+       column. There, wrapping isn't enough, so let the table scroll inside its
+       own box instead of pushing the whole page wide. On wider screens the
+       table wraps and fits, so no scrollbar appears. */
+    @media (max-width: 1024px) {
+        :scope table {
+            display: block;
+            max-width: 100%;
+            overflow-x: auto;
+        }
     }
 
     :scope thead {
@@ -977,12 +989,11 @@
         white-space: nowrap;
     }
 
-    /* Default column - centered and compact */
+    /* Third column - centered. (No `white-space: nowrap` / `width: 1%`: that
+       assumed a short "Default" value, but on Prop|Type|Notes tables the 3rd
+       column is long prose and nowrap forced the whole table wide.) */
     :scope th:nth-child(3),
     :scope td:nth-child(3) {
-        text-align: center;
-        white-space: nowrap;
-        width: 1%;
         text-align: center;
     }
 
