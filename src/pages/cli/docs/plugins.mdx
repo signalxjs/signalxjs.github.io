@@ -140,19 +140,72 @@ Chain refiners to shape them: `.alias('p', …)` (single characters become short
 
 A malformed `args` schema (e.g. an alias collision) throws a `DefinitionError` at registration. The CLI catches it, logs a warning, and skips just that command — one bad schema never takes down the whole CLI.
 
+## Command options
+
+Beyond `description`, `args`, and `run`, a command can set three optional fields:
+
+```ts
+commands: {
+    deploy: {
+        description: 'Deploy the built site',
+        aliases: ['ship', 'push'],   // also answers to `sigx ship` / `sigx push`
+        hidden: false,               // set true to keep it out of `sigx --help`
+        allowUnknownFlags: true,     // collect undeclared flags into ctx.unknownFlags instead of erroring
+        args: { /* … */ },
+        async run(ctx) {
+            // forward extras verbatim to an underlying tool
+            await runRsync([...ctx.args._, ...(ctx.unknownFlags ?? [])]);
+        },
+    },
+},
+```
+
+- **`aliases`** — extra names the command also answers to. If an alias collides with another command, the CLI warns and a **direct command name always beats an alias**, so a plugin can't shadow a built-in by aliasing over it.
+- **`hidden`** — omit the command from `sigx --help` while keeping it fully dispatchable (handy for internal or experimental commands).
+- **`allowUnknownFlags`** — instead of erroring on an undeclared flag, collect the raw tokens into `ctx.unknownFlags` (an optional `string[]`, populated only when this is set — hence the `ctx.unknownFlags ?? []` above). The command decides whether and how to forward them; nothing is passed through automatically. Use it for wrapper commands that hand flags to an underlying tool. Without it, unknown flags remain an error (the default).
+
+Nested subcommands within a plugin command are not yet supported.
+
+## Standalone commands with defineCommand
+
+Inside a `definePlugin` literal every command already infers its `ctx.args` per key. When you factor a command **out** of the literal — into its own module or variable — wrap it in `defineCommand` so it keeps that inference instead of widening to the legacy `Record`:
+
+```ts
+import { defineCommand, definePlugin, a } from '@sigx/cli/plugin';
+
+export const deploy = defineCommand({
+    description: 'Deploy the built site',
+    args: { target: a.enum(['staging', 'production']).default('staging') },
+    async run({ args, logger }) {
+        logger.log(`Deploying to ${args.target}`); // args.target: 'staging' | 'production'
+    },
+});
+
+export default definePlugin({
+    name: 'deployer',
+    detect: () => true,
+    commands: { deploy },
+});
+```
+
+`defineCommand` is an identity helper (like `definePlugin`) — it returns the command unchanged and only drives typing. The new command options and the typed context landed in `@sigx/cli` 0.5, so declare `"requires": ">=0.5.0"` in your `sigx-cli` field if you rely on `aliases` / `hidden` / `allowUnknownFlags`.
+
 ## The command context
 
-Every command's `run` handler receives a single `CommandContext` object:
+Every command's `run` handler receives a single context object:
 
 ```ts
 async run(ctx) {
-    ctx.cwd;        // process.cwd()
-    ctx.args;       // parsed args, typed by your `args` builders; ctx.args._ = post-`--` tokens
-    ctx.logger;     // prefixed Logger with log/warn/error
-    ctx.plugins;    // every plugin discovered for this project (for runShell)
-    ctx.cliVersion; // the running `sigx` binary's version, for feature detection
+    ctx.cwd;          // process.cwd()
+    ctx.args;         // parsed args, INFERRED from your `args` builders; ctx.args._ = post-`--` tokens
+    ctx.logger;       // prefixed Logger with log/warn/error
+    ctx.plugins;      // every plugin discovered for this project (for runShell)
+    ctx.cliVersion;   // the running `sigx` binary's version, for feature detection
+    ctx.unknownFlags; // undeclared flags — only when the command sets allowUnknownFlags
 }
 ```
+
+`ctx.args` is fully typed from the `args` builders you declared — no casts. Inside `definePlugin`, each command's args shape infers per key, so `args.port` above is a `number`, `args.target` is `'staging' | 'production'`, and so on. The context is a `TypedCommandContext<S>` — an intersection over the plain `CommandContext`, so it stays assignable to `CommandContext` and any helper you've typed against the base still accepts it. A command with no `args` (or a hand-annotated `CommandContext`) falls back to the legacy `args: Record<string, unknown>`.
 
 `ctx.plugins` and `ctx.cliVersion` exist so a shell-hosting command (for example a long-running `dev`) can merge peer plugins' TUI contributions and adapt to the CLI version. See [The shell runtime](/cli/docs/shell).
 
