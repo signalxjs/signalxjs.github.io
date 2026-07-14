@@ -1,0 +1,109 @@
+---
+title: "API reference"
+description: "List — Data-driven virtualized list"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-list` <PkgVersion npm="@sigx/lynx-list" />.</p>
+
+## Exports
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `List` | component | The virtualized list. |
+| `ListMethods` | object | Imperative scroll methods for a captured element. |
+| `ListProps<T>` | type | Props of `List`, generic over the item type. |
+| `ListRef` | type | The `mtRef` type — a main-thread ref to the native element. |
+| `ListType` | type | `'single' \| 'flow' \| 'waterfall'`. |
+| `ListItemSnap` | type | `'start' \| 'center' \| 'end' \| 'none'`. |
+| `ScrollAlign` | type | `'top' \| 'bottom' \| 'middle'`. |
+| `ScrollToIndexOptions` | type | Options for `ListMethods.scrollToIndex`. |
+
+```tsx
+import { List, ListMethods } from '@sigx/lynx-list';
+import type { ListProps, ListRef } from '@sigx/lynx-list';
+```
+
+## `<List>` props
+
+`items` and `renderItem` are the only required props; both are generic over the
+element type `T` of `items`.
+
+| Prop | Type | Notes |
+|---|---|---|
+| `items` | `readonly T[]` | **Required.** The data. |
+| `renderItem` | `(item: T, index: number) => JSX` | **Required.** Per-cell renderer. |
+| `keyExtractor` | `(item: T, index: number) => string` | Stable recycler key (`item-key`). Defaults to the index — set it for lists that mutate. |
+| `itemType` | `(item: T, index: number) => string` | Recycle-pool selector (`item-type`) for mixed cell shapes. |
+| `estimatedItemSize` | `number` | Main-axis px estimate for **uniform** rows; improves scroll accuracy. Omit for variable-height content (chat) — a too-small estimate clips items until measured. |
+| `horizontal` | `boolean` | Horizontal scrolling. |
+| `numColumns` | `number` | Grid columns (`span-count`). |
+| `listType` | `ListType` | Layout mode: `single` (default), `flow`, `waterfall`. |
+| `itemSnap` | `ListItemSnap` | Paginated snap: `start` / `center` / `end` / `none`. |
+| `onEndReachedThreshold` | `number` | Items-from-end at which `onEndReached` fires. |
+| `onStartReachedThreshold` | `number` | Items-from-start at which `onStartReached` fires. |
+| `loadingMore` | `boolean` | Show a trailing loading cell (infinite scroll). |
+| `refreshing` | `boolean` | Controlled pull-to-refresh state; passing it opts in (vertical only). |
+| `pullThreshold` | `number` | Pull distance (px) that triggers a refresh. Default `64`. |
+| `inverted` | `boolean` | Chat mode: bottom-anchored + stick-to-bottom (vertical only). |
+| `stickToBottom` | `boolean` | In chat mode, auto-scroll on new items when at the bottom. Default `true`. |
+| `windowSize` | `number` | Enables windowing: render only this many cells of a long `items`. |
+| `pageSize` | `number` | Items revealed per scroll-edge page when windowing. Default `30`. |
+| `maxWindow` | `number` | Cap on rendered window length; the far end trims past it. Default `max(120, windowSize × 2)`. |
+| `mtRef` | `ListRef` | Capture the native element for `ListMethods`. |
+| `class` / `style` | — | Applied to the measuring wrapper `<view>`. |
+
+### Events
+
+| Event | Payload | Fires |
+|---|---|---|
+| `onEndReached` | — | Within `onEndReachedThreshold` items of the end. |
+| `onStartReached` | — | Within `onStartReachedThreshold` items of the start. |
+| `onScroll` | `{ offset: number }` | On scroll, with the current offset. |
+| `onRefresh` | — | On a pull-to-refresh past `pullThreshold`. |
+
+### Slots
+
+Passed through the `slots` prop.
+
+| Slot | Signature | Renders |
+|---|---|---|
+| `header` | `() => JSX` | A full-span cell before the items. |
+| `footer` | `() => JSX` | A full-span cell after the items. |
+| `empty` | `() => JSX` | In place of the list when `items` is empty. |
+| `refresh` | `() => JSX` | Custom pull-to-refresh indicator. |
+| `newMessages` | `({ count }) => JSX` | Chat-mode "new messages" affordance while scrolled up. |
+
+## `ListMethods`
+
+Typed wrappers around the native scroll UI methods, callable from any main-thread
+event handler. Both accept `el | null`, so you can pass `ref.current` directly; a
+null element is a silent no-op.
+
+```tsx
+ListMethods.scrollToTop(el);                          // jump to top
+ListMethods.scrollToTop(el, { smooth: true });        // animated
+ListMethods.scrollToIndex(el, 12, { align: 'middle', smooth: true });
+```
+
+- **`scrollToTop(el, opts?)`** — scroll to the first cell (the top of the list,
+  header included).
+- **`scrollToIndex(el, index, opts?)`** — scroll so the cell at `index` aligns
+  per `opts.align`. `index` is the **rendered cell index**, not the data index —
+  add 1 to a data index when a `header` slot is present.
+
+`ScrollToIndexOptions`:
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `align` | `ScrollAlign` | `'top'` | Align the target cell to `top`, `bottom`, or `middle`. |
+| `offset` | `number` | `0` | Extra pixel offset applied after alignment. |
+| `smooth` | `boolean` | `false` | Animate the scroll (default is a jump). |
+
+See [Usage](/lynx/modules/list/usage) for worked examples of each feature.

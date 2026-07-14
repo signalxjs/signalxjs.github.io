@@ -1,0 +1,34 @@
+---
+title: "Installation"
+description: "List — Data-driven virtualized list"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-list` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-list
+```
+
+`@sigx/lynx` is a peer dependency — you already have it in a Lynx app.
+
+## No native setup
+
+`@sigx/lynx-list` is **pure JS**: it wraps Lynx's built-in `<list>` recycler and
+ships no native module, so there is nothing to autolink and no `sigx prebuild`
+step to run. Install it, import `List`, and it works identically on iOS and
+Android.
+
+## Verify
+
+```tsx
+import { List, ListMethods } from '@sigx/lynx-list';
+
+console.log(typeof List, typeof ListMethods); // function object
+```
