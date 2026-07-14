@@ -12,7 +12,7 @@ import { useRoute } from '@sigx/router';
 import { navigation, detectCollection } from 'virtual:ssg-navigation';
 import type { NavSection, NavItem } from '@sigx/ssg';
 import { byId, moduleForCollection, packageForCollection } from '@/lib/family';
-import { modulesByParent, type ModuleParent } from '@/lib/modules';
+import { modulesByParent, moduleRoutePrefix, type ModuleParent } from '@/lib/modules';
 import { PackageSwitcher } from '@/components/PackageSwitcher';
 import { ModuleSwitcher } from '@/components/ModuleSwitcher';
 import { Icon } from '@/components/ui/Icon';
@@ -68,7 +68,18 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
     const getSections = (): NavSection[] => {
         const collectionName = getCollection();
         if (!collectionName) return [];
-        return navigation[collectionName]?.sidebar || [];
+        const sections = navigation[collectionName]?.sidebar || [];
+        // A module's index route (…/<id>/) is a ModuleIndexRedirect to overview,
+        // not a real doc page — but @sigx/ssg can't read the .tsx `sidebar: false`
+        // meta, so it leaks into the nav as a stray uncategorised ("Other") entry
+        // that just redirects back to the page you came from. Drop it, plus any
+        // section left empty.
+        const mod = moduleForCollection(collectionName);
+        if (!mod) return sections;
+        const indexHref = moduleRoutePrefix(mod);
+        return sections
+            .map((s) => ({ ...s, items: s.items.filter((it) => !samePath(it.href, indexHref)) }))
+            .filter((s) => s.items.length > 0);
     };
 
     /**
