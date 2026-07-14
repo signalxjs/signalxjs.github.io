@@ -414,9 +414,9 @@ type LazyComponentFactory<T> = T & {
 ### DeferProps
 
 ```tsx
-type DeferProps = {
-    fallback?: JSXElement | (() => JSXElement);
-};
+type DeferProps =
+    & Define.Prop<'fallback', JSXElement | (() => JSXElement)>
+    & Define.Slot<'default'>;
 ```
 
 ### PortalProps

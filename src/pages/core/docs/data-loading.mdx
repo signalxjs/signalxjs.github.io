@@ -45,7 +45,10 @@ const Joke = component(() => {
                 ),
                 ready: (text) => <p>{text}</p>,
             })}
-            <button onClick={() => joke.refresh()} disabled={joke.state === 'refreshing'}>
+            <button
+                onClick={() => joke.refresh()}
+                disabled={joke.loading || joke.state === 'refreshing'}
+            >
                 Another one
             </button>
         </div>
