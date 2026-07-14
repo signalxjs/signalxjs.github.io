@@ -9,13 +9,9 @@ order: 50
 # Commands
 
 `@sigx/vite` ships a `sigx-types` CLI that generates TypeScript definitions for
-components declared with a tag name, so JSX gets intellisense for those tags.
-
-> **Packaging note.** The published package (current: 0.6.3) has no `bin` field
-> and no `./cli` entry in its exports map (`.`, `./hmr`, `./lib` only), so
-> `npx sigx-types` does not resolve from an installed copy. The command is
-> documented here for completeness; see [Gaps](#known-gap) below before relying
-> on it.
+components declared with a tag name, so JSX gets intellisense for those tags. It's
+exposed through the package's `bin`, so `npx sigx-types` runs it from any project
+that has `@sigx/vite` installed — no global install needed.
 
 ## sigx-types
 
@@ -85,12 +81,12 @@ the generated definitions:
 }
 ```
 
-## Known Gap
+## Go-to-definition into source
 
-As of 0.6.3 the `sigx-types` command is not exposed by the published package (no
-`bin` field, no `./cli` export — only `.`, `./hmr`, and `./lib`). The CLI source
-exists but is not reachable via `npx` from an installed copy. Confirm the package
-version exposes the command before depending on it in your workflow.
+Every `@sigx/*` package ships its TypeScript `src/` alongside the compiled
+`dist/`, and the declaration files carry source maps — so "Go to Definition" in
+your editor lands in the real source, not a `.d.ts` stub. No configuration is
+needed; it works as soon as the package is installed.
 
 ## Next Steps
 
