@@ -1,6 +1,6 @@
 ---
 title: Rendering & streaming
-description: "Render a complete document with renderDocument into Express, Fastify, or an edge runtime, and load server data with useAsync/useStream"
+description: "Render a complete document with renderDocument into Express, Fastify, or an edge runtime, and load server data with useData/useStream"
 layout: module-docs
 category: Guides
 order: 30
@@ -49,7 +49,7 @@ the stream to finish.
 
 ## Blocking vs streaming
 
-The `mode` option controls how keyed `useAsync()` / `useStream()` data is
+The `mode` option controls how keyed `useData()` / `useStream()` data is
 delivered:
 
 - **`'blocking'`** — every keyed async value resolves **inline**: complete
@@ -191,37 +191,37 @@ const { stream, shell } = renderDocumentToNodeStream(<App />, {
 });
 ```
 
-## Server data with useAsync / useStream
+## Server data with useData and useStream
 
-Data loading lives in the `useAsync` / `useStream` composables from **`sigx`** —
-not in this package. The rule is **keyed = server-transferable**:
+Data loading lives in the `useData` / `useStream` composables from **`sigx`** —
+not in this package. Every read is **keyed, and keyed = server-transferable**:
 
 ```tsx
-import { component, useAsync } from 'sigx';
+import { component, useData } from 'sigx';
 
 export const UserCard = component(({ props }) => {
-    // Keyed: runs on the server, serialized under 'user', restored on hydration.
-    const user = useAsync(`user:${props.id}`, async ({ signal }) => {
+    // Keyed: runs on the server, serialized under the key, restored on hydration.
+    const user = useData(`user:${props.id}`, async (key, { signal }) => {
         const res = await fetch(`https://api.example.com/users/${props.id}`, { signal });
         return res.json();
     });
 
-    return () => {
-        if (user.loading) return <p>Loading…</p>;
-        if (user.error) return <p>Failed to load.</p>;
-        return <div>{user.value?.name}</div>;
-    };
+    return () => user.match({
+        pending: () => <p>Loading…</p>,
+        error: () => <p>Failed to load.</p>,
+        ready: (u) => <div>{u.name}</div>,
+    });
 });
 ```
 
-- **Keyed `useAsync(key, fetcher)`** runs the fetcher on the server, awaits it
+- **`useData(key, fetcher)`** runs the fetcher on the server, awaits it
   (blocking mode) or streams its placeholder then result (streaming mode),
   serializes the resolved value under `key` into the page's
   `window.__SIGX_ASYNC__` blob, and restores it on hydration — so the fetch does
-  **not** run again on the client. Pass `{ server: false }` to render the loading
-  branch during SSR and fetch on the client instead.
-- **Unkeyed `useAsync(fetcher)`** is client-only — the fetcher never runs on the
-  server.
+  **not** run again on the client. The fetcher receives the resolved key as its
+  first argument and an `AbortSignal` on the context. Pass `{ server: false }`
+  for a client-only keyed read: SSR renders the pending arm and the fetch runs
+  after hydration. There is no unkeyed form — a read always has a key.
 - **`useStream(key, source)`** is for progressive text (LLM-token-style). On the
   server in streaming mode the tokens append into the page as they arrive and the
   final text is serialized under `key`; in blocking mode it is drained fully and
@@ -233,19 +233,20 @@ opts out). The `ssr` helper on the component context is now just two flags —
 `ctx.ssr.isServer` and `ctx.ssr.isHydrating` — for the rare branch that must know
 which environment it is in.
 
-## Suspense & lazy on the server
+## Defer & lazy on the server
 
-`lazy()` components and `<Suspense>` boundaries render correctly on the server:
+`lazy()` components and `<Defer>` boundaries render correctly on the server:
 
 - **`lazy()`** resolves **inline** — the renderer awaits the component's module
   (`preload()`) during render, then renders the resolved component. No empty
   output, no fallback-forever.
-- **`<Suspense>` in streaming mode** emits its `fallback` immediately, then swaps
-  in the real children once their lazy dependencies resolve.
-- **`<Suspense>` in blocking / string mode** needs no special handling: the lazy
-  deps are awaited inline and the children render directly.
+- **`<Defer>` in streaming mode** emits its `fallback` immediately, then swaps in
+  **one** replacement once everything pending beneath it — lazy chunks *and*
+  keyed `useData` reads — has resolved.
+- **`<Defer>` in blocking / string mode** needs no special handling: the pending
+  work is awaited inline and the children render directly.
 
-To hydrate a server-resolved Suspense subtree, **preload the lazy chunk before
+To hydrate a server-resolved `<Defer>` subtree, **preload the lazy chunk before
 calling `hydrate()`** so the component is available synchronously during the
 hydration walk — see
 [Hydration & head](/server/packages/server-renderer/hydration).

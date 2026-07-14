@@ -1,47 +1,51 @@
 ---
-title: Lazy Loading & Suspense
-description: Code splitting and async component loading in SignalX
+title: Lazy Loading
+description: Code splitting and async component loading in SignalX with lazy() and Defer
 layout: docs
 category: Built-in Components
 order: 20
 ---
 
-# Lazy Loading & Suspense
+# Lazy Loading
 
-SignalX provides built-in support for code splitting through `lazy()` and `Suspense`. Load components on demand to reduce initial bundle size and improve performance.
+SignalX provides built-in support for code splitting through `lazy()` and `<Defer>`. Load components on demand to reduce initial bundle size and improve performance.
+
+`<Defer>` is the one tree-positional async wrapper, and its fallback covers **lazy chunk loading** — code-splitting. It is not a data-loading wrapper: a pending `useData` read renders through its own component's `match()` (value-first), never through a wrapper. See [Data loading](/core/docs/data-loading) for that side.
 
 ## Lazy Loading Components
 
 Use `lazy()` to create a component that loads on first render:
 
 ```tsx
-import { lazy, Suspense } from 'sigx';
+import { lazy, Defer } from 'sigx';
 
 // Component will be loaded when first rendered
 const HeavyChart = lazy(() => import('./components/HeavyChart'));
 
-// Usage with Suspense
+// Usage with Defer
 function App() {
     return (
-        <Suspense fallback={<div>Loading chart...</div>}>
+        <Defer fallback={<div>Loading chart...</div>}>
             <HeavyChart data={chartData} />
-        </Suspense>
+        </Defer>
     );
 }
 ```
 
 The `lazy()` function accepts an import function and returns a component that:
 - Loads the component module on first render
-- Shows the `Suspense` fallback while loading
-- Renders the component once loaded
+- Renders `null` while the chunk loads — the nearest enclosing `<Defer>` shows its fallback
+- Renders the component in place once loaded
 - Caches the loaded component for subsequent renders
 
-## Suspense Boundaries
+Registration is deterministic: a lazy wrapper registers its load promise with the nearest `<Defer>` at **setup** time (before its own children set up), so there is no thrown-promise protocol and no render-ordering to reason about.
 
-`Suspense` components define loading boundaries in your component tree:
+## Defer Boundaries
+
+`<Defer>` components define loading boundaries in your component tree:
 
 ```tsx
-import { lazy, Suspense, component } from 'sigx';
+import { lazy, Defer, component } from 'sigx';
 
 const Dashboard = lazy(() => import('./Dashboard'));
 const Charts = lazy(() => import('./Charts'));
@@ -51,23 +55,25 @@ const App = component(() => {
     return () => (
         <div class="app">
             {/* Each section can load independently */}
-            <Suspense fallback={<Skeleton type="dashboard" />}>
+            <Defer fallback={<Skeleton type="dashboard" />}>
                 <Dashboard />
-            </Suspense>
-            
+            </Defer>
+
             <div class="grid">
-                <Suspense fallback={<Skeleton type="chart" />}>
+                <Defer fallback={<Skeleton type="chart" />}>
                     <Charts />
-                </Suspense>
-                
-                <Suspense fallback={<Skeleton type="report" />}>
+                </Defer>
+
+                <Defer fallback={<Skeleton type="report" />}>
                     <Reports />
-                </Suspense>
+                </Defer>
             </div>
         </div>
     );
 });
 ```
+
+The children stay mounted while a chunk loads (a pending lazy renders `null`), so sibling state survives and the resolved component appears in place.
 
 ### Fallback Options
 
@@ -75,39 +81,41 @@ The `fallback` prop accepts either a JSX element or a function:
 
 ```tsx
 // Static fallback
-<Suspense fallback={<Spinner />}>
+<Defer fallback={<Spinner />}>
     <LazyComponent />
-</Suspense>
+</Defer>
 
 // Dynamic fallback (called on each render)
-<Suspense fallback={() => <Spinner size={spinnerSize} />}>
+<Defer fallback={() => <Spinner size={spinnerSize} />}>
     <LazyComponent />
-</Suspense>
+</Defer>
 ```
 
-### Nested Suspense
+### Nested Defer
 
-Multiple lazy components under the same Suspense wait together:
+Multiple lazy components under the same `<Defer>` wait together:
 
 ```tsx
-<Suspense fallback={<Loading />}>
-    {/* Both components must load before content shows */}
+<Defer fallback={<Loading />}>
+    {/* Both chunks must load before content shows */}
     <LazyHeader />
     <LazyContent />
-</Suspense>
+</Defer>
 ```
 
-Nest Suspense boundaries for more granular loading states:
+Nest `<Defer>` boundaries for more granular loading states:
 
 ```tsx
-<Suspense fallback={<AppSkeleton />}>
+<Defer fallback={<AppSkeleton />}>
     <LazyLayout>
-        <Suspense fallback={<ContentSkeleton />}>
+        <Defer fallback={<ContentSkeleton />}>
             <LazyContent />
-        </Suspense>
+        </Defer>
     </LazyLayout>
-</Suspense>
+</Defer>
 ```
+
+On the server, `<Defer>` streams its fallback with the shell and swaps in a single replacement once everything pending beneath it — chunks **and** keyed data — resolves.
 
 ## Preloading Components
 
@@ -143,8 +151,8 @@ if (LazyComponent.isLoaded()) {
 
 // Useful for conditional logic
 function showStatus() {
-    return LazyComponent.isLoaded() 
-        ? 'Ready' 
+    return LazyComponent.isLoaded()
+        ? 'Ready'
         : 'Loading...';
 }
 ```
@@ -166,18 +174,18 @@ Creates a lazy-loaded component wrapper.
 const Comp = lazy(() => import('./Component'));
 
 // Named export
-const Comp = lazy(() => 
+const Comp = lazy(() =>
     import('./Components').then(m => m.SpecificComponent)
 );
 ```
 
-### `Suspense`
+### `Defer`
 
-Component that shows fallback content while children load.
+Wrapper that shows fallback content while lazy children load.
 
 | Prop | Type | Description |
 |------|------|-------------|
-| `fallback` | `JSXElement \| () => JSXElement` | Content to show while loading |
+| `fallback` | `JSXElement \| () => JSXElement` | Content to show while a chunk beneath it loads |
 
 ### `isLazyComponent(component)`
 
@@ -193,18 +201,25 @@ if (isLazyComponent(SomeComponent)) {
 
 ## Error Handling
 
-Errors during loading are thrown and can be caught with error boundaries:
+If a chunk fails to load, the lazy wrapper throws the load error from render — it routes through the standard error path (the nearest [`errorScope`](/core/docs/error-handling), then `app.onError`), exactly like any render throw:
 
 ```tsx
-const FailingComponent = lazy(() => 
-    import('./Broken') // This import fails
-);
+import { component, errorScope, lazy, Defer } from 'sigx';
 
-// The error propagates up - handle with try/catch or error boundary
-<Suspense fallback={<Loading />}>
-    <FailingComponent />
-</Suspense>
+const FailingComponent = lazy(() => import('./Broken')); // this import fails
+
+const Section = component(() => {
+    errorScope({ fallback: (e, retry) => <LoadFailed error={e} retry={retry} /> });
+
+    return () => (
+        <Defer fallback={<Loading />}>
+            <FailingComponent />
+        </Defer>
+    );
+});
 ```
+
+`retry` remounts the subtree, so it re-attempts the import from a clean slate. See [Error handling](/core/docs/error-handling) for the full model.
 
 ## Best Practices
 
@@ -218,31 +233,33 @@ const FailingComponent = lazy(() =>
 
 2. **Preload on intent** - Start loading before the user needs it:
    ```tsx
-   <Link 
-       href="/dashboard" 
+   <Link
+       href="/dashboard"
        onMouseEnter={() => DashboardPage.preload()}
    >
        Dashboard
    </Link>
    ```
 
-3. **Group related components** - Put related lazy components under one Suspense:
+3. **Group related components** - Put related lazy components under one `<Defer>`:
    ```tsx
-   <Suspense fallback={<DashboardSkeleton />}>
+   <Defer fallback={<DashboardSkeleton />}>
        <DashboardHeader />
        <DashboardCharts />
        <DashboardTable />
-   </Suspense>
+   </Defer>
    ```
 
 4. **Meaningful fallbacks** - Use skeleton screens that match the content layout:
    ```tsx
-   <Suspense fallback={<TableSkeleton rows={10} columns={5} />}>
+   <Defer fallback={<TableSkeleton rows={10} columns={5} />}>
        <LazyDataTable />
-   </Suspense>
+   </Defer>
    ```
 
 ## Next Steps
 
+- [Data loading](/core/docs/data-loading) - `useData`, `useAction`, `all`
+- [Error handling](/core/docs/error-handling) - `errorScope` and `app.onError`
 - [Portal](/core/docs/portal) - Render content outside the component tree
 - [Components](/core/docs/components) - Component patterns and best practices

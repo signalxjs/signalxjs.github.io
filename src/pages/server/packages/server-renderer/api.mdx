@@ -24,7 +24,7 @@ methods on `createSSR()` (where registered plugins apply).
 ### renderDocument
 
 Render a complete HTML document to a string. Default mode: `'blocking'` — every
-keyed `useAsync`/`useStream` resolves inline (no placeholders or replacement
+keyed `useData`/`useStream` resolves inline (no placeholders or replacement
 scripts), which is ideal for crawlers and AI agents. The `sigx:ready` completion
 script is still emitted so gated hydration runs.
 
@@ -83,7 +83,7 @@ interface DocumentOptions extends SSRContextOptions {
 - **onError** — `'shell'` fires before any byte is produced (you can still send a
   500); `'stream'` fires mid-stream. Per-component errors stream their own
   fallbacks and do **not** reach this.
-- **serializeState** — serialize resolved `useAsync`/`useStream` values for
+- **serializeState** — serialize resolved `useData`/`useStream` values for
   hydration pickup. Set `false` to opt out.
 
 ## Render functions
@@ -92,7 +92,7 @@ interface DocumentOptions extends SSRContextOptions {
 
 Render a JSX element or `App` to the app-shell HTML string — no template, head
 injection, or state serialization (use `renderDocument` for those). Awaits all
-keyed `useAsync`/`useStream` components and plugin streaming chunks before
+keyed `useData`/`useStream` components and plugin streaming chunks before
 resolving. Accepts an `App` from `defineApp()` (extracts the root component +
 `AppContext` for DI) or a raw JSX element.
 
@@ -228,7 +228,7 @@ function renderHeadToString(configs: HeadConfig[]): string
 ### stateSerializationPlugin
 
 The built-in `SSRPlugin` (name `'sigx:state'`) that ships values resolved by keyed
-`useAsync`/`useStream` to the client as `window.__SIGX_ASYNC__`, keyed by the
+`useData`/`useStream` to the client as `window.__SIGX_ASYNC__`, keyed by the
 calls' explicit keys, so fetchers don't re-run after hydration. **Opt-in** for the
 lower-level render APIs (`createSSR().use(stateSerializationPlugin())`); the
 `renderDocument*` family enables it by default.
@@ -372,7 +372,7 @@ function hydrateNode(vnode: VNode, dom: Node | null, parent: Node): Node | null
 
 Hydrate a single component: locates its trailing `<!--$c:N-->` marker, builds
 reactive props/slots, creates the `ComponentSetupContext` (with the client `ssr`
-flags and any `serverState` to restore keyed `useAsync`/`useStream` values), runs
+flags and any `serverState` to restore keyed `useData`/`useStream` values), runs
 setup, and creates the reactive effect that hydrates-on-first-run then patches.
 Used by SSR strategy plugins for selective/island hydration.
 
@@ -472,7 +472,7 @@ interface SSRInstance {
 ### SSRPlugin
 
 The strategy-agnostic extension interface that implements
-selective/island/resumable/Suspense hydration without core changes. Server hooks
+selective/island/resumable/`Defer` hydration without core changes. Server hooks
 fire during render; client hooks fire during hydration.
 
 ```ts
@@ -585,7 +585,7 @@ interface RenderOptions {
 ### CorePendingAsync
 
 A core-managed pending async component: its component id plus a promise resolving
-to its rendered HTML once its keyed `useAsync`/`useStream` data resolves. Populated
+to its rendered HTML once its keyed `useData`/`useStream` data resolves. Populated
 by render-core in streaming mode when no plugin overrides.
 
 ```ts
@@ -617,7 +617,7 @@ interface StreamCallbacks {
 
 The `ssr` object exposed as `ctx.ssr` on every `ComponentSetupContext` — two
 environment flags for the rare branch that must know where it is running. Async
-data loading lives in the `useAsync`/`useStream` composables (from `sigx`), not
+data loading lives in the `useData`/`useStream` composables (from `sigx`), not
 here.
 
 ```ts

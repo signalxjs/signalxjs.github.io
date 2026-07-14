@@ -32,12 +32,15 @@ Complete reference for all SignalX (`sigx`) exports. SignalX re-exports everythi
 - [`component`](/core/api/components#component) - Define component
 - [`Fragment`](/core/api/components#fragment) - Render without wrapper
 - [`lazy`](/core/api/components#lazy) - Lazy load component
-- [`Suspense`](/core/api/components#suspense) - Async boundary
+- [`Defer`](/core/api/components#defer) - Chunk-loading boundary
 - [`Portal`](/core/api/components#portal) - Render to different DOM location
 
 ### Data Loading
-- [`useAsync`](/core/api/components#useasync) - Async data, SSR-transferable when keyed
+- [`useData`](/core/api/components#usedata) - Keyed async read, SSR-transferable
+- [`useAction`](/core/api/components#useaction) - Async write, triggered by `run()`
+- [`all`](/core/api/components#all) - Combine reads into one state
 - [`useStream`](/core/api/components#usestream) - Progressive text streaming
+- [`errorScope`](/core/docs/error-handling) - Subtree error boundary
 
 ### Lifecycle
 - [`onMounted`](/core/api/lifecycle#onmounted) - After mount
@@ -83,10 +86,10 @@ import {
     toSignal, toSignals,
     
     // Components
-    component, Fragment, lazy, Suspense, Portal,
+    component, Fragment, lazy, Defer, Portal,
     
     // Data loading
-    useAsync, useStream,
+    useData, useAction, all, useStream, errorScope,
     
     // Lifecycle
     onMounted, onUnmounted, onCreated, onUpdated,

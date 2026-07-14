@@ -209,7 +209,7 @@ const Comment: unique symbol; // Symbol.for('sigx.Comment')
 
 ### lazy
 
-Wrap a dynamic-import loader into a lazy component loaded on first render. Adds `preload()` and `isLoaded()`. Use inside `Suspense`.
+Wrap a dynamic-import loader into a lazy component loaded on first render. Adds `preload()` and `isLoaded()`. While the chunk loads the wrapper renders null; wrap it in `<Defer>` for a fallback. A load rejection throws from render (routes to the nearest `errorScope`, then `app.onError`).
 
 ```ts
 function lazy<T extends AnyComponentFactory>(loader: ComponentLoader<T>): LazyComponentFactory<T>;
@@ -218,15 +218,15 @@ function lazy<T extends AnyComponentFactory>(loader: ComponentLoader<T>): LazyCo
 - `loader` — a function returning a dynamic import of the component.
 - Returns a `LazyComponentFactory<T>` (the component plus `preload` / `isLoaded` / `__lazy`).
 
-### Suspense
+### Defer
 
-Boundary component that shows a fallback while lazy children load.
+Boundary component that shows a fallback while lazy **chunks** beneath it load (a pending `useData` read renders through its own component's `match()`, not a wrapper). On SSR the fallback streams with the shell and one replacement arrives when everything pending below it — chunks *and* keyed data — resolves.
 
 ```ts
-const Suspense: ComponentFactory<SuspenseProps, void, {}>;
+const Defer: ComponentFactory<DeferProps, void, { default?: () => JSXElement | JSXElement[] | null }>;
 ```
 
-- Accepts a `fallback` prop (a node or a function returning a node).
+- Accepts a `fallback` prop (a node or a function returning a node) and a default slot.
 
 ### isLazyComponent
 
@@ -239,29 +239,54 @@ function isLazyComponent(component: any): component is LazyComponentFactory<any>
 - `component` — the value to test.
 - Returns `true` if it is a lazy component factory.
 
-### useAsync
+### useData
 
-Composable that runs an async fetcher and returns a reactive `{ value, loading, error, refresh }` state; the render re-runs as the state changes. The fetcher receives an `AbortSignal`. Pass an explicit string key to make the call SSR-transferable — it runs during SSR, serializes its value under the key into `window.__SIGX_ASYNC__`, restores on hydration without refetching, and dedupes per key.
+The keyed async **read**. Auto-runs its fetcher and returns a reactive `AsyncState<T>`; the render re-runs as the state changes. Every read has a key — the reactive trigger, the cache / SSR identity, and the fetcher's input. A static string key is SSR-transferable: it runs during SSR, serializes its value under the key into `window.__SIGX_ASYNC__`, restores on hydration without refetching, and dedupes per key. A getter key may return a string or a tuple (serialized to canonical JSON); a falsy result holds the read in `idle`.
 
 ```ts
-// Unkeyed: client-only.
-function useAsync<T>(
-  fetcher: (ctx: AsyncFetcherContext) => Promise<T>,
-  options?: AsyncOptions
-): AsyncState<T>;
-// Keyed: runs on the server, serialized under `key`, restored on hydration.
-function useAsync<T>(
+// Static key: runs on the server, serialized under `key`, restored on hydration.
+function useData<T>(
   key: string,
-  fetcher: (ctx: AsyncFetcherContext) => Promise<T>,
-  options?: AsyncOptions
+  fetcher: (arg: string, ctx: AsyncFetcherContext) => Promise<T>,
+  opts?: AsyncOptions
+): AsyncState<T>;
+// Reactive key: string or tuple; a falsy result skips the fetch (state 'idle').
+function useData<T, const K extends KeyValue>(
+  key: () => K | Falsy,
+  fetcher: (arg: K, ctx: AsyncFetcherContext) => Promise<T>,
+  opts?: AsyncOptions
 ): AsyncState<T>;
 ```
 
-- `key` — (keyed form) the cache/serialization key.
-- `fetcher` — an async function producing the value; `ctx.signal` is an `AbortSignal`.
-- `options.throwOnError` — throw the error when `.error` is read (routes to an error boundary). Default `false`.
-- `options.server` — (keyed form) run the fetcher during SSR. Default `true`.
-- Returns an `AsyncState<T>`.
+- `key` — a static string, or a getter returning a string / tuple / falsy. A static tuple is rejected (parameters that change belong in a getter).
+- `fetcher` — an async function producing the value; receives the resolved key and a context whose `signal` is an `AbortSignal`. Runs untracked.
+- `opts.server` — run the fetcher during SSR. Default `true`; `server: false` renders the pending arm on the server and fetches after hydration (still keyed).
+- Returns an `AsyncState<T>` — see [AsyncState](#asyncstate).
+
+### useAction
+
+The async **write**. The manual counterpart to `useData`: never auto-runs, triggered by `.run(input)`. `run` never rejects — it resolves a settled `RunResult<T>`. In-flight runs are never aborted; a newer `run()` or `reset()` supersedes the *observation* (the older run resolves `{ ok: false, error: SupersededError }` and never writes state).
+
+```ts
+function useAction<T, In = void>(
+  fn: (input: In, ctx: AsyncFetcherContext) => Promise<T>,
+  opts?: ActionOptions
+): AsyncAction<T, In>;
+```
+
+- `fn` — the write; receives the `run` input and a context whose `signal` is an `AbortSignal`.
+- Returns an `AsyncAction<T, In>` with `state` (`idle | pending | ready | errored`), `value`, `error`, `loading` (`state === 'pending'`), `match()`, `run(input): Promise<RunResult<T>>`, and `reset()`.
+
+### all
+
+Combine several `AsyncState`s into one all-or-nothing state (one `match` for a whole view). A pure derived view — no fetching. Object form gives named `value`/`errors` records; the rest-tuple form gives positional ones.
+
+```ts
+function all<S extends Record<string, AsyncState<unknown>>>(sources: S): AllState<ValuesOf<S>, ErrorsOf<S>>;
+function all<S extends readonly AsyncState<unknown>[]>(...sources: S): AllState<ValuesOf<S>, ErrorsOf<S>>;
+```
+
+Derived state: any member `idle` ⇒ `idle`; else any `errored` ⇒ `errored`; else any `pending` ⇒ `pending`; else any `refreshing` ⇒ `refreshing`; else `ready`. `AllState<T, E>` extends `AsyncState<T>` with `errors: E` (collect-all; `.error` stays first-error-wins).
 
 ### useStream
 
@@ -328,18 +353,31 @@ function isModel(value: unknown): value is Model<unknown>;
 
 ## Error handling
 
-### ErrorBoundary
+### errorScope
 
-Component that catches errors thrown during child rendering and shows a fallback, providing a `retry()` to reset. Works in SSR and on the client.
+Setup-time error boundary for the **calling component's own subtree** — a function, not a wrapper component. Catches setup / render / reactive-re-render throws beneath it and data errors bubbled by a `match()` with no `error` arm. Does not catch fetcher rejections (those are values on `.error`) or DOM event-handler throws (those go to `app.onError`). `retry` is a real remount.
 
 ```ts
-const ErrorBoundary: ComponentFactory<
-  Define.Prop<'fallback', JSXElement | ((error: Error, retry: () => void) => JSXElement)> & Define.Slot<'default'>,
-  /* ... */
->;
+function errorScope(options: ErrorScopeOptions): void;
+
+interface ErrorScopeOptions {
+  fallback?: (error: Error, retry: () => void) => JSXElement;
+  onError?: (error: Error, instance: ComponentInstance | null, info: string) => void;
+}
 ```
 
-- `fallback` prop — a node, or a function `(error, retry) => node`.
+- `fallback` — rendered in place of the subtree while errored; omitted ⇒ renders nothing (the scope still stops propagation).
+- `onError` — observer called before the fallback renders; its own throws are swallowed.
+
+### SupersededError
+
+Error a superseded `useAction` run resolves with (`{ ok: false, error: SupersededError }`); never written to `.error`.
+
+```ts
+class SupersededError extends Error {
+  readonly name = 'SupersededError';
+}
+```
 
 ### SigxError
 
@@ -811,7 +849,7 @@ The supporting types for the app and plugin system (from `app-types.ts`).
 
 ```ts
 interface AppConfig {
-  errorHandler?(err: unknown, instance: ComponentInstance, info: string): boolean | void;
+  onError?(err: Error, instance: ComponentInstance | null, info: string): boolean | void; // usually set via app.onError(fn)
   warnHandler?(...args: any[]): void;
   performance?: boolean;
 }
@@ -902,29 +940,60 @@ interface DirectiveDefinition<T = any, El = any> extends DirectiveDefinitionExte
 type ResolvedDirective<T = any, El = any> = [DirectiveDefinition<T, El>, T];
 ```
 
-### AsyncState / AsyncFetcherContext / AsyncOptions
+### AsyncState
 
-Reactive result of `useAsync`, plus the fetcher context and options. `value` and `error` are mutually exclusive; `refresh()` re-runs the fetcher stale-while-revalidate (keeps `value` while loading) and repopulates the keyed cache.
+The reactive result of `useData` (and, via `all`, the combined state), plus the `match` arm table, the shared fetcher shape, and the read options. `value` is SWR last-good (kept across a same-key `refresh()`, cleared on key change); `loading` is `state === 'pending'` only; `refresh()` never rejects (failures land on `.error`).
 
 ```ts
+type AsyncStateName = 'idle' | 'pending' | 'ready' | 'refreshing' | 'errored';
+
 interface AsyncState<T> {
+  readonly state: AsyncStateName;
   readonly value: T | null;
-  readonly loading: boolean;
   readonly error: Error | null;
-  refresh(): Promise<void>;
+  readonly loading: boolean;                 // state === 'pending' ONLY
+  match<R>(arms: MatchArms<T, R>): R | undefined;
+  refresh(): Promise<void>;                  // never rejects
 }
 
-interface AsyncFetcherContext {
-  signal: AbortSignal; // pass to fetch(url, { signal })
+interface MatchArms<T, R> {
+  idle?: () => R;                            // defaults to `pending`
+  pending?: () => R;                         // omitted ⇒ renders nothing
+  error?: (e: Error, retry: () => void, stale: T | null) => R; // omitted ⇒ bubbles to errorScope / app onError
+  ready: (v: T) => R;                        // required — the only route to a non-null T
 }
 
-interface AsyncOptions {
-  throwOnError?: boolean; // default false
-  server?: boolean;       // keyed form, default true
-}
+type Fetcher<T, Arg> = (arg: Arg, ctx: AsyncFetcherContext) => Promise<T>;
+interface AsyncFetcherContext { signal: AbortSignal; } // pass to fetch(url, { signal })
+
+interface AsyncOptions { server?: boolean; }  // default true; false ⇒ client-only keyed read
 ```
 
-### LazyComponentFactory / SuspenseProps
+### AsyncAction / RunResult / AllState
+
+The `useAction` handle, its settled result, and the combined `all()` state.
+
+```ts
+interface AsyncAction<T, In> {
+  readonly state: 'idle' | 'pending' | 'ready' | 'errored';
+  readonly value: T | null;
+  readonly error: Error | null;
+  readonly loading: boolean;                 // state === 'pending'
+  match<R>(arms: MatchArms<T, R>): R | undefined;
+  run(input: In): Promise<RunResult<T>>;     // never rejects
+  reset(): void;
+}
+
+type RunResult<T> = { ok: true; value: T } | { ok: false; error: Error };
+
+interface AllState<T, E> extends AsyncState<T> {
+  readonly errors: E;                        // collect-all counterpart to first-error-wins `.error`
+}
+
+interface ActionOptions {}                    // open interface — empty in core; packs augment it
+```
+
+### LazyComponentFactory / DeferProps
 
 Lazy-loading types.
 
@@ -934,7 +1003,7 @@ type LazyComponentFactory<T extends AnyComponentFactory> = T & {
   isLoaded: () => boolean;
   __lazy: true;
 };
-type SuspenseProps = { fallback?: JSXElement | (() => JSXElement) };
+type DeferProps = Define.Prop<'fallback', JSXElement | (() => JSXElement)> & Define.Slot<'default'>;
 ```
 
 ### InjectableFunction / SetupFactoryContext
