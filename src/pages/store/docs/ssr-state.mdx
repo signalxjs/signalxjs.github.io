@@ -89,9 +89,9 @@ const useTodos = defineStore('todos', (ctx) => {
 
 The ordering is what makes it work: `ssrState` seeds **synchronously** as the store is created. `persist`'s hydration — which may be **async** with stores like AsyncStorage — then overwrites with device-local data **when present**. So a returning visitor sees their saved state, while a first-time visitor keeps the server-rendered values. (See [the hydration race](/store/docs/persistence#the-hydration-race) for how `persist` orders its own writes.)
 
-## Relationship to `useAsync` / `useStream`
+## Relationship to `useData` / `useStream`
 
-This is the store-shaped entry point to the **same** SSR state-transfer mechanism that core's [`useAsync` and `useStream`](/core/docs/data-loading) use. They share one wire format — `window.__SIGX_ASYNC__`, a prototype-pollution-safe, page-lifetime blob the server renderer emits — and `store:<name>` is simply the **store keyspace** within it. Component-level fetches use `useAsync`; store-owned state uses `ssrState`. The server half of both is owned by `@sigx/server-renderer`'s document renderers; see the [data-loading guide](/core/docs/data-loading) for the component side and the [server renderer guide](/server) for the document-rendering APIs.
+This is the store-shaped entry point to the **same** SSR state-transfer mechanism that core's [`useData` and `useStream`](/core/docs/data-loading) use. They share one wire format — `window.__SIGX_ASYNC__`, a prototype-pollution-safe, page-lifetime blob the server renderer emits — and `store:<name>` is simply the **store keyspace** within it. Component-level fetches use `useData`; store-owned state uses `ssrState`. The server half of both is owned by `@sigx/server-renderer`'s document renderers; see the [data-loading guide](/core/docs/data-loading) for the component side and the [server renderer guide](/server) for the document-rendering APIs.
 
 ## Requirements
 
@@ -100,5 +100,5 @@ SSR state transfer needs the server renderer in the picture: `sigx` (or `@sigx/s
 ## Next steps
 
 - [Persistence](/store/docs/persistence) — device-local state; composes with `ssrState`.
-- [Data loading (`useAsync` / `useStream`)](/core/docs/data-loading) — the component-level half of the same SSR transfer.
+- [Data loading (`useData` / `useStream`)](/core/docs/data-loading) — the component-level half of the same SSR transfer.
 - [Composables & Plugins](/store/docs/composables-and-plugins) — how setup composables like `ssrState` and `persist` are built.

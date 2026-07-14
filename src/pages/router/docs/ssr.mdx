@@ -178,36 +178,32 @@ both sides. Once hydrated, navigation is handled entirely in the browser via
 
 ### Route-Based Data Loading
 
-Load data on the server before rendering by calling your data-fetching logic
-inside component setup. Because SSR renders the component tree synchronously (or
-with async support via `createSSR`), the data is available before HTML is sent.
+Load data on the server before rendering with a keyed [`useData`](/core/docs/data-loading)
+read inside component setup. A keyed read runs during SSR, serializes its value
+into the page, and restores on hydration without refetching — key it off the route
+param so it re-fetches on client navigation.
 
 ```tsx
-import { component, signal } from 'sigx';
+import { component, useData } from 'sigx';
 import { useParams } from '@sigx/router';
 
 export const BlogPost = component(() => {
     const params = useParams();
-    const post = signal<Post | null>(null);
 
-    // Runs during SSR and on client navigation
-    async function loadPost() {
-        const res = await fetch(`/api/posts/${params.slug}`);
-        post.value = await res.json();
-    }
-
-    loadPost();
+    // Keyed on the slug: runs on the server, restores on hydration,
+    // re-fetches whenever the route param changes.
+    const post = useData(() => `post:${params.slug}`, async (key, { signal }) => {
+        const res = await fetch(`/api/posts/${params.slug}`, { signal });
+        return res.json() as Promise<Post>;
+    });
 
     return () => (
         <article>
-            {post.value ? (
-                <>
-                    <h1>{post.value.title}</h1>
-                    <div>{post.value.body}</div>
-                </>
-            ) : (
-                <p>Loading…</p>
-            )}
+            {post.match({
+                pending: () => <p>Loading…</p>,
+                error: (e, retry) => <p>Failed: {e.message} <button onClick={retry}>Retry</button></p>,
+                ready: (p) => <><h1>{p.title}</h1><div>{p.body}</div></>,
+            })}
         </article>
     );
 });

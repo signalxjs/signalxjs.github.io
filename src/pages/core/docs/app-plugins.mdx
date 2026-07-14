@@ -60,17 +60,18 @@ defineApp(<App />)
 
 ## App Configuration
 
-Configure global error and warning handlers via `app.config`:
+Register the global error handler with `app.onError`, and configure warnings and performance via `app.config`:
 
 ```tsx
 const app = defineApp(<App />);
 
-// Global error handler
-app.config.errorHandler = (err, instance, info) => {
+// Global error handler — the app-wide catch-all for render/re-render throws,
+// DOM event-handler throws, and unhandled data errors no errorScope took.
+app.onError((err, instance, info) => {
     console.error(`Error in ${instance?.name || 'unknown'}:`, err);
     // Return true to suppress the error from propagating
     return false;
-};
+});
 
 // Warning handler (dev mode)
 app.config.warnHandler = (msg, instance, trace) => {
@@ -80,6 +81,8 @@ app.config.warnHandler = (msg, instance, trace) => {
 // Enable performance tracking
 app.config.performance = true;
 ```
+
+`app.onError` is the app-level safety net. To keep part of the UI alive with a local fallback instead, scope a subtree with `errorScope` — see [Error handling](/core/docs/error-handling).
 
 ## Plugins
 
@@ -106,10 +109,10 @@ const myPlugin: Plugin<{ debug?: boolean }> = {
         });
 
         // Configure error handling
-        app.config.errorHandler = (err, instance, info) => {
+        app.onError((err, instance, info) => {
             reportError(err, instance?.name, info);
             return true; // Error handled
-        };
+        });
     }
 };
 
@@ -151,10 +154,10 @@ const devToolsPlugin: Plugin<{ logMounts?: boolean }> = {
         }
 
         // Global error handling
-        app.config.errorHandler = (err, instance, info) => {
+        app.onError((err, instance, info) => {
             console.error(`[DevTools] Error in ${instance?.name}:`, err, info);
             return false; // Don't suppress - let it propagate
-        };
+        });
     }
 };
 
@@ -509,7 +512,7 @@ interface AppLifecycleHooks {
 }
 
 interface AppConfig {
-    errorHandler?(err: Error, instance: ComponentInstance | null, info: string): boolean | void;
+    onError?(err: Error, instance: ComponentInstance | null, info: string): boolean | void;
     warnHandler?(msg: string, instance: ComponentInstance | null, trace: string): void;
     performance?: boolean;
 }
