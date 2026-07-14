@@ -150,7 +150,7 @@ commands: {
         description: 'Deploy the built site',
         aliases: ['ship', 'push'],   // also answers to `sigx ship` / `sigx push`
         hidden: false,               // set true to keep it out of `sigx --help`
-        allowUnknownFlags: true,     // pass undeclared flags through instead of erroring
+        allowUnknownFlags: true,     // collect undeclared flags into ctx.unknownFlags instead of erroring
         args: { /* … */ },
         async run(ctx) {
             // forward extras verbatim to an underlying tool
@@ -162,7 +162,7 @@ commands: {
 
 - **`aliases`** — extra names the command also answers to. If an alias collides with another command, the CLI warns and a **direct command name always beats an alias**, so a plugin can't shadow a built-in by aliasing over it.
 - **`hidden`** — omit the command from `sigx --help` while keeping it fully dispatchable (handy for internal or experimental commands).
-- **`allowUnknownFlags`** — instead of erroring on an undeclared flag, collect the raw tokens into `ctx.unknownFlags` (a `string[]`). Use it for wrapper commands that forward flags to an underlying tool. Without it, unknown flags remain an error (the default).
+- **`allowUnknownFlags`** — instead of erroring on an undeclared flag, collect the raw tokens into `ctx.unknownFlags` (an optional `string[]`, populated only when this is set — hence the `ctx.unknownFlags ?? []` above). The command decides whether and how to forward them; nothing is passed through automatically. Use it for wrapper commands that hand flags to an underlying tool. Without it, unknown flags remain an error (the default).
 
 Nested subcommands within a plugin command are not yet supported.
 
