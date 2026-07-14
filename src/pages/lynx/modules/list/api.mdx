@@ -87,8 +87,9 @@ event handler. Both accept `el | null`, so you can pass `ref.current` directly; 
 null element is a silent no-op.
 
 ```tsx
-ListMethods.scrollToTop(el, { smooth }?);
-ListMethods.scrollToIndex(el, index, { align, offset, smooth }?);
+ListMethods.scrollToTop(el);                          // jump to top
+ListMethods.scrollToTop(el, { smooth: true });        // animated
+ListMethods.scrollToIndex(el, 12, { align: 'middle', smooth: true });
 ```
 
 - **`scrollToTop(el, opts?)`** — scroll to the first cell (the top of the list,
