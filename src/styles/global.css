@@ -926,7 +926,14 @@
     }
 
     :scope table {
-        width: 100%;
+        /* Scroll wide tables inside their own box instead of overflowing the
+           content column (over the TOC on desktop, off-page on mobile). A bare
+           <table> can't scroll — `display: block` makes overflow-x work; the
+           table sizes to its content up to the full column width. */
+        display: block;
+        width: max-content;
+        max-width: 100%;
+        overflow-x: auto;
         border-collapse: separate;
         border-spacing: 0;
         margin: 2rem 0;
@@ -934,7 +941,6 @@
         border-radius: var(--r-md);
         background: var(--bg-1);
         border: var(--hair) solid var(--line);
-        overflow: hidden;
     }
 
     :scope thead {
