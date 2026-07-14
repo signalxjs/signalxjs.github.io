@@ -1,0 +1,212 @@
+---
+title: "Usage"
+description: "List — Data-driven virtualized list"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using List
+
+<p class="lede">A data-driven, virtualized list over Lynx's native recycler — pass `items` and `renderItem`, and only the cells on screen ever exist as native views.</p>
+
+## How it works
+
+`@sigx/lynx-list` is a thin, ergonomic wrapper over Lynx's native `<list>`
+recycler. You give it your data as `items` and a `renderItem` renderer; the
+recycler materializes only the cells currently on screen (plus a small buffer)
+and recycles their native views as you scroll, so a feed of thousands of rows
+stays smooth. It is pure JS — there is no native module to link, and it runs
+identically on iOS and Android.
+
+## Basic usage
+
+```tsx
+import { List } from '@sigx/lynx-list';
+
+<List
+  items={posts}
+  keyExtractor={(p) => p.id}
+  estimatedItemSize={88}
+  style={{ flexGrow: 1 }}
+  renderItem={(post) => <PostRow post={post} />}
+  onEndReached={() => loadNextPage()}
+/>;
+```
+
+`items` and `renderItem` are generic: `renderItem`'s first argument is inferred
+from the element type of `items`, so `post` above is fully typed with no
+annotations. `renderItem` also receives the item's `index` as its second
+argument.
+
+Set `keyExtractor` to a stable, per-item key for any list whose data mutates —
+it maps to the recycler's `item-key` and lets the list track items across
+insertions and reorders. Without it, keys default to the array index (fine only
+for static lists). Use `itemType` when a list mixes cell shapes (e.g. a header
+row and content rows) so each shape recycles from its own pool.
+
+## Sizing
+
+The native `<list>` only lays out against a **concrete** main-axis size —
+`flex` and `%` heights resolve to zero, and nothing renders. To keep the
+familiar flex model, `class`/`style` land on a measuring wrapper `<view>` (where
+`flexGrow`, `%`, etc. work as usual), which measures itself and pins the list to
+the measured pixel height.
+
+```tsx
+// inside a flex column — the wrapper measures, the list fills it
+<List items={items} renderItem={renderRow} style={{ flexGrow: 1 }} />
+```
+
+First paint is one frame after mount (a 1px placeholder shows until the measure
+lands). For **uniform** rows, pass `estimatedItemSize` (main-axis px) to improve
+scroll-bar accuracy and reduce fill-in during fast flings. Omit it for
+variable-height content such as chat bubbles — a too-small estimate briefly
+clips taller cells until they self-measure.
+
+## Grid & waterfall
+
+Set `numColumns` for a grid, and `listType` to choose the layout mode: `flow`
+packs a uniform grid, `waterfall` staggers cells of differing heights (a
+Pinterest-style masonry), and `single` is the default single-column list.
+
+```tsx
+<List items={photos} numColumns={3} listType="flow" renderItem={renderPhoto} />
+<List items={cards}  numColumns={2} listType="waterfall" renderItem={renderCard} />
+```
+
+`horizontal` switches the scroll axis, and `itemSnap` (`start` / `center` /
+`end` / `none`) makes the list snap cells into place for paginated, carousel-like
+scrolling.
+
+## Header, footer & empty slots
+
+Pass extra chrome through the `slots` map:
+
+```tsx
+<List
+  items={items}
+  renderItem={renderRow}
+  slots={{
+    header: () => <SectionTitle>Recent</SectionTitle>,
+    footer: () => <LoadingSpinner />,
+    empty: () => <EmptyState />,
+  }}
+/>
+```
+
+`header` and `footer` ride along as full-span cells (they span every column in a
+grid). `empty` renders in place of the whole list when `items` is empty.
+
+## Edge events
+
+`onEndReached` and `onStartReached` fire as the user scrolls within
+`onEndReachedThreshold` / `onStartReachedThreshold` items of either end — the
+hooks for infinite feeds and load-older. `onScroll` reports the current scroll
+`offset`. Debounce your own loading in the `onEndReached` handler; the list also
+de-dupes rapid re-fires while a page is in flight.
+
+```tsx
+<List
+  items={items}
+  renderItem={renderRow}
+  onEndReachedThreshold={4}
+  onEndReached={() => loadMore()}
+  onScroll={({ offset }) => (lastOffset.value = offset)}
+/>
+```
+
+## Imperative scrolling
+
+Capture the native element with `mtRef` and drive it from a main-thread handler
+using `ListMethods` (mirroring `WebViewMethods` in `@sigx/lynx-webview`):
+
+```tsx
+import { useMainThreadRef, type MainThread } from '@sigx/lynx';
+import { List, ListMethods } from '@sigx/lynx-list';
+
+const ref = useMainThreadRef<MainThread.Element | null>(null);
+
+const toTop = () => {
+  'main thread';
+  ListMethods.scrollToTop(ref.current, { smooth: true });
+};
+
+<List mtRef={ref} items={items} renderItem={renderRow} />;
+```
+
+`ListMethods` exposes `scrollToTop(el, { smooth })` and
+`scrollToIndex(el, i, { align, offset, smooth })`. Note that `i` is the
+**rendered cell index**, not the data index — a `header` slot is itself cell 0,
+so add 1 to a data index whenever a header is present.
+
+## Pull-to-refresh & load-more
+
+Pull-to-refresh is opt-in on vertical lists: pass the controlled `refreshing`
+prop and an `onRefresh` handler. Pulling down past `pullThreshold` (px, default
+64) while at the top fires `onRefresh`; hold `refreshing` true to keep the
+indicator open, then set it back to `false` to dismiss. Customize the indicator
+with the `refresh` slot. For infinite scroll, set `loadingMore` to show a
+trailing loading cell while the next page loads.
+
+```tsx
+<List
+  items={items}
+  renderItem={renderRow}
+  refreshing={refreshing.value}
+  onRefresh={() => reload()}
+  loadingMore={loadingMore.value}
+  onEndReached={() => loadMore()}
+/>
+```
+
+## Chat mode
+
+Pass `inverted` for a WhatsApp-style chat (vertical only). Items render
+oldest → newest, but the first paint is already scrolled to the newest message
+(opacity-gated to hide the jump), and new items **stick to the bottom** while
+you are there. Scroll up and incoming messages raise the `newMessages`
+affordance instead of yanking you down — tap it to jump back to the latest.
+`stickToBottom` (default `true`) opts out of the auto-scroll.
+
+Provide a real `keyExtractor` so the recycler tracks messages across prepends,
+and **don't** pass `estimatedItemSize` — bubbles are variable-height, and a
+fixed estimate briefly clips taller messages as they scroll in. Let the cells
+self-measure.
+
+```tsx
+<List
+  items={messages.value}
+  keyExtractor={(m) => m.id}
+  inverted
+  style={{ flexGrow: 1 }}
+  renderItem={(m) => <MessageBubble message={m} />}
+  slots={{ newMessages: ({ count }) => <Pill>{count} new ↓</Pill> }}
+/>
+```
+
+## Windowing (long histories)
+
+For thousands of items, pass `windowSize` to render only a bounded sliding slice
+of `items` as native cells. The window anchors to the newest item in chat mode
+(the start in a feed) and pages older/newer as you scroll, trimming the
+off-screen far end to stay within `maxWindow`. `pageSize` controls how many
+items are revealed per scroll-edge page. Omit `windowSize` to render every item.
+
+```tsx
+<List
+  items={allMessages.value}   // the full history in memory…
+  keyExtractor={(m) => m.id}
+  inverted
+  windowSize={60}             // …but only ~60 cells are ever rendered
+  pageSize={30}
+  style={{ flexGrow: 1 }}
+  renderItem={(m) => <MessageBubble message={m} />}
+  onStartReached={() => loadOlderFromStore()}  // optional: lazy-page into `items`
+/>
+```
+
+Scrolling to the top reveals an older page — because it happens at the top edge,
+there is no visible jump. A zero-jump anchored expansion in the *middle* of the
+list is device-pending. Reach for windowing only for very long histories; for
+ordinary feeds, plain virtualization already keeps only on-screen cells alive.
