@@ -10,8 +10,8 @@ order: 50
 
 `@sigx/vite` ships a `sigx-types` CLI that generates TypeScript definitions for
 components declared with a tag name, so JSX gets intellisense for those tags. It's
-exposed through the package's `bin`, so `npx sigx-types` runs it from any project
-that has `@sigx/vite` installed — no global install needed.
+exposed through the package's `bin` field, so `npx sigx-types` runs it from any
+project that has `@sigx/vite` installed — no global install needed.
 
 ## sigx-types
 
@@ -84,8 +84,8 @@ the generated definitions:
 ## Go-to-definition into source
 
 Every `@sigx/*` package ships its TypeScript `src/` alongside the compiled
-`dist/`, and the declaration files carry source maps — so "Go to Definition" in
-your editor lands in the real source, not a `.d.ts` stub. No configuration is
+`dist/`, and the `.d.ts` files carry declaration maps (`.d.ts.map`) — so "Go to
+Definition" in your editor lands in the real source, not a `.d.ts` stub. No configuration is
 needed; it works as soon as the package is installed.
 
 ## Next Steps
