@@ -405,6 +405,7 @@ export interface AndroidConfig {
     googleMapsApiKey?: string;
     manifestMetaData?: Record<string, string>;     // arbitrary <meta-data> entries
     applicationAttributes?: Record<string, string | boolean | number>; // arbitrary <application> attrs
+    googleServicesFile?: string;                   // Firebase google-services.json, copied into android/app/ each prebuild
     icon?: string;
     adaptiveIcon?: AdaptiveIconConfig;
     notificationIcon?: string;
@@ -431,6 +432,7 @@ export interface IosConfig {
     bgTaskIdentifiers?: string[];
     infoPlist?: Record<string, PlistValue>;        // arbitrary Info.plist keys, merged last-write-wins
     usesNonExemptEncryption?: boolean;             // convenience for ITSAppUsesNonExemptEncryption
+    entitlements?: Record<string, PlistValue>;     // app-level code-signing entitlements (counterpart to infoPlist)
     icon?: string | IosIconConfig;
     splash?: SplashConfig;
     scheme?: string;
@@ -560,6 +562,7 @@ export interface AndroidManifest {
     dependencies?: string[];
     permissions?: string[];
     features?: AndroidFeatureEntry[];
+    gradlePlugins?: AndroidGradlePluginEntry[];  // Gradle plugins applied to app/build.gradle.kts
     minSdk?: number;
     services?: AndroidServiceEntry[];
     behaviors?: AndroidBehaviorEntry[];
@@ -583,6 +586,7 @@ export interface IosManifest {
     backgroundModes?: string[];
     bgTaskIdentifiers?: string[];
     uiComponents?: IosUiComponentEntry[];
+    entitlements?: Record<string, PlistValue>;  // code-signing entitlements aggregated into the app's .entitlements
     deploymentTarget?: string;
 }
 ```
@@ -616,6 +620,17 @@ export interface AndroidFeatureEntry {
     required?: boolean; // default false
 }
 ```
+
+### AndroidGradlePluginEntry
+
+```ts
+export interface AndroidGradlePluginEntry {
+    id: string;      // e.g. 'com.google.gms.google-services'
+    version: string; // e.g. '4.4.2'
+}
+```
+
+A Gradle plugin a module contributes to the app's `plugins {}` block on prebuild.
 
 ### AndroidServiceEntry
 
