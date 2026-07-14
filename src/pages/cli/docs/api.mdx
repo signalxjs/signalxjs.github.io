@@ -32,6 +32,16 @@ Identity helper for authoring a sigx CLI plugin with type safety. It returns the
 
 As an alternative, you can use the `satisfies SigxPlugin` pattern instead of calling `definePlugin`.
 
+### defineCommand
+
+```ts
+export function defineCommand<S extends ArgsShape = ArgsShape>(
+    cmd: PluginCommand<S>,
+): PluginCommand<S>;
+```
+
+Identity helper for authoring a single command **outside** a `definePlugin` literal — factoring a command into its own module or variable — while keeping `run`'s `ctx.args` inferred from the command's `args` builders. Inside a `definePlugin` literal each command already infers per key, so `defineCommand` is only needed when a command is defined on its own. Import it from `@sigx/cli/plugin` (also re-exported from `@sigx/cli`).
+
 ### a
 
 ```ts
@@ -50,6 +60,8 @@ Entry point of the `create` command, exported from `@sigx/cli/create`. The `sigx
 
 - **`opts`** — optional pre-parsed `CreateOptions` (`name?`, `type?`, `styling?`, `yes?`). Omitted, it reads `process.argv`.
 - **Returns** — `Promise<void>` (the function exits the process when it finishes).
+
+When the bare `@sigx/create` shim parses `process.argv` itself, it is lenient: **unknown flags are tolerated** (ignored rather than erroring), so a future `sigx create` flag never breaks an older shim. The one hard error is a **trailing value-expecting flag with no value** (e.g. a dangling `--type`), which exits with code `2`.
 
 ## Interfaces
 
@@ -78,19 +90,28 @@ The plugin contract. A plugin package default-exports one of these (created via 
 ### PluginCommand
 
 ```ts
-export interface PluginCommand {
+export interface PluginCommand<S = ArgsShape> {
     description: string;
     /** Fluent @sigx/args builders, e.g. `{ port: a.number().default(8788) }`. */
-    args?: ArgsShape;
-    run: (ctx: CommandContext) => Promise<void>;
+    args?: S;
+    /** Alternate command names. Collisions warn; direct names beat aliases. */
+    aliases?: string[];
+    /** Hide from `sigx --help` (still dispatchable). */
+    hidden?: boolean;
+    /** Collect unknown flags into ctx.unknownFlags instead of erroring. */
+    allowUnknownFlags?: boolean;
+    run: (ctx: TypedCommandContext<S>) => Promise<void>;
 }
 ```
 
-Describes a single CLI command contributed by a plugin.
+Describes a single CLI command contributed by a plugin. It is generic over its `args` shape `S`, so `run`'s `ctx.args` is inferred from the builders you declare — no cast.
 
 - **`description`** — help text for the command.
-- **`args`** — optional map of argument names to `@sigx/args` builders (`a.*`). See [Declaring command arguments](/cli/docs/plugins#declaring-command-arguments). `ArgsShape` is `Record<string, AnyArg>`.
-- **`run`** — async handler receiving a `CommandContext`; resolves when the command finishes.
+- **`args`** — optional map of argument names to `@sigx/args` builders (`a.*`). See [Declaring command arguments](/cli/docs/plugins#declaring-command-arguments). Defaults to `ArgsShape` (`Record<string, AnyArg>`).
+- **`aliases`** — alternate names the command also answers to. A collision with another command warns; a direct command name always beats an alias.
+- **`hidden`** — omit the command from `sigx --help` while keeping it dispatchable.
+- **`allowUnknownFlags`** — collect undeclared flags into `ctx.unknownFlags` instead of erroring on them.
+- **`run`** — async handler receiving a [`TypedCommandContext<S>`](#typedcommandcontext); resolves when the command finishes.
 
 ### CommandContext
 
@@ -101,18 +122,34 @@ export interface CommandContext {
     logger: Logger;
     plugins?: SigxPlugin[];
     cliVersion?: string;
+    /** Unknown flag tokens — only when the command sets allowUnknownFlags. */
+    unknownFlags?: string[];
 }
 ```
 
-Passed to a `PluginCommand.run` handler.
+The base context passed to a `PluginCommand.run` handler (see [`TypedCommandContext`](#typedcommandcontext) for the args-narrowed form your handler actually receives).
 
 - **`cwd`** — `process.cwd()`.
-- **`args`** — the parsed arguments, typed by the command's `args` builders. `args._` holds the verbatim tokens after a bare `--`.
+- **`args`** — the parsed arguments. `args._` holds the verbatim tokens after a bare `--`.
 - **`logger`** — a prefixed `Logger`.
 - **`plugins`** — every plugin discovered for this project, so a shell-hosting command can merge peer plugins' TUI contributions via `runShell({ plugins })`.
 - **`cliVersion`** — the running `sigx` binary's version, for plugin feature detection.
+- **`unknownFlags`** — undeclared flag tokens, present only when the command sets `allowUnknownFlags`.
 
-Arguments are declared with the `a` builders rather than a plain shape object; see [Declaring command arguments](/cli/docs/plugins#declaring-command-arguments) and the [`@sigx/args` guide](/terminal/packages/args/overview/) for the full builder reference.
+### TypedCommandContext
+
+```ts
+export type TypedCommandContext<S = ArgsShape> = Omit<CommandContext, 'args'> & {
+    args: PluginArgs<S>;
+};
+
+export type PluginArgs<S> =
+    ArgsShape extends S ? Record<string, unknown>
+    : S extends ArgsShape ? InferArgs<S>
+    : Record<string, unknown>;
+```
+
+`CommandContext` with `args` narrowed to the command's inferred shape. It's an intersection (not a generic member) so it stays assignable to `CommandContext` — a helper typed against `CommandContext` still accepts a `TypedCommandContext`. `PluginArgs<S>` resolves to the exact `InferArgs<S>` when `S` is a builders shape, and falls back to the legacy `Record<string, unknown>` for arg-less commands or hand-annotated contexts.
 
 ### Logger
 
