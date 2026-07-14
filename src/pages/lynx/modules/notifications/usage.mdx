@@ -104,10 +104,10 @@ async function setupPush() {
 
 Every `add*Listener` returns an unsubscribe function. The shims are web/SSR/test-safe: with no native bridge they return a no-op unsubscribe, and a throwing handler is caught and warned so one bad listener does not break the others.
 
-Setup that `sigx prebuild` does not do for you:
+Native setup. Installing `@sigx/lynx-notifications` wires most of the platform plumbing on `sigx prebuild`: its `signalx-module.json` declares the `com.google.gms.google-services` Gradle plugin and the `aps-environment` entitlement, so you no longer patch the Gradle files or add the entitlement by hand. What's still yours to provide:
 
-- iOS: add the Push Notifications capability in Xcode (creates the `aps-environment` entitlement). Requires a paid Apple Developer account. The iOS simulator cannot receive APNs pushes — use a real device. Local notifications and tap callbacks do work in the simulator.
-- Android: create a Firebase project, drop `google-services.json` into `android/app/`, and add the `com.google.gms.google-services` Gradle plugin.
+- **iOS** — add the **Push Notifications** capability and a signing identity / provisioning profile (a paid Apple Developer account). Prebuild emits the `aps-environment` entitlement — `production` in Release, `development` in Debug — but the capability and signing are configured against your team. The iOS simulator cannot receive APNs pushes — use a real device. Local notifications and tap callbacks do work in the simulator.
+- **Android** — create a Firebase project and point [`android.googleServicesFile`](/lynx/modules/cli/usage#firebase-and-entitlements) at its `google-services.json`; prebuild copies it into `android/app/` on every run and applies the Gradle plugin for you.
 
 To detach later, call `unregisterForPushNotifications()`; it resolves with `{ ok, error }`.
 

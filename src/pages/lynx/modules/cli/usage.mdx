@@ -117,6 +117,23 @@ export default defineLynxConfig({
 
 Each of these merges with values contributed by linked native modules — modules declare the same keys in their `signalx-module.json`, and the app-level entries win on a name collision.
 
+### Firebase and entitlements
+
+Two more passthroughs wire the signed-capability plumbing that remote push (and anything needing an entitlement) depends on:
+
+- **`android.googleServicesFile`** — path to a Firebase `google-services.json`. Prebuild copies it to `android/app/google-services.json` on every run (so it survives the managed `android/` re-render) and applies the `com.google.gms.google-services` Gradle plugin. Point it at a gitignored path to keep credentials out of source control. This is what `@sigx/lynx-notifications` needs for FCM.
+- **`ios.entitlements`** — arbitrary app-level code-signing entitlements (`Record<string, PlistValue>`), the counterpart to `ios.infoPlist`. Setting any entitlement makes prebuild generate `<App>.entitlements` (Release) + `<App>.debug.entitlements` (Debug) and wire `CODE_SIGN_ENTITLEMENTS` per build config. `aps-environment` is special-cased — written as `production` in the Release file and `development` in the Debug file regardless of the value you pass.
+
+```ts
+export default defineLynxConfig({
+    name: 'My App',
+    android: { googleServicesFile: './firebase/google-services.json' },
+    ios: { entitlements: { 'aps-environment': 'development' } },
+});
+```
+
+Native modules contribute the same two mechanisms through their `signalx-module.json` — `android.gradlePlugins` and `ios.entitlements` (see the [manifest types](/lynx/modules/cli/api#manifest-types)). So installing `@sigx/lynx-notifications` adds the FCM Gradle plugin and the `aps-environment` entitlement automatically; you only supply the Firebase file and your iOS signing. App-level entries win over a module's on a name collision.
+
 ### Build variants
 
 A `variants` map lets a dev/staging/preview build install **alongside** production with its own app id, name and output dir, selected with `--variant <name>`. See the dedicated [Build variants](/lynx/modules/cli/build-variants) guide.
