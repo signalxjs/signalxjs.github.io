@@ -179,20 +179,20 @@ const nameModel = createModel<string>([state, 'name'], (v) => {
 
 Use `createModelFromBinding` when you need to forward a full `[obj, key, handler]` binding tuple down to a child, and `isModel` to detect a model at runtime.
 
-## Lazy loading and Suspense
+## Lazy loading with Defer
 
-`lazy` wraps a dynamic-import loader into a component loaded on first render. Render it inside `Suspense`, which shows a fallback until the chunk resolves. The lazy factory also exposes `preload()` so you can warm the chunk ahead of time.
+`lazy` wraps a dynamic-import loader into a component loaded on first render. While the chunk loads the wrapper renders null; wrap it in `<Defer>` to show a fallback until every lazy chunk beneath it resolves. The lazy factory also exposes `preload()` so you can warm the chunk ahead of time.
 
 ```tsx
-import { lazy, Suspense } from '@sigx/runtime-core';
+import { lazy, Defer } from '@sigx/runtime-core';
 
 const HeavyChart = lazy(() => import('./HeavyChart'));
 
 const Dashboard = component(() => {
   return () => (
-    <Suspense fallback={<span>Loading chart…</span>}>
+    <Defer fallback={<span>Loading chart…</span>}>
       <HeavyChart />
-    </Suspense>
+    </Defer>
   );
 });
 
@@ -200,48 +200,52 @@ const Dashboard = component(() => {
 // onMouseEnter={() => HeavyChart.preload()}
 ```
 
-For async data inside a component, reach for `useAsync`, which returns a reactive `{ value, loading, error, refresh }` state and re-runs the render as the state changes. The fetcher receives an `AbortSignal`.
+`<Defer>` covers **chunk** loading only — a pending `useData` read renders through its own component's `match()`, not a wrapper. A lazy chunk that fails to load throws from render and routes to the nearest [`errorScope`](/core/docs/error-handling), then `app.onError`.
+
+## Loading data
+
+For async data, reach for the value-first primitives — `useData` for reads and `useAction` for writes. `useData(key, fetcher)` auto-runs and returns a reactive `AsyncState` you render through `match()`; the fetcher receives the resolved key and an `AbortSignal`.
 
 ```tsx
-import { component, useAsync } from '@sigx/runtime-core';
+import { component, useData } from '@sigx/runtime-core';
 
 const Editor = component(() => {
-  const libs = useAsync(async ({ signal }) => ({
+  const libs = useData('editor:libs', async (key, { signal }) => ({
     EditorView: (await import('@codemirror/view')).EditorView,
   }));
 
-  return () => {
-    if (libs.loading) return <span>Loading…</span>;
-    if (libs.error) return <span>Failed: {libs.error.message}</span>;
-    return <div>Editor ready</div>;
-  };
+  return () => libs.match({
+    pending: () => <span>Loading…</span>,
+    error: (e) => <span>Failed: {e.message}</span>,
+    ready: () => <div>Editor ready</div>,
+  });
 });
 ```
 
-Pass an explicit **key** as the first argument to make the call SSR-transferable: it runs during SSR, serializes its value under the key, restores on hydration without refetching, and dedupes across components sharing the key. `useStream(key, source)` is the companion for progressive text (LLM-token streaming). See the [Data Loading](/core/docs/data-loading) guide for the full story.
+Every read has a **key** — it is the reactive trigger, the cache / SSR identity, and the fetcher's input. A static string key is SSR-transferable: it runs during SSR, serializes its value under the key, restores on hydration without refetching, and dedupes across components sharing the key. Pass a getter for a reactive key (`() => ['user', id]`), or `{ server: false }` for a client-only read. `useAction(fn)` is the manual write counterpart (trigger with `.run(input)`, resolves a settled `RunResult`), and `useStream(key, source)` streams progressive text (LLM tokens). See the [Data Loading](/core/docs/data-loading) guide for the full story.
 
 ## Handling errors
 
-Wrap risky subtrees in `ErrorBoundary` to catch render errors and show a fallback. The fallback can be a node or a function receiving the error and a `retry()` that resets the boundary. It works in both SSR and on the client.
+Call `errorScope` during setup to scope the calling component's own subtree — it is a function, not a wrapper component. Its `fallback` receives the error and a `retry()`, where `retry` is a real remount (the subtree unmounts and re-runs setup from a clean slate).
 
 ```tsx
-import { ErrorBoundary } from '@sigx/runtime-core';
+import { component, errorScope } from '@sigx/runtime-core';
 
 const Safe = component(() => {
-  return () => (
-    <ErrorBoundary
-      fallback={(error, retry) => (
-        <div>
-          {error.message}
-          <button onClick={retry}>Retry</button>
-        </div>
-      )}
-    >
-      <RiskyComponent />
-    </ErrorBoundary>
-  );
+  errorScope({
+    fallback: (error, retry) => (
+      <div>
+        {error.message}
+        <button onClick={retry}>Retry</button>
+      </div>
+    ),
+  });
+
+  return () => <RiskyComponent />;
 });
 ```
+
+`errorScope` catches setup / render / reactive-re-render throws in the subtree, plus data errors bubbled by a `match()` with no `error` arm. It does **not** catch fetcher rejections (those are values on `.error`) or DOM event-handler throws — those route to the app-wide `app.onError(fn)` handler, which is also the last stop for anything no scope took. See [Error handling](/core/docs/error-handling) for the full model.
 
 Runtime errors are instances of `SigxError`, each carrying a stable `code` (such as `SIGX102` for an async setup attempted on the client). Catch `SigxError` and branch on `.code` for targeted handling.
 

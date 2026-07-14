@@ -47,14 +47,14 @@ import { renderDocument } from '@sigx/server-renderer/server';
 import { ssrClientPlugin } from '@sigx/server-renderer/client';
 
 // any component
-import { useHead, useAsync } from 'sigx';     // head + data loading live in core sigx
+import { useHead, useData } from 'sigx';       // head + data loading live in core sigx
 ```
 
 `renderToNodeStream` and `renderToStreamWithCallbacks` are exported **only** from
 `/server`, not from the main entry. Hydration internals (`hydrate`, `hydrateNode`,
 `registerClientPlugin`, …) are exported **only** from `/client`.
 
-> `useHead`, `useAsync`, and `useStream` come from core **`sigx`**, not this
+> `useHead`, `useData`, and `useStream` come from core **`sigx`**, not this
 > package. They are plain composables that gain server behavior when this renderer
 > drives them.
 

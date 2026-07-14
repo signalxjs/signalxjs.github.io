@@ -140,14 +140,14 @@ function lazy<T extends ComponentFactory>(
 ### Examples
 
 ```tsx
-import { lazy, Suspense } from 'sigx';
+import { lazy, Defer } from 'sigx';
 
 const HeavyChart = lazy(() => import('./HeavyChart'));
 
-// Basic usage
-<Suspense fallback={<Spinner />}>
+// Basic usage — Defer shows the fallback while the chunk loads
+<Defer fallback={<Spinner />}>
     <HeavyChart />
-</Suspense>
+</Defer>
 
 // Preload on hover
 <button onMouseEnter={() => HeavyChart.preload()}>
@@ -162,42 +162,42 @@ if (HeavyChart.isLoaded()) {
 
 ---
 
-## Suspense
+## Defer
 
-Show fallback content while lazy components load.
+Show fallback content while lazy component chunks load. `<Defer>`'s fallback covers **chunk loading only** — a pending `useData` read renders through its own component's `match()`, never through a wrapper. On the server, the fallback streams with the shell and a single replacement arrives when everything pending beneath it (chunks and keyed data) resolves.
 
 ```tsx
-const Suspense: ComponentFactory<SuspenseProps>;
+const Defer: ComponentFactory<DeferProps>;
 ```
 
 ### Props
 
 | Name | Type | Description |
 |------|------|-------------|
-| `fallback` | `JSXElement \| () => JSXElement` | Content while loading |
+| `fallback` | `JSXElement \| () => JSXElement` | Content while chunks below load |
 
 ### Examples
 
 ```tsx
-import { lazy, Suspense } from 'sigx';
+import { lazy, Defer } from 'sigx';
 
 const Dashboard = lazy(() => import('./Dashboard'));
 
 // Static fallback
-<Suspense fallback={<div>Loading...</div>}>
+<Defer fallback={<div>Loading...</div>}>
     <Dashboard />
-</Suspense>
+</Defer>
 
 // Dynamic fallback
-<Suspense fallback={() => <Spinner size={size} />}>
+<Defer fallback={() => <Spinner size={size} />}>
     <Dashboard />
-</Suspense>
+</Defer>
 
-// Multiple lazy components
-<Suspense fallback={<Loading />}>
+// Multiple lazy components — one fallback until all chunks resolve
+<Defer fallback={<Loading />}>
     <LazyHeader />
     <LazyContent />
-</Suspense>
+</Defer>
 ```
 
 ---
@@ -300,25 +300,54 @@ function useCustomHook() {
 
 ## Data Loading
 
-### useAsync
+### useData
 
-Run an async fetcher and get reactive `{ value, loading, error, refresh }` state. Pass an explicit string key as the first argument to make the call SSR-transferable (runs on the server, serialized under the key into `window.__SIGX_ASYNC__`, restored on hydration, deduped per key). The fetcher receives an `AbortSignal`.
+The keyed async read. Every read has a key — the reactive trigger, the cache / SSR identity, and the fetcher's input. A static string key is SSR-transferable (runs on the server, serialized under the key into `window.__SIGX_ASYNC__`, restored on hydration, deduped per key). A reactive getter returning a string or tuple re-runs on change; a falsy result holds the read in `idle`. There is no unkeyed form.
 
 ```tsx
-// Unkeyed: client-only.
-function useAsync<T>(
-    fetcher: (ctx: { signal: AbortSignal }) => Promise<T>,
-    options?: { throwOnError?: boolean }
-): AsyncState<T>;
-// Keyed: SSR + hydration state transfer.
-function useAsync<T>(
+// Static key: SSR + hydration state transfer.
+function useData<T>(
     key: string,
-    fetcher: (ctx: { signal: AbortSignal }) => Promise<T>,
-    options?: { throwOnError?: boolean; server?: boolean }
+    fetcher: (arg: string, ctx: { signal: AbortSignal }) => Promise<T>,
+    opts?: AsyncOptions,
 ): AsyncState<T>;
+// Reactive key (string or tuple); falsy ⇒ 'idle'.
+function useData<T, const K extends KeyValue>(
+    key: () => K | Falsy,
+    fetcher: (arg: K, ctx: { signal: AbortSignal }) => Promise<T>,
+    opts?: AsyncOptions,
+): AsyncState<T>;
+
+interface AsyncOptions {
+    server?: boolean; // default true; false ⇒ client-only keyed read
+}
 ```
 
-`value` and `error` are mutually exclusive. `refresh()` re-runs the fetcher stale-while-revalidate. `{ throwOnError: true }` routes errors to the nearest error boundary. See the [Data Loading](/core/docs/data-loading) guide.
+Render every state with `match()`; `refresh()` re-runs in place (stale-while-revalidate) and never rejects. See the [Data Loading](/core/docs/data-loading) guide.
+
+### useAction
+
+The async write — the manual counterpart to `useData`, triggered by `.run(input)`. `run` never rejects; it resolves a settled `RunResult<T>`. In-flight writes are never aborted.
+
+```tsx
+function useAction<T, In = void>(
+    fn: (input: In, ctx: { signal: AbortSignal }) => Promise<T>,
+    opts?: ActionOptions,
+): AsyncAction<T, In>;
+```
+
+### all
+
+Combine several `AsyncState`s into one all-or-nothing state — a single `match()` for a whole view. A pure derived view; no fetching.
+
+```tsx
+// Object form (named value/errors records).
+function all<S extends Record<string, AsyncState<unknown>>>(sources: S): AllState<…>;
+// Rest-tuple form (positional).
+function all<S extends readonly AsyncState<unknown>[]>(...sources: S): AllState<…>;
+```
+
+`AllState<T, E>` extends `AsyncState<T>` with an `errors` collect-all counterpart to first-error-wins `.error`.
 
 ### useStream
 
@@ -382,12 +411,12 @@ type LazyComponentFactory<T> = T & {
 };
 ```
 
-### SuspenseProps
+### DeferProps
 
 ```tsx
-type SuspenseProps = {
-    fallback?: JSXElement | (() => JSXElement);
-};
+type DeferProps =
+    & Define.Prop<'fallback', JSXElement | (() => JSXElement)>
+    & Define.Slot<'default'>;
 ```
 
 ### PortalProps
@@ -416,9 +445,40 @@ interface ComponentOptions {
 
 ```tsx
 interface AsyncState<T> {
-    readonly value: T | null;   // null while loading or after an error
-    readonly loading: boolean;
-    readonly error: Error | null; // mutually exclusive with value
-    refresh(): Promise<void>;     // stale-while-revalidate re-run
+    readonly state: 'idle' | 'pending' | 'ready' | 'refreshing' | 'errored';
+    readonly value: T | null;     // SWR last-good; kept across same-key refresh, cleared on key change
+    readonly error: Error | null;
+    readonly loading: boolean;     // state === 'pending' ONLY (refresh reads state === 'refreshing')
+    match<R>(arms: MatchArms<T, R>): R | undefined;
+    refresh(): Promise<void>;      // re-run in place; NEVER rejects (failures land on .error)
 }
 ```
+
+### MatchArms
+
+```tsx
+interface MatchArms<T, R> {
+    idle?: () => R;                                    // defaults to `pending`
+    pending?: () => R;                                 // omitted ⇒ renders nothing
+    error?: (e: Error, retry: () => void, stale: T | null) => R; // omitted ⇒ bubbles to errorScope / app onError
+    ready: (v: T) => R;                                // required — the only route to a non-null T
+}
+```
+
+### AsyncAction
+
+```tsx
+interface AsyncAction<T, In> {
+    readonly state: 'idle' | 'pending' | 'ready' | 'errored';
+    readonly value: T | null;      // last successful result
+    readonly error: Error | null;
+    readonly loading: boolean;      // state === 'pending' — the double-submit guard
+    match<R>(arms: MatchArms<T, R>): R | undefined;
+    run(input: In): Promise<RunResult<T>>; // never rejects; in-flight runs never aborted
+    reset(): void;                  // back to 'idle'; clears value/error
+}
+
+type RunResult<T> = { ok: true; value: T } | { ok: false; error: Error };
+```
+
+A superseded run resolves `{ ok: false, error: SupersededError }` and never writes state.

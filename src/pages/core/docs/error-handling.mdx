@@ -1,0 +1,85 @@
+---
+title: Error Handling
+description: Scope render and setup errors with errorScope, and catch everything else with app.onError — the value-first error model
+layout: docs
+category: Core Concepts
+order: 56
+---
+
+# Error Handling
+
+SignalX routes errors by **where they come from**, and it never uses a wrapper component or a magic thrown value:
+
+| Source | Goes to |
+|---|---|
+| A `useData` / `useAction` fetcher rejects | the cell's `.error` — rendered through `match()` (value-first) |
+| A component's setup or render throws (including a descendant's, and reactive re-renders) | the nearest **`errorScope`**, then `app.onError` |
+| A DOM event-handler throws | **`app.onError`** |
+| A `match()` `error` arm is omitted for an errored cell | bubbles to the nearest `errorScope`, then `app.onError` |
+
+Fetch failures are values — you handle them inline with the `error` arm (see [Data loading](/core/docs/data-loading)). This page covers the other two: `errorScope` for a subtree, `app.onError` for the app.
+
+## errorScope
+
+`errorScope` is a setup-time error boundary for the **calling component's own subtree**. It is not a wrapper component — call it inside setup and the component's subtree is scoped:
+
+```tsx code
+import { component, errorScope } from 'sigx';
+
+const Widget = component(() => {
+    errorScope({
+        fallback: (error, retry) => (
+            <div class="error">
+                <p>{error.message}</p>
+                <button onClick={retry}>Try again</button>
+            </div>
+        ),
+    });
+
+    return () => <RiskyTree />;
+});
+```
+
+It catches: the component's own render throwing, and any descendant's setup / render / reactive re-render throwing. It also receives unhandled data errors bubbled by `match()` (a cell that errored with no `error` arm). It does **not** catch fetcher rejections (those are values on `.error`) or DOM event-handler throws (those go to `app.onError`).
+
+`retry` is a **real teardown**, not a flag flip: the subtree renders under a keyed Fragment whose key bumps on retry, forcing a full unmount (every descendant effect stopped, `onUnmounted` run) and a fresh mount — so a retry re-runs setup and re-fetches from a clean slate.
+
+### Options
+
+| Option | Type | Notes |
+|---|---|---|
+| `fallback` | `(error, retry) => JSXElement` | Rendered in place of the subtree while errored. Omitted ⇒ renders nothing (the scope still stops propagation). |
+| `onError` | `(error, instance, info) => void` | Observer called before the fallback renders — log or report. Its own throws are swallowed. |
+
+```tsx code
+errorScope({
+    fallback: (e, retry) => <Oops error={e} retry={retry} />,
+    onError: (e, instance, info) => telemetry.report(e, { component: instance?.name, info }),
+});
+```
+
+## app.onError
+
+`app.onError` is the app-wide catch-all — the last stop for everything no `errorScope` took, plus DOM event-handler throws and unhandled data errors. Register it on the app instance:
+
+```tsx code
+import { defineApp } from 'sigx';
+
+const app = defineApp(App)
+    .onError((err, instance, info) => {
+        telemetry.report(err, { component: instance?.name, info });
+        return true; // suppress default logging; omit / return falsy to let it propagate
+    });
+
+app.mount('#app');
+```
+
+The handler receives the `error`, the `instance` it originated from (may be `null`), and an `info` string describing the phase. Return `true` to mark the error handled and stop it propagating (e.g. to the console); return nothing to let default handling continue.
+
+Reach for `errorScope` to keep part of the UI alive with a local fallback, and `app.onError` as the safety net for reporting and for errors with no natural place to render.
+
+## Next Steps
+
+- [Data loading](/core/docs/data-loading) - `useData`, `useAction`, `all`
+- [App & Plugins](/core/docs/app-plugins) - Configure and extend the app
+- [Lifecycle](/core/docs/lifecycle) - Mount, update and cleanup hooks
