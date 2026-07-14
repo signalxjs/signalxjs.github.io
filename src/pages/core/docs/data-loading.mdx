@@ -1,6 +1,6 @@
 ---
 title: Data Loading
-description: Load async data and stream text with useAsync and useStream — SSR-aware with automatic hydration state transfer
+description: Load async data with useData, run writes with useAction, combine with all, and stream text with useStream — SSR-aware with automatic hydration state transfer
 layout: docs
 category: Core Concepts
 order: 55
@@ -8,36 +8,47 @@ order: 55
 
 # Data Loading
 
-SignalX has one data-loading story for both the client and the server: `useAsync` for fetched values and `useStream` for progressive text. Both are imported from `'sigx'`, called synchronously during component setup, and return reactive state your render reads.
+SignalX is **value-first**: an async read returns reactive state you render through, not a promise you throw to a wrapper. There is no loading wrapper and no thrown-promise protocol — a component owns its own pending and error branches and renders them with `match()`.
 
-The single rule that controls server behavior: **give the call a key and it becomes server-transferable.** A keyed call runs during SSR, serializes its resolved value into the page, and restores on hydration without refetching. An unkeyed call is client-only.
+Three primitives cover it, all imported from `'sigx'` and called synchronously during component setup:
 
-## useAsync
+- **`useData(key, fetcher)`** — a keyed read. Auto-runs, SSR-transferable, deduped.
+- **`useAction(fn)`** — a write. Runs on demand via `.run(input)`; never auto-runs.
+- **`all(...)`** — combine several reads into one all-or-nothing state.
 
-`useAsync` runs an async fetcher and returns reactive `{ value, loading, error, refresh }` state — the resolved `value` (or `error`; the two are mutually exclusive), a `loading` flag that is true while any fetch is in flight (including a `refresh()`), and a `refresh()` method that re-runs the fetcher. `value` is kept while a refresh is in flight, so you can show a revalidation indicator off `loading` without dropping the stale content. Reading any of those inside the render subscribes it, so the component re-renders as the request settles.
+Plus **`useStream(key, source)`** for progressive, token-at-a-time text.
 
-### Client-only (unkeyed)
+## useData
 
-Pass just a fetcher. The fetcher never runs on the server — the loading branch is rendered during SSR and the work starts on the client after hydration:
+Every read has a **key** — data always has identity. The key is the reactive trigger, the cache / SSR identity, and the fetcher's input, all at once. The fetcher runs untracked; only the key getter is reactive, so anything that should re-run the fetch belongs in the key.
+
+`useData` returns a reactive `AsyncState<T>` with a `state` of `idle | pending | ready | refreshing | errored`, the last-good `value`, the `error`, a `loading` flag (`state === 'pending'` only), a `match()` dispatcher, and a `refresh()` method.
 
 ```tsx code preview live
-import { component, render, useAsync } from 'sigx';
+import { component, render, useData } from 'sigx';
 
 const Joke = component(() => {
-    const joke = useAsync(async ({ signal }) => {
+    const joke = useData('joke', async (key, { signal }) => {
         const res = await fetch('https://icanhazdadjoke.com/', {
             headers: { Accept: 'application/json' },
-            signal
+            signal,
         });
         return (await res.json()).joke as string;
     });
 
     return () => (
         <div style="padding: 16px;">
-            {joke.loading && <p>Loading…</p>}
-            {joke.error && <p>Failed: {joke.error.message}</p>}
-            {joke.value && <p>{joke.value}</p>}
-            <button onClick={() => joke.refresh()} disabled={joke.loading}>
+            {joke.match({
+                pending: () => <p>Loading…</p>,
+                error: (e, retry) => (
+                    <p>Failed: {e.message} <button onClick={retry}>Retry</button></p>
+                ),
+                ready: (text) => <p>{text}</p>,
+            })}
+            <button
+                onClick={() => joke.refresh()}
+                disabled={joke.loading || joke.state === 'refreshing'}
+            >
                 Another one
             </button>
         </div>
@@ -47,66 +58,140 @@ const Joke = component(() => {
 render(<Joke />, "#sandbox");
 ```
 
-The fetcher receives an `AbortSignal` — pass it straight to `fetch`. For an unkeyed call it aborts when the component unmounts or when a `refresh()` supersedes the run.
+The fetcher receives the resolved key as its first argument and an `AbortSignal` on the context — pass it straight to `fetch`. The signal aborts only when this cell is the fetch's sole consumer and the run is superseded (keyed fetches may be shared, so they de-dupe rather than abort).
 
-### SSR + hydration (keyed)
+### match — the value-first render
 
-Pass an explicit string key as the first argument and the call participates in server rendering:
+`match()` is the type-safe way to render every state at once. The `ready` arm is the only route to a non-null `T`:
+
+| Arm | When | Notes |
+|---|---|---|
+| `idle` | conditional fetch not started | defaults to `pending` if omitted |
+| `pending` | nothing to show yet | omitted ⇒ renders nothing while pending |
+| `error(e, retry, stale)` | fetch failed | `stale` is the last-good value (for "keep content + toast"); omitted ⇒ bubbles to an [error scope](/core/docs/error-handling) |
+| `ready(value)` | the happy path | **required** |
+
+You never have to use `match` — `state`, `value`, `error` and `loading` are plain reactive reads — but it keeps the four states exhaustive and the success type non-null.
+
+### Reactive keys
+
+Pass a getter to make the key reactive. Return a string or a tuple; a falsy result skips the fetch and holds the read in `idle` (for "type to search" and other conditional reads):
 
 ```tsx code
-import { component, useAsync } from 'sigx';
+// re-fetches whenever props.id changes; tuple keys serialize to canonical JSON
+const user = useData(() => ['user', props.id], async ([, id], { signal }) => {
+    const res = await fetch(`/api/users/${id}`, { signal });
+    return res.json();
+});
+
+// conditional: no fetch until the box has text
+const results = useData(() => query.value && ['search', query.value], searchApi);
+```
+
+A tuple exists to carry parameters, so a *static* tuple is rejected by design — a static key is a plain string; parameters that change belong in a reactive getter.
+
+### Stale-while-revalidate with refresh
+
+`refresh()` re-runs the fetcher **in place**. It keeps the current `value` visible and moves `state` to `refreshing` (not `pending`), so a revalidation indicator reads `state === 'refreshing'` while the ready arm keeps rendering. It never rejects — a failed refresh lands on `.error`:
+
+```tsx code
+const feed = useData('feed', loadFeed);
+
+<button onClick={() => feed.refresh()} disabled={feed.state === 'refreshing'}>
+    {feed.state === 'refreshing' ? 'Refreshing…' : 'Refresh'}
+</button>
+```
+
+A **key change** is different: it's a hard reset — `value` is cleared and `state` returns to `pending`, so a wrong-key value never flashes.
+
+### SSR + hydration
+
+A **static** string key makes the read SSR-transferable automatically:
+
+```tsx code
+import { component, useData } from 'sigx';
 
 const UserProfile = component<{ id: string }>(({ props }) => {
-    const user = useAsync(`user:${props.id}`, async ({ signal }) => {
+    const user = useData(`user:${props.id}`, async (key, { signal }) => {
         const res = await fetch(`/api/users/${props.id}`, { signal });
         return res.json();
     });
 
-    return () => {
-        if (user.loading) return <p>Loading…</p>;
-        if (user.error) return <p>{user.error.message}</p>;
-        return <h1>{user.value!.name}</h1>;
-    };
+    return () => user.match({
+        pending: () => <p>Loading…</p>,
+        ready: (u) => <h1>{u.name}</h1>,
+    });
 });
 ```
 
-With a key, `useAsync`:
+With a static (or resolved reactive) key, `useData`:
 
-- **Runs on the server.** The resolved value is serialized under the key into `window.__SIGX_ASYNC__` (a prototype-pollution-safe, page-lifetime cache the server renderer emits).
+- **Runs on the server**, serializing the resolved value under the key into `window.__SIGX_ASYNC__` — a prototype-pollution-safe, page-lifetime cache the server renderer emits.
 - **Restores on hydration** from that cache — no refetch on first client render.
-- **Dedupes per key.** Two components using the same key share a single in-flight request and both restore from the same cached value; neither refetches.
+- **Dedupes per key** — two components with the same key share one in-flight request and one cached value.
 
-The cache is the page's data cache for its lifetime — every later mount of the same key (including remounts after client-side navigation) restores from it, and successful keyed fetches write back so it always holds the latest value.
+Pass `{ server: false }` for a client-only keyed read: SSR renders the pending arm and the fetch runs after hydration. It still keeps its key for dedupe and future cache coverage — there is no unkeyed form.
 
-### Stale-while-revalidate with refresh
+## useAction
 
-`refresh()` re-runs the fetcher. It keeps the current `value` visible while the new request is in flight (`loading` is `true`), so you can show a revalidation indicator without dropping content. It aborts any in-flight run and repopulates the cache on success:
-
-```tsx code
-const feed = useAsync('feed', loadFeed);
-
-// keep showing feed.value, just flag the refresh
-<button onClick={() => feed.refresh()}>
-    {feed.loading ? 'Refreshing…' : 'Refresh'}
-</button>
-```
-
-`value` and `error` are **mutually exclusive** — a failed fetch clears stale data, so success and error branches never render at the same time.
-
-### Throwing to an error boundary
-
-Pass `{ throwOnError: true }` to route fetch errors to the nearest error boundary / component error fallback instead of exposing them on `.error`. The error throws when `.error` is read during render:
+`useAction` is the write counterpart: the manual sibling of `useData` that never auto-runs. Trigger it with `.run(input)`. `run` **never rejects** — it resolves a settled `RunResult<T>` (`{ ok: true, value }` or `{ ok: false, error }`), so both fire-and-forget and `const r = await save.run()` are safe.
 
 ```tsx code
-const data = useAsync('report', loadReport, { throwOnError: true });
+import { component, useAction } from 'sigx';
+
+const SaveButton = component<{ draft: Draft }>(({ props }) => {
+    const save = useAction(async (draft: Draft, { signal }) => {
+        const res = await fetch('/api/save', { method: 'POST', body: JSON.stringify(draft), signal });
+        if (!res.ok) throw new Error('Save failed');
+        return res.json();
+    });
+
+    return () => (
+        <button
+            disabled={save.loading}
+            onClick={async () => {
+                const r = await save.run(props.draft);
+                if (r.ok) toast('Saved'); else toast(r.error.message);
+            }}
+        >
+            {save.loading ? 'Saving…' : 'Save'}
+        </button>
+    );
+});
 ```
 
-### Options
+An action exposes `state` (`idle | pending | ready | errored`), `value` (last success — a search box renders from this), `error`, `loading` (`state === 'pending'`, the blessed double-submit guard), `match()`, `run(input)`, and `reset()`.
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `throwOnError` | `boolean` | `false` | Throw the fetch error when `.error` is read (routes to an error boundary) instead of exposing it |
-| `server` | `boolean` | `true` | (Keyed form.) Run the fetcher during SSR. `server: false` renders the loading branch on the server and fetches on the client after hydration |
+In-flight writes are **never aborted** — an aborted POST is not an undone POST. A newer `run()` or a `reset()` only supersedes the *observation*: the older run's promise resolves `{ ok: false, error: SupersededError }` and never writes state. `reset()` returns the action to `idle`, clearing value and error (dismiss a success message, reuse a form).
+
+Cross-read invalidation is explicit — after a successful write, refresh the reads it affects:
+
+```tsx code
+const r = await save.run(draft);
+if (r.ok) user.refresh();   // re-pull the read this write invalidated
+```
+
+## all
+
+`all()` combines several `AsyncState`s into one — a single `match` for a whole dashboard. It's a pure derived view (no fetching), with named or positional forms:
+
+```tsx code
+import { useData, all } from 'sigx';
+
+const user = useData(`user:${id}`, loadUser);
+const posts = useData(`posts:${id}`, loadPosts);
+
+const page = all({ user, posts });          // named: page.value.user, page.value.posts
+// const page = all(user, posts);           // positional: page.value[0], page.value[1]
+
+return () => page.match({
+    pending: () => <Spinner />,
+    error: (e) => <Error error={e} />,
+    ready: ({ user, posts }) => <Dashboard user={user} posts={posts} />,
+});
+```
+
+The combined state follows all-or-nothing rules: any member `idle` ⇒ `idle` (a conditional member holds the gate); else any `errored` ⇒ `errored`; else any `pending` ⇒ `pending` (until all first settle); else any `refreshing` ⇒ `refreshing` (values exist, so the ready arm keeps rendering); else `ready`. `.error` is first-error-wins; `.errors` collects them all (named or positional to match). Partial loading — where each section shows its own spinner — wants independent `match` calls instead.
 
 ## useStream
 
@@ -122,21 +207,26 @@ const Answer = component<{ prompt: string }>(({ props }) => {
 });
 ```
 
-Like keyed `useAsync`, `useStream` is SSR-aware:
+Like a keyed `useData`, `useStream` is SSR-aware:
 
-- **Server, streaming:** tokens append into the page as they arrive; the final text swaps in through the standard replacement pipeline and is serialized under the key.
+- **Server, streaming:** tokens append into the page as they arrive; the final text swaps in through the replacement pipeline and is serialized under the key.
 - **Server, blocking:** the source is drained fully and the final text is rendered inline.
 - **Client, hydrating:** the final text is restored from the key — the source is **not** re-run, so there are no duplicate calls.
 - **Client navigation:** the source runs live and the signal updates per chunk.
 
 `useStream` is text-only, and the appended tokens are XSS-safe by construction (text nodes, never raw HTML). It stops pulling from the source when the component unmounts.
 
+## Errors
+
+Fetcher rejections are **values**, not throws: they land on `.error` and render through the `error` arm of `match()`. When you omit the `error` arm, the error bubbles to the nearest [`errorScope`](/core/docs/error-handling), then to the app's `onError` handler — so uncaught data errors still surface without wrapping every read. See [Error handling](/core/docs/error-handling) for the full model.
+
 ## Server rendering
 
-The server side of keyed data loading is owned by `@sigx/server-renderer`'s document renderers (`renderDocument` and friends), which run the fetchers, inject the `window.__SIGX_ASYNC__` state blob, and stream replacements. See the [server renderer guide](/server) for the document-rendering APIs; from a component's point of view, `useAsync`/`useStream` are all you import.
+The server side of keyed data loading is owned by `@sigx/server-renderer`'s document renderers (`renderDocument` and friends), which run the fetchers, inject the `window.__SIGX_ASYNC__` state blob, and stream replacements. See the [server renderer guide](/server) for the document-rendering APIs; from a component's point of view, `useData` / `useAction` / `useStream` are all you import.
 
 ## Next Steps
 
-- [Lazy Loading](/core/docs/lazy-loading) - Code-split components and `Suspense`
+- [Error handling](/core/docs/error-handling) - `errorScope` and `app.onError`
+- [Lazy Loading](/core/docs/lazy-loading) - Code-split components with `Defer`
 - [Effects](/core/docs/effects) - React to signal changes
 - [Components](/core/docs/components) - Component model and patterns

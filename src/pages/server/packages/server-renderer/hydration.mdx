@@ -117,10 +117,10 @@ dedupes meta by `name`/`property`/`http-equiv`/`charset`.
 `renderDocument` injects the collected head into the document for you, so a
 `useHead()` call anywhere in the tree just works — no manual wiring.
 
-## Hydrating server-resolved Suspense
+## Hydrating a server-resolved Defer subtree
 
-The server resolves `lazy()` components inline (and streams a `<Suspense>`
-fallback then swaps in the real children — see
+The server resolves `lazy()` components inline (and streams a `<Defer>`
+fallback then swaps in one replacement — see
 [Rendering & streaming](/server/packages/server-renderer/rendering)). To hydrate
 that server-resolved subtree, the lazy component must be available **synchronously**
 during the hydration walk — otherwise the client would render the fallback again
@@ -134,7 +134,7 @@ a `.preload()` promise for exactly this:
 import { defineApp, lazy } from 'sigx';
 import { ssrClientPlugin } from '@sigx/server-renderer/client';
 import { App } from './App';
-import { HeavyChart } from './HeavyChart'; // a lazy() component used under <Suspense>
+import { HeavyChart } from './HeavyChart'; // a lazy() component used under <Defer>
 
 // Resolve the chunk first, then hydrate — the component is ready when the
 // hydration walk reaches it, so it matches the server-rendered DOM.
@@ -150,7 +150,7 @@ plugin handles this for you — see
 ## The plugin SPI
 
 The core renderer and hydrator are strategy-agnostic. Every advanced hydration
-strategy — selective, islands, resumable, Suspense — is an `SSRPlugin` with
+strategy — selective, islands, resumable, `Defer` — is an `SSRPlugin` with
 optional `server` and `client` hook sets.
 
 - Register **server** hooks with `createSSR().use(plugin)`.
