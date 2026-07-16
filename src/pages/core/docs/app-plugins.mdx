@@ -368,10 +368,10 @@ app.runWithContext(async () => {
 });
 ```
 
-Re-enter with another `runWithContext` after the `await` to resolve more dependencies:
+Re-enter with another `runWithContext` after the `await` to resolve more dependencies. `runWithContext` returns its callback's value, so capture what you resolve synchronously:
 
 ```tsx
-app.runWithContext(() => { const auth = useAuthService(); /* … */ });
+const auth = app.runWithContext(() => useAuthService());   // resolved in-context
 await auth.refresh();
 app.runWithContext(() => { useMessageStore().receive(msg); });
 ```

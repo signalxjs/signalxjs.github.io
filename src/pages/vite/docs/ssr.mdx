@@ -68,7 +68,7 @@ It does four things:
 1. Stamps `__islandId` onto each island's named component export.
 2. Rewrites signal declarations so island state gets a stable key (see [automatic state keys](/server/packages/ssr-islands/plugin-setup#automatic-state-keys)).
 3. Serves `virtual:sigx-islands`, which registers a lazy `import()` per island.
-4. Emits `.vite/sigx-islands-manifest.json` on the client build, mapping island names → `{ chunkUrl, exportName }`. Feed that to `islandsPlugin({ manifest })`.
+4. Emits a `sigx-islands-manifest.json` on the client build (under `clientOutDir`, at `.vite/sigx-islands-manifest.json`), mapping island names → `{ chunkUrl, exportName }`. Feed that to `islandsPlugin({ manifest })`.
 
 An island is a **named export** that is a component factory, in a file the `include` globs match. Names must be **unique across island files** — that name is the key.
 

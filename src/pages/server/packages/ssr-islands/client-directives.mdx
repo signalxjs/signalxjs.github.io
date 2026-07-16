@@ -70,10 +70,10 @@ static HTML immediately and the JavaScript only when the user commits.
 
 **Genuinely skips server rendering.** The component is **not** run on the server:
 its `setup`/render never execute, and the server emits an empty
-`<div data-island>` placeholder in its place — no server HTML for the component
-itself. The island still appears in `__SIGX_ISLANDS__` (so the client knows to
-mount it), but with **no captured signal `state`**, since nothing ran server-side.
-On the client it mounts **fresh**.
+`<div data-boundary>` placeholder in its place — no server HTML for the component
+itself. The island still gets a boundary record in `__SIGX_BOUNDARIES__` (so the
+client knows to mount it), but with **no captured signal `state`**, since nothing
+ran server-side. On the client it mounts **fresh**.
 
 Use it for components that cannot render on the server — ones that read `window`,
 `localStorage`, or other browser-only globals during setup.
