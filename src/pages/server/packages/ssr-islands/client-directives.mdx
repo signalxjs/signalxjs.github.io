@@ -1,6 +1,6 @@
 ---
 title: Client directives
-description: "The five client:* selective-hydration strategies — load, idle, visible, media, only"
+description: "The six client:* selective-hydration strategies — load, idle, visible, media, interaction, only"
 layout: module-docs
 category: Guides
 order: 30
@@ -24,6 +24,7 @@ import '@sigx/ssr-islands/jsx';
 <Sidebar client:idle />                       {/* hydrate when the browser is idle */}
 <Chart client:visible />                      {/* hydrate when scrolled into view */}
 <Menu client:media="(min-width: 768px)" />    {/* hydrate when the query matches */}
+<Search client:interaction />                 {/* hydrate on the first interaction */}
 <LiveFeed client:only />                       {/* skip SSR, mount fresh on the client */}
 ```
 
@@ -56,6 +57,15 @@ Hydrates when a CSS media query matches. Pass the query as the value:
 The component stays static until (and unless) the query matches — so a desktop
 visitor never pays for the mobile menu's JavaScript, and vice versa.
 
+### client:interaction
+
+Hydrates on the **first interaction** with the element — the first `pointerdown`,
+`keydown`, `touchstart`, or `focusin`. It fires once, and the triggering event is
+**not** replayed, so the island wakes and the user's next action lands on the live
+component. Ideal for controls that are visible but only matter once touched — a
+search box, a "reply" affordance, a menu that opens on click — where you want the
+static HTML immediately and the JavaScript only when the user commits.
+
 ### client:only
 
 **Genuinely skips server rendering.** The component is **not** run on the server:
@@ -75,20 +85,30 @@ unwanted; otherwise a server-rendered strategy gives a faster first paint.
 
 ## The strategy type
 
-The five strategies are the `HydrationStrategy` union, and the directives are the
+The six strategies are the `HydrationStrategy` union, and the directives are the
 `ClientDirectives` interface that augments component attributes:
 
 ```ts
-type HydrationStrategy = 'load' | 'idle' | 'visible' | 'media' | 'only';
+type HydrationStrategy = 'load' | 'idle' | 'visible' | 'media' | 'interaction' | 'only';
 
 interface ClientDirectives {
     'client:load'?: boolean;
     'client:idle'?: boolean;
     'client:visible'?: boolean;
     'client:media'?: string;   // the media query
+    'client:interaction'?: boolean;
     'client:only'?: boolean;
 }
 ```
+
+### Directives vs. boundary axes
+
+These directives are the islands pack's friendly surface over the two [boundary
+axes](/server/packages/server-renderer/boundaries). The two vocabularies don't
+line up one-to-one, and it's worth knowing why: `client:only` is a **flush**
+concern — it maps to `{ flush: 'skip', hydrate: 'load' }` — while the boundary
+model's `hydrate: 'never'` (server HTML, no client component) has no directive of
+its own. So don't read the directive list and the `hydrate` axis as the same enum.
 
 ## Cleaning up on SPA navigation
 

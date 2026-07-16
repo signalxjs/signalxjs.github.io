@@ -1,0 +1,109 @@
+---
+title: The boundary model
+description: "How SignalX SSR decides where HTML flushes and when a component hydrates — flush and hydrate axes, SSRBoundary, resolveBoundary, and selective hydration"
+layout: module-docs
+category: Guides
+order: 42
+---
+
+# The boundary model
+
+<p class="lede">A <strong>boundary</strong> is a component the renderer treats specially: it decides <em>how</em> that component's HTML reaches the page and <em>when</em> the component wakes up on the client. It's the strategy-agnostic core of SignalX SSR — <a href="/server/packages/ssr-islands/overview">islands</a> are one pack built on it.</p>
+
+## Two orthogonal axes
+
+Every boundary is described by two independent choices. Keeping them separate is the whole point of the model — a server-flush decision never dictates a client-hydration decision.
+
+**`flush`** — a **server** concern: how the component's HTML gets to the page.
+
+| `flush` | Meaning |
+|---|---|
+| `inline` | Await the component's async work in place, even in a streaming render. |
+| `stream` | Stream the HTML when there is pending async work and the render is streaming; otherwise degrade to inline. |
+| `skip` | Don't run setup on the server at all — emit a placeholder wrapper and let the client mount fresh. |
+
+**`hydrate`** — a **client** concern: when the component becomes interactive.
+
+| `hydrate` | Wakes on |
+|---|---|
+| `load` | As soon as the bundle loads. |
+| `idle` | The next idle callback. |
+| `visible` | Scrolled into view. |
+| `media` | A media query matches (see `media`). |
+| `interaction` | The first pointer/keyboard/touch/focus event on the element. |
+| `never` | Never — server HTML only, no client component. |
+
+A static marketing section might be `{ flush: 'inline', hydrate: 'never' }`; a below-the-fold widget `{ flush: 'stream', hydrate: 'visible' }`; a client-only chart `{ flush: 'skip', hydrate: 'load' }`.
+
+## Describing a boundary
+
+`SSRBoundary` is the resolved description the renderer works from:
+
+```ts
+interface SSRBoundary {
+    id: number;                    // renderer-assigned, from core's component-id scheme
+    flush: BoundaryFlush;          // 'inline' | 'stream' | 'skip'
+    hydrate: BoundaryHydrate;      // 'load' | 'idle' | 'visible' | 'media' | 'interaction' | 'never'
+    media?: string;                // required when hydrate is 'media'
+    fallback?: () => JSXElement;   // server-only placeholder for 'stream' / 'skip'; never serialized
+    chunk?: { url: string; export?: string };
+    props?: Record<string, unknown>;
+}
+```
+
+You rarely write this by hand — a pack (like islands) produces it from something friendlier, such as a `client:*` directive.
+
+## Resolving a boundary
+
+Boundaries come from a plugin's `resolveBoundary` hook. The renderer calls it once per component — **after it allocates the component's id, before setup runs** — and the first plugin to return an object wins:
+
+```ts
+const myBoundaryPlugin: SSRPlugin = {
+    server: {
+        resolveBoundary(vnode, ctx) {
+            if (vnode.type?.__deferred) {
+                return { flush: 'stream', hydrate: 'visible' };
+            }
+            // return nothing → this component is not a boundary
+        },
+    },
+};
+```
+
+The returned object is a `ResolvedBoundary` — a partial of the `flush` / `hydrate` / `media` / `fallback` / `chunk` / `props` fields. Anything omitted falls back to the app's defaults.
+
+Because the hook runs before setup, a `flush: 'skip'` decision means setup never runs on the server: the renderer emits a `<div data-boundary="ID" style="display:contents">` wrapper around the optional `fallback` and the client mounts into it fresh. For `stream` and `inline`, setup runs normally and the boundary's HTML is produced server-side.
+
+## The client's view: `__SIGX_BOUNDARIES__`
+
+Every recorded boundary is serialized into a per-request table emitted as `window.__SIGX_BOUNDARIES__`. Each entry carries only what the client needs — the resolved `hydrate` strategy, any `props` or transferred signal `state`, the `chunk` reference for a lazy boundary, and an `errorScope` marker if the server caught an error there:
+
+```ts
+interface SSRBoundaryRecord {
+    flush?: BoundaryFlush;              // present only when 'skip'
+    hydrate?: BoundaryHydrate;          // omitted = inherit the app default
+    media?: string;
+    props?: Record<string, unknown>;
+    state?: Record<string, unknown>;    // transferred island signal snapshot
+    chunk?: { url: string; export?: string };
+    component?: string;
+    errorScope?: { message: string };
+}
+```
+
+The table shares one serializer (and one dev-time serializability warning) with `window.__SIGX_ASYNC__`, so the same escaping and custom-type rules apply to both.
+
+## Selective hydration is the hydrator
+
+On the client, `hydrate()` reads the boundary table and schedules work per strategy — this *is* the hydrator, not an add-on. Its behavior is governed by a per-app hydrate default:
+
+- **`explicit`** — only entries in the boundary table are scheduled; there is no root walk. A page with no table pays nothing.
+- **`auto`** — the client walks the tree and intercepts recorded boundaries as it finds them.
+
+Installing a pack is what selects the mode. `app.use(islandsPlugin())` provides the `explicit` default and registers the client hooks — so *installing* the package is what turns on islands semantics, never merely importing it.
+
+## Where to go next
+
+- [Islands & client directives](/server/packages/ssr-islands/client-directives) — the reference pack that maps `client:*` onto these axes
+- [Request lifecycle](/server/packages/server-renderer/request-lifecycle) — `useResponse`, the error seam, and the `./node` entry
+- [Building a full SSR app](/server/packages/server-renderer/full-app) — wiring it all together

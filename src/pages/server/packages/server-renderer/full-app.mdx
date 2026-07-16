@@ -111,9 +111,42 @@ app.listen(3000);
 ```
 
 For streaming instead of buffering, swap `renderDocument` for
-`renderDocumentToNodeStream` — it returns `{ stream, shell }`; await `shell` to
-pick the status code, then pipe. See
+`renderDocumentToNodeStream` from `@sigx/server-renderer/node` — it returns
+`{ stream, shell }`; await `shell` to pick the status code, then pipe. See
 [Rendering & streaming](/server/packages/server-renderer/rendering).
+
+## A shortcut: `createRequestHandler`
+
+Wiring the template, a fresh app per request, streaming, and the bot/redirect
+decisions by hand is repetitive. `createRequestHandler` from
+`@sigx/server-renderer/node` packages it into a Node/Connect handler:
+
+```ts
+// server.mjs
+import { createRequestHandler } from '@sigx/server-renderer/node';
+import { collectAssets } from '@sigx/server-renderer';
+import { App } from './dist/server/entry-server.js';
+import manifest from './dist/client/.vite/manifest.json' with { type: 'json' };
+
+const handler = createRequestHandler({
+    template,
+    app: (url) => defineApp(<App />).use(createServerRouter(url)),   // fresh app per request
+    document: { assets: collectAssets(manifest, ['src/entry-client.tsx']) },
+});
+
+server.use(handler);
+```
+
+The handler owns `template` and the render `mode`: it streams shell-first for
+normal visitors and switches to `mode: 'blocking'` for crawlers (override the
+detection with `isBot`). The shell is the status/redirect decision point — a
+[`useResponse().redirect(...)`](/server/packages/server-renderer/request-lifecycle)
+sends the location and no body. It is deliberately **not** a meta-framework: no
+file-system routing, no conventions beyond these seams.
+
+`document.assets` (from `collectAssets(manifest, entries)`) injects
+`<link rel="modulepreload">` and stylesheet links before `</head>` on the first
+flush; every lazy boundary chunk is preloaded on top of that, deduped.
 
 ## Adding routing
 
@@ -144,16 +177,20 @@ JSX, register the plugin on the server, and call `hydrateIslands()` on the clien
 
 ## Build & dev
 
-- **Dev** — use `@sigx/vite` with a Vite middleware server so `entry-server` and
-  `entry-client` hot-reload together. The JSX/HMR setup is the standard SignalX
-  Vite config; see [`@sigx/vite`](/vite).
-- **Build** — produce two bundles: the client bundle (served statically) and the
-  server bundle (imported by `server.ts`). Point the `<script type="module">` at
-  the built client entry.
+`@sigx/vite`'s SSR mode builds both bundles from one `vite build` and gives you a
+dev handler that shares a module graph with your app:
+
+- **Dev** — `createDevRequestHandler` from `@sigx/vite/ssr` renders through Vite's
+  module runner, so `entry-server` and `entry-client` hot-reload together.
+- **Build** — `sigx({ ssr: { entry } })` emits the client bundle (served
+  statically, with its manifest) and the server bundle in one build.
+
+See [Vite SSR mode](/vite/docs/ssr) for the full config.
 
 ## Next steps
 
-- [Rendering & streaming](/server/packages/server-renderer/rendering) — Express / Fastify / edge and async data.
-- [Hydration & head](/server/packages/server-renderer/hydration) — the hydration entry and head management.
+- [The boundary model](/server/packages/server-renderer/boundaries) — flush and hydrate axes.
+- [Request lifecycle](/server/packages/server-renderer/request-lifecycle) — `useResponse`, the error seam, the `./node` entry.
+- [Vite SSR mode](/vite/docs/ssr) — the build and dev-server setup.
 - [SSR Routing](/router/docs/ssr) — the full router integration.
 - [Islands](/server/packages/ssr-islands/overview) — `client:*` selective hydration.

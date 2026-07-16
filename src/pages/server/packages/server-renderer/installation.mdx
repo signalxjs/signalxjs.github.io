@@ -27,21 +27,29 @@ an ESM project or bundler.
 
 ## Subpath imports
 
-`@sigx/server-renderer` ships three tree-shakeable entry points (all with
-`sideEffects: false`). Import from the right one so a browser bundle never pulls
-in Node code:
+`@sigx/server-renderer` ships four tree-shakeable entry points (all with
+`sideEffects: false`). Import from the right one so a browser or edge bundle never
+pulls in Node code:
 
 | Import path | Use it for | Notes |
 |---|---|---|
-| `@sigx/server-renderer` | `createSSR`, `renderDocument`, `ssrClientPlugin`, `renderHeadToString`, shared types | Universal — plugin system + convenience re-exports of the render APIs |
-| `@sigx/server-renderer/server` | `renderDocument*`, `renderToString`, `renderToStream`, `renderToNodeStream`, `renderToStreamWithCallbacks` | Node-only render APIs |
+| `@sigx/server-renderer` | `createSSR`, `renderDocument`, `useResponse`, `ssrClientPlugin`, `renderHeadToString`, shared types | Universal, WinterCG-clean — plugin system + convenience re-exports |
+| `@sigx/server-renderer/server` | `renderDocument*`, `renderToString`, `renderToStream`, `renderToStreamWithCallbacks` | Web-stream render APIs; WinterCG-clean (runs on the edge) |
+| `@sigx/server-renderer/node` | `renderToNodeStream`, `renderDocumentToNodeStream`, `toNodeStream`, `createRequestHandler` | Node-only — anything touching `node:stream` |
 | `@sigx/server-renderer/client` | `hydrate`, `ssrClientPlugin`, plugin hooks | Browser-only hydration |
 
-A typical app uses all three across its entry files:
+The root and `/server` entries import **no Node built-ins**, so they run on edge
+runtimes. Everything that needs `node:stream` — a `Readable`, or the Node request
+handler — lives in `/node`.
+
+A typical app uses several across its entry files:
 
 ```tsx
 // entry-server.tsx
 import { renderDocument } from '@sigx/server-renderer/server';
+
+// server.mjs (Node) — a Readable stream, or the request handler
+import { renderToNodeStream, createRequestHandler } from '@sigx/server-renderer/node';
 
 // entry-client.tsx
 import { ssrClientPlugin } from '@sigx/server-renderer/client';
@@ -50,8 +58,8 @@ import { ssrClientPlugin } from '@sigx/server-renderer/client';
 import { useHead, useData } from 'sigx';       // head + data loading live in core sigx
 ```
 
-`renderToNodeStream` and `renderToStreamWithCallbacks` are exported **only** from
-`/server`, not from the main entry. Hydration internals (`hydrate`, `hydrateNode`,
+Node stream APIs (`renderToNodeStream`, `renderDocumentToNodeStream`, `toNodeStream`)
+are exported **only** from `/node`. Hydration internals (`hydrate`, `hydrateNode`,
 `registerClientPlugin`, …) are exported **only** from `/client`.
 
 > `useHead`, `useData`, and `useStream` come from core **`sigx`**, not this
