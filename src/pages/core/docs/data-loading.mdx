@@ -224,8 +224,19 @@ Fetcher rejections are **values**, not throws: they land on `.error` and render 
 
 The server side of keyed data loading is owned by `@sigx/server-renderer`'s document renderers (`renderDocument` and friends), which run the fetchers, inject the `window.__SIGX_ASYNC__` state blob, and stream replacements. See the [server renderer guide](/server) for the document-rendering APIs; from a component's point of view, `useData` / `useAction` / `useStream` are all you import.
 
+## Caching
+
+Everything above is core's *mechanism* — keyed reads, dedup, SSR transfer. Freshness and retention are **policy**, and policy lives in a pack. Add [`@sigx/cache`](/core/packages/cache/overview) and the same `useData`/`useAction` gain a `cache` option: `staleTime`, focus and interval revalidation, `keepPreviousData`, cache-aware `invalidate()` and optimistic `mutate()` — one plugin, no change to your call sites.
+
+```tsx
+const user = useData('user', fetchUser, {
+    cache: { staleTime: 60_000, revalidateOnFocus: true },
+});
+```
+
 ## Next Steps
 
+- [Cache policy](/core/packages/cache/overview) - `staleTime`, revalidation and optimistic writes with `@sigx/cache`
 - [Error handling](/core/docs/error-handling) - `errorScope` and `app.onError`
 - [Lazy Loading](/core/docs/lazy-loading) - Code-split components with `Defer`
 - [Effects](/core/docs/effects) - React to signal changes

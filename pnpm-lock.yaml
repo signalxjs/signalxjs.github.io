@@ -15,6 +15,9 @@ importers:
 
   .:
     dependencies:
+      '@sigx/cache':
+        specifier: ^0.10.0
+        version: 0.10.0
       '@sigx/daisyui':
         specifier: ^0.7.0
         version: 0.7.0(@sigx/reactivity@0.10.0)(@sigx/runtime-core@0.10.0)(@sigx/runtime-dom@0.10.0)(daisyui@5.5.23)(sigx@0.10.0)(tailwindcss@4.3.1)
@@ -591,6 +594,9 @@ packages:
 
   '@sigx/args@0.6.1':
     resolution: {integrity: sha512-U8vS19ySrFqmFork6kzf/HEk3a8DXdf+XnZ9dyrFUhhOAYza39VOK4nJ1KSbUo6JP/QBrHkMoNLQLOMCvxEOeQ==}
+
+  '@sigx/cache@0.10.0':
+    resolution: {integrity: sha512-xG6sgIKxuzx7Ir8MrUlXsImo44kSyoRTxpF/2hr920lkdjrdkJomLqOQLm7V/jdRx5h9bUkLgLi62Vb19NP1nQ==}
 
   '@sigx/cli@0.4.2':
     resolution: {integrity: sha512-uJp4pJqKpshK9KcxxI7CUG8gJRaUZHs72mynTOtTw3KjdcshXVbEZtju+qzY8ft1XPi+P8qWXBgZkZKIQ7fpCw==}
@@ -2285,6 +2291,11 @@ snapshots:
   '@shikijs/vscode-textmate@10.0.2': {}
 
   '@sigx/args@0.6.1': {}
+
+  '@sigx/cache@0.10.0':
+    dependencies:
+      '@sigx/reactivity': 0.10.0
+      '@sigx/runtime-core': 0.10.0
 
   '@sigx/cli@0.4.2':
     dependencies:
