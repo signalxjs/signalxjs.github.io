@@ -1,0 +1,68 @@
+---
+title: "Overview"
+description: "@sigx/cache — cache policy for SignalX's value-first async: staleTime, revalidation, invalidate and optimistic mutate"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Cache
+
+<p class="lede">A cache-policy pack for <code>useData</code> and <code>useAction</code> — <code>staleTime</code>, focus and interval revalidation, <code>keepPreviousData</code>, cache-aware <code>invalidate()</code> and optimistic <code>mutate()</code>. It installs as one plugin and leaves your call sites alone.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/cache" /> <span class="mmr-dot" /> MIT</p>
+
+## Why it exists
+
+SignalX's async is [value-first](/core/docs/data-loading): `useData` returns reactive state you render through `.match()`, not a promise you throw to a wrapper. Core ships the *mechanism* — keyed reads, deduplication, SSR transfer — and deliberately stops there. Everything about **policy** — how long a value stays fresh, when to revalidate, how long to keep it after the last consumer leaves — lives in a pack.
+
+`@sigx/cache` is that pack. It rides core's async-engine seam (the `rfc-async` §7 contract), so it's a drop-in equal of any third-party pack with no privileged access. Installing it changes one line, not your components:
+
+```ts
+import { cachePlugin } from '@sigx/cache';
+
+app.use(cachePlugin({ staleTime: 30_000 }));   // app-wide defaults (all optional)
+```
+
+From then on, `useData` and `useAction` gain a `cache` option — added by module augmentation of core's open interfaces, so it appears exactly when the pack is in your project:
+
+```tsx
+const user = useData('user', fetchUser, {
+    cache: { staleTime: 60_000, revalidateOnFocus: true },
+});
+
+user.invalidate();                      // drop the entry + refetch everywhere
+user.mutate((u) => ({ ...u, name }));   // optimistic write-through
+```
+
+## What you get
+
+| Policy | Effect |
+|---|---|
+| `staleTime` | A fresh value is served without fetching; a stale one is served immediately and revalidated in the background (state `refreshing`, so your `ready` arm keeps rendering). |
+| `gcTime` | Entries are retained after the last consumer unmounts (default 5 minutes) — navigating back is instant. |
+| `revalidateOnFocus` / `revalidateOnInterval` | Mounted reads refetch on window focus/visibility, or on a timer. |
+| `keepPreviousData` | Across a key change with nothing cached yet, the previous value keeps rendering instead of resetting to `pending` — pagination without skeleton flashes. |
+| `invalidate()` | Drop freshness and refetch for every mounted consumer. Actions can invalidate exact keys or tuple prefixes. |
+| `mutate()` / `optimistic` | Write through the cache immediately; a failed action rolls back, unless something newer wrote in the meantime. |
+
+## What it inherits, not invents
+
+The pack is additive — it never changes the rules you already rely on:
+
+- Reads and actions **without** a `cache` option keep core's default-engine behavior verbatim (the pack delegates to it).
+- Keys are core's canonical identities — strings, or tuples as canonical JSON — so the cache store and core's SSR blob speak the same language.
+- **SSR and hydration**: the pack adopts `window.__SIGX_ASYNC__` as its *initial* cache state, so server-fetched values hydrate as fresh entries and nothing refetches on load. Server rendering itself is untouched — the SSR provider seam outranks any engine.
+- Core's pinned guarantees hold: `loading === (state === 'pending')`, value and error are mutually exclusive, `refresh()` / `run()` never reject.
+
+## Renderer-portable
+
+`@sigx/cache` depends on `@sigx/runtime-core` and `@sigx/reactivity` only — never the `sigx` umbrella — so it works on any renderer: web, [Lynx](/lynx/docs/overview) native, or the [terminal](/terminal/docs/getting-started). On a platform with no DOM, hand the plugin your own attention event via `revalidateTrigger`. See [Usage](/core/packages/cache/usage#renderer-portability).
+
+## Next steps
+
+- [Installation](/core/packages/cache/installation) — add the package and register the plugin
+- [Usage](/core/packages/cache/usage) — the policy options, worked through
+- [API reference](/core/packages/cache/api) — the full typed surface

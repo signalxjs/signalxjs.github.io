@@ -1,0 +1,126 @@
+---
+title: "API reference"
+description: "The @sigx/cache public surface — cachePlugin, CacheOptions, CacheActionOptions, CacheDefaults, CachedAsyncState"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">The public surface of <code>@sigx/cache</code> <PkgVersion npm="@sigx/cache" />. One value export — <code>cachePlugin</code> — plus the option and view types. Everything else is delivered by augmenting core's <code>useData</code> / <code>useAction</code> option interfaces.</p>
+
+## `cachePlugin(defaults?)`
+
+```ts
+function cachePlugin(defaults?: CacheDefaults): Plugin;
+```
+
+Registers the caching async engine on the app (plugin name `'sigx:cache'`) and provides its store. Install it once, before mount:
+
+```ts
+app.use(cachePlugin({ staleTime: 30_000 }));
+```
+
+### `CacheDefaults`
+
+App-wide defaults. Every field is optional, and each is the fallback for the matching per-read option.
+
+```ts
+interface CacheDefaults {
+    staleTime?: number;
+    gcTime?: number;
+    revalidateTrigger?: (revalidate: () => void) => (() => void) | void;
+}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `staleTime` | `0` | Milliseconds a value stays fresh. `0` revalidates on every mount. |
+| `gcTime` | `300_000` (5 min) | Milliseconds an entry is retained after its last consumer unmounts. |
+| `revalidateTrigger` | window focus + `visibilitychange` (DOM only) | The event source for focus revalidation. Return an unsubscribe; it runs on app teardown. See [Renderer portability](/core/packages/cache/usage#renderer-portability). |
+
+## `CacheOptions` (per read)
+
+The shape of `cache` on `useData(key, fetcher, { cache })`:
+
+```ts
+interface CacheOptions {
+    staleTime?: number;
+    gcTime?: number;
+    revalidateOnFocus?: boolean;
+    revalidateOnInterval?: number;
+    keepPreviousData?: boolean;
+}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `staleTime` | plugin default (`0`) | Freshness window for this read. |
+| `gcTime` | plugin default (5 min) | Retention after the last consumer leaves; `0` drops immediately. |
+| `revalidateOnFocus` | `false` | Refetch when the window regains focus / visibility. |
+| `revalidateOnInterval` | — | Refetch on a timer, in milliseconds. |
+| `keepPreviousData` | `false` | On a key change with nothing cached, keep rendering the previous value (state `refreshing`) instead of resetting to `pending`. |
+
+## `CacheActionOptions` (per action)
+
+The shape of `cache` on `useAction(fn, { cache })`:
+
+```ts
+interface CacheActionOptions {
+    invalidates?: readonly (string | readonly unknown[])[];
+    optimistic?: {
+        key: string | readonly unknown[];
+        apply: (current: any, input: any) => any;
+    };
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `invalidates` | Keys to invalidate after the action settles. An entry is an **exact key** or a **tuple prefix** — `['users']` matches every `['users', …]` read. |
+| `optimistic.key` | The read entry to write through before the action settles. |
+| `optimistic.apply` | Produces the provisional value from `(current, input)`. Rolled back on failure — unless a newer write landed on the entry meanwhile. |
+
+## `CachedAsyncState<T>`
+
+The precisely-typed view of a cached read. `useData` still returns `AsyncState<T>`; the augmentation adds `invalidate?()` and `mutate?()` as optional. Assert this view when you know a read is cached:
+
+```ts
+interface CachedAsyncState<T> extends AsyncState<T> {
+    invalidate(): void;
+    mutate(update: T | ((current: T | null) => T)): void;
+}
+```
+
+- **`invalidate()`** — drop this entry's freshness and refetch for every mounted consumer. Present on every read once the plugin is installed.
+- **`mutate(update)`** — write through the cache immediately; every mounted consumer re-renders. Present on reads served **with** a `cache` option.
+
+```ts
+import type { CachedAsyncState } from '@sigx/cache';
+
+const user = useData('user', fetchUser, { cache: {} }) as CachedAsyncState<User>;
+user.mutate((u) => ({ ...u, seen: true }));
+```
+
+## Augmented core interfaces
+
+Importing `@sigx/cache` augments `@sigx/runtime-core` (which the `sigx` umbrella re-exports), adding:
+
+- `AsyncOptions.cache?: CacheOptions` — the `cache` option on `useData`.
+- `ActionOptions.cache?: CacheActionOptions` — the `cache` option on `useAction`.
+- `invalidate?(): void` and `mutate?(update): void` on `AsyncState<T>`.
+
+These appear automatically once the package is a dependency — no import beyond the package itself.
+
+## Pack-author seam
+
+For authors building a *different* async pack, core exposes the engine contract at `@sigx/runtime-core/internals` — `ASYNC_ENGINE_TOKEN`, `provideAsyncEngine()`, `defaultAsyncEngine`, and the `AsyncEngine` interface. This is internal, not application API: `@sigx/cache` is one implementation of it, and reads without a `cache` option delegate to `defaultAsyncEngine` unchanged. The contract is specified in core's `rfc-async` (§7).
+
+## See also
+
+- [Overview](/core/packages/cache/overview) — what the pack is and why
+- [Usage](/core/packages/cache/usage) — the policies worked through
+- [Data loading](/core/docs/data-loading) — `useData`, `useAction`, `.match()`

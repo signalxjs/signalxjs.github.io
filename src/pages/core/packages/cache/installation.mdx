@@ -1,0 +1,65 @@
+---
+title: "Installation"
+description: "Install @sigx/cache and register cachePlugin() on your app"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Installation
+
+<p class="lede">Add <code>@sigx/cache</code> <PkgVersion npm="@sigx/cache" /> and register its plugin. Your <code>useData</code> / <code>useAction</code> call sites don't change.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/cache
+```
+
+Its only dependencies are `@sigx/runtime-core` and `@sigx/reactivity` — the two packages any SignalX renderer already builds on (web apps get them through the `sigx` umbrella). It never pulls in a renderer of its own, which is what makes it [portable](/core/packages/cache/usage#renderer-portability).
+
+## Register the plugin
+
+Install `cachePlugin()` on the app before you mount. This is the one line that switches `useData`/`useAction` from core's default async engine to the caching one:
+
+```ts
+import { createApp } from 'sigx';
+import { cachePlugin } from '@sigx/cache';
+import { App } from './App';
+
+const app = createApp(App);
+app.use(cachePlugin());
+app.mount('#app');
+```
+
+The defaults you pass here apply app-wide; every option is optional:
+
+```ts
+app.use(cachePlugin({
+    staleTime: 30_000,   // reads are fresh for 30s before revalidating
+    gcTime: 300_000,     // keep entries 5min after the last consumer leaves (the default)
+}));
+```
+
+## The `cache` option lights up
+
+Once the package is a dependency, TypeScript adds the `cache` option to `useData` and `useAction` — it's a module augmentation of core's open option interfaces, so it appears with no extra imports:
+
+```tsx
+const user = useData('user', fetchUser, {
+    cache: { staleTime: 60_000 },
+});
+```
+
+If you see the `cache` option flagged as unknown, the package isn't resolving — check it's installed and that your editor has picked up the new types.
+
+## Verify
+
+A quick check that the plugin is wired up: a cached read should survive an unmount-and-remount within `gcTime` instead of refetching. The [Usage](/core/packages/cache/usage) guide walks through each policy with a runnable shape.
+
+## Next steps
+
+- [Usage](/core/packages/cache/usage) — the policy options in practice
+- [API reference](/core/packages/cache/api) — every export and option
