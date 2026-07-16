@@ -117,7 +117,7 @@ These appear automatically once the package is a dependency — no import beyond
 
 ## Pack-author seam
 
-For authors building a *different* async pack, core exposes the engine contract at `@sigx/runtime-core/internals` — `ASYNC_ENGINE_TOKEN`, `provideAsyncEngine()`, `defaultAsyncEngine`, and the `AsyncEngine` interface. This is internal, not application API: `@sigx/cache` is one implementation of it, and reads without a `cache` option delegate to `defaultAsyncEngine` unchanged. See [`rfc-async`](https://github.com/signalxjs/core) §7 for the contract.
+For authors building a *different* async pack, core exposes the engine contract at `@sigx/runtime-core/internals` — `ASYNC_ENGINE_TOKEN`, `provideAsyncEngine()`, `defaultAsyncEngine`, and the `AsyncEngine` interface. This is internal, not application API: `@sigx/cache` is one implementation of it, and reads without a `cache` option delegate to `defaultAsyncEngine` unchanged. The contract is specified in core's `rfc-async` (§7).
 
 ## See also
 

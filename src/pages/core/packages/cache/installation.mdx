@@ -15,14 +15,10 @@ import { PkgVersion } from '@/components/PkgVersion';
 ## Install the package
 
 ```bash
-npm install @sigx/cache
-```
-
-```bash
 pnpm add @sigx/cache
 ```
 
-It depends on `@sigx/runtime-core` and `@sigx/reactivity`, both of which you already have through `sigx` — nothing else to add.
+Its only dependencies are `@sigx/runtime-core` and `@sigx/reactivity` — the two packages any SignalX renderer already builds on (web apps get them through the `sigx` umbrella). It never pulls in a renderer of its own, which is what makes it [portable](/core/packages/cache/usage#renderer-portability).
 
 ## Register the plugin
 
