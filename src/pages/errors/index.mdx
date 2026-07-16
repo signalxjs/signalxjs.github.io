@@ -1,0 +1,101 @@
+---
+title: Error codes
+description: Every SignalX runtime error code (SIGX###) — what it means, why it fired, and how to fix it
+layout: docs
+category: Overview
+order: 1
+---
+
+# Error codes
+
+Every error the SignalX runtime throws carries a unique code, `SIGX001` through `SIGX999`. Production builds print that code with a link back to this reference:
+
+```
+SIGX101 "#app" — see https://sigx.dev/errors/SIGX101/
+```
+
+Follow the link for the code you hit, or find it in the table below.
+
+## Dev builds vs production builds
+
+The two builds report the same error differently, and each is tuned for where you read it.
+
+**Development** gives you the full message plus a `suggestion` naming the fix:
+
+```
+Mount target "#app" not found.
+```
+
+**Production** gives you the code, the runtime detail, and this URL. The human-readable messages and suggestions are stripped — they sit behind a compile-time `__DEV__` branch that folds away during the build, so those strings never reach your production bundle. That is what keeps the runtime small, and it is why this page exists: in production the link *is* the message.
+
+## Handling errors in code
+
+Every runtime error is a `SigxError`, so you can branch on `code` rather than matching message text:
+
+```ts
+import { SigxError } from 'sigx';
+
+try {
+    app.mount('#app');
+} catch (e) {
+    if (e instanceof SigxError && e.code === 'SIGX101') {
+        // the mount target isn't in the document yet
+    }
+}
+```
+
+| Property | Type | Notes |
+|---|---|---|
+| `code` | `string` | The `SIGX###` code — stable across dev and production |
+| `message` | `string` | Full text in dev; code + detail + docs link in production |
+| `suggestion` | `string \| undefined` | The fix hint. Dev builds only |
+| `cause` | `Error \| undefined` | The underlying error, when there is one |
+| `name` | `string` | Always `'SigxError'` |
+
+`code` is the only field worth branching on. Treat `message` and `suggestion` as diagnostics for humans, not as a contract.
+
+## Every code
+
+Codes are grouped into ranges by subsystem, so the number alone tells you roughly where to look.
+
+### App lifecycle · 001–099
+
+| Code | Meaning |
+|---|---|
+| [SIGX001](/errors/SIGX001/) | No mount function provided and no default set |
+
+### Rendering & mounting · 100–199
+
+| Code | Meaning |
+|---|---|
+| [SIGX100](/errors/SIGX100/) | Render target not found |
+| [SIGX101](/errors/SIGX101/) | Mount target not found |
+| [SIGX102](/errors/SIGX102/) | Async setup is SSR-only |
+| [SIGX103](/errors/SIGX103/) | `errorScope()` called outside setup |
+
+### Dependency injection · 200–299
+
+| Code | Meaning |
+|---|---|
+| [SIGX200](/errors/SIGX200/) | `defineProvide` called outside setup |
+| [SIGX201](/errors/SIGX201/) | `defineProvide` called with something that isn't an injectable |
+| [SIGX202](/errors/SIGX202/) | A required injectable was never provided |
+| [SIGX203](/errors/SIGX203/) | `defineFactory` setup returned a primitive |
+
+### Hooks & async · 300–399
+
+| Code | Meaning |
+|---|---|
+| [SIGX300](/errors/SIGX300/) | A hook was called outside setup |
+
+### Messaging · 400–499
+
+| Code | Meaning |
+|---|---|
+| [SIGX400](/errors/SIGX400/) | Subscribed to a destroyed topic |
+| [SIGX401](/errors/SIGX401/) | Created a topic on a destroyed group |
+
+## Related
+
+- [Error handling](/core/docs/error-handling) — `errorScope` and `app.onError`, the value-first error model
+- [App & plugins](/core/docs/app-plugins) — providing injectables before mount

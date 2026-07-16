@@ -78,8 +78,19 @@ The handler receives the `error`, the `instance` it originated from (may be `nul
 
 Reach for `errorScope` to keep part of the UI alive with a local fallback, and `app.onError` as the safety net for reporting and for errors with no natural place to render.
 
+## Error codes
+
+Errors the runtime itself throws — a missing mount target, a required injectable that was never provided — carry a `SIGX###` code. Production builds print the code with a link to its page, since the full message is stripped from the production bundle:
+
+```
+SIGX202 "Router" — see https://sigx.dev/errors/SIGX202/
+```
+
+The [error codes reference](/errors) lists every code with its cause and fix, and `SigxError` lets you branch on `code` in a `try`/`catch`.
+
 ## Next Steps
 
+- [Error codes](/errors) - Every `SIGX###` the runtime throws, with fixes
 - [Data loading](/core/docs/data-loading) - `useData`, `useAction`, `all`
 - [App & Plugins](/core/docs/app-plugins) - Configure and extend the app
 - [Lifecycle](/core/docs/lifecycle) - Mount, update and cleanup hooks

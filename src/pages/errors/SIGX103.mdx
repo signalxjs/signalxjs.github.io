@@ -1,0 +1,59 @@
+---
+title: SIGX103 · errorScope() outside setup
+description: SIGX103 — errorScope() must be called synchronously during component setup
+layout: docs
+category: Rendering & mounting
+order: 4
+---
+
+# SIGX103 · errorScope() outside setup
+
+**Dev message**
+
+```
+errorScope() must be called synchronously during component setup.
+```
+
+**Suggestion**
+
+> Move the errorScope() call into the component's setup function (before returning the render function).
+
+## What happened
+
+`errorScope()` was called somewhere other than the synchronous body of a component's setup function.
+
+`errorScope` scopes the **calling component's own subtree**, so it needs to know which component is calling. SignalX tracks that through the component currently being set up — which means the call has to happen while setup is on the stack. Outside that window there is no owner to attach the scope to.
+
+Three placements break this:
+
+- Inside the returned render function, rather than in setup.
+- Inside an event handler or a lifecycle callback.
+- After an `await` in setup — the synchronous portion has already ended.
+
+## Fix it
+
+Call it in setup, before returning the render function:
+
+```tsx
+import { component, errorScope } from 'sigx';
+
+const Widget = component(() => {
+    errorScope({
+        fallback: (err, retry) => (
+            <div>
+                <p>{err.message}</p>
+                <button onClick={retry}>Try again</button>
+            </div>
+        ),
+    });
+
+    return () => <RiskySubtree />;
+});
+```
+
+The scope is set up once and covers every render of the subtree from then on — including reactive re-renders — so there is no reason to call it per render.
+
+## Related
+
+- [Error handling](/core/docs/error-handling) — `errorScope` and `app.onError`
+- [SIGX300](/errors/SIGX300/) — the same rule for hooks

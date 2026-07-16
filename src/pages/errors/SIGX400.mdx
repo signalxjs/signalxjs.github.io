@@ -1,0 +1,59 @@
+---
+title: SIGX400 · Subscribed to a destroyed topic
+description: SIGX400 — subscriptions made after a topic is destroyed can never fire
+layout: docs
+category: Messaging
+order: 1
+---
+
+# SIGX400 · Subscribed to a destroyed topic
+
+**Dev message**
+
+```
+[sigx] Cannot subscribe to destroyed topic "user:updated".
+```
+
+**Suggestion**
+
+> Subscriptions made after destroyTopic()/group.destroy() can never fire. Subscribe before teardown, or create a new topic.
+
+## What happened
+
+Something subscribed to a topic after `destroyTopic()` — or the owning group's `destroy()` — had already run.
+
+A destroyed topic has dropped its subscriber list and will never deliver again. SignalX throws rather than accepting the subscription, because a handler that silently never fires is far harder to debug than an error at the call site.
+
+This almost always means a teardown-ordering problem: something outlived the topic it depends on. Common shapes:
+
+- A component subscribes in `onMounted` while an ancestor destroys the group during its own teardown.
+- An async callback lands after teardown — the subscribe call was queued before, but ran after.
+- A module-scoped topic was destroyed by a hot reload while a component still holds a reference.
+
+## Fix it
+
+Subscribe while the topic is alive, and tie the subscription's lifetime to the component:
+
+```ts
+import { component, onMounted, onUnmounted } from 'sigx';
+
+const Inbox = component(() => {
+    onMounted(() => {
+        const off = topic.subscribe(handleMessage);
+        onUnmounted(off);
+    });
+
+    return () => <List />;
+});
+```
+
+If the topic legitimately outlives nothing and you're re-entering a fresh lifecycle, create a new topic instead of reviving the old one — destruction is final by design:
+
+```ts
+const topic = createTopic<Message>('user:updated');
+```
+
+## Related
+
+- [Messaging](/core/docs/advanced/messaging) — topics and groups
+- [SIGX401](/errors/SIGX401/) — creating a topic on a destroyed group
