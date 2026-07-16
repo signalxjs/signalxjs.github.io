@@ -1,0 +1,64 @@
+---
+title: SIGX203 · defineFactory returned a primitive
+description: SIGX203 — a defineFactory setup must return an object or a function
+layout: docs
+category: Dependency injection
+order: 4
+---
+
+# SIGX203 · defineFactory returned a primitive
+
+**Dev message**
+
+```
+[sigx] defineFactory setup must return an object or function, got number.
+```
+
+**Suggestion**
+
+> Return the service object (or callable) from the factory setup — primitives cannot carry the dispose contract factories rely on.
+
+## What happened
+
+A `defineFactory` setup returned a primitive — a number, string, boolean, `null` or `undefined`.
+
+Factories manage a lifecycle, not just a value: a scoped factory instance is created on first use and disposed when its scope ends. SignalX tracks that by hanging a dispose contract off the returned value, which only works for objects and functions. A primitive has nowhere to put it, so there'd be no way to ever clean the instance up.
+
+## Fix it
+
+Return the service itself:
+
+```ts
+import { defineFactory } from 'sigx';
+
+const useCounter = defineFactory(() => {
+    const count = signal(0);
+
+    return {
+        get value() { return count.value; },
+        increment() { count.value++; },
+    };
+}, 'scoped');
+```
+
+If what you want really is a single primitive, wrap it in an object so it has an identity to hang the lifecycle on:
+
+```ts
+const useRequestId = defineFactory(() => ({ id: crypto.randomUUID() }), 'scoped');
+```
+
+A callable works too, when the service is naturally one function:
+
+```ts
+const useTrack = defineFactory(() => {
+    const queue: Event[] = [];
+    return (e: Event) => queue.push(e);
+}, 'scoped');
+```
+
+For a plain constant with no lifecycle, you don't need a factory at all — a module export or a `defineInjectable` is simpler.
+
+## Related
+
+- [Factories](/core/docs/advanced/factories) — `defineFactory` in depth
+- [Dependency injection](/core/api/di) — the full API

@@ -145,6 +145,22 @@ export default defineSSGConfig({
             path: '/devtools/docs',
             showDrafts: 'dev',
         },
+        // Error-code reference. Standalone (not a family package) — the
+        // production runtime links every code here (sigx.dev/errors/SIGX###/),
+        // so this section MUST exist for those links to resolve. Sidebar groups
+        // are ordered by SIGX### range rather than the built-in category names.
+        'errors-docs': {
+            path: '/errors',
+            showDrafts: 'dev',
+            sectionOrder: [
+                'Overview',
+                'App lifecycle',
+                'Rendering & mounting',
+                'Dependency injection',
+                'Hooks & async',
+                'Messaging',
+            ],
+        },
         // Sub-package collections (32 lynx modules + core repo packages)
         ...moduleCollections,
     },
@@ -202,6 +218,7 @@ export default defineSSGConfig({
             },
             { title: 'Core Guides', collections: ['core-docs'] },
             { title: 'Core API', collections: ['core-api'] },
+            { title: 'Error Codes', collections: ['errors-docs'] },
             { title: 'Core Packages', links: moduleLlmsLinks('core') },
             { title: 'Router', collections: ['router-docs', 'router-api'] },
             { title: 'Store', collections: ['store-docs'] },

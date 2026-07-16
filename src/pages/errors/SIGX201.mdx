@@ -1,0 +1,61 @@
+---
+title: SIGX201 · defineProvide with an invalid injectable
+description: SIGX201 — defineProvide needs a function created by defineInjectable or defineFactory
+layout: docs
+category: Dependency injection
+order: 2
+---
+
+# SIGX201 · defineProvide with an invalid injectable
+
+**Dev message**
+
+```
+defineProvide must be called with a function created by defineInjectable or defineFactory.
+```
+
+**Suggestion**
+
+> Create an injectable or factory first:
+> ```
+> const useMyService = defineInjectable(() => new MyService());
+> // or: const useMyService = defineFactory(setup, 'scoped');
+> defineProvide(useMyService);
+> ```
+
+## What happened
+
+`defineProvide` was handed something that isn't an injectable.
+
+Injectables aren't plain functions. `defineInjectable` and `defineFactory` return a function carrying a hidden token that identifies the dependency — that token is what `defineProvide` registers under and what the use-function looks up. A function without one has no identity to provide.
+
+The usual causes:
+
+- Passing the **service** where the injectable was meant: `defineProvide(new MyService())`.
+- Passing a bare function that was never wrapped: `const useThing = () => new Thing()`.
+- Passing the injectable's **result** instead of the injectable: `defineProvide(useMyService())`.
+
+## Fix it
+
+Create the injectable first, then provide it:
+
+```ts
+import { defineInjectable, defineProvide } from 'sigx';
+
+const useMyService = defineInjectable(() => new MyService());
+
+// in a component's setup:
+defineProvide(useMyService, () => new MyService({ scope: 'panel' }));
+```
+
+The second argument is the factory for *this* provide. Omit it and the injectable's own factory is used:
+
+```ts
+defineProvide(useMyService);
+```
+
+## Related
+
+- [Dependency injection](/core/api/di) — `defineInjectable`, `defineFactory`, provide/inject
+- [Factories](/core/docs/advanced/factories) — `defineFactory` in depth
+- [SIGX200](/errors/SIGX200/) — calling `defineProvide` outside setup

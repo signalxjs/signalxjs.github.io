@@ -1,0 +1,66 @@
+---
+title: SIGX102 · Async setup is SSR-only
+description: SIGX102 — a component's setup function returned a promise on the client
+layout: docs
+category: Rendering & mounting
+order: 3
+---
+
+# SIGX102 · Async setup is SSR-only
+
+**Dev message**
+
+```
+Async setup in component "UserCard" is only supported during SSR.
+```
+
+**Suggestion**
+
+> On the client, use pre-loaded data from hydration or fetch in onMounted.
+
+## What happened
+
+A component's setup function is `async` (or returned a promise), and it ran on the client.
+
+An async setup blocks the component from producing a render function until it resolves. On the server that is exactly what you want — the renderer awaits the work and streams complete HTML. On the client the same pattern would stall the tree with nothing on screen, so SignalX doesn't allow it.
+
+## Fix it
+
+The right fix depends on what the setup was awaiting.
+
+**Fetching data?** Use `useData`, which is designed for this. It returns immediately with a cell you render through `.match()`, so there is a loading state instead of a stall — and on SSR its result transfers to the client, so hydration doesn't refetch:
+
+```tsx
+import { component, useData } from 'sigx';
+
+const UserCard = component(() => {
+    const user = useData('user', () => fetch('/api/user').then((r) => r.json()));
+
+    return () =>
+        user.match({
+            pending: () => <Spinner />,
+            error: (e) => <p>Couldn't load: {e.message}</p>,
+            ready: (u) => <h1>{u.name}</h1>,
+        });
+});
+```
+
+**Doing setup work that must happen after mount?** Move it into `onMounted`, which runs once the component is live:
+
+```tsx
+const Chart = component((ctx) => {
+    onMounted(async () => {
+        const { renderChart } = await import('./chart.js');
+        renderChart(ctx.el);
+    });
+
+    return () => <div />;
+});
+```
+
+Both keep setup synchronous, so the component renders straight away on either platform.
+
+## Related
+
+- [Data loading](/core/docs/data-loading) — `useData`, `useAction` and `.match()`
+- [Lifecycle](/core/docs/lifecycle) — `onMounted` and friends
