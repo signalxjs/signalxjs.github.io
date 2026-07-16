@@ -44,7 +44,7 @@ const UserCard = component(() => {
     const user = useData('user', () => fetch('/api/user').then((r) => r.json()));
 
     return () =>
-        match(user, {
+        user.match({
             pending: () => <Spinner />,
             error: (e) => <p>{e.message}</p>,
             ready: (u) => <h1>{u.name}</h1>,
@@ -67,9 +67,9 @@ const SaveButton = component(() => {
 ```tsx
 const Profile = component((ctx) => {
     const id = ctx.signal(1);
-    const user = useData(() => ['user', id.value], ({ id }) => api.getUser(id));
+    const user = useData(() => ['user', id.value], ([, id]) => api.getUser(id));
 
-    return () => match(user, { /* … */ });
+    return () => user.match({ /* … */ });
 });
 ```
 

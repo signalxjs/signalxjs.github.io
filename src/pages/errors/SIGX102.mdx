@@ -28,16 +28,16 @@ An async setup blocks the component from producing a render function until it re
 
 The right fix depends on what the setup was awaiting.
 
-**Fetching data?** Use `useData`, which is designed for this. It returns immediately with a cell you render through `match()`, so there is a loading state instead of a stall — and on SSR its result transfers to the client, so hydration doesn't refetch:
+**Fetching data?** Use `useData`, which is designed for this. It returns immediately with a cell you render through `.match()`, so there is a loading state instead of a stall — and on SSR its result transfers to the client, so hydration doesn't refetch:
 
 ```tsx
-import { component, useData, match } from 'sigx';
+import { component, useData } from 'sigx';
 
-const UserCard = component((ctx) => {
+const UserCard = component(() => {
     const user = useData('user', () => fetch('/api/user').then((r) => r.json()));
 
     return () =>
-        match(user, {
+        user.match({
             pending: () => <Spinner />,
             error: (e) => <p>Couldn't load: {e.message}</p>,
             ready: (u) => <h1>{u.name}</h1>,
@@ -62,5 +62,5 @@ Both keep setup synchronous, so the component renders straight away on either pl
 
 ## Related
 
-- [Data loading](/core/docs/data-loading) — `useData`, `useAction` and `match()`
+- [Data loading](/core/docs/data-loading) — `useData`, `useAction` and `.match()`
 - [Lifecycle](/core/docs/lifecycle) — `onMounted` and friends
