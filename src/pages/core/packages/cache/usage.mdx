@@ -1,0 +1,170 @@
+---
+title: "Usage"
+description: "Working through @sigx/cache — staleTime, revalidation, keepPreviousData, invalidate and optimistic mutate"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Cache
+
+<p class="lede">Every policy is opt-in per call site through the <code>cache</code> option; <code>cachePlugin()</code> only sets the defaults. A read or action with no <code>cache</code> option behaves exactly as it does without the pack.</p>
+
+This guide assumes the plugin is registered — see [Installation](/core/packages/cache/installation). Examples build on the [data-loading](/core/docs/data-loading) primitives (`useData`, `useAction`, `.match()`).
+
+## Freshness: `staleTime`
+
+`staleTime` is how long a cached value is considered fresh. Within the window the value is served with no fetch. Past it, the stale value is served **immediately** and revalidated in the background — the read moves to state `refreshing`, so the `ready` arm keeps rendering while the new value loads:
+
+```tsx
+import { component, useData } from 'sigx';
+
+const Profile = component(() => {
+    const user = useData('user', fetchUser, {
+        cache: { staleTime: 60_000 },   // fresh for a minute
+    });
+
+    return () =>
+        user.match({
+            pending: () => <Spinner />,
+            error: (e) => <p>{e.message}</p>,
+            ready: (u) => <h1>{u.name}</h1>,   // stays on screen during background revalidation
+        });
+});
+```
+
+The default is `0` — every mount revalidates. Raise it for data that doesn't change often; a value that never goes stale within a session can use a very large `staleTime`.
+
+## Retention: `gcTime`
+
+When the last component reading a key unmounts, the entry isn't dropped straight away — it's retained for `gcTime` (default 5 minutes). Navigate away and back within that window and the value is there instantly, no refetch:
+
+```tsx
+const list = useData('inbox', fetchInbox, {
+    cache: { staleTime: 30_000, gcTime: 600_000 },   // keep for 10 minutes
+});
+```
+
+Set `gcTime: 0` to drop an entry the moment nothing is reading it.
+
+## Revalidation: on focus, on an interval
+
+Mounted reads can refetch on their own. `revalidateOnFocus` refetches when the window regains focus or becomes visible again; `revalidateOnInterval` refetches on a timer:
+
+```tsx
+const feed = useData('feed', fetchFeed, {
+    cache: {
+        staleTime: 15_000,
+        revalidateOnFocus: true,
+        revalidateOnInterval: 30_000,   // ms
+    },
+});
+```
+
+Both respect `staleTime` — a value still fresh isn't refetched. On the web, focus revalidation is wired to window focus and `visibilitychange` out of the box; on other platforms you supply the event source (see [Renderer portability](#renderer-portability)).
+
+## No skeleton flash: `keepPreviousData`
+
+When a read's key changes and nothing is cached for the new key, core resets to `pending`. For pagination or a filter, that flashes a skeleton on every page. `keepPreviousData` keeps the previous key's value on screen (state `refreshing`) until the new one arrives:
+
+```tsx
+const Results = component((ctx) => {
+    const page = ctx.signal(1);
+
+    const results = useData(
+        () => ['results', page.value],
+        ([, p]) => fetchPage(p),
+        { cache: { keepPreviousData: true } },
+    );
+
+    return () => (
+        <div>
+            {results.match({
+                pending: () => <Skeleton />,   // only the very first load
+                error: (e) => <p>{e.message}</p>,
+                ready: (rows) => <Rows data={rows} dim={results.state === 'refreshing'} />,
+            })}
+            <button onClick={() => page.value++}>Next</button>
+        </div>
+    );
+});
+```
+
+## Invalidating after a write
+
+`invalidate()` drops an entry's freshness and refetches it for every mounted consumer. Call it directly on a read, or — more usefully — declare it on the action that made the write. Action `invalidates` accepts exact keys **or tuple prefixes**: `['users']` matches every `['users', …]` read.
+
+```tsx
+const save = useAction(saveUser, {
+    cache: {
+        invalidates: [['users']],   // prefix: refetch every ['users', …] read
+    },
+});
+
+// somewhere in a handler:
+const r = await save.run(draft);
+```
+
+Calling `invalidate()` by hand works too, when the trigger isn't an action:
+
+```ts
+const user = useData('user', fetchUser, { cache: {} });
+user.invalidate();   // refetch this read everywhere it's mounted
+```
+
+## Optimistic updates: `mutate()` and `optimistic`
+
+`mutate()` writes through the cache immediately — every mounted consumer re-renders with the new value before any request settles:
+
+```ts
+user.mutate((current) => ({ ...current, name: 'Ada' }));
+```
+
+For an action, declare the optimistic write inline. `apply` produces the provisional value from the current entry and the action input; if the run fails it rolls back — unless something newer wrote to the entry in the meantime:
+
+```tsx
+const rename = useAction(renameUser, {
+    cache: {
+        optimistic: {
+            key: 'user',
+            apply: (current, next) => ({ ...current, name: next.name }),
+        },
+        invalidates: [['users']],
+    },
+});
+```
+
+## Renderer portability
+
+The pack works on any renderer because it never imports the `sigx` umbrella. Two things are platform-specific.
+
+**Focus revalidation's event source.** On the web the default subscribes to window focus and `visibilitychange`, installed only when a DOM is present. On another platform, hand the plugin your own attention event through `revalidateTrigger` — return an unsubscribe and it runs on app teardown:
+
+```ts
+app.use(cachePlugin({
+    revalidateTrigger: (revalidate) => {
+        const off = platform.onResume(revalidate);   // lynx app-resume, terminal focus, …
+        return off;
+    },
+}));
+```
+
+Reads still opt in per call site with `revalidateOnFocus`.
+
+**Live-client detection.** A windowless client runtime must declare itself a live client once, from its platform module — `declareLiveClient()` from `@sigx/runtime-core/internals`. This is a renderer concern, not an app one; on the web nothing is required.
+
+## Precise typing
+
+`useData(...)` still returns `AsyncState<T>`; the augmentation adds an optional `invalidate?()` and `mutate?()`. For a read you know is cached, assert the exported view to type them as present:
+
+```ts
+import type { CachedAsyncState } from '@sigx/cache';
+
+const user = useData('user', fetchUser, { cache: {} }) as CachedAsyncState<User>;
+user.invalidate();   // now typed non-optional
+```
+
+## Next steps
+
+- [API reference](/core/packages/cache/api) — every export, option and default
+- [Data loading](/core/docs/data-loading) — the `useData` / `useAction` primitives this builds on
