@@ -1,0 +1,55 @@
+---
+title: SIGX200 · defineProvide outside setup
+description: SIGX200 — defineProvide must be called inside a component setup function
+layout: docs
+category: Dependency injection
+order: 1
+---
+
+# SIGX200 · defineProvide outside setup
+
+**Dev message**
+
+```
+defineProvide must be called inside a component setup function.
+```
+
+**Suggestion**
+
+> Move the defineProvide() call inside your component's setup function, or use app.defineProvide() at the app level.
+
+## What happened
+
+`defineProvide` was called outside the synchronous body of a component's setup function.
+
+`defineProvide` provides a value **to the calling component's subtree**, so it needs an owner — the component currently being set up. Outside setup there is no such component, and nowhere to attach the value.
+
+## Fix it
+
+If the value belongs to one subtree, provide it in that component's setup:
+
+```tsx
+import { component, defineProvide } from 'sigx';
+
+const Dashboard = component(() => {
+    defineProvide(useTheme, () => createTheme('dark'));
+
+    return () => <Panel />;   // and everything below it
+});
+```
+
+If it belongs to the whole app, provide it on the app instead — this is the right home for routers, stores and API clients:
+
+```ts
+const app = createApp(App);
+app.defineProvide(useRouter, () => createRouter());
+app.mount('#app');
+```
+
+App-level provides are looked up live, so a `defineProvide` call after `mount()` is still visible to components mounted afterwards.
+
+## Related
+
+- [App & plugins](/core/docs/app-plugins) — app-level provides and plugin authoring
+- [Dependency injection](/core/api/di) — the full API
+- [SIGX201](/errors/SIGX201/) — providing something that isn't an injectable

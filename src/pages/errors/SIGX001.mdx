@@ -1,0 +1,56 @@
+---
+title: SIGX001 · No mount function
+description: SIGX001 — no mount function was provided and no platform package set a default
+layout: docs
+category: App lifecycle
+order: 1
+---
+
+# SIGX001 · No mount function
+
+**Dev message**
+
+```
+No mount function provided and no default mount function set.
+```
+
+**Suggestion**
+
+> Either pass a mount function to app.mount(), or import a platform package (e.g., @sigx/runtime-dom) that sets the default.
+
+## What happened
+
+`app.mount()` needs a renderer to turn your component tree into something a platform can display. SignalX's core is renderer-agnostic, so it ships no mount function of its own — a platform package supplies one.
+
+Importing a platform package registers its mount function as the default. That import is usually implicit: the `sigx` umbrella pulls in `@sigx/runtime-dom` for you, which is why web apps never see this error. It shows up when you're on core alone, or on a platform whose package hasn't been imported.
+
+## Fix it
+
+Import a platform package so it can install the default:
+
+```ts
+import { createApp } from '@sigx/runtime-core';
+import '@sigx/runtime-dom';   // registers the DOM mount function
+
+createApp(App).mount('#app');
+```
+
+On the web, importing from the `sigx` umbrella does this for you:
+
+```ts
+import { createApp } from 'sigx';
+
+createApp(App).mount('#app');
+```
+
+Or pass a mount function explicitly — this is the path a custom renderer takes:
+
+```ts
+createApp(App).mount(myMountFunction);
+```
+
+## Related
+
+- [Installation](/core/docs/installation)
+- [Runtime Core](/core/packages/runtime-core/overview) — the renderer-agnostic base
+- [Runtime DOM](/core/packages/runtime-dom/overview) — the web renderer

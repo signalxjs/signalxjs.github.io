@@ -1,0 +1,79 @@
+---
+title: SIGX300 · Hook called outside setup
+description: SIGX300 — useData, useAction and useStream must be called synchronously during setup
+layout: docs
+category: Hooks & async
+order: 1
+---
+
+# SIGX300 · Hook called outside setup
+
+**Dev message**
+
+```
+useData() must be called synchronously during component setup.
+```
+
+**Suggestion**
+
+> Move the useData() call into the component's setup function (before returning the render function).
+
+## What happened
+
+A hook — `useData`, `useAction`, `useStream` — was called somewhere other than the synchronous body of a component's setup function.
+
+Hooks bind to the component being set up: that's how the cell gets torn down with the component, and how SSR knows which component's data to transfer. SignalX tracks the owner through the setup call currently on the stack, so a hook called outside that window has nothing to bind to.
+
+The message names whichever hook you called.
+
+The placements that break it:
+
+- Inside the returned render function.
+- Inside an event handler or lifecycle callback.
+- After an `await` in setup — the synchronous portion has already ended, and the owner is gone.
+- At module top level, outside any component.
+
+## Fix it
+
+Call the hook in setup and read it in the render function:
+
+```tsx
+import { component, useData, match } from 'sigx';
+
+const UserCard = component(() => {
+    const user = useData('user', () => fetch('/api/user').then((r) => r.json()));
+
+    return () =>
+        match(user, {
+            pending: () => <Spinner />,
+            error: (e) => <p>{e.message}</p>,
+            ready: (u) => <h1>{u.name}</h1>,
+        });
+});
+```
+
+**Fetching in response to a click?** You don't need a hook in the handler — declare the action in setup and call it from the handler:
+
+```tsx
+const SaveButton = component(() => {
+    const save = useAction((draft: Draft) => api.save(draft));
+
+    return () => <button onClick={() => save.run(draft)}>Save</button>;
+});
+```
+
+**Fetching depends on state?** Keep the hook in setup and let the key be reactive — it refetches when the key changes:
+
+```tsx
+const Profile = component((ctx) => {
+    const id = ctx.signal(1);
+    const user = useData(() => ['user', id.value], ({ id }) => api.getUser(id));
+
+    return () => match(user, { /* … */ });
+});
+```
+
+## Related
+
+- [Data loading](/core/docs/data-loading) — `useData`, `useAction`, `useStream`
+- [SIGX103](/errors/SIGX103/) — the same rule for `errorScope()`

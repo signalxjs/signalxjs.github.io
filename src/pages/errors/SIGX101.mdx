@@ -1,0 +1,68 @@
+---
+title: SIGX101 · Mount target not found
+description: SIGX101 — the selector passed to app.mount() matched no element
+layout: docs
+category: Rendering & mounting
+order: 2
+---
+
+# SIGX101 · Mount target not found
+
+**Dev message**
+
+```
+Mount target "#app" not found.
+```
+
+**Suggestion**
+
+> Make sure the element exists in your HTML: `<div id="app"></div>`
+
+## What happened
+
+`app.mount()` was given a selector that matched nothing in the document. The selector is usually correct — the element just isn't in the DOM at the moment the query runs.
+
+The usual causes:
+
+- The script executes before the element is parsed (a plain `<script>` in `<head>`, for instance).
+- The `id` in the markup and the selector have drifted apart.
+- The element is injected later by code that hasn't run yet.
+
+## Fix it
+
+Make sure the target exists, and that your script runs after it is parsed:
+
+```html
+<body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+</body>
+```
+
+`type="module"` scripts defer by default, so the document is parsed before your code runs. That is why the Vite starter template never hits this.
+
+You can also hand `mount()` the element directly:
+
+```ts
+const target = document.getElementById('app');
+if (target) createApp(App).mount(target);
+```
+
+To handle it in code, branch on the code rather than the message:
+
+```ts
+import { SigxError } from 'sigx';
+
+try {
+    createApp(App).mount('#app');
+} catch (e) {
+    if (e instanceof SigxError && e.code === 'SIGX101') {
+        // the target isn't in the document
+    }
+}
+```
+
+## Related
+
+- [SIGX100](/errors/SIGX100/) — the same problem for `render()`
+- [Getting started](/core/docs/getting-started)

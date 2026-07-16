@@ -1,0 +1,59 @@
+---
+title: SIGX401 · Topic created on a destroyed group
+description: SIGX401 — a topic group cannot create new topics after it is destroyed
+layout: docs
+category: Messaging
+order: 2
+---
+
+# SIGX401 · Topic created on a destroyed group
+
+**Dev message**
+
+```
+[sigx] Cannot create topic "user:updated" on a destroyed topic group.
+```
+
+**Suggestion**
+
+> The group was destroyed; create its topics before destroy(), or recreate the group.
+
+## What happened
+
+A topic group was asked for a topic after its `destroy()` had run.
+
+A group owns its topics: destroying it destroys all of them, and it stops handing out new ones. Any topic it created now would be born with no path to a subscriber, so SignalX throws at the call site rather than returning a dead object.
+
+Like [SIGX400](/errors/SIGX400/), this is a teardown-ordering problem — something is still reaching for the group after the code that owns it has torn it down. Usually:
+
+- A late async callback creates its topic after teardown.
+- A component asks the group for a topic while an ancestor is unmounting.
+- A group is stored at module scope and destroyed on hot reload, while live code still holds it.
+
+## Fix it
+
+Create the group's topics while it's alive, and don't reach for it after teardown:
+
+```ts
+const group = createTopicGroup();
+const updated = group.topic<User>('user:updated');
+
+// … later, on teardown:
+group.destroy();   // `updated` is destroyed too
+```
+
+If a new lifecycle begins, create a new group rather than reusing the destroyed one:
+
+```ts
+let group = createTopicGroup();
+
+function restart() {
+    group.destroy();
+    group = createTopicGroup();   // fresh group, fresh topics
+}
+```
+
+## Related
+
+- [Messaging](/core/docs/advanced/messaging) — topics and groups
+- [SIGX400](/errors/SIGX400/) — subscribing to a destroyed topic

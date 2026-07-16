@@ -1,0 +1,54 @@
+---
+title: SIGX100 · Render target not found
+description: SIGX100 — the selector passed to render() matched no element
+layout: docs
+category: Rendering & mounting
+order: 1
+---
+
+# SIGX100 · Render target not found
+
+**Dev message**
+
+```
+Render target "#app" not found.
+```
+
+**Suggestion**
+
+> Make sure the element exists in your HTML: `<div id="app"></div>`
+
+## What happened
+
+`render()` was given a selector that matched nothing in the document. The selector itself is usually right — the element just isn't there *yet* at the moment the query runs.
+
+Three things cause that, in rough order of likelihood:
+
+- The script runs before the element is parsed. A classic `<script>` in `<head>` executes while `<body>` is still empty.
+- The `id` in the markup and the selector have drifted apart — a typo, or one was renamed.
+- The element is created later by other code that hasn't run.
+
+## Fix it
+
+Make sure the target exists in your HTML:
+
+```html
+<body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+</body>
+```
+
+Keeping the script tag *after* the element — or marking it `type="module"`, which defers by default — is what guarantees the element is parsed before the query runs.
+
+You can also pass the element itself rather than a selector, which sidesteps the timing question entirely:
+
+```ts
+const target = document.getElementById('app');
+if (target) render(<App />, target);
+```
+
+## Related
+
+- [SIGX101](/errors/SIGX101/) — the same problem for `app.mount()`
+- [Getting started](/core/docs/getting-started)
