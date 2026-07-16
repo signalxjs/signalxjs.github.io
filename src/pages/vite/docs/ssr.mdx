@@ -1,0 +1,101 @@
+---
+title: SSR mode
+description: "Build a server-rendered SignalX app with @sigx/vite — one vite build for both client and server, the islands transform, and the dev request handler"
+layout: docs
+category: Guides
+order: 45
+---
+
+# SSR mode
+
+<p class="lede">The <code>@sigx/vite</code> plugin has an SSR mode that produces both halves of a server-rendered app — the client bundle and the server bundle — from a single <code>vite build</code>, and a dev-server handler that shares one module graph with your app.</p>
+
+This is the build-and-dev side of SSR; the runtime APIs it feeds live in [`@sigx/server-renderer`](/server/packages/server-renderer/overview).
+
+## Turning on SSR
+
+Pass an `ssr` block to the plugin, pointing at your server entry:
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import { sigx } from '@sigx/vite';
+
+export default defineConfig({
+    plugins: [
+        sigx({
+            ssr: { entry: 'src/entry-server.tsx' },
+        }),
+    ],
+});
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `entry` | — (required) | Your server entry module. |
+| `clientOutDir` | `'dist/client'` | Where the browser bundle + manifest are written. |
+| `serverOutDir` | `'dist/server'` | Where the server bundle is written. |
+
+One `vite build` now runs both environments (via Vite's builder API): the client build emits `.vite/manifest.json` alongside the browser assets, and the server build emits `entry-server.js`.
+
+The server bundle **externalizes its dependencies** rather than bundling a second copy of the runtime. That matters for correctness, not just size: a bundled runtime carries its own DI token identities and would never see the app's provides. (In practice the spa-ssr server bundle drops from ~97 kB to ~25 kB.)
+
+## The islands transform
+
+If you use islands, add `sigxIslands()` from the `@sigx/vite/islands` entry:
+
+```ts
+import { sigx } from '@sigx/vite';
+import { sigxIslands } from '@sigx/vite/islands';
+
+export default defineConfig({
+    plugins: [
+        sigx({ ssr: { entry: 'src/entry-server.tsx' } }),
+        sigxIslands(),
+    ],
+});
+```
+
+```ts
+interface SigxIslandsOptions {
+    include?: string | string[];   // default: *.island.ts(x), islands/**/*.ts(x)
+    exclude?: string | string[];   // default: node_modules, dist
+}
+```
+
+It does four things:
+
+1. Stamps `__islandId` onto each island's named component export.
+2. Rewrites signal declarations so island state gets a stable key (see [automatic state keys](/server/packages/ssr-islands/plugin-setup#automatic-state-keys)).
+3. Serves `virtual:sigx-islands`, which registers a lazy `import()` per island.
+4. Emits a `sigx-islands-manifest.json` on the client build (under `clientOutDir`, at `.vite/sigx-islands-manifest.json`), mapping island names → `{ chunkUrl, exportName }`. Feed that to `islandsPlugin({ manifest })`.
+
+An island is a **named export** that is a component factory, in a file the `include` globs match. Names must be **unique across island files** — that name is the key.
+
+## The dev-server handler
+
+For `vite dev`, `@sigx/vite/ssr` gives you a request handler that renders through Vite's module runner — so the renderer, your app, and `islandsPlugin()` all share one module graph and one set of DI token identities:
+
+```ts
+import { createServer } from 'vite';
+import { createDevRequestHandler } from '@sigx/vite/ssr';
+
+const vite = await createServer({ server: { middlewareMode: true } });
+const handler = await createDevRequestHandler(vite, {
+    entry: '/src/entry-server.tsx',   // Vite-root-relative
+    entryExport: 'createApp',         // default
+});
+
+app.use(vite.middlewares);
+app.use(handler);
+```
+
+It fails fast at startup if `@sigx/server-renderer` isn't installed, and applies `ssrFixStacktrace` so errors point at your source.
+
+For **production**, the counterpart is `createRequestHandler` from `@sigx/server-renderer/node`, fed your built `entry-server.js` and manifest — see [Building a full SSR app](/server/packages/server-renderer/full-app).
+
+## Where to go next
+
+- [The boundary model](/server/packages/server-renderer/boundaries) — what the transform's output feeds
+- [Request lifecycle](/server/packages/server-renderer/request-lifecycle) — `createRequestHandler`, `useResponse`, the error seam
+- [Islands plugin setup](/server/packages/ssr-islands/plugin-setup) — consuming the islands manifest

@@ -1,0 +1,115 @@
+---
+title: The request lifecycle
+description: "Set status codes and redirects from a component with useResponse, catch render failures with one error seam, and the WinterCG-clean ./node entry split"
+layout: module-docs
+category: Guides
+order: 44
+---
+
+# The request lifecycle
+
+<p class="lede">SSR is a request/response cycle, and a component sometimes needs to shape the response — a 404, a redirect, a header — or to fail gracefully. This is the seam for that, plus the runtime split that keeps the renderer edge-portable.</p>
+
+## Shaping the response from a component
+
+`useResponse()` returns a recorder you call synchronously during setup — the same timing rule as `useHead`:
+
+```tsx
+import { component } from 'sigx';
+import { useResponse } from '@sigx/server-renderer';
+
+const NotFound = component(() => {
+    useResponse().status(404);
+    return () => <h1>Not found</h1>;
+});
+
+const Guard = component(() => {
+    if (!loggedIn()) useResponse().redirect('/login');
+    return () => <Dashboard />;
+});
+```
+
+The recorder has three methods:
+
+```ts
+interface ResponseRecorder {
+    status(code: number): ResponseRecorder;                        // last write wins
+    redirect(location: string, status?: number): ResponseRecorder; // default 302
+    header(name: string, value: string): ResponseRecorder;         // last write per name; names lowercased
+}
+```
+
+Two properties make it safe to call from components you also render on the client:
+
+- **Inert off the server.** On the client, and anywhere outside a server render, the calls are no-ops — so a shared component needs no `typeof window` branching.
+- **Concurrency-safe.** There's no module-level state; the recorder lives on the per-request context, so parallel requests never collide.
+
+A redirect short-circuits a streaming document: the shell promise resolves with the redirect and **no body bytes are produced**.
+
+The resolved response is what the document shell promise gives you:
+
+```ts
+interface SSRResponse {
+    status: number;                     // explicit status, else redirect status, else 200
+    headers: Record<string, string>;
+    redirect?: { location: string; status: number };
+}
+```
+
+## One error seam
+
+Render failures — a component throwing during the synchronous shell, or during a streamed deferred render, or a request-level shell/stream failure — all arrive at a single pair of callbacks on `SSRContextOptions` (and so on `DocumentOptions`):
+
+```ts
+interface SSRContextOptions {
+    streaming?: boolean;                                    // default true
+    onError?: (error: Error, info: SSRErrorInfo) => void;
+    renderError?: (error: Error, info: SSRErrorInfo) => string;
+}
+
+interface SSRErrorInfo {
+    phase: 'shell' | 'stream';   // 'shell' = before the first byte could flush
+    componentId?: number;
+    componentName?: string;
+    boundaryId?: number;
+}
+```
+
+`onError` is your reporting hook; `renderError` lets you substitute the markup emitted in place of a failed component. The default `renderError` emits a stable `<!--ssr-error:ID-->` boundary comment plus a visible dev diagnostic.
+
+## Server error scopes
+
+`errorScope` works on the server the same way it does in the browser — but with a rewind. A throw below a scope bubbles to the owning frame, which **rewinds everything its subtree produced** (buffered bytes, pending async, head config, boundary records, the id stack) and renders the scope's `fallback(err, retry)` in its place. Scoped subtrees suppress mid-subtree flushing precisely so this rewind is always possible.
+
+The caught boundary is marked in `__SIGX_BOUNDARIES__` with an `errorScope: { message }`. On hydration the client seeds that scope already-errored, so the fallback hydrates cleanly and `retry()` performs a real remount. A scope-caught error fires that **scope's** `onError`, not the request-level one — nearest scope wins.
+
+## The `./node` entry
+
+The renderer's main entries — `@sigx/server-renderer` and `@sigx/server-renderer/server` — are WinterCG-clean: they import no Node built-ins, so they run on edge runtimes (a CI job enforces this by streaming a document through the production build with every Node import forbidden). Anything that touches `node:stream` lives in a separate entry:
+
+```ts
+import {
+    renderToNodeStream,
+    renderDocumentToNodeStream,
+    toNodeStream,
+    createRequestHandler,
+} from '@sigx/server-renderer/node';
+```
+
+Reach for `@sigx/server-renderer/node` when you're on Node and want a `Readable`; stay on the root/`/server` entries for edge and Web-stream targets. See the [API reference](/server/packages/server-renderer/api) for each signature.
+
+## The document head, upgraded
+
+`useHead` (from `sigx`) gained document-level controls for SSR, applied by `@sigx/server-renderer`'s head renderer:
+
+- **`base`** — one `<base>` per document; last config wins.
+- **`noscript`** / **`style`** — raw markup, opt-in per entry via an explicit `innerHTML` field.
+- **`priority`** — server-render ordering, ascending (default `0`, ties in call order, lower = earlier). Client-side SPA application stays per-call and does not reorder the live head.
+
+`htmlAttrs` / `bodyAttrs` now patch the document template's `<html>` / `<body>` tags server-side, and raw content has closing-tag sequences neutralized.
+
+## Where to go next
+
+- [The boundary model](/server/packages/server-renderer/boundaries) — flush and hydrate axes
+- [Building a full SSR app](/server/packages/server-renderer/full-app) — entry-server, entry-client and the request handler
+- [Vite SSR mode](/vite/docs/ssr) — the build and dev-server side

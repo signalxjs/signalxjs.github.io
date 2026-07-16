@@ -120,6 +120,32 @@ const myPlugin: Plugin<{ debug?: boolean }> = {
 app.use(myPlugin, { debug: true });
 ```
 
+### The plugin surface: `app._context`
+
+The high-level methods above — `app.provide`, `app.hook`, `app.onError` — cover
+most plugins. A plugin that integrates at a lower level (providing through a
+framework seam, or registering teardown) reaches for **`app._context`**, the
+app's context object and the documented plugin-author surface:
+
+```tsx
+const myPlugin: Plugin = {
+    name: 'my-plugin',
+    install(app) {
+        // Hand the context to a seam's provide-helper…
+        provideMyEngine(app._context, createEngine());
+
+        // …or use its maps directly.
+        app._context.provides.set(MY_TOKEN, value);
+        app._context.disposables.push(() => cleanup());
+    },
+};
+```
+
+The leading underscore marks it as an advanced surface — it's the seam packs like
+[`@sigx/cache`](/core/packages/cache/overview) build on — but it's a supported one:
+`provides` and `disposables` are the contract. (Other underscore-prefixed fields,
+like `_isMounted` and `_container`, remain internal.)
+
 ### Function-Style Plugin
 
 For simpler plugins, you can use a function:
@@ -219,6 +245,47 @@ const MyComponent = component(({ }) => {
 });
 ```
 
+### Required injectables
+
+`defineInjectable` has a second form: pass a **name string** instead of a factory
+and you get a *required* injectable — one with no singleton fallback.
+
+```tsx
+// Factory form — falls back to a module-global singleton if nobody provides it.
+const useLogger = defineInjectable(() => new Logger());
+
+// Required form — declared by name, no fallback.
+const useRouter = defineInjectable<Router>('Router');
+```
+
+Using a required injectable that was never provided throws
+[`SIGX202`](/errors/SIGX202/), naming the injectable — instead of silently
+handing back a shared global. That's the point of the form: a per-request
+dependency like a router or an auth session must be provided per app, and a global
+fallback would leak state between requests on a server. Provide it before anything
+resolves it:
+
+```ts
+const app = createApp(App);
+app.defineProvide(useRouter, () => createRouter(url));
+app.mount('#app');
+```
+
+Two related refinements make provides more predictable:
+
+- **Providing `undefined` now shadows the fallback.** An explicit
+  `defineProvide(useThing, () => undefined)` means "the value is `undefined`
+  here", not "fall through to the default".
+- **App provides are looked up live.** `app.defineProvide(...)` called *after*
+  `app.mount()` is visible to components mounted afterwards — useful for plugins
+  that provide lazily.
+
+In development, a factory-form injectable that falls back to its module-global
+singleton on the **server** while an app exists logs a one-time warning — that
+singleton is shared across every SSR request in the process. The fix is to provide
+it per app, or declare it required. (The warning is server-only and stripped from
+production.)
+
 ### Component-Level Provides
 
 Components can also provide values to their descendants:
@@ -288,7 +355,26 @@ socket.on('message', (msg) => {
 });
 ```
 
-The context applies to the **synchronous** portion of `fn` only — re-enter `runWithContext` after an `await`. Nested calls restore the previous context, and plugins can capture the `app` they receive in `install()` to wrap their own callbacks.
+The context applies to the **synchronous** portion of `fn` only — it's restored in a `finally`, so it never leaks past the first `await`. Nested calls restore the previous context, and plugins can capture the `app` they receive in `install()` to wrap their own callbacks.
+
+Because the context is synchronous, an `async` callback resolves its later dependencies against the *wrong* context — everything after the first `await` runs with the context already restored. In development, `runWithContext` warns once per app when its callback returns a promise:
+
+```tsx
+// ⚠️ resolves useAuthService() correctly, but useMessageStore() after the await does not
+app.runWithContext(async () => {
+    const auth = useAuthService();          // ✅ synchronous — correct context
+    await auth.refresh();
+    useMessageStore().receive(msg);         // ❌ context already restored
+});
+```
+
+Re-enter with another `runWithContext` after the `await` to resolve more dependencies. `runWithContext` returns its callback's value, so capture what you resolve synchronously:
+
+```tsx
+const auth = app.runWithContext(() => useAuthService());   // resolved in-context
+await auth.refresh();
+app.runWithContext(() => { useMessageStore().receive(msg); });
+```
 
 ## Lifecycle Hooks
 
@@ -488,7 +574,8 @@ Creates an app instance.
 
 | Function | Description |
 |----------|-------------|
-| `defineInjectable(factory)` | Create an injectable token with factory |
+| `defineInjectable(factory)` | Create an injectable with a singleton fallback |
+| `defineInjectable(name)` | Create a **required** injectable — no fallback; throws [`SIGX202`](/errors/SIGX202/) if used unprovided |
 | `inject(token)` | Get a provided value |
 | `provide(token, value)` | Provide a value (in component) |
 | `defineProvide(useFn)` | Create and provide in one step |

@@ -17,9 +17,9 @@ import { PkgVersion } from '@/components/PkgVersion';
 ### islandsPlugin
 
 Create the islands `SSRPlugin`. Register it on an SSR instance with `.use()`.
-Server-side it intercepts `client:*` components, tracks signal state, manages async
-streaming, and injects `__SIGX_ISLANDS__`; client-side it schedules deferred
-hydration.
+Server-side it maps `client:*` components onto boundary records, tracks signal
+state, manages async streaming, and writes the hydration data into
+`__SIGX_BOUNDARIES__`; client-side it schedules deferred hydration.
 
 ```ts
 function islandsPlugin(options?: IslandsPluginOptions): SSRPlugin
@@ -192,8 +192,9 @@ function prefetchIslandChunks(islands: Record<string, IslandInfo>, strategies?: 
 
 ### getIslandData / getIslandServerState / invalidateIslandCache
 
-Read the parsed `__SIGX_ISLANDS__` data, look up a rendered component's captured
-server state by its numeric render id, or invalidate the cached island data.
+Read the parsed island hydration data (from the `__SIGX_BOUNDARIES__` boundary
+table), look up a rendered component's captured server state by its numeric render
+id, or invalidate the cached island data.
 
 ```ts
 function getIslandData(): Record<string, IslandInfo>
@@ -209,20 +210,12 @@ function invalidateIslandCache(): void
 
 ### createTrackingSignal / serializeSignalState
 
-Capture signal names + values during async setup, then serialize them for client
-hydration. Exported from the main entry and `/server`.
+Capture signal keys + values during setup, then serialize them onto the boundary
+record's `state` for client hydration. Exported from the main entry and `/server`.
 
 ```ts
 function createTrackingSignal(signalMap: Map<string, any>): SSRSignalFn
 function serializeSignalState(signalMap: Map<string, any>): Record<string, any> | undefined
-```
-
-### generateIslandDataScript
-
-Generate the `__SIGX_ISLANDS__` hydration-data script for a set of islands.
-
-```ts
-function generateIslandDataScript(islandData: Record<number, IslandInfo>): string
 ```
 
 ## Types
@@ -247,7 +240,7 @@ interface IslandInfo {
 ### HydrationStrategy
 
 ```ts
-type HydrationStrategy = 'load' | 'idle' | 'visible' | 'media' | 'only';
+type HydrationStrategy = 'load' | 'idle' | 'visible' | 'media' | 'interaction' | 'only';
 ```
 
 ### ClientDirectives
@@ -260,6 +253,7 @@ interface ClientDirectives {
   'client:idle'?: boolean;
   'client:visible'?: boolean;
   'client:media'?: string;
+  'client:interaction'?: boolean;
   'client:only'?: boolean;
 }
 ```
@@ -272,10 +266,8 @@ captured `signalMap`, `islandInfo`); `HydrationOptions` carries `recover` and an
 
 ## Re-exports
 
-For convenience the package re-exports, from `@sigx/server-renderer`:
-
-- `generateSignalKey` — the shared server/client serialization-key function.
-- types `SSRSignalFn` and `SSRHelper`.
+For convenience the package re-exports the `SSRHelper` type from
+`@sigx/server-renderer`.
 
 ## JSX subpath
 

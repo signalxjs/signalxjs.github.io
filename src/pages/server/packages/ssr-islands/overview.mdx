@@ -66,10 +66,11 @@ import '@sigx/ssr-islands/jsx';
 <Widget client:idle />
 ```
 
-The server plugin intercepts components carrying a `client:*` directive, captures
-their signal state, and injects the `__SIGX_ISLANDS__` hydration data. On the
-client, `hydrateIslands()` reads that data and schedules each island according to
-its strategy.
+The server plugin maps each `client:*` directive onto a core
+[boundary record](/server/packages/server-renderer/boundaries), captures the
+component's signal state, and injects the `window.__SIGX_BOUNDARIES__` hydration
+table. On the client, `hydrateIslands()` reads that table and schedules each island
+according to its strategy.
 
 ## Hydration strategies
 
