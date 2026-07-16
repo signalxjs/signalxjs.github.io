@@ -43,6 +43,19 @@ const CATALOG_LABEL: Record<ModuleParent, string> = {
     server: 'All Server packages',
     terminal: 'All Terminal packages',
 };
+
+/**
+ * Heading for a standalone reference collection — one that isn't a family
+ * package, so there's no switcher. `/errors/` is the only one today; the
+ * collection prefix (before the first `-`) is title-cased as a fallback.
+ */
+const STANDALONE_TITLES: Record<string, string> = {
+    errors: 'Error codes',
+};
+const standaloneTitle = (collection: string | undefined): string => {
+    const id = (collection ?? '').split('-')[0];
+    return STANDALONE_TITLES[id] ?? (id ? id[0].toUpperCase() + id.slice(1) : 'Reference');
+};
 const CatalogLink = component<Define.Prop<'parent', ModuleParent, true> & Define.Event<'pick', void>>(
     ({ props, emit }) => () => (
         <SxLink
@@ -137,7 +150,10 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
     return () => {
         const collection = getCollection();
         const currentModule = moduleForCollection(collection);
-        const currentPkg = packageForCollection(collection) ?? byId.core;
+        // Undefined for sections that aren't a package — `/errors/` is a
+        // standalone reference (the production runtime links codes there), so
+        // there is nothing to switch *from* and it gets the nav on its own.
+        const currentPkg = packageForCollection(collection);
         return (
             <>
                 {/* Drawer scrim (visible ≤880px only, via CSS) */}
@@ -154,7 +170,7 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
                                 <ModuleSwitcher currentModule={currentModule} />
                                 <CatalogLink parent={currentModule.parent} onPick={() => emit('close')} />
                             </>
-                        ) : (
+                        ) : currentPkg ? (
                             <>
                                 <PackageSwitcher currentPkg={currentPkg} />
                                 {/* Collection packages keep their module catalog one step away */}
@@ -165,6 +181,10 @@ export const DocsSidebar = component<DocsSidebarProps>(({ props, emit }) => {
                                     />
                                 )}
                             </>
+                        ) : (
+                            /* Standalone reference section (e.g. /errors/) — no
+                               package to switch, so head the nav with its title. */
+                            <div class="side-standalone-head mono">{standaloneTitle(collection)}</div>
                         )}
                         <nav class="side-nav">
                             {getSections().map((section, idx) => (

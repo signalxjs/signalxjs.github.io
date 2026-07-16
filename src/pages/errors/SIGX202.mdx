@@ -1,0 +1,84 @@
+---
+title: SIGX202 · Required injectable not provided
+description: SIGX202 — a required injectable was used without ever being provided
+layout: docs
+category: Dependency injection
+order: 3
+---
+
+# SIGX202 · Required injectable not provided
+
+**Dev message**
+
+```
+Injectable "Router" was used without being provided.
+```
+
+**Suggestion**
+
+> Provide it before use: app.defineProvide(useRouter, () => ...) before mount/hydrate, or defineProvide(useRouter, () => ...) in an ancestor component's setup.
+
+## What happened
+
+A **required** injectable was resolved before anything provided it.
+
+Injectables come in two forms, and the difference is what happens when nobody provides one:
+
+```ts
+// Factory form — carries its own fallback.
+const useLogger = defineInjectable(() => new Logger());
+
+// Required form — declared by name, no fallback.
+const useRouter = defineInjectable<Router>('Router');
+```
+
+The factory form can always fall back to a module-global singleton built from its own factory. The required form deliberately cannot: it declares that the value is per-app and must come from somewhere specific. Using it unprovided has no sensible answer, so it throws rather than inventing one.
+
+This is the point of the required form. A silent global fallback is precisely the bug you don't want on a server, where one process handles many requests and a shared singleton leaks state between them.
+
+## Fix it
+
+Provide it before anything resolves it. For an app-wide dependency, that means before `mount()` or `hydrate()`:
+
+```ts
+const useRouter = defineInjectable<Router>('Router');
+
+const app = createApp(App);
+app.defineProvide(useRouter, () => createRouter(url));
+app.mount('#app');
+```
+
+On the server, build the app **per request** so each gets its own instance:
+
+```ts
+function createRequestApp(url: string) {
+    const app = createApp(App);
+    app.defineProvide(useRouter, () => createRouter(url));
+    return app;
+}
+```
+
+If the dependency belongs to one subtree rather than the app, provide it in an ancestor's setup:
+
+```tsx
+const Dashboard = component(() => {
+    defineProvide(usePanelState, () => createPanelState());
+
+    return () => <Panel />;
+});
+```
+
+Resolving outside any component — in a route guard or a socket handler — works too, as long as you enter the app's context first:
+
+```ts
+app.runWithContext(() => {
+    const router = useRouter();
+});
+```
+
+Note the name you pass to `defineInjectable('Router')` is what appears in this message, so give it something you'd want to read in a stack trace.
+
+## Related
+
+- [App & plugins](/core/docs/app-plugins) — app provides, `runWithContext`, plugin authoring
+- [Dependency injection](/core/api/di) — the full API

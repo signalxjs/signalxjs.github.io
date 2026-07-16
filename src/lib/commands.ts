@@ -31,6 +31,16 @@ export interface Command {
     glyph?: string;
 }
 
+/**
+ * Standalone reference collections that aren't a family package but still
+ * belong in the palette. `pkgId` only feeds the tile lookup (`byId[pkgId]`);
+ * `label`/`hue`/`glyph` give the rows their own identity. Keyed by the
+ * collection prefix (before the first `-`).
+ */
+const STANDALONE_COMMANDS: Record<string, { pkgId: string; label: string; hue: number; glyph: string }> = {
+    errors: { pkgId: 'core', label: 'Error codes', hue: 4, glyph: '⚠' },
+};
+
 let cache: Command[] | null = null;
 
 export function buildCommands(): Command[] {
@@ -81,8 +91,13 @@ export function buildCommands(): Command[] {
     // Every page of every collection, flattened from the sidebar tree.
     for (const [collection, config] of Object.entries(navigation)) {
         const pkg = packageForCollection(collection);
-        if (!pkg) continue;
         const mod = moduleForCollection(collection);
+        // Standalone reference collections (e.g. `errors-docs`) have no family
+        // package. They still belong in the palette — the production runtime
+        // links error codes here — so borrow a valid `pkgId` for the tile
+        // lookup and give them their own label/accent via the overrides.
+        const standalone = pkg ? undefined : STANDALONE_COMMANDS[collection.split('-')[0]];
+        if (!pkg && !standalone) continue;
 
         const walk = (items: NavItem[] | undefined, section: string) => {
             for (const item of items ?? []) {
@@ -90,12 +105,14 @@ export function buildCommands(): Command[] {
                     add({
                         label: item.title,
                         href: item.href,
-                        pkgId: pkg.id,
-                        path: mod
-                            ? `${pkg.title} · ${mod.name} · ${section}`
-                            : `${pkg.title} · ${section}`,
-                        hue: mod?.hue,
-                        glyph: mod?.glyph,
+                        pkgId: pkg?.id ?? standalone!.pkgId,
+                        path: pkg
+                            ? mod
+                                ? `${pkg.title} · ${mod.name} · ${section}`
+                                : `${pkg.title} · ${section}`
+                            : `${standalone!.label} · ${section}`,
+                        hue: mod?.hue ?? standalone?.hue,
+                        glyph: mod?.glyph ?? standalone?.glyph,
                     });
                 }
                 if (item.items) walk(item.items, section);
