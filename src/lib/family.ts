@@ -54,7 +54,7 @@ export interface SigxPackage {
 const RAW_PACKAGES: SigxPackage[] = [
     // ---- Foundation: reactivity & state ----
     { id: 'core', npm: 'sigx', title: 'Core', cat: 'core', target: 'foundation', kind: 'collection',
-      hue: 285, glyph: '◇', status: 'stable', version: '0.5.0',
+      hue: 285, glyph: '◇', status: 'stable', version: '0.10.0',
       tag: 'Signals, effects & the component model',
       blurb: 'Fine-grained reactivity with signals and effects, plus a tiny TSX component runtime.' },
     { id: 'router', npm: '@sigx/router', title: 'Router', cat: 'core', target: 'foundation',
@@ -72,7 +72,7 @@ const RAW_PACKAGES: SigxPackage[] = [
       tag: 'Static site generation + MDX',
       blurb: 'File-based routing, MDX content collections and island hydration for content sites.' },
     { id: 'server', npm: '@sigx/server-renderer', title: 'Server', cat: 'render', target: 'web', kind: 'collection',
-      hue: 210, glyph: '⊟', status: 'stable', version: '0.5.0',
+      hue: 210, glyph: '⊟', status: 'stable', version: '0.10.0',
       tag: 'Streaming SSR, hydration & islands',
       blurb: 'Render to an HTML string or stream on the server and hydrate on the client — plus the islands add-on for client:* selective hydration.' },
 
@@ -102,7 +102,7 @@ const RAW_PACKAGES: SigxPackage[] = [
       tag: 'Scaffold & manage projects',
       blurb: 'npm create @sigx@latest — project scaffolding, plugin discovery and platform commands.' },
     { id: 'vite', npm: '@sigx/vite', title: 'Vite', cat: 'tooling', target: 'web',
-      hue: 318, glyph: '◮', status: 'stable', version: '0.5.0',
+      hue: 318, glyph: '◮', status: 'stable', version: '0.10.0',
       tag: 'Vite plugin & HMR',
       blurb: 'First-class Vite integration — HMR for components, optimized production builds.' },
     { id: 'devtools', npm: '@sigx/devtools', title: 'DevTools', cat: 'tooling', target: 'foundation',
