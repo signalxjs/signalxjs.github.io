@@ -8,7 +8,9 @@
  *
  * Leverages lockstep versioning: the three monorepos (core, lynx,
  * terminal) are fetched once each through an anchor package and fanned out
- * to every member; the standalone packages are fetched individually (~10
+ * to every member; the standalone packages — plus `@sigx/vite` and
+ * `@sigx/args`, which ship from the core/terminal monorepos but on their own
+ * version lines (see anchorFor below) — are fetched individually (~12
  * requests total instead of ~60). Resilient by design — a failed request keeps the
  * previously committed value, so a flaky npm never breaks the build.
  *
@@ -32,8 +34,19 @@ const TIMEOUT_MS = 10_000;
 
 /**
  * npm package → source-repo "anchor" package, per the npm→repo rule in
- * AGENTS.md. The three monorepos publish in lockstep, so one fetch covers
- * the whole family; everything else is its own repo and is its own anchor.
+ * AGENTS.md. The reactive/runtime/SSR core of each monorepo publishes in
+ * lockstep, so one fetch covers the whole family; everything else is its own
+ * repo and is its own anchor.
+ *
+ * Exceptions — `@sigx/vite` and `@sigx/args` are published from the core /
+ * terminal monorepos but on **independent version lines**, so they must NOT be
+ * fanned out from the anchor: `@sigx/vite` skipped core's 0.11.0 entirely
+ * (its line is 0.10.0 → 0.12.0), and `@sigx/args` has run ahead of
+ * `@sigx/terminal` (args 0.6.x while terminal 0.5.x). Fanning the anchor's
+ * version onto them would invent a version that doesn't exist on npm — which
+ * this script would then write into versions.generated.ts and ship to the live
+ * site. They stay out of the member sets below so anchorFor() self-anchors them
+ * (one extra npm request each, fetched independently).
  */
 const CORE_MEMBERS = new Set([
     'sigx',
@@ -41,7 +54,6 @@ const CORE_MEMBERS = new Set([
     '@sigx/runtime-core',
     '@sigx/runtime-dom',
     '@sigx/server-renderer',
-    '@sigx/vite',
 ]);
 const TERMINAL_MEMBERS = new Set([
     '@sigx/terminal',
@@ -49,7 +61,6 @@ const TERMINAL_MEMBERS = new Set([
     '@sigx/terminal-zero',
     '@sigx/terminal-ui',
     '@sigx/terminal-dev',
-    '@sigx/args',
 ]);
 const anchorFor = (npm) =>
     CORE_MEMBERS.has(npm) ? 'sigx'

@@ -140,7 +140,7 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 | `daisyui/` (`api`, `docs`) | [`signalxjs/daisyui`](https://github.com/signalxjs/daisyui) | No |
 | `cli/` | [`signalxjs/cli`](https://github.com/signalxjs/cli) | No |
 | `devtools/` | [`signalxjs/devtools`](https://github.com/signalxjs/devtools) | No |
-| `terminal/` (`docs`, `packages`) | [`signalxjs/terminal`](https://github.com/signalxjs/terminal) | **Yes** — `parent: 'terminal'` rows (`@sigx/terminal`, `@sigx/runtime-terminal`, `@sigx/terminal-zero`, `@sigx/terminal-ui`, `@sigx/terminal-dev`, `@sigx/args`); published in lockstep |
+| `terminal/` (`docs`, `packages`) | [`signalxjs/terminal`](https://github.com/signalxjs/terminal) | **Yes** — `parent: 'terminal'` rows (`@sigx/terminal`, `@sigx/runtime-terminal`, `@sigx/terminal-zero`, `@sigx/terminal-ui`, `@sigx/terminal-dev`, `@sigx/args`); the terminal core publishes in lockstep, but **`@sigx/args` versions independently** (it has run ahead of `@sigx/terminal`) — so `scripts/fetch-versions.mjs` self-anchors it |
 | `monaco/` | [`signalxjs/monaco-editor`](https://github.com/signalxjs/monaco-editor) | No |
 | `blog/` | (this repo) | n/a |
 
