@@ -117,14 +117,15 @@ function registerComponent(name: string, component: ComponentFactory): void
 function registerComponents(components: Record<string, ComponentFactory>): void
 ```
 
-### __registerIslandChunk
+### registerComponentChunk
 
 Register a **lazy** island loader for code-split hydration; the loader's `import()`
 runs only when the island's strategy triggers. Normally emitted automatically by
-the `sigxIslandsPlugin` Vite transform.
+the `sigxIslandsPlugin` Vite transform. (Renamed from `__registerIslandChunk` in
+0.13 — there is no alias.)
 
 ```ts
-function __registerIslandChunk(name: string, loader: LazyComponentLoader): void
+function registerComponentChunk(name: string, loader: LazyComponentLoader): void
 ```
 
 ### resolveComponent / getComponent / hasComponent

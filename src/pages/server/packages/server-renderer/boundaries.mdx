@@ -91,7 +91,7 @@ interface SSRBoundaryRecord {
 }
 ```
 
-The table shares one serializer (and one dev-time serializability warning) with `window.__SIGX_ASYNC__`, so the same escaping and custom-type rules apply to both.
+The table shares one serializer (and one dev-time serializability warning) with `window.__SIGX_ASYNC__`, so the same escaping and custom-type rules apply to both. That serializer is **codec-aware**: alongside JSON primitives, top-level and nested `Date` / `Map` / `Set` / `bigint` / `URL` / `RegExp` / explicit `undefined` values — plus any registered custom type handlers — round-trip; only functions and circular references are rejected.
 
 ## Selective hydration is the hydrator
 

@@ -41,12 +41,13 @@ component:
 Using islands always involves the same trio (from the package's own quick-start):
 
 ```ts
-// 1. Server — register the plugin on your SSR instance
+// 1. Server — install the pack on your app
 import { createSSR } from '@sigx/server-renderer';
 import { islandsPlugin } from '@sigx/ssr-islands';
+import { defineApp } from 'sigx';
 
-const ssr = createSSR().use(islandsPlugin());
-const html = await ssr.render(<App />);
+const app = defineApp(<App />).use(islandsPlugin());
+const html = await createSSR().render(app);
 ```
 
 ```ts

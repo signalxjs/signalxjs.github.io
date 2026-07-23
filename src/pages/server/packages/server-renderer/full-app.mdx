@@ -70,9 +70,9 @@ export function render() {
 ```
 
 The `App` form (from `defineApp()`) preserves the `AppContext`, so `inject()` and
-plugins — a router, islands — work during render. To register plugins, build an
-SSR instance and call the same method on it:
-`createSSR().use(islandsPlugin()).renderDocument(app, { template })`.
+plugins — a router, islands — work during render. To add a pack, install it on the
+app and render the same way: `defineApp(<App />).use(islandsPlugin())`, then
+`renderDocument(app, { template })`.
 
 ## 3. The client entry
 
