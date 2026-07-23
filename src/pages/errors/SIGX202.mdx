@@ -76,7 +76,15 @@ app.runWithContext(() => {
 });
 ```
 
-Note the name you pass to `defineInjectable('Router')` is what appears in this message, so give it something you'd want to read in a stack trace.
+Note the name you pass to `defineInjectable('Router')` is what appears in this message, so give it something you'd want to read in a stack trace. To replace the generated *Suggestion* above with your own, pass a `hint`:
+
+```ts
+const useRouter = defineInjectable<Router>('Router', {
+    hint: 'Provide it before mount: app.defineProvide(useRouter, () => createRouter(url)).',
+});
+```
+
+The hint is read only in development, but the string still ships in your bundle unless you gate it (`hint: __DEV__ ? '…' : undefined`).
 
 ## Related
 

@@ -132,6 +132,27 @@ With a static (or resolved reactive) key, `useData`:
 
 Pass `{ server: false }` for a client-only keyed read: SSR renders the pending arm and the fetch runs after hydration. It still keeps its key for dedupe and future cache coverage — there is no unkeyed form.
 
+### Server functions as keys
+
+A [server function](/server/docs/overview) already carries a stable identity, so it *is* a key. Pass one straight to `useData` and the function is both the key and the fetcher — no string to invent, no fetcher to write:
+
+```tsx
+import { useData } from 'sigx';
+import { getVotes } from './votes.server';
+
+const votes = useData(getVotes);          // the fn is the key and the fetcher
+```
+
+For arguments, return a `[fn, ...args]` tuple from a getter. It's reactive and idle-skips on a falsy result, exactly like a normal tuple key:
+
+```tsx
+const post = useData(() => [getPost, props.id]);   // re-runs when props.id changes
+```
+
+The build stamps each server function with a stable key derived from its id and name, so these reads are SSR-transferable and deduped just like string-keyed ones. (Move a function between files without pinning an explicit `id` and its key changes — set `id` on anything you invalidate by reference.)
+
+To refresh a server-function read after a write, declare what it invalidates **by reference** — a bare server-function reference prefix-matches every parameterized read of it, and the same declaration drives single-flight refresh of the server boundaries that rendered it. That declaration can live on the server function's own [options](/server/docs/authoring) (its `invalidates`, which runs on every transport) or on a client action via [`@sigx/cache`](/core/packages/cache/overview); with neither, refresh the read explicitly with `.refresh()` (below).
+
 ## useAction
 
 `useAction` is the write counterpart: the manual sibling of `useData` that never auto-runs. Trigger it with `.run(input)`. `run` **never rejects** — it resolves a settled `RunResult<T>` (`{ ok: true, value }` or `{ ok: false, error }`), so both fire-and-forget and `const r = await save.run()` are safe.
