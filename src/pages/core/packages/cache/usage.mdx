@@ -120,14 +120,15 @@ user.invalidate();   // refetch this read everywhere it's mounted
 user.mutate((current) => ({ ...current, name: 'Ada' }));
 ```
 
-For an action, declare the optimistic write inline. `apply` produces the provisional value from the current entry and the action input; if the run fails it rolls back — unless something newer wrote to the entry in the meantime:
+For an action, declare the optimistic write inline. `apply` produces the provisional value from the current entry and the action input; if the run fails it rolls back — unless something newer wrote to the entry in the meantime. Its parameters infer as `unknown` (the cached state isn't knowable from the action's input), so annotate them — `current` is `null` when the read has nothing cached yet:
 
 ```tsx
 const rename = useAction(renameUser, {
     cache: {
         optimistic: {
             key: 'user',
-            apply: (current, next) => ({ ...current, name: next.name }),
+            apply: (current: { name: string } | null, next: { name: string }) =>
+                ({ ...current, name: next.name }),
         },
         invalidates: [['users']],
     },
