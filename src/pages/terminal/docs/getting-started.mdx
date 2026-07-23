@@ -101,7 +101,7 @@ const App = component(() => {
         <box border="rounded" label="Dad joke" color="cyan">
             {joke.match({
                 pending: () => <text color="dim">Loading…</text>,
-                error: (e, retry) => <text color="warn">Failed: {e.message}</text>,
+                error: (e) => <text color="warn">Failed: {e.message}</text>,
                 ready: (text) => <text>{text}</text>,
             })}
         </box>
