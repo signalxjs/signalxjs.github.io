@@ -20,8 +20,11 @@ The package is ESM-only (`"type": "module"`) and runs under Node. It is a librar
 
 ## Runtime requirements
 
-- **Node** with ESM support.
+- **Node 18 or newer** — for ESM support and the built-in `fetch` the [data-loading](/terminal/docs/getting-started/#loading-data) examples rely on. The Vite build target below is `node18` for the same reason.
 - **A TTY** for full keyboard input. The runtime puts stdin into raw mode; if `setRawMode` is unavailable (for example in some terminals) it degrades gracefully rather than crashing.
+- **SignalX core `>=0.12.0 <0.13.0`.** The bundled reactive engine (`@sigx/reactivity`, `@sigx/runtime-core`) tracks the core `0.12` line. Terminal's own version is **independent of core's** — `@sigx/terminal` and core don't share a minor, so read this requirement rather than the package number. If you also depend on SignalX core directly — or on other **core** packages such as `@sigx/reactivity` or `@sigx/runtime-core` — keep those on the same `0.12.x` line. (Other `@sigx/*` families like `@sigx/lynx` run their own version lines and are unaffected.)
+
+> **Upgrading an older terminal app?** Terminal moved onto the modern core line in 0.7.0, so a `0.6.x` core no longer satisfies these ranges — bump your SignalX core to `0.12.x` alongside the terminal upgrade. Core's own breaking changes since then apply if your app relied on them (the 0.9.0 async removals — `useAsync` / `<Suspense>` → [`useData`](/core/docs/data-loading) / `<Defer>`).
 
 ## TSX setup
 

@@ -23,7 +23,7 @@ SignalX DaisyUI provides pre-built, accessible UI components powered by DaisyUI 
 pnpm add @sigx/daisyui daisyui tailwindcss
 ```
 
-The components run against your app's `sigx`, so there are no core packages to list — the only extra peers are the styling libraries `daisyui` (≥ 5) and `tailwindcss` (≥ 4), installed above. Make sure Tailwind CSS and DaisyUI are also configured in your project (see below).
+The components run against your app's `sigx`, so there are no extra core packages to install — the only extra peers are the styling libraries `daisyui` (≥ 5) and `tailwindcss` (≥ 4), installed above. `@sigx/daisyui` does require your app to be on **SignalX core 0.12.x** (`sigx`, `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`, all `>=0.12.0 <0.13.0`); an older core can't install it — pnpm's `strict-peer-dependencies` refuses outright and other package managers warn. The components' own API is unchanged across these core bumps, so they need no code changes — but upgrading a core from before 0.9.0 crosses core's async removals (`useAsync` / `<Suspense>` / `<ErrorBoundary>` → [`useData`](/core/docs/data-loading) / [`errorScope`](/core/docs/error-handling) / `<Defer>`), which an app using those must migrate even though daisyui itself is unaffected. Make sure Tailwind CSS and DaisyUI are also configured in your project (see below).
 
 ## Setup
 
