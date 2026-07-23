@@ -125,7 +125,7 @@ scope.run(() => useIntervalFn(tick, 1000));
 scope.stop(); // interval cleared
 ```
 
-This is the primitive that composables build teardown on: a `use*` helper registers its own cleanup with whatever scope calls it — no disposer argument to thread through, nothing to return.
+This is the primitive that composables build teardown on: a `use*` helper registers its own cleanup with whatever scope is active — no disposer argument to thread through. The boolean return reports whether a scope actually captured it, so a helper meant to also work outside a scope can check it and fall back to returning a manual disposer.
 
 ### watch
 
