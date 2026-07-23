@@ -234,7 +234,7 @@ export default defineSSGConfig({
             { title: 'Store', collections: ['store-docs'] },
             { title: 'daisyUI Components', collections: ['daisyui-docs', 'daisyui-api'] },
             { title: 'Static Site Generation', collections: ['ssg-docs'] },
-            { title: 'Server-Side Rendering', links: moduleLlmsLinks('server') },
+            { title: 'Server (SSR, server functions, resume & serialize)', links: moduleLlmsLinks('server') },
             { title: 'Vite Plugin', collections: ['vite-docs'] },
             { title: 'CLI', collections: ['cli-docs'] },
             { title: 'Terminal UIs', collections: ['terminal-docs'] },
