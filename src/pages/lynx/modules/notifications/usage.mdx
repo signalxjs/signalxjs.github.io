@@ -104,10 +104,10 @@ async function setupPush() {
 
 Every `add*Listener` returns an unsubscribe function. The shims are web/SSR/test-safe: with no native bridge they return a no-op unsubscribe, and a throwing handler is caught and warned so one bad listener does not break the others.
 
-Native setup. Installing `@sigx/lynx-notifications` wires most of the platform plumbing on `sigx prebuild`: its `signalx-module.json` declares the `com.google.gms.google-services` Gradle plugin and the `aps-environment` entitlement, so you no longer patch the Gradle files or add the entitlement by hand. What's still yours to provide:
+Native setup. Installing `@sigx/lynx-notifications` wires most of the platform plumbing on `sigx prebuild`: its `signalx-module.json` declares the `aps-environment` entitlement and — **when you configure Firebase** — the `com.google.gms.google-services` Gradle plugin, so you no longer patch the Gradle files or add the entitlement by hand. (The plugin is gated through the manifest's [`android.gradlePlugins[].requires`](/lynx/modules/cli/api#androidgradlepluginentry) field, set to `android.googleServicesFile`.) **Firebase is optional:** local notifications need none, and the Android build now succeeds without it (remote push stays inert until configured). What's still yours to provide:
 
 - **iOS** — add the **Push Notifications** capability and a signing identity / provisioning profile (a paid Apple Developer account). Prebuild emits the `aps-environment` entitlement — `production` in Release, `development` in Debug — but the capability and signing are configured against your team. The iOS simulator cannot receive APNs pushes — use a real device. Local notifications and tap callbacks do work in the simulator.
-- **Android** — create a Firebase project and point [`android.googleServicesFile`](/lynx/modules/cli/usage#firebase-and-entitlements) at its `google-services.json`; prebuild copies it into `android/app/` on every run and applies the Gradle plugin for you.
+- **Android** — for remote push, create a Firebase project and point [`android.googleServicesFile`](/lynx/modules/cli/usage#firebase-and-entitlements) at its `google-services.json`; prebuild then copies it into `android/app/` on every run and applies the Gradle plugin. Without it, the google-services plugin is skipped and the build still succeeds — add the config later and the next prebuild picks it up.
 
 To detach later, call `unregisterForPushNotifications()`; it resolves with `{ ok, error }`.
 

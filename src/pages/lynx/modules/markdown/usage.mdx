@@ -138,7 +138,7 @@ The `extensions` array must be a stable reference — a module constant, not an 
 
 ## Editing markdown (WYSIWYG)
 
-The `@sigx/lynx-markdown/editor` subpath provides `MarkdownEditor`, a true-WYSIWYG editor over the native `<sigx-richtext>` element. It is lightly controlled: pass `value` in and read `onChange(markdown)` out. The `value` prop is initial-only / lightly-controlled — an incoming value equal to the last emitted markdown is treated as the editor's own echo and ignored.
+The `@sigx/lynx-markdown/editor` subpath provides `MarkdownEditor`, a true-WYSIWYG editor over the `<sigx-richtext>` element (native on iOS/Android, `contenteditable` on web in v0.19.0+; a `Pressable` inside a bottom sheet is still inert on web, [lynx#764](https://github.com/signalxjs/lynx/issues/764)). It is lightly controlled: pass `value` in and read `onChange(markdown)` out. The `value` prop is initial-only / lightly-controlled — an incoming value equal to the last emitted markdown is treated as the editor's own echo and ignored.
 
 ```tsx
 import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
