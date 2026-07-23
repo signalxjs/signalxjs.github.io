@@ -128,7 +128,13 @@ export default defineSSGConfig({
         },
         // `server` is a collection — its two packages (server-renderer,
         // ssr-islands) are documented via the `server-pkg-*` collections
-        // injected by `...moduleCollections` below.
+        // injected by `...moduleCollections` below. The `server-docs`
+        // guide section documents @sigx/server (server functions / RPC),
+        // which ships from the same repo but is not a landing-page package.
+        'server-docs': {
+            path: '/server/docs',
+            showDrafts: 'dev',
+        },
         'vite-docs': {
             path: '/vite/docs',
             showDrafts: 'dev',

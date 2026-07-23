@@ -1,0 +1,240 @@
+---
+title: Authoring server functions
+description: "serverFn's two forms, input validation, the request context, errors and streaming"
+layout: docs
+category: Server Functions
+order: 20
+---
+
+# Authoring server functions
+
+A server function is created with `serverFn`. Its first parameter is always the
+**request context** (`rq` by convention) — the framework passes it, callers
+never do. Everything after it is your own typed arguments.
+
+```ts
+import { serverFn } from '@sigx/server';
+
+export const greet = serverFn(async (rq, name: string) => {
+  return `Hello, ${name}!`;
+});
+
+// client stub: greet(name: string): Promise<string>
+```
+
+## Where server functions live
+
+There are two placement conventions. Both produce the identical runtime API —
+the difference is only where the code sits and how the transform treats it.
+
+### `*.server.ts` modules
+
+Put a server function in a file whose name ends in `.server.ts` (or
+`.server.tsx`) and the **whole module is server-only**. It may import database
+clients, secrets and `node:` builtins freely. The client build swaps the module
+for typed fetch stubs, so none of that reaches the browser; the server import is
+the real module. You import from the same path on both sides:
+
+```ts
+// src/todos.server.ts
+import { serverFn } from '@sigx/server';
+import { db } from './db';
+
+export const listTodos = serverFn(async (rq) => db.todos.all());
+```
+
+### Inline, co-located with a component
+
+A **module-scope** `const x = serverFn(...)` may also sit directly in a
+component file; the build lifts it out to the server. Co-location keeps a small
+read next to the component that uses it.
+
+```tsx
+import { component, useData } from 'sigx';
+import { serverFn } from '@sigx/server';
+
+// lifted to the server; may reference its args, imports and server globals
+const serverTime = serverFn((rq) => new Date().toISOString());
+
+export const Clock = component(() => {
+  const now = useData(() => ['server-time'], serverTime);
+  return () => now.match({ ready: (t) => <p>Server time: {t}</p> });
+});
+```
+
+Because an inline function is lifted away from its surroundings, its body may
+reference only **its own parameters and locals, imports, and globals**.
+Capturing component scope, signals, props, module-scope locals, JSX, or
+type-only imports is a **build error**, not a silent bug — the transform tells
+you at compile time. When a lifted function needs shared server code, import it
+(from a `*.server.ts` module); don't close over it.
+
+> There is no closure serialization anywhere. Data crosses the boundary only as
+> the typed arguments you pass.
+
+## Two authoring forms
+
+`serverFn` accepts either an implementation directly, or an options object.
+
+### Direct form
+
+Pass the implementation. It takes the context plus any number of typed
+arguments — zero ceremony, ideal for internal calls.
+
+```ts
+export const rename = serverFn(async (rq, id: string, title: string) => {
+  return db.todos.rename(id, title);
+});
+```
+
+The parameter types are **compile-time only**: the wire arguments are not
+schema-validated and the argument count is not enforced at runtime. Use the
+direct form for trusted, app-internal calls; reach for the options form (below)
+when a function is a validated boundary.
+
+### Options form
+
+Pass `{ input, use, handler, … }` for a validated, middleware-wrapped boundary.
+It takes exactly **one** input, described by a
+[Standard Schema](https://standardschema.dev) (Zod, Valibot, ArkType, …) that
+runs on every transport.
+
+```ts
+import { serverFn } from '@sigx/server';
+import * as z from 'zod';
+
+const QuoteInput = z.object({ symbol: z.string(), qty: z.number().int() });
+
+export const quote = serverFn({
+  input: QuoteInput,        // validated server-side on every call → 400 on failure
+  use: [requireAuth],       // guards run before the handler, on every transport
+  async handler(rq, input) {
+    return priceQuote(rq.locals.user, input); // input is typed from the schema
+  },
+});
+```
+
+The input type `S` is inferred from `input`; if you omit `input`, it is inferred
+from the `handler`'s parameter annotation. With neither, `S` is `void` and the
+callable takes **no** arguments — you call it as `fn()`, not `fn(undefined)`.
+
+`ServerFnOptions` fields:
+
+| Field | Purpose |
+|---|---|
+| `input?` | A Standard Schema. Always validated server-side; a rejection becomes `ServerFnError(400, 'Invalid input', { issues })`. Also the source of the input type. |
+| `use?` | An array of guards — `(rq, info) => void \| Promise<void>` — run before the handler on **every** transport (including in-process SSR calls). Veto by throwing; hand data to the handler via `rq.locals`. |
+| `handler` | The implementation: `(rq, input) => R \| Promise<R>`. |
+| `invalidates?` | `(input, result) => InvalidatePattern[]` — cache keys to invalidate after the handler runs. **Declare it after `handler`** so TypeScript infers `result`. Patterns are key strings, tuple prefixes, or server-function references. |
+| `cache?` | Marks a side-effect-free GET read (`{ maxAge, staleWhileRevalidate?, public?, sMaxAge? }`) and emits `Cache-Control`. Mutually exclusive with `invalidates`. |
+| `form?` | `true` marks a progressive-enhancement form target (accepts form-encoded bodies, does a 303 redirect). Must be the literal `true`, and **requires `input`** — a form target without an input schema is a definition-time error. Mutually exclusive with `cache`. |
+| `id?` | An explicit, stable string id that pins the route across file moves/renames. |
+
+## The request context
+
+The first parameter carries everything about the current request:
+
+```ts
+interface ServerFnContext {
+  request: Request;         // the WinterCG request — headers, cookies, method
+  url: URL;                 // the parsed request URL
+  abortSignal: AbortSignal; // fires when the client disconnects
+  responseHeaders: Headers; // mutable — set cookies/headers on the response
+  status(code: number): void; // override the success status code
+  locals: Record<string, unknown>; // guard → handler hand-off (e.g. the auth result)
+}
+```
+
+Pass `rq.abortSignal` straight to any `fetch` you make so upstream work is
+cancelled when the caller goes away:
+
+```ts
+export const search = serverFn(async (rq, q: string) => {
+  const res = await fetch(`https://api.example.com/search?q=${q}`, {
+    signal: rq.abortSignal,
+  });
+  return res.json();
+});
+```
+
+### Calling a server function during SSR
+
+When a server function runs **in-process** during server rendering (rather than
+over HTTP), there is no incoming HTTP request to expose, so the default context
+is *detached*: reading `rq.request` or `rq.url` throws a descriptive error.
+Supply a request when you need one:
+
+- **Per call** — `await getCart.with({ context: request })(cartId)`. Works on
+  every runtime; `.with({ context })` takes a `Request` or a partial
+  `ServerFnContext`.
+- **Ambient** — wrap a region in `runWithServerFnContext(request, () => …)` from
+  `@sigx/server/node` (backed by `AsyncLocalStorage`). The Node and edge request
+  handlers already open this scope, so most apps get an ambient context for free
+  and never call either API.
+
+On the client, `.with()` is ignored (with a dev warning) — context is a
+server-only concept.
+
+## Errors
+
+Throw `ServerFnError` to send a typed, client-visible failure. It crosses the
+wire verbatim as `{ status, message, data? }`:
+
+```ts
+import { serverFn, ServerFnError, isServerFnError } from '@sigx/server';
+
+export const publish = serverFn(async (rq, id: string) => {
+  const post = await db.posts.find(id);
+  if (!post) throw new ServerFnError(404, 'No such post');
+  if (post.locked) throw new ServerFnError(409, 'Post is locked', { id });
+  return db.posts.publish(id);
+});
+```
+
+```tsx
+try {
+  await publish.run(id);
+} catch (err) {
+  if (isServerFnError(err) && err.status === 409) {
+    // err.message and err.data are the values thrown on the server
+  }
+}
+```
+
+Every **other** thrown error is masked: in production the client sees a generic
+500, and the original never fires the app's `onError`. `ServerFnError` is the
+deliberate channel for failures the caller is meant to handle.
+
+## Streaming
+
+`serverStream` returns values over time. The implementation is an async
+generator; the client stub is an `AsyncIterable` you can `for await` over, and a
+string stream drops straight into [`useStream`](/core/docs/data-loading):
+
+```ts
+// src/chat.server.ts
+import { serverStream } from '@sigx/server';
+
+export const streamReply = serverStream(async function* (rq, prompt: string) {
+  const completion = await llm.stream(prompt, { signal: rq.abortSignal });
+  for await (const token of completion) yield token; // sent as NDJSON
+});
+```
+
+```tsx
+const reply = useStream(() => ['reply', prompt], streamReply);
+return () => <p>{reply.text}</p>;
+```
+
+Streams are lazy — the request starts on the first iteration, and a consumer
+that `break`s or returns early aborts the fetch and runs the generator's
+`finally`. There is no options form for `serverStream`; validate arguments at the
+top of the generator (any Standard Schema validates a value standalone). Response
+status and headers freeze at the first `yield`.
+
+## Next steps
+
+- [Deployment & security](/server/docs/deployment) — serve the endpoint in dev,
+  Node and edge runtimes, and the security defaults you're getting.
+- [Data Loading](/core/docs/data-loading) — `useData` / `useAction` / `useStream`,
+  the value-first primitives server functions feed.
