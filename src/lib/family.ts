@@ -82,7 +82,7 @@ const RAW_PACKAGES: SigxPackage[] = [
     { id: 'server', npm: '@sigx/server-renderer', title: 'Server', cat: 'render', target: 'web', kind: 'collection', umbrella: false,
       hue: 210, glyph: '⊟', status: 'stable', version: '0.13.0',
       tag: 'SSR, server functions, resume & serialize',
-      blurb: 'The server-side stack: streaming SSR and hydration, island selective hydration, type-safe server functions (RPC), resumable boundary refresh, and the serialization codec that ties them together.' },
+      blurb: 'The full-stack server layer for SignalX — type-safe RPC you call like a function, resumable SSR that ships almost no JS, streaming render with islands, and a codec that carries your own types across the wire.' },
 
     // ---- Targets with their own framework package ----
     { id: 'lynx', npm: '@sigx/lynx', title: 'Lynx', cat: 'platform', target: 'lynx', kind: 'collection',
