@@ -23,7 +23,19 @@ sigx prebuild   # auto-links the native module
 
 ## About
 
-`@sigx/lynx-notifications` is a Lynx module — local notifications. It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.
+`@sigx/lynx-notifications` is a Lynx module — local notifications plus remote push (APNs / FCM). It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.
+
+## Remote message shapes
+
+What reaches your app from a remote push depends on the payload shape. These are APNs (iOS) and FCM (Android) transport rules, not module policy:
+
+| Payload | iOS (APNs) | Android (FCM) |
+|---|---|---|
+| `notification` + `data` | OS shows the tray entry; `data` arrives on tap and cold start. **The dependable shape on both platforms.** | OS shows the tray entry; `data` arrives on tap. |
+| `notification` only | Tray entry shown; no custom `data`. | Tray entry shown; no custom `data`. |
+| `data` only | Not delivered to JS in this release (it depends on silent-push support still in flight — treat data-only as unavailable on iOS for now). | Delivered to the module — set `data.title` (plus optional `data.body` / `data.notification_id`) to post a tray entry. FCM wakes a backgrounded or terminated app for data-only messages, so this is the reliable tap path on Android. |
+
+> The iOS rows describe intended behavior that is code-reviewed but **not yet verified on a physical device** — validate on-device before relying on them.
 
 ## Next steps
 

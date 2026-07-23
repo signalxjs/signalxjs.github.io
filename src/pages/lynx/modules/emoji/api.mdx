@@ -21,7 +21,7 @@ Each component has its own page with usage, props, slots and events — see the 
 - [**EmojiPicker**](/lynx/modules/emoji/components/emojipicker) — the full headless picker: search row, category tab bar, recycled glyph grid, skin-tone popover and a persistent recents tab.
 - [**KeyboardPanelPicker**](/lynx/modules/emoji/components/keyboardpanelpicker) — chat-composer wrapper: a panel occupying exactly the soft keyboard's space, so toggling emoji and keyboard does not shift the composer.
 - [**SheetPicker**](/lynx/modules/emoji/components/sheetpicker) — overlay wrapper: a bottom sheet over a dimmed backdrop, for a reaction picker or one-off use.
-- [**EmojiGrid**](/lynx/modules/emoji/components/emojigrid) — the headless grid: a native `<list>` recycler in flow layout, so only on-screen cells exist regardless of count.
+- [**EmojiGrid**](/lynx/modules/emoji/components/emojigrid) — the headless grid: the windowed `List` from `@sigx/lynx-list` in flow layout, so only on-screen cells exist regardless of count.
 - [**EmojiCell**](/lynx/modules/emoji/components/emojicell) — one grid cell: a `Pressable` glyph; tap picks, long-press emits `pickTone` when the emoji has uniform tone variants.
 - [**CategoryTabBar**](/lynx/modules/emoji/components/categorytabbar) — the headless category jump bar: a horizontal scroll-view row of glyph tabs that filter which category the grid shows.
 - [**SearchInput**](/lynx/modules/emoji/components/searchinput) — the headless search field: a bare two-way-bound `<input>` with a neutral fallback border when no `class` is given.
@@ -192,6 +192,8 @@ export type EmojiGridProps =
   & Define.Prop<'tone', SkinTone, false>
   & Define.Prop<'columns', number, false>
   & Define.Prop<'cellSize', number, false>
+  & Define.Prop<'itemsKey', string, false>
+  & Define.Prop<'initialHeight', number, false>
   & Define.Prop<'class', string, false>
   & Define.Prop<'cellClass', string, false>
   & Define.Prop<'renderCell', EmojiRenderCell, false>

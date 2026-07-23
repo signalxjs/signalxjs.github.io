@@ -233,7 +233,7 @@ The model is sticky and grid-wide (WhatsApp / Telegram style): long-press a tona
 ## Gotchas
 
 - **The picker needs a bounded-height container.** It is a flex column; without a concrete height ceiling it resolves to zero height and nothing renders. Wrap it (or use a sheet/panel wrapper, which sizes itself).
-- **First paint is one frame after mount.** The grid uses a native `<list>` recycler that only lays out at a concrete px height, so a measuring wrapper pins it to the measured size after the first layout.
+- **First paint is one frame after mount.** The grid renders through the windowed `List` from `@sigx/lynx-list`, which only lays out at a concrete px height, so a measuring wrapper pins it to the measured size after the first layout. Windowing keeps a category to ~120 live cells regardless of its length; a tab switch or new search re-anchors the grid to the top, and `initialHeight` skips the first-frame placeholder.
 - **`EmojiPicker` throws if no dataset is available** — pass a `data` prop, or render it inside an `EmojiProvider`.
 - **`useEmojiContext()` returns `null` outside a provider** — branch on it if you read the context directly.
 

@@ -59,10 +59,28 @@ the measured pixel height.
 ```
 
 First paint is one frame after mount (a 1px placeholder shows until the measure
-lands). For **uniform** rows, pass `estimatedItemSize` (main-axis px) to improve
+lands) — pass `initialMainAxisSize` to pin a known first-frame height and skip the
+placeholder flash (the live measure still wins once it lands). For **uniform**
+rows, pass `estimatedItemSize` (main-axis px) to improve
 scroll-bar accuracy and reduce fill-in during fast flings. Omit it for
 variable-height content such as chat bubbles — a too-small estimate briefly
 clips taller cells until they self-measure.
+
+## Swapping datasets
+
+`items` is meant to evolve in place — append, prepend, insert, edit — and the
+window keeps its scroll position across those changes. When you instead replace it
+with a **different logical list** (switching tabs or categories, showing fresh
+search results), pass `itemsKey` and change it on the swap:
+
+```tsx
+<List items={rows} itemsKey={activeTab} renderItem={renderRow} windowSize={40} />
+```
+
+On an `itemsKey` change the list treats `items` as brand new: the window
+re-anchors to its initial position and scroll resets to the start (the bottom in
+`inverted` chat mode), so a fresh dataset never inherits the previous offset. Omit
+`itemsKey` for the append/prepend/edit flows where you want the position kept.
 
 ## Grid & waterfall
 

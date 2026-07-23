@@ -8,7 +8,7 @@ order: 104
 
 # EmojiGrid
 
-<p class="lede">The headless recycled glyph grid — a native <code>&lt;list&gt;</code> recycler in flow layout, so only the on-screen cells exist regardless of how many emoji you feed it. One of the parts <a href="/lynx/modules/emoji/components/emojipicker">EmojiPicker</a> is assembled from, for when you want a custom layout.</p>
+<p class="lede">The headless recycled glyph grid — the windowed <code>List</code> from <code>@sigx/lynx-list</code> in flow layout, so only the on-screen cells exist regardless of how many emoji you feed it. One of the parts <a href="/lynx/modules/emoji/components/emojipicker">EmojiPicker</a> is assembled from, for when you want a custom layout.</p>
 
 ## Import
 
@@ -18,7 +18,7 @@ import { EmojiGrid } from '@sigx/lynx-emoji';
 
 ## Basic usage
 
-`EmojiGrid` takes a flat array of `EmojiDatum` and renders them as a tappable recycler. Because flex / percent heights on the native list resolve to zero, `class` and `style` land on a self-measuring wrapper that pins the list to a concrete px height — first paint is one frame after mount. `onPick` fires on tap; `onPickTone` fires on long-press of a tonal emoji (one that has uniform skin-tone variants).
+`EmojiGrid` takes a flat array of `EmojiDatum` and renders them through the windowed `List` from `@sigx/lynx-list`. Because flex / percent heights on the native list resolve to zero, `class` and `style` land on a self-measuring wrapper that pins the list to a concrete px height — first paint is one frame after mount. `onPick` fires on tap; `onPickTone` fires on long-press of a tonal emoji (one that has uniform skin-tone variants).
 
 ```tsx
 import { EmojiGrid, enData } from '@sigx/lynx-emoji';
@@ -92,6 +92,8 @@ function LabeledGrid() {
 | `tone` | `SkinTone` | Skin tone applied grid-wide; `0` is the base glyph, `1..5` are light to dark. Default `0`. |
 | `columns` | `number` | Number of columns in the flow layout. Default `8`. |
 | `cellSize` | `number` | Cell edge length in px. Default `26`. |
+| `itemsKey` | `string` | Dataset identity, forwarded to `List.itemsKey`. When it changes, the grid re-anchors to the top (a new category, fresh search hits). `EmojiPicker` sets it for you. |
+| `initialHeight` | `number` | Pins the grid's first-frame height (forwarded to `List.initialMainAxisSize`) to skip the placeholder flash; the live measure still wins once it lands. |
 | `class` | `string` | Classes on the self-measuring wrapper that pins the list height. |
 | `cellClass` | `string` | Classes applied to each cell. |
 | `renderCell` | `EmojiRenderCell` | `(datum, glyph) => JSXElement` — replaces a cell's content (rendered inside the cell's `Pressable`). |
