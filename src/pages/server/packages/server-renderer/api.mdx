@@ -172,19 +172,24 @@ function renderVNodeToString(element: JSXElement, ctx: SSRContext, appContext?: 
 
 ### createSSR
 
-Creates a plugin-driven SSR instance. Register plugins via `.use()`, then render
-with `.renderDocument()`/`.renderDocumentToNodeStream()`/`.renderDocumentToWebStream()`
-(complete documents) or the lower-level `.render()`/`.renderStream()`/
-`.renderNodeStream()`/`.renderStreamWithCallbacks()`. With no plugins the hooks are
-no-ops and it behaves like the standalone functions. The strategy-agnostic core —
-islands/selective/resumable hydration are layered on as `SSRPlugin`s. The
-`renderDocument*` methods append `stateSerializationPlugin()` automatically unless
-the instance already registered it or `serializeState: false` is passed.
+Creates an SSR render pipeline. Plugins are **installed on the app**
+(`app.use(pack())`) and merged in per render call — the public install path;
+`SSRInstance.use()` was removed in 0.13. Pass a render input as a JSX element or an
+`App`, and render complete documents with `.renderDocument()`/
+`.renderDocumentToNodeStream()`/`.renderDocumentToWebStream()`, or a shell with the
+lower-level `.render()`/`.renderStream()`/`.renderNodeStream()`/
+`.renderStreamWithCallbacks()`. With no plugins the hooks are no-ops and it behaves
+like the standalone functions; islands/selective/resumable hydration are layered on
+as `SSRPlugin`s. The `renderDocument*` methods append `stateSerializationPlugin()`
+automatically unless it is already registered or `serializeState: false` is passed.
 
 ```ts
-function createSSR(): SSRInstance
+function createSSR(instanceOptions?: CreateSSROptions): SSRInstance
 ```
 
+- **instanceOptions** — advanced/internal `{ plugins? }`; prefer installing packs
+  with `app.use(pack())`. Instance plugins run before app-carried ones (deduped by
+  name, first wins).
 - **Returns** — an `SSRInstance`.
 - Exported from the main entry.
 
@@ -197,9 +202,45 @@ HTML, plugin data, streaming mode, and pending async components.
 function createSSRContext(options?: SSRContextOptions): SSRContext
 ```
 
-- **options** — `streaming` and `onComponentError`.
+- **options** — `streaming`, `onComponentError`, and `appContext` (seed the
+  context from an existing `AppContext` so `inject()` resolves during render).
 - **Returns** — a new `SSRContext`.
 - Exported from the main entry and `/server`.
+
+### SSRContext state & pack authoring (0.13)
+
+The request-scoped `SSRContext` exposes a typed contract for pack authors:
+
+```ts
+// register request-scoped state to ship to the client under a key
+registerSerializedState(key: string, value: unknown): void;
+// the component currently rendering, and the recorded hydration boundaries
+currentComponentId(): number | undefined;
+boundaries(): ReadonlyMap<number, SSRBoundaryRecord>;
+```
+
+- **`registerSerializedState(key, value)`** — publish a value into the page's
+  `window.__SIGX_ASYNC__` blob under `key`. The blob is **codec-aware**: top-level
+  and nested `Date` / `Map` / `Set` / `bigint` / `URL` / `RegExp` / explicit
+  `undefined` — plus any registered custom type handlers — round-trip, not just
+  JSON primitives. Functions and circular references are still rejected.
+- A plugin can also implement the **`onStreamEnd(ctx)`** server hook — called once
+  after the streaming loop drains, before the completion script — to flush
+  end-of-response state.
+
+Packs install through a small public seam:
+
+```ts
+interface SSRPack extends SSRPlugin { install(app: App): void }
+```
+
+- **`SSRPack`** — an `SSRPlugin` with an `install(app)` method; `app.use(pack)`
+  calls it. Inside, `provideSSRPlugin(app._context, pack)` registers the plugin on
+  the app so the render pipeline picks it up (`getSSRPlugins` / `SSR_PLUGINS_TOKEN`
+  read it back).
+- **`reviveFromServer(...)`** — now public — revives a value serialized into the
+  hydration blob (applying the same codec + custom handlers) on the client; it is
+  exported from the client entry (`@sigx/server-renderer/client`).
 
 ## Head management
 
@@ -229,9 +270,10 @@ function renderHeadToString(configs: HeadConfig[]): string
 
 The built-in `SSRPlugin` (name `'sigx:state'`) that ships values resolved by keyed
 `useData`/`useStream` to the client as `window.__SIGX_ASYNC__`, keyed by the
-calls' explicit keys, so fetchers don't re-run after hydration. **Opt-in** for the
-lower-level render APIs (`createSSR().use(stateSerializationPlugin())`); the
-`renderDocument*` family enables it by default.
+calls' explicit keys, so fetchers don't re-run after hydration. It's a plain
+`SSRPlugin`, so opt in for the lower-level render APIs by passing it to
+`createSSR({ plugins: [stateSerializationPlugin()] })`; the `renderDocument*` family
+enables it by default.
 
 ```ts
 function stateSerializationPlugin(): SSRPlugin
@@ -447,13 +489,13 @@ function setCurrentAppContext(ctx: AppContext | null): void
 
 ### SSRInstance
 
-The object returned by `createSSR()`. `use()` is chainable. Render methods accept
+The object returned by `createSSR()`. Plugins come from the app you render
+(`app.use(pack())`) — there is no `use()` method as of 0.13. Render methods accept
 `SSRContextOptions` or a pre-built `SSRContext`. `createContext()` builds a raw
 `SSRContext` with this instance's plugins pre-configured.
 
 ```ts
 interface SSRInstance {
-  use(plugin: SSRPlugin): SSRInstance;
   // Complete-document rendering (state serialization on by default)
   renderDocument(input: JSXElement | App, options: DocumentOptions): Promise<string>;
   renderDocumentToNodeStream(input: JSXElement | App, options: DocumentOptions): { stream: import('node:stream').Readable; shell: Promise<void> };

@@ -269,16 +269,17 @@ only when you have a reason to own the document assembly. For everything else,
 
 ## Plugin-driven rendering
 
-`renderDocument` and the lower-level functions all delegate to a shared
-`createSSR()` pipeline. Register plugins (islands, a custom strategy) on an
-instance and call the same methods on it:
+`renderDocument` and the lower-level functions all read the SSR plugins installed
+on the app, so you register a pack (islands, a custom strategy) with `app.use(pack())`
+and render as usual:
 
 ```tsx
 import { createSSR } from '@sigx/server-renderer';
 import { islandsPlugin } from '@sigx/ssr-islands';
+import { defineApp } from 'sigx';
 
-const ssr = createSSR().use(islandsPlugin());
-const html = await ssr.renderDocument(app, { template });
+const app = defineApp(<App />).use(islandsPlugin());
+const html = await createSSR().renderDocument(app, { template });
 ```
 
 ## Next steps

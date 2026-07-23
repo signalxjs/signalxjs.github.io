@@ -34,7 +34,8 @@ The core `stateSerializationPlugin` emits that registry into `window.__SIGX_ASYN
 ```ts
 import { createSSR, stateSerializationPlugin } from '@sigx/server-renderer';
 
-const ssr = createSSR().use(stateSerializationPlugin());
+// a plain SSRPlugin — pass it when you create the SSR pipeline
+const ssr = createSSR({ plugins: [stateSerializationPlugin()] });
 ```
 
 Detection of the server is **duck-typed** via the component instance's `ssr` helper — `@sigx/store` has **no dependency on `@sigx/server-renderer`**. A store created on the server outside a render context (no instance to detect) serializes nothing; it never falls through to the client path, so one request's state can't leak into another.

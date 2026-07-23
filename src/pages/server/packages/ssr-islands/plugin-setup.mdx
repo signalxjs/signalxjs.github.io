@@ -12,18 +12,19 @@ order: 50
 
 ## Registering the plugin
 
-Add it to your SSR instance with `.use()`:
+Install it on your app with `.use()`:
 
 ```tsx
 import { createSSR } from '@sigx/server-renderer';
 import { islandsPlugin } from '@sigx/ssr-islands';
+import { defineApp } from 'sigx';
 import { App } from './App';
 
 // Minimal HTML shell — the rendered app replaces the outlet marker.
 const template = `<!DOCTYPE html><html><body><!--ssr-outlet--></body></html>`;
 
-const ssr = createSSR().use(islandsPlugin());
-const html = await ssr.renderDocument(<App />, { template });   // or ssr.render(<App />) for a shell
+const app = defineApp(<App />).use(islandsPlugin());
+const html = await createSSR().renderDocument(app, { template });   // or .render(app) for a shell
 ```
 
 That single registration wires both the server hooks (during render) and the
@@ -97,8 +98,8 @@ interface IslandsPluginOptions {
 Add your own scheduling strategy alongside the built-in six. A strategy receives
 the element and a `hydrate` callback to invoke when it should run:
 
-```ts
-const ssr = createSSR().use(islandsPlugin({
+```tsx
+const app = defineApp(<App />).use(islandsPlugin({
     strategies: {
         // hydrate after a fixed delay
         delayed: (el, hydrate) => setTimeout(hydrate, 2000),
@@ -114,10 +115,10 @@ client can then load each chunk on demand **without** an eager
 [`sigxIslands()`](/vite/docs/ssr#the-islands-transform) from `@sigx/vite/islands`
 during the build, at `.vite/sigx-islands-manifest.json`:
 
-```ts
+```tsx
 import manifest from './dist/client/.vite/sigx-islands-manifest.json';
 
-const ssr = createSSR().use(islandsPlugin({ manifest }));
+const app = defineApp(<App />).use(islandsPlugin({ manifest }));
 ```
 
 With a manifest, each island's `chunkUrl` and `exportName` are written into its

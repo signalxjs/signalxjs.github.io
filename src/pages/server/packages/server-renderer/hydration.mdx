@@ -153,7 +153,7 @@ The core renderer and hydrator are strategy-agnostic. Every advanced hydration
 strategy — selective, islands, resumable, `Defer` — is an `SSRPlugin` with
 optional `server` and `client` hook sets.
 
-- Register **server** hooks with `createSSR().use(plugin)`.
+- Register a hand-written `SSRPlugin`'s **server** hooks by passing it to `createSSR({ plugins: [myPlugin] })`. (Published packs like `islandsPlugin()` are `SSRPack`s — an `SSRPlugin` plus an `install(app)` method — so you install *those* on the app with `app.use()`.)
 - Register **client** hooks with `registerClientPlugin(plugin)`.
 
 ```tsx
@@ -191,8 +191,7 @@ const myPlugin: SSRPlugin = {
     },
 };
 
-const ssr = createSSR().use(myPlugin);
-const html = await ssr.render(<App />);
+const html = await createSSR({ plugins: [myPlugin] }).render(<App />);
 ```
 
 Key hook semantics:

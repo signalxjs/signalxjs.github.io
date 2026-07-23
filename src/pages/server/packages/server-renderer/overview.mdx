@@ -38,7 +38,7 @@ only ship what you use. For `client:*` selective hydration, add
   mismatch self-healing.
 - **Head management** — `useHead()` (from `sigx`) collects title/meta/link/script
   from inside components; the document renderer injects them before `</head>`.
-- **A plugin SPI** — `createSSR().use(plugin)` plus `registerClientPlugin()` — the
+- **A plugin SPI** — install packs with `app.use(plugin)`, plus `registerClientPlugin()` — the
   extension points islands, resumable, and `Defer` strategies build on.
 
 ## The three subpaths
