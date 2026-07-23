@@ -56,7 +56,7 @@ Platform notes: iOS honors `options.delay` (in seconds); when omitted it fires a
 cancel(notificationId: string): Promise<void>
 ```
 
-Cancels a scheduled or delivered notification by id. No-op if the id is not scheduled.
+Cancels a pending scheduled notification with this id **and** dismisses any *delivered* tray entry — local or remote push — whose `data.notification_id` matches it. No-op when nothing matches. Put a stable per-conversation `notification_id` in the push payload so a message read on another device can clear its tray entry here; the same id keys tap responses, and setting APNs `apns-collapse-id` to it lets iOS replace in place (Android same-id pushes always replace).
 
 ### cancelAll
 

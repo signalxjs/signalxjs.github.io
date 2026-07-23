@@ -128,7 +128,21 @@ const initial = await Notifications.getInitialNotification();
 if (initial) routeTo(initial.data.screen);
 ```
 
-On Android, taps currently route to `addNotificationResponseListener` only for remote notifications delivered through the Firebase messaging service; local notifications scheduled via `schedule()` do not yet route taps on Android.
+On Android, taps currently route to `addNotificationResponseListener` only for remote notifications delivered through the Firebase messaging service; local notifications scheduled via `schedule()` do not yet route taps on Android. When the payload carries a `data.notification_id`, the tap response's `notificationId` reports that value (rather than the system-assigned request id), so the tap contract holds for remote pushes.
+
+## Conversation stacking (Android)
+
+For chat-style apps, Android can render a **conversation** in the tray instead of replacing the last message. Set `data.style: "messaging"` on the push, and each notification sharing a `data.notification_id` **accumulates** — appending a line (the last several are kept) rather than overwriting the body — through Android's `MessagingStyle`.
+
+Supporting `data` keys (each accepts snake_case or camelCase):
+
+- `data.sender_name` / `senderName` — attributes the line; falls back to `title`.
+- `data.conversation_title` / `conversationTitle` — the header; carried over from earlier pushes when omitted.
+- `data.group` — bundles entries that share the value under one expandable tray group with an auto-posted summary. `Notifications.cancel(group)` dismisses the summary.
+
+Plain (non-messaging) pushes keep replace-in-place, and below Android 6.0 stacking falls back to replace-in-place. The tap payload is the latest push's `data`, and `cancel(notification_id)` clears the whole stacked entry.
+
+On **iOS** there are no module keys for this — set the APNs `aps.thread-id` to the conversation id and the OS groups the thread natively.
 
 ## Badge counts
 
