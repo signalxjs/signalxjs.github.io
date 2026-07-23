@@ -82,7 +82,7 @@ interface CacheActionOptions {
 |---|---|
 | `invalidates` | Keys to invalidate after the action settles. An entry is an **exact key** or a **tuple prefix** — `['users']` matches every `['users', …]` read. |
 | `optimistic.key` | The read entry to write through before the action settles. |
-| `optimistic.apply` | Produces the provisional value from `(current, input)`. Rolled back on failure — unless a newer write landed on the entry meanwhile. Both params infer as `unknown` (the cached state can't be inferred from the action), so **annotate them** — e.g. `apply: (current: User \| null, next: Rename) => …`. `current` is `null` when the target read has nothing cached yet. |
+| `optimistic.apply` | Produces the provisional value from `(current, input)`. Rolled back on failure — unless a newer write landed on the entry meanwhile. Both params infer as `unknown` (the cached state can't be inferred from the action), so **annotate them** — e.g. `apply: (current: User \| null \| undefined, next: Rename) => …`. `current` is nullish (`null`/`undefined`) when the target read has nothing cached yet. |
 
 ## `CachedAsyncState<T>`
 
