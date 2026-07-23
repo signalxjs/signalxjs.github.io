@@ -75,7 +75,7 @@ function Feed({ items }: { items: string[] }) {
 
 A theme is a named palette plus optional radius and size overrides. The registry starts **empty** — a DS seeds it at module load by calling `registerTheme()`. Insertion order matters: the first registered theme of a variant is the follow-system default for that variant, and the very first registered theme is the last-resort fallback.
 
-`ThemeProvider` applies the active theme's palette as real, inheritable CSS custom properties using the Lynx `setProperty` runtime API. (Lynx does not honor inline-style custom properties, which is why the provider does this imperatively.) Mount it once near the root of your app.
+`ThemeProvider` applies the active theme's palette as **inline CSS custom properties** on its host `view`, which descendants inherit — so the theme paints on the first frame (Lynx ≥ 3.9). Mount it once near the root of your app.
 
 ```tsx
 import { ThemeProvider, StatusBarSync } from '@sigx/lynx-zero';
@@ -235,7 +235,7 @@ registerTheme({
 });
 ```
 
-The `*-soft` tints are materialized in JS at registration time: each is `mixColors` of the variant color into `base-100` by `softMix` (default `0.16`). This happens in JS because Lynx CSS cannot alpha-compose `var()` colors. Set `softMix` on the theme input to tune the strength, or `staticCss: true` if your DS ships a build-time class for correct first paint.
+The `*-soft` tints are materialized in JS at registration time: each is `mixColors` of the variant color into `base-100` by `softMix` (default `0.16`). This happens in JS because Lynx CSS cannot alpha-compose `var()` colors. Set `softMix` on the theme input to tune the strength. (First paint is already correct — themes ride inline CSS variables now, so the old `staticCss` build-time class is gone.)
 
 To derive a tenant or sub-brand from an existing registered theme, use `extendTheme` and feed the result back to `registerTheme`. It recomputes any soft tints the patch didn't set, and throws if the base name isn't registered.
 
