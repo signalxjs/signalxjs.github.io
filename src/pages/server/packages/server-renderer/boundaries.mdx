@@ -107,7 +107,17 @@ const moneyHandler = defineTypeHandler({
 });
 ```
 
-Register it once and both the SSR state blob and [server functions](/server/docs/authoring) use it — pass it through the server plugin's `types` option (`serverPlugin({ types: [moneyHandler] })`). A registered handler then round-trips wherever the codec runs: `__SIGX_ASYNC__`, the boundary table, and server-function arguments and results.
+A simple `instanceof` or discriminant `test` infers `T` cleanly; a **compound** predicate that TypeScript can't narrow may need an explicit type argument — `defineTypeHandler<Money>({ … })`.
+
+Register the handler once and both the SSR state blob and [server functions](/server/docs/authoring) use it — pass it through the `@sigx/server/plugin` app plugin's `types` option:
+
+```ts
+import { serverPlugin } from '@sigx/server/plugin';
+
+app.use(serverPlugin({ types: [moneyHandler] }));
+```
+
+A registered handler then round-trips wherever the codec runs: `__SIGX_ASYNC__`, the boundary table, and server-function arguments and results.
 
 `reviveWithHandlers<T>(value, handlers)` applies the same codec manually when you already hold a serialized tree, and the bare `TypeHandler<T, Encoded>` interface is the non-inferring shape (`test(): boolean`) for handlers authored without the `defineTypeHandler` guard.
 

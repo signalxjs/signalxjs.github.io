@@ -90,8 +90,9 @@ export const rename = serverFn(async (rq, id: string, title: string) => {
 The parameter types are **compile-time only**: the wire arguments are not
 schema-validated and the argument count is not enforced at runtime. In
 development, a direct-form function that receives wire input logs a one-time
-warning — a nudge to move validation into the options form's `input` schema once a
-function is a real client boundary. Use the direct form for trusted, app-internal
+warning — reported as the function receiving input it does not declare — a nudge to
+move validation into the options form's `input` schema once a function is a real
+client boundary. Use the direct form for trusted, app-internal
 calls; reach for the options form (below) when a function is a validated boundary.
 
 ### Options form
