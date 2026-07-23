@@ -8,7 +8,7 @@ order: 101
 
 # EmojiPicker
 
-<p class="lede">The full headless emoji picker: a search row, a category tab bar, a recycled glyph grid, a skin-tone long-press popover and a persistent recents tab. Unstyled beyond neutral inline fallbacks — theme it via <code>classes</code>, render props or a themed wrapper. Pure JS, identical on iOS and Android.</p>
+<p class="lede">The full headless emoji picker: a search row, a category tab bar over one continuous scroll of sticky-headed sections, a skin-tone long-press popover and a recents section. Unstyled beyond neutral inline fallbacks — theme it via <code>classes</code>, render props or a themed wrapper. Pure JS, identical on iOS and Android.</p>
 
 ## Import
 
@@ -39,7 +39,7 @@ The `onPick` payload is an [`EmojiPickEvent`](/lynx/modules/emoji/api) carrying 
 
 ## Layout and labels
 
-`columns`, `cellSize`, `showRecents`, `showSearch`, `searchPlaceholder` and `emptyLabel` tune the surface without touching the theme. The grid defaults to `8` columns of `26`px cells; `emptyLabel` shows when the current slice is empty.
+`columns`, `cellSize`, `showRecents`, `showSearch`, `searchPlaceholder`, `recentsLabel` and `emptyLabel` tune the surface without touching the theme. By default the grid **sizes itself to its container** — it derives a column count from the available width and a matching cell size, resolved once at mount as an atomic pair; pass `columns` or `cellSize` to pin either half. `emptyLabel` shows when the current slice is empty.
 
 ```tsx
 import { EmojiPicker, enData } from '@sigx/lynx-emoji';
@@ -61,9 +61,15 @@ function CompactPicker({ onInsert }: { onInsert: (glyph: string) => void }) {
 }
 ```
 
+## Sections and the tab bar
+
+The picker is **one continuous scroll** over every category, each introduced by a sticky full-span header. Tapping a category tab scrolls to that section (the grid never re-mounts), and the active tab follows as you scroll. Recents are the first section — snapshotted per mount and hidden when empty; set its label with `recentsLabel`. Style the sticky headers through the `sectionHeader` slot in `classes` — the headless fallback has no background, so a theme should give it one.
+
+Mounting is **non-blocking**: the first viewports of glyphs stage synchronously and the rest stream in over the following frames, so opening the picker never janks keyboard input, and cold-start recents hydrate before the snapshot.
+
 ## Theming
 
-The picker is headless with neutral inline-style fallbacks only. There are two theming surfaces: the `classes` slot map ([`EmojiSlotClasses`](/lynx/modules/emoji/api), 13 slots — `root`, `search`, `grid`, `cell`, and so on) and the three render props (`renderCell`, `renderCategoryTab`, `renderSearchInput`). When a class is supplied for a slot, that slot's inline fallback style is dropped. `@sigx/lynx-daisyui` ships a ready-made skin.
+The picker is headless with neutral inline-style fallbacks only. There are two theming surfaces: the `classes` slot map ([`EmojiSlotClasses`](/lynx/modules/emoji/api) — `root`, `search`, `grid`, `sectionHeader`, `cell`, and so on) and the three render props (`renderCell`, `renderCategoryTab`, `renderSearchInput`). When a class is supplied for a slot, that slot's inline fallback style is dropped. `@sigx/lynx-daisyui` ships a ready-made skin.
 
 ```tsx
 import { EmojiPicker, enData } from '@sigx/lynx-emoji';
@@ -109,13 +115,14 @@ For chat-composer and bottom-sheet presentations, prefer the [`KeyboardPanelPick
 | Prop | Type | Description |
 |------|------|-------------|
 | `data` | `EmojiData` | Locale dataset, fixed at mount. Optional with an `EmojiProvider` in scope, required without. Default: `enData` when imported. |
-| `columns` | `number` | Grid columns. Default `8`. |
-| `showRecents` | `boolean` | Show the persistent recents tab. Default `true`. |
+| `columns` | `number` | Grid columns. **Auto-sized** from the container width by default; set it to pin a fixed count. |
+| `showRecents` | `boolean` | Show the recents section and its tab. Default `true`. |
 | `showSearch` | `boolean` | Show the search row. Default `true`. |
 | `searchPlaceholder` | `string` | Placeholder text for the search field. |
+| `recentsLabel` | `string` | Label for the recents section / tab. |
 | `emptyLabel` | `string` | Shown when the current slice is empty. |
-| `cellSize` | `number` | Glyph cell size in px. Default `26`. |
-| `classes` | `EmojiSlotClasses` | Per-slot class overrides (13 slots); supplying a slot class drops its inline fallback. |
+| `cellSize` | `number` | Glyph cell size in px. **Auto-sized** to match the resolved column width by default; set it to pin a fixed size. |
+| `classes` | `EmojiSlotClasses` | Per-slot class overrides (including the `sectionHeader` slot); supplying a slot class drops its inline fallback. |
 | `class` | `string` | Extra classes on the picker root. |
 | `style` | `Record<string, string \| number>` | Inline style on the picker root. |
 | `renderCell` | `EmojiRenderCell` | Replaces a grid cell's content: `(datum, glyph) => JSXElement`. |
