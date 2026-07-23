@@ -80,6 +80,39 @@ const App = component(() => {
 defineApp(<App />).mount({ clearConsole: true });
 ```
 
+## Loading data
+
+Terminal apps are full SignalX clients, so the value-first async primitives work here too. `@sigx/terminal` re-exports [`useData`](/core/docs/data-loading) (along with `useStream`, `useAction` and `all`): call it during setup with a key and a fetcher, then render every state through `.match()`. No `window` is required — the terminal runtime declares itself a live client, so keyed reads actually fetch instead of parking at `pending`.
+
+```tsx
+/** @jsxImportSource @sigx/terminal */
+import { component, defineApp, useData } from '@sigx/terminal';
+
+const App = component(() => {
+    const joke = useData('joke', async (key, { signal }) => {
+        const res = await fetch('https://icanhazdadjoke.com/', {
+            headers: { Accept: 'application/json' },
+            signal,
+        });
+        return (await res.json()).joke as string;
+    });
+
+    return () => (
+        <box border="rounded" label="Dad joke" color="cyan">
+            {joke.match({
+                pending: () => <text color="dim">Loading…</text>,
+                error: (e, retry) => <text color="warn">Failed: {e.message}</text>,
+                ready: (text) => <text>{text}</text>,
+            })}
+        </box>
+    );
+});
+
+defineApp(<App />).mount({ clearConsole: true });
+```
+
+The fetcher receives the resolved key and an `AbortSignal` — pass it straight to `fetch`. `useStream` follows the same shape for progressive, token-at-a-time output, which is handy for piping an LLM response into a `<text>` cell.
+
 ## Next steps
 
 - [Architecture](/terminal/docs/architecture) — the renderer, headless foundation, UI library and args parser.
