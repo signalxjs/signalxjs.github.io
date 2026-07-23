@@ -58,7 +58,7 @@ This single entry (`@sigx/lynx-daisyui/styles`) pulls in, in order:
 - the Lynx element reset (`base.css` &mdash; transparent and zero-width borders on `page` / `view` / `text` and friends), which is an internal `@import`, not a separate export;
 - the per-component CSS (button, card, badge, alert, checkbox, toggle, radio, input, textarea, select, form-field, progress, loading, modal, tabs, steps, avatar, skeleton, divider, typography).
 
-Theme **colors** live in the registry and are applied by `ThemeProvider` as inline CSS variables; the stylesheet only ships the static first-paint classes so the first frame paints correctly before the runtime variable application runs.
+Theme **colors** live in the registry and are applied by `ThemeProvider` as **inline CSS variables**, so the first frame already paints with the theme (Lynx ≥ 3.9) — the stylesheet ships only the per-component CSS, no per-theme first-paint classes.
 
 ## The theme engine
 
@@ -208,7 +208,7 @@ registerTheme(
 
 Colors must be engine-safe strings &mdash; hex or `rgb()`. Lynx's CSS engine does not parse `oklch()`, so convert before registering.
 
-> For correct **first-paint** of a runtime-registered theme, a design-system build step that emits a `.theme-name { --color-* }` class is needed (the built-ins ship this via `staticCss: true`). Without it, a newly registered theme paints via the variant's static class first, then the runtime `setProperty` applies its exact colors.
+> A runtime-registered theme paints correctly on the first frame: its tokens are declared as inline CSS variables on the provider host, so there is no post-mount colour swap and no build-time `.theme-name` class to generate (the removed `staticCss` option).
 
 ### Inspecting the registry
 

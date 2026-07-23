@@ -8,7 +8,7 @@ order: 101
 
 # ThemeProvider
 
-<p class="lede">Wraps a subtree and applies the active theme's palette as real, inheritable CSS custom properties (via the Lynx <code>setProperty</code> runtime API), so descendants inherit the theme's color, radius, and text tokens. Mount it once near the root of your app.</p>
+<p class="lede">Wraps a subtree and applies the active theme's palette as <strong>inline CSS custom properties</strong> on its host view, so descendants inherit the theme's color, radius, and text tokens and it paints on the first frame (Lynx ≥ 3.9). Mount it once near the root of your app.</p>
 
 ## Import
 
