@@ -37,7 +37,7 @@ import type { DetentSpec } from '@sigx/lynx-sheet';
 | `detents` | `DetentSpec[]` | The rest positions, ascending. Tracked **live** — changing them re-snaps the open sheet. Default `[{ fraction: 0.5 }]`. |
 | `initialDetentIndex` | `number` | Index into `detents` to open at. Default: the most-open detent. |
 | `maxHeight` | `number` | Upper bound on the sheet height, also tracked live. |
-| `dragMode` | — | What owns the drag: the handle, the surface, or a grabber. |
+| `dragMode` | `'handle' \| 'surface' \| 'grabber'` | What owns the drag gesture. |
 | `open` | `boolean` | Controlled open state (dismissible mode). |
 | `onClose` | `() => void` | Fired when a dismissible sheet closes. |
 

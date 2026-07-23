@@ -351,6 +351,7 @@ interface ScreenOptions {
     gestureEnabled?: boolean;       // default true
     detents?: DetentSpec[];         // sheet: rest heights (fraction / px / keyboard); default [{ fraction: 0.5 }]
     initialDetentIndex?: number;    // default: last (most open)
+    dragMode?: 'handle' | 'surface' | 'grabber';  // sheet: what owns the drag; renamed from dragHandle
     backdropDismiss?: boolean;      // default true
 }
 ```

@@ -66,7 +66,7 @@ export const EditPost = () => (
 
 ## Sheet screens
 
-For a route presented as a `sheet`, the `detents` / `initialDetentIndex` / `backdropDismiss` props configure the partial-height bottom sheet. `detents` are [`DetentSpec`](/lynx/modules/sheet/api#detentspec)s — a `fraction` of the screen, a fixed `px`, or the keyboard — tracked live:
+For a route presented as a `sheet`, the `detents` / `initialDetentIndex` / `dragMode` / `backdropDismiss` props configure the partial-height bottom sheet. Each entry in `detents` is a [`DetentSpec`](/lynx/modules/sheet/api#detentspec) — a `fraction` of the screen, a fixed `px`, or the keyboard — and they are tracked live:
 
 ```tsx
 import { Screen } from '@sigx/lynx-navigation';
@@ -87,8 +87,9 @@ export const FilterSheet = () => (
 | `title` | `string \| (() => string)` | Header title. A function is re-evaluated reactively. |
 | `headerShown` | `boolean` | Whether the header is shown (default `true`). |
 | `gestureEnabled` | `boolean` | Whether the back / dismiss gesture is enabled (default `true`). |
-| `detents` | `DetentSpec[]` | Sheet presentations: rest heights as [`DetentSpec`](/lynx/modules/sheet/api#detentspec)s (fraction / px / keyboard; default `[{ fraction: 0.5 }]`), tracked live. Renamed from `snapPoints` in 0.19. |
+| `detents` | `DetentSpec[]` | Sheet presentations: rest heights, each a [`DetentSpec`](/lynx/modules/sheet/api#detentspec) (fraction / px / keyboard; default `[{ fraction: 0.5 }]`), tracked live. Renamed from `snapPoints` in 0.19. |
 | `initialDetentIndex` | `number` | Sheet presentations: index into `detents` to open at (default: last / most open). Renamed from `initialSnapIndex` in 0.19. |
+| `dragMode` | `'handle' \| 'surface' \| 'grabber'` | Sheet presentations: what owns the drag gesture. Renamed from `dragHandle` in 0.19. |
 | `backdropDismiss` | `boolean` | Sheet presentations: whether tapping the backdrop dismisses (default `true`). |
 | `slots` | `Partial<{ default: () => JSXElement \| JSXElement[] \| null }>` | The screen body, rendered inline. |
 

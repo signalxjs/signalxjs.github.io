@@ -1,6 +1,6 @@
 ---
 title: "Backdrop"
-description: "Backdrop — @sigx/lynx-sheet component"
+description: "Backdrop — the dimmed overlay behind a bottom sheet"
 layout: module-docs
 category: ["Components", "Parts"]
 order: 102
@@ -8,7 +8,7 @@ order: 102
 
 # Backdrop
 
-<p class="lede">Backdrop — Route-free bottom sheet.</p>
+<p class="lede">The dimmed overlay behind a <a href="/lynx/modules/sheet/components/bottomsheet">BottomSheet</a> — tap it to dismiss a dismissible sheet. It fades in with the sheet's reveal.</p>
 
 ## Import
 
@@ -16,4 +16,4 @@ order: 102
 import { Backdrop } from '@sigx/lynx-sheet';
 ```
 
-{/* TODO: author usage, props, slots & events for Backdrop */}
+For a standard sheet you don't render `Backdrop` yourself — `<BottomSheet>` includes it. Reach for it directly only when composing a **custom** sheet surface from the [shared engine](/lynx/modules/sheet/api): drop a `Backdrop` behind your sheet content and wire its tap to your dismiss handler. See the [API reference](/lynx/modules/sheet/api).
