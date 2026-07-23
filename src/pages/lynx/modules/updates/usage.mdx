@@ -43,6 +43,8 @@ sigx updates:publish        # writes updates-dist/production/{manifest.json, upd
 
 `sigx updates:publish` maintains the [static manifest](#static-manifest-format) and content-addresses each update by `sha256.slice(0, 16)`. Pass `--mandatory` to mark a release mandatory.
 
+An OTA payload carries only `main.lynx.bundle`, so if the build emitted async `import()` chunks `updates:publish` **refuses** rather than ship an update that can't load them. Either build without code-splitting, or host the chunks yourself (set `output.assetPrefix` to their URL) and pass `--allow-async-chunks` to publish anyway. See [Code splitting](/lynx/modules/cli/usage#code-splitting).
+
 ## Publishing from CI
 
 CI pipelines can publish a bundle programmatically with `@sigx/lynx-updates-publisher` instead of shelling out to the CLI and scraping stdout. `publishUpdate()` is the dependency-light core of `sigx updates:publish` — only Node built-ins — so a release job can import it without the CLI's build toolchain. It is also re-exported from `@sigx/lynx-cli`.
@@ -108,7 +110,7 @@ An OTA bundle can only run on a native binary that has the native modules it exp
 
 - Add/remove/update a native module package → new fingerprint → published updates no longer match → ship a store release. The check surfaces this as `{ type: 'incompatible' }` / the `incompatibleUpdate` event.
 - JS-only changes (any lockstep release that doesn't touch native code) keep the fingerprint stable — published updates stay valid.
-- Prefer manual control? Pin it Expo-style with `updates: { runtimeVersion: '1.0.0' }` in `signalx.config.ts` (you own the compatibility guarantee).
+- Prefer manual control? Pin it Expo-style with `updates: { runtimeVersion: '1.0.0' }` in `signalx.config.ts` (you own the compatibility guarantee). **Use a non-numeric string** (`'1.0.0'`, `'v2'`): a purely numeric pin (`'2'`, `'1.0'`) is stored as a typed (non-string) manifest value by Android's aapt, and binaries built with `@sigx/lynx-updates ≤ 0.12.2` read it back as `unknown` — marking every update `incompatible`. `sigx prebuild` now warns when a pin would be re-typed; later releases read it type-tolerantly. Avoid non-canonical forms (`0x1A`, `1e3`, `02`) too.
 
 After a store update, all downloaded OTA updates are dropped automatically (the binary's fingerprint/versionCode no longer match the recorded state).
 

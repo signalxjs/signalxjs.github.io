@@ -212,6 +212,30 @@ Platform notes:
 - Android needs the Android SDK + JDK + Gradle; `adb` is resolved from `ANDROID_HOME/platform-tools` and `PATH`. iOS needs Xcode, CocoaPods and `xcrun`/`devicectl`.
 - Run `sigx doctor` first to confirm your toolchain: it reports Node, your package manager, the Android SDK/JDK/ADB, iOS Xcode/CocoaPods and connected devices.
 
+## Code splitting
+
+Dynamic `import()` works everywhere — `sigx dev`, release, and standalone/store
+builds alike (earlier releases only split in dev). Split a heavy or rarely used
+feature into its own async chunk and load it on demand:
+
+```tsx
+// loaded only when the user opens the editor
+button.onTap(async () => {
+    const { openEditor } = await import('./editor');
+    openEditor();
+});
+```
+
+`sigx build` prints an async-chunk summary alongside the main bundle. Two things to
+know before shipping:
+
+- **OTA updates** carry only `main.lynx.bundle`, so `sigx updates:publish` refuses
+  while async chunks are present. Host the chunks yourself (`output.assetPrefix`)
+  and pass `--allow-async-chunks`, or skip splitting for OTA-first apps — see
+  [Publishing an update](/lynx/modules/updates/usage#publishing-an-update).
+- **Standalone builds** embed the chunks into the native app so they resolve
+  offline; no extra wiring.
+
 ## Running on the web
 
 `sigx run:web` is the browser peer of `run:android` / `run:ios`: it builds your app for the web target and serves it locally with live reload, so you can iterate on layout and logic without a simulator or device.
