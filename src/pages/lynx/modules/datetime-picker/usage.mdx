@@ -109,7 +109,7 @@ formatDate(picked, 'h:mm a');       // 2:05 pm
 formatDate(picked, '[at] HH:mm');   // at 14:05  — text in [brackets] is literal
 ```
 
-Tokens: `YYYY`/`YY` (year), `MM`/`M` (month), `DD`/`D` (day), `HH`/`H` (24-hour), `hh`/`h` (12-hour), `mm`/`m` (minute), `ss`/`s` (second), `A`/`a` (AM/PM). Text inside `[…]` is emitted literally. There are **no** month or weekday *names* (no `Intl` in the runtime), and a missing or invalid date returns an empty string.
+Tokens: `YYYY`/`YY` (year), `MM`/`M` (month), `DD`/`D` (day), `HH`/`H` (24-hour), `hh`/`h` (12-hour), `mm`/`m` (minute), `ss`/`s` (second), `A`/`a` (AM/PM). Text inside `[...]` is emitted literally. There are **no** month or weekday *names* (no `Intl` in the runtime), and a missing or invalid date returns an empty string.
 
 ## Guarding against an unlinked build
 

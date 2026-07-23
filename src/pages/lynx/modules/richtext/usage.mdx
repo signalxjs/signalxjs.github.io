@@ -59,11 +59,11 @@ pnpm add @sigx/lynx-richtext
 sigx prebuild
 ```
 
-`@sigx/lynx-richtext` runs on iOS, Android **and web** — native elements (`UITextView` on iOS, `EditText` on Android) and a real `contenteditable` field on web (as of 0.19). It requires **no runtime permissions** and **no** `Info.plist` / `AndroidManifest` entries — it is a plain in-app text field.
+`@sigx/lynx-richtext` runs on iOS, Android **and web** — native elements (`UITextView` on iOS, `EditText` on Android) and a real `contenteditable` field on web (v0.19.0+). It requires **no runtime permissions** and **no** `Info.plist` / `AndroidManifest` entries — it is a plain in-app text field.
 
 `sigx prebuild` auto-discovers the package and registers the native element from its `signalx-module.json` (the iOS UI component and the Android behavior for the `sigx-richtext` tag). After adding the package you must run a native rebuild before the element will render. The only peer dependency is `@sigx/lynx`.
 
-On web the element is a real `contenteditable` field (0.19). No wiring is needed — `@sigx/lynx-cli` serves the web element automatically when your app depends on `@sigx/lynx-richtext`; for a hand-written host page, import the self-registering `@sigx/lynx-richtext/web-element`. A few operations differ on web: a collapsed `toggleFormat` is a no-op (select text first), and `confirm-type` is advisory.
+On web the element is a real `contenteditable` field (v0.19.0+). No wiring is needed — `@sigx/lynx-cli` serves the web element automatically when your app depends on `@sigx/lynx-richtext`; for a hand-written host page, import the self-registering `@sigx/lynx-richtext/web-element`. A few operations differ on web: a collapsed `toggleFormat` is a no-op (select text first), and `confirm-type` is advisory. One known limitation: a `Pressable` nested inside a bottom sheet is still inert on web ([lynx#764](https://github.com/signalxjs/lynx/issues/764)), so a send button or popup inside a sheet may not respond there yet.
 
 ## Building a formatting toolbar
 

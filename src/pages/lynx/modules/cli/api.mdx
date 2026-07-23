@@ -625,12 +625,13 @@ export interface AndroidFeatureEntry {
 
 ```ts
 export interface AndroidGradlePluginEntry {
-    id: string;      // e.g. 'com.google.gms.google-services'
-    version: string; // e.g. '4.4.2'
+    id: string;         // e.g. 'com.google.gms.google-services'
+    version: string;    // e.g. '4.4.2'
+    requires?: string;  // app-supplied config that must resolve first, e.g. 'android.googleServicesFile'
 }
 ```
 
-A Gradle plugin a module contributes to the app's `plugins {}` block on prebuild.
+A Gradle plugin a module contributes to the app's `plugins {}` block on prebuild. A plugin with `requires` is applied **only** once that config resolves — `@sigx/lynx-notifications` declares `com.google.gms.google-services` with `requires: 'android.googleServicesFile'`, so the plugin is skipped (and the build still succeeds) until you configure Firebase.
 
 ### AndroidServiceEntry
 
