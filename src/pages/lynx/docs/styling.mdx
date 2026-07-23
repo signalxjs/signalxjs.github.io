@@ -146,7 +146,7 @@ Themes on Lynx are sets of CSS custom properties — colors (`--color-<token>`),
 
 ### How themes are applied
 
-`ThemeProvider` wraps children in a host `view` and declares the active theme's tokens as **inline CSS custom properties** on it. Because Lynx layout defaults enable CSS inheritance, the variables flow to every descendant — and because they are set inline they paint on the **first frame**, with no post-mount swap and no per-theme CSS class to generate. Inline custom properties require **Lynx ≥ 3.9** on native hosts (the CLI templates pin 3.9.0; an existing app runs `sigx prebuild --clean` once to adopt it).
+As of 0.19, `ThemeProvider` wraps children in a host `view` and declares the active theme's tokens as **inline CSS custom properties** on it. Because Lynx layout defaults enable CSS inheritance, the variables flow to every descendant — and because they are set inline they paint on the **first frame**, with no post-mount swap and no per-theme CSS class to generate. Inline custom properties require **Lynx ≥ 3.9** on native hosts (the CLI templates pin 3.9.0; an existing app runs `sigx prebuild --clean` once to adopt it).
 
 Two authoring constraints remain — they concern the CSS engine's colour handling, not variable inheritance:
 
