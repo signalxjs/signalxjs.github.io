@@ -36,11 +36,11 @@ const FEATURES: Record<string, LandingFeature[]> = {
     ],
     server: [
         { icon: 'bolt', title: 'Type-safe server functions', body: 'Call server code from a component as a plain async function — serverFn compiles to a secure-by-default RPC endpoint. No routes, no fetch wrappers, no DTOs to keep in sync.' },
-        { icon: 'sparkle', title: 'Resumable by default', body: 'Ship almost no JS. The browser gets a tiny loader, and a component’s chunk loads only when a handler first writes state — upgrade-on-write, not hydrate-everything.' },
+        { icon: 'sparkle', title: 'Resume, not re-hydrate', body: 'Add the resume pack and ship almost no JS — the browser gets a tiny loader, and a component’s chunk loads only when a handler first writes state. Upgrade-on-write, not hydrate-everything.' },
         { icon: 'layers', title: 'Streaming SSR & hydration', body: 'Render to a string or a stream for a fast first paint, re-attach reactivity on the client, and manage the document head.' },
         { icon: 'cube', title: 'Islands when you want them', body: 'Hydrate only the interactive parts with client:load / idle / visible / media — each in its own code-split chunk.' },
         { icon: 'book', title: 'Your types on the wire', body: 'Date, Map, Set, bigint, URL and your own classes round-trip across every boundary through the serialize codec — not just JSON.' },
-        { icon: 'terminal', title: 'One plugin wires it all', body: 'The Vite plugin sets up SSR, server functions and resume together — manifests and endpoints included, zero config in dev.' },
+        { icon: 'terminal', title: 'One plugin wires it all', body: 'The Vite plugin sets up SSR and wires in server functions and resume when you add them — manifests and endpoints included, zero config in dev.' },
     ],
     lynx: [
         { icon: 'layers', title: 'Real native views', body: 'Components render to UIView / Android View — not a webview.' },
