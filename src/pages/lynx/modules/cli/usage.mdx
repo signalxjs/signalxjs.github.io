@@ -261,6 +261,8 @@ export default defineConfig({
 });
 ```
 
+The generated host page wires the view with `@sigx/lynx-web-host`: `installSigxWebHost` derives the web-core `browser-config` from the `<lynx-view>` element's box (opt out with `{ viewport: false }`), and the public `viewportBrowserConfig(view)` exposes that computation for a **hand-written** host page. Set `browser-config` inline while the page parses, before the engine upgrades `<lynx-view>` — `SystemInfo` is frozen at view construction, so later resizes aren't tracked.
+
 Two things to know about the web target:
 
 - **Live reload is a full reload**, not hot-swap — a file change rebuilds the bundle and the page re-fetches it. Lynx's HMR transport is device-oriented and stays off for the web target (matching upstream).

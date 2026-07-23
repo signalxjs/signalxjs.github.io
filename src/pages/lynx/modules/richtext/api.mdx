@@ -41,7 +41,7 @@ import type {
 } from '@sigx/lynx-richtext';
 ```
 
-Unless noted, the runtime exports (`RichTextInput`, `RichTextMethods`) require the native element and work on **iOS + Android only**. The helper functions and the types are platform-shared. Importing the package entry also registers the `sigx-richtext` tag in the JSX namespace.
+The runtime exports (`RichTextInput`, `RichTextMethods`) back the `sigx-richtext` element, which runs on **iOS, Android and web** (native elements on device, a `contenteditable` implementation on web as of 0.19). The helper functions and the types are platform-shared. Importing the package entry also registers the `sigx-richtext` tag in the JSX namespace.
 
 ## Components
 
@@ -93,7 +93,7 @@ type RichTextInputProps =
 - **`onHeightChange`** — receives `(height, lines)` for auto-grow.
 - **`onFocus`** / **`onBlur`** — fire on focus / blur.
 
-Platform notes: shared type. The runtime behavior backing it is iOS + Android only.
+Platform notes: shared type. The runtime behavior backing it runs on iOS, Android and web.
 
 ## Command object
 
@@ -526,4 +526,4 @@ interface SigxRichTextAttributes extends LynxCommonAttributes {
 - The remaining attributes mirror the [component props](#richtextinputprops) in kebab-case.
 - The `bind*` handlers receive the raw event types above.
 
-Platform notes: iOS + Android native element. Most consumers use the typed [`RichTextInput`](/lynx/modules/richtext/components/richtextinput) component instead of this raw tag. `LynxCommonAttributes` and `LynxEventHandler` come from `@sigx/lynx-runtime`.
+Platform notes: the `sigx-richtext` element is native on iOS/Android and a `contenteditable` field on web. Most consumers use the typed [`RichTextInput`](/lynx/modules/richtext/components/richtextinput) component instead of this raw tag. `LynxCommonAttributes` and `LynxEventHandler` come from `@sigx/lynx-runtime`.

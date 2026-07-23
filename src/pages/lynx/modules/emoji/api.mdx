@@ -10,7 +10,7 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 # API reference
 
-<p class="lede">Every export of `@sigx/lynx-emoji` <PkgVersion npm="@sigx/lynx-emoji" />. The package is pure JS — all exports work identically on iOS and Android, no native module or permissions.</p>
+<p class="lede">Every export of `@sigx/lynx-emoji` <PkgVersion npm="@sigx/lynx-emoji" />. The package is pure JS — no native module or permissions. The API is identical across iOS, Android and web, though glyph **ink density differs per platform** (Android's Noto emoji sit lighter than Apple's), so the cell geometry adapts per platform.</p>
 
 The package is named-exports only; there is no default export at the root. Three subpaths exist: `.` (the full public API documented below), `./markdown` (the editor plugin — these four exports are NOT re-exported from root), and `./data/en` (the bundled English dataset). The dataset module exports the data as both a named `data` and a default export; the root re-exports it as `enData`.
 

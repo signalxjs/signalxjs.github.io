@@ -8,7 +8,7 @@ order: 101
 
 # RichTextInput
 
-<p class="lede">The typed SignalX wrapper over the native <code>sigx-richtext</code> element — a generic attributed-text input that decodes native events into typed shapes (<code>RichDoc</code>, <code>SelectionState</code>) before they reach your handlers, and delivers the element handle through <code>onElement</code> so you can drive it with commands. iOS + Android only.</p>
+<p class="lede">The typed SignalX wrapper over the native <code>sigx-richtext</code> element — a generic attributed-text input that decodes native events into typed shapes (<code>RichDoc</code>, <code>SelectionState</code>) before they reach your handlers, and delivers the element handle through <code>onElement</code> so you can drive it with commands. Runs on iOS, Android and web.</p>
 
 ## Import
 
@@ -16,7 +16,7 @@ order: 101
 import { RichTextInput } from '@sigx/lynx-richtext';
 ```
 
-The field renders an internal `sigx-richtext` element (backed by `UITextView` on iOS / `EditText` on Android) and knows nothing about markdown — it reads a flat [`RichDoc`](/lynx/modules/richtext/api#richdoc) model back out of its own text storage after each edit. It renders nothing meaningful under pure web/SSR; develop against a simulator or device.
+The field renders an internal `sigx-richtext` element (backed by `UITextView` on iOS / `EditText` on Android) and knows nothing about markdown — it reads a flat [`RichDoc`](/lynx/modules/richtext/api#richdoc) model back out of its own text storage after each edit. On web it renders a real `contenteditable` field (0.19); a few operations differ (a collapsed `toggleFormat` is a no-op — select text first — and `confirm-type` is advisory).
 
 ## Basic usage
 
