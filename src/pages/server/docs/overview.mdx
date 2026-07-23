@@ -1,0 +1,93 @@
+---
+title: Server Functions
+description: "Type-safe RPC for SignalX — call server code from a component as a plain async function with @sigx/server"
+layout: docs
+category: Server Functions
+order: 10
+---
+
+# Server Functions
+
+`@sigx/server` is how a SignalX app talks to its own server. You write an async
+function, mark it as a server function, and call it from a component like any
+other `async` function — the framework turns it into a typed RPC endpoint, runs
+the body on the server, and returns the result. No REST routes to design, no
+fetch wrappers to hand-write, no request/response DTOs to keep in sync.
+
+> **Not the same as `@sigx/server-renderer`.** The
+> [server renderer](/server/packages/server-renderer/overview) turns your
+> component tree into HTML on the server. `@sigx/server` is the RPC layer — the
+> way running components read and write server-side data. They compose, but you
+> can use either on its own.
+
+```ts
+// src/cart.server.ts — a server-only module
+import { serverFn, ServerFnError } from '@sigx/server';
+import { db } from './db';
+import { sessionFrom } from './auth';
+
+export const addToCart = serverFn(async (rq, productId: string, qty: number) => {
+  const user = await sessionFrom(rq.request);
+  if (!user) throw new ServerFnError(401, 'Sign in first');
+  return db.cart.add(user.id, productId, qty);
+});
+```
+
+```tsx
+// any component — addToCart is just an async function here
+import { useAction } from 'sigx';
+import { addToCart } from './cart.server';
+
+const add = useAction(addToCart, { cache: { invalidates: [['cart']] } });
+// add.run(['sku-1', 1]) → POSTs to the server, runs the body, returns the row
+```
+
+The `db` and `sessionFrom` imports never reach the browser: the client build
+replaces `*.server.ts` with typed fetch stubs, so the bundle ships only the
+call signature. The server keeps the real module.
+
+## What you get
+
+- **Plain-function ergonomics.** A server function is called with its declared
+  arguments and returns its declared type. Argument and return types flow from
+  the definition to the call site — rename a parameter and every caller updates.
+- **Value-first data flow.** Server functions are the natural fetchers for
+  [`useData`](/core/docs/data-loading) (reads) and `useAction` (writes), so
+  loading, error and refresh state come for free.
+- **Secure by default.** Every server function is a public HTTP endpoint, and
+  the runtime treats it as one: POST-only with a required JSON content type (a
+  CSRF gate), a same-origin check, body-size limits, prod error masking and an
+  app-wide guard hook. See [Deployment & security](/server/docs/deployment).
+- **Streaming.** `serverStream` yields values over time (NDJSON on the wire) and
+  plugs a string stream straight into `useStream` for token-at-a-time output.
+
+## Requirements
+
+Server functions ship with **SignalX 0.13+**. Install the package:
+
+```bash
+npm install @sigx/server
+```
+
+`@sigx/server` depends on `sigx` and `@sigx/serialize` (pulled in
+automatically). During development the endpoint is served with zero config by
+the `sigxServer()` Vite plugin from `@sigx/vite/server`; see
+[Deployment & security](/server/docs/deployment) for the dev, production (Node)
+and edge (WinterCG) wiring.
+
+## The model in one paragraph
+
+Each server function compiles to a stable, content-hashed symbol and is served
+at `POST /_sigx/fn/<symbol>`. Calling the stub sends `{"args":[...]}` as JSON;
+the server validates and runs the function and replies with `{"data":...}` or a
+structured `{"error":{ message, status, data? }}`. Arguments cross the wire as
+**typed values** — there is no closure serialization, so a server function can
+only see what you pass it, its imports, and server-side globals. That single
+constraint is what makes the boundary safe and the types honest.
+
+## Next steps
+
+- [Authoring server functions](/server/docs/authoring) — the two forms,
+  validation, the request context, errors and streaming.
+- [Deployment & security](/server/docs/deployment) — dev, Node and edge wiring,
+  plus the security defaults and how to relax them deliberately.

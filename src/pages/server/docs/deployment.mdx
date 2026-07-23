@@ -1,0 +1,126 @@
+---
+title: Deployment & security
+description: "Serve server functions in dev, Node and edge runtimes — and the security defaults you get"
+layout: docs
+category: Server Functions
+order: 30
+---
+
+# Deployment & security
+
+A server function is served at `POST /_sigx/fn/<symbol>`, where `<symbol>` is a
+content-hashed id derived from the function. You wire that endpoint once per
+runtime; everything else — validation, error masking, the security gate — is the
+same everywhere.
+
+## Development
+
+Zero config. Add the `sigxServer()` plugin from `@sigx/vite/server` to your Vite
+config and the dev server handles the endpoint from its middleware, loading the
+real `*.server.ts` modules on demand:
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+import sigxServer from '@sigx/vite/server';
+
+export default defineConfig({
+  plugins: [sigx(), sigxServer()],
+});
+```
+
+`sigxServer()` options: `include` (default `**/*.server.{ts,tsx}`), `exclude`,
+`base` (default `/_sigx/fn`), `guard` (a root-relative module path applied to
+every function), `origin` and `maxBodyBytes` — the same security knobs described
+below, applied in dev too.
+
+## Production (Node)
+
+The SSR build emits a registry chunk (`dist/server/sigx-server-fns.js`) that
+maps every symbol to its implementation. Pass it **explicitly** to
+`createServerFnHandler` from `@sigx/server/node` and mount the handler **before**
+your document/SSR handler:
+
+```js
+import { createServerFnHandler } from '@sigx/server/node';
+import { createRequestHandler } from '@sigx/server-renderer';
+
+const { serverFns } = await import('./dist/server/sigx-server-fns.js');
+
+app.use(createServerFnHandler({
+  functions: serverFns,     // the build's registry chunk — never ambient
+  guard: requireSession,    // optional app-wide auth seam
+}));
+app.use(createRequestHandler({ /* your document handler, unchanged */ }));
+```
+
+`createServerFnHandler` returns a connect-style `(req, res, next?)` middleware,
+so it drops into Express/Connect/Polka and most Node servers.
+
+## Edge (WinterCG)
+
+For fetch-shaped runtimes (Workers, Deno, etc.), use `@sigx/server/server`.
+Match the endpoint and hand the request off; anything else falls through to your
+renderer:
+
+```js
+import { handleServerFnRequest, matchesServerFn } from '@sigx/server/server';
+
+export default {
+  async fetch(request) {
+    if (matchesServerFn(request)) {
+      return handleServerFnRequest(request, { resolve: (symbol) => registry[symbol] });
+    }
+    return renderDocument(request);
+  },
+};
+```
+
+## Security defaults
+
+Every server function is a public HTTP endpoint, so the runtime hardens each one
+by default. You get all of this without opting in:
+
+- **POST-only, JSON required.** Calls must be `POST` with a JSON content type.
+  Because that content type is not
+  [CORS-safelisted](https://fetch.spec.whatwg.org/#cors-safelisted-request-header),
+  a cross-site form can't forge one — this is the CSRF gate. The endpoint never
+  emits CORS headers.
+- **Origin check** — default `'same-origin'`: the `Origin` header must match the
+  request's origin.
+- **A `guard` hook** runs before *every* function, the place for app-wide
+  authentication.
+- **Body & URL limits** — bodies are capped at `maxBodyBytes` (default 1 MiB)
+  during the read; GET reads are capped at `maxUrlBytes` (default 8 KiB → `414`).
+- **Prototype-pollution-safe parsing** on both the client and server sides.
+- **Production error masking** — any non-`ServerFnError` throw becomes a generic
+  `500`; the original never leaves the server.
+- **Structured version-skew `404`** — a stale client calling a symbol that no
+  longer exists gets a typed 404, not a silent hang.
+
+These are configured through the request-handler options (`guard`, `origin`,
+`maxBodyBytes`, `maxUrlBytes`, `onError`, `timeoutMs`, …), which are shared by
+the dev plugin, the Node handler and the edge handler.
+
+### Relaxing a default — deliberately
+
+A few options weaken a default on purpose. Reach for them only when you mean to:
+
+- **`cache` (a GET read)** drops the JSON content-type CSRF gate — only mark a
+  function `cache` when it is genuinely side-effect-free.
+- **`form: true`** gives up the JSON-CSRF layer so the function can accept a
+  progressively-enhanced HTML form post; the origin check stays at full strength,
+  and `input` is required.
+- **`public: true`** on a read is a promise that its output depends only on its
+  arguments — no cookies, auth or per-user headers.
+- **`origin`** can be widened from `'same-origin'` to `'verify-when-present'` (to
+  admit Origin-less programmatic clients), an explicit allowlist, or `false` for
+  a deliberately public API.
+
+## Next steps
+
+- [Authoring server functions](/server/docs/authoring) — the definition surface
+  these endpoints serve.
+- [Server renderer](/server/packages/server-renderer/overview) — pair RPC with
+  streaming SSR and hydration.
