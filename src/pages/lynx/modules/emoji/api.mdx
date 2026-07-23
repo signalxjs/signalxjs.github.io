@@ -168,6 +168,7 @@ export type EmojiPickerProps =
   & Define.Prop<'showRecents', boolean, false>
   & Define.Prop<'showSearch', boolean, false>
   & Define.Prop<'searchPlaceholder', string, false>
+  & Define.Prop<'recentsLabel', string, false>
   & Define.Prop<'emptyLabel', string, false>
   & Define.Prop<'cellSize', number, false>
   & Define.Prop<'classes', EmojiSlotClasses, false>
@@ -180,7 +181,7 @@ export type EmojiPickerProps =
   & Define.Event<'pick', EmojiPickEvent>;
 ```
 
-Defaults: `columns` `8`, `showRecents` `true`, `showSearch` `true`, `cellSize` `26`. `emptyLabel` shows when the current slice is empty.
+Defaults: `showRecents` `true`, `showSearch` `true`. `columns` and `cellSize` are **auto-sized** to the container (a column count from the available width and a matching cell size, resolved once at mount) unless you pin either. `emptyLabel` shows when the current slice is empty.
 
 ### EmojiGridProps
 
@@ -352,7 +353,7 @@ export interface EmojiSearchApi {
 
 ### EmojiSlotClasses
 
-Per-slot class overrides — the theming surface (13 slots). When a class is given for a slot, that slot's inline fallback style is dropped.
+Per-slot class overrides — the theming surface (one class per slot). When a class is given for a slot, that slot's inline fallback style is dropped.
 
 ```ts
 export interface EmojiSlotClasses {
@@ -363,6 +364,7 @@ export interface EmojiSlotClasses {
   tab?: string;
   tabActive?: string;
   grid?: string;
+  sectionHeader?: string;
   cell?: string;
   empty?: string;
   popoverBackdrop?: string;

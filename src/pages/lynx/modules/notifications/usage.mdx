@@ -113,7 +113,7 @@ To detach later, call `unregisterForPushNotifications()`; it resolves with `{ ok
 
 ## Reacting to taps and cold starts
 
-`addNotificationResponseListener` fires when the user taps a notification — remote or local — while the app is running. For a tap that cold-launched the app, call `getInitialNotification()` exactly once on startup.
+`addNotificationResponseListener` fires when the user taps a notification while the app is running — remote or local on iOS, remote only on Android (see the platform note below). For a tap that cold-launched the app, call `getInitialNotification()` exactly once on startup.
 
 ```tsx
 import { Notifications } from '@sigx/lynx-notifications';
@@ -140,7 +140,7 @@ Supporting `data` keys (each accepts snake_case or camelCase):
 - `data.conversation_title` / `conversationTitle` — the header; carried over from earlier pushes when omitted.
 - `data.group` — bundles entries that share the value under one expandable tray group with an auto-posted summary. `Notifications.cancel(group)` dismisses the summary.
 
-Plain (non-messaging) pushes keep replace-in-place, and below Android 6.0 stacking falls back to replace-in-place. The tap payload is the latest push's `data`, and `cancel(notification_id)` clears the whole stacked entry.
+Plain (non-messaging) pushes keep replace-in-place, and below Android 6.0 stacking falls back to replace-in-place. The tap payload is the latest push's `data`, and `Notifications.cancel(notification_id)` clears the whole stacked entry.
 
 On **iOS** there are no module keys for this — set the APNs `aps.thread-id` to the conversation id and the OS groups the thread natively.
 
