@@ -160,21 +160,38 @@ const LoginForm = component(({ signal }) => {
 
 ## defineInjectable
 
-Create an injectable factory function.
+Create an injectable factory function. It has two forms.
+
+**Factory form** — pass a factory; the returned hook lazily creates and shares one instance (a module-global singleton by default, or the provided instance when an ancestor called `defineProvide`).
 
 ```tsx
-function defineInjectable<T>(factory: () => T): () => T;
+function defineInjectable<T>(
+    factory: () => T,
+    options?: { name?: string },
+): () => T;
 ```
 
-### Parameters
+**Required form** — pass a string name to declare a dependency that has *no* fallback and must be provided by an ancestor (or `app.defineProvide`). Injecting it unprovided throws [SIGX202](/errors/SIGX202) — the deliberate guard against a shared singleton leaking state between requests on the server.
 
-| Name | Type | Description |
+```tsx
+function defineInjectable<T>(
+    name: string,
+    options?: { hint?: string },
+): () => T;
+```
+
+### Options
+
+| Name | Form | Description |
 |------|------|-------------|
-| `factory` | `() => T` | Factory creating the injectable |
+| `name` | factory | A readable label for diagnostics and stack traces. Defaults to `factory.name`, then a definition-site pointer — set it for inline arrow factories that would otherwise be anonymous. |
+| `hint` | required | A custom message appended to the [SIGX202](/errors/SIGX202) "not provided" error in place of the generated suggestion, e.g. `{ hint: 'Wrap the tree in <AuthProvider>.' }`. Read only in development, but the literal still ships in your bundle unless you gate it: `hint: __DEV__ ? '…' : undefined`. |
 
 ### Returns
 
-A function that returns the injectable instance.
+A hook function that returns the injectable instance.
+
+> **Server-safe singleton warning.** The factory form's fallback is a module-global singleton, which can leak state across requests on a server — so in development SignalX warns when one is used on a live client. That check is gated on `isLiveClient()` rather than `typeof window`, so windowless-but-live runtimes (a Lynx background thread, a terminal app, a worker) no longer get a false warning. When you genuinely need per-app state, use the required form (or `defineProvide` per request) instead.
 
 ### Examples
 
@@ -205,6 +222,18 @@ const Controls = component(() => {
             <button onClick={counter.increment}>+</button>
         </div>
     );
+});
+```
+
+Name an otherwise-anonymous factory, or give a required injectable a custom "not provided" hint:
+
+```tsx
+// readable in diagnostics despite the inline arrow factory
+const useClock = defineInjectable(() => signal(Date.now()), { name: 'clock' });
+
+// required — no fallback; the hint replaces the generated SIGX202 suggestion
+const useSession = defineInjectable<Session>('Session', {
+    hint: 'Provide it at the root: app.defineProvide(useSession, () => loadSession()).',
 });
 ```
 
