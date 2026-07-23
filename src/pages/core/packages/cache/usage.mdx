@@ -128,7 +128,7 @@ const rename = useAction(renameUser, {
         optimistic: {
             key: 'user',
             apply: (current: { name: string } | null, next: { name: string }) =>
-                ({ ...current, name: next.name }),
+                ({ ...(current ?? {}), name: next.name }),
         },
         invalidates: [['users']],
     },
