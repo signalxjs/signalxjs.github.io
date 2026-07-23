@@ -50,9 +50,9 @@ Import the stylesheet once, as a side effect, at your app entry:
 import '@sigx/lynx-heroui/styles';
 ```
 
-This single entry (`@sigx/lynx-heroui/styles`) ships the component styles plus the build-time per-theme first-paint classes &mdash; one `.hero-light` / `.hero-dark { --color-*: ... }` class generated from `HERO_BUILTIN_THEMES` by the package's `scripts/gen-theme-css.mjs` at build time.
+This single entry (`@sigx/lynx-heroui/styles`) ships the component styles.
 
-Theme **colors** live in the registry and are applied by `ThemeProvider` as inheritable CSS variables at runtime; the stylesheet only ships the static first-paint classes so the first frame paints correctly before the runtime variable application runs. Because the `./styles` subpath is CSS-only and does not execute JS, it does **not** seed the registry &mdash; that is the JS root's job.
+Theme **colors** live in the registry and are applied by `ThemeProvider` as **inline CSS variables**, so the first frame already paints with the theme (Lynx ≥ 3.9) — there are no per-theme first-paint classes to generate. Because the `./styles` subpath is CSS-only and does not execute JS, it does **not** seed the registry &mdash; that is the JS root's job.
 
 ## The theme engine
 
@@ -171,7 +171,7 @@ Two themes are registered at module load. The `HeroTheme` type gives them autoco
 | `hero-light` | light | `hero-dark` |
 | `hero-dark` | dark | `hero-light` |
 
-Both ship as full `Theme` objects via `HERO_BUILTIN_THEMES` (palette completed, `*-soft` tints materialized), with `staticCss: true`, `softMix: 0.2`, and the same roundness overrides &mdash; `radius` of `{ selector: '12px', field: '12px', box: '14px' }`, larger than daisy's. `hero-light` and `hero-dark` are the first registered theme of each variant, which makes them the follow-system defaults. `toggle()` flips to a theme's registered pair.
+Both ship as full `Theme` objects via `HERO_BUILTIN_THEMES` (palette completed, `*-soft` tints materialized), with `softMix: 0.2` and the same roundness overrides &mdash; `radius` of `{ selector: '12px', field: '12px', box: '14px' }`, larger than daisy's. `hero-light` and `hero-dark` are the first registered theme of each variant, which makes them the follow-system defaults. `toggle()` flips to a theme's registered pair.
 
 ```ts
 import { HERO_BUILTIN_THEMES } from '@sigx/lynx-heroui';
@@ -228,7 +228,7 @@ registerTheme({
 
 Colors must be engine-safe strings &mdash; hex or `rgb()`. Lynx's CSS engine does not parse `oklch()`, so convert before registering.
 
-> For correct **first-paint** of a runtime-registered theme, a design-system build step that emits a `.theme-name { --color-* }` class is needed (the built-ins ship this via `staticCss: true`). Without it, a newly registered theme paints via the variant's static class first, then the runtime variable application swaps in its exact palette post-mount.
+> A runtime-registered theme paints correctly on the first frame: its tokens are declared as inline CSS variables on the provider host, so there is no post-mount palette swap and no build-time `.theme-name` class to generate (the removed `staticCss` option).
 
 ### Inspecting the registry
 

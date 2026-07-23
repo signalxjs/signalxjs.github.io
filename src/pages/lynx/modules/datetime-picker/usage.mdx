@@ -96,6 +96,21 @@ async function chooseDateTime() {
 
 You can also call `DateTimePicker.pick(opts)` directly and select the mode with `opts.mode` (`'date'` | `'time'` | `'datetime'`, defaulting to `'date'`). The three `pickDate` / `pickTime` / `pickDateTime` methods are just thin wrappers that set `mode` for you.
 
+## Displaying the result
+
+The picker hands back a JS `Date`. To render it, `@sigx/lynx-datetime-picker` exports `formatDate(date, pattern)` — a locale-free token formatter (the runtime has no `Intl`), so patterns are explicit tokens formatted in **local time**:
+
+```ts
+import { formatDate } from '@sigx/lynx-datetime-picker';
+
+formatDate(picked, 'YYYY-MM-DD');   // 2026-07-23
+formatDate(picked, 'HH:mm');        // 14:05
+formatDate(picked, 'h:mm a');       // 2:05 pm
+formatDate(picked, '[at] HH:mm');   // at 14:05  — text in [brackets] is literal
+```
+
+Tokens: `YYYY`/`YY` (year), `MM`/`M` (month), `DD`/`D` (day), `HH`/`H` (24-hour), `hh`/`h` (12-hour), `mm`/`m` (minute), `ss`/`s` (second), `A`/`a` (AM/PM). Text inside `[...]` is emitted literally. There are **no** month or weekday *names* (no `Intl` in the runtime), and a missing or invalid date returns an empty string.
+
 ## Guarding against an unlinked build
 
 If you want to branch before presenting, `isModuleAvailable` reports whether the native module is wired into the current build. You rarely need it — `pick` already resolves with `{ cancelled: true }` when the module is missing.
