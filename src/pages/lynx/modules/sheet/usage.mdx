@@ -1,0 +1,46 @@
+---
+title: "Usage"
+description: "Bottom Sheet — Route-free bottom sheet"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Bottom Sheet
+
+<p class="lede">Mount a bottom sheet anywhere, give it a set of rest heights, and let it ride the keyboard.</p>
+
+## Basic usage
+
+Mount `<BottomSheet>` and give it a set of **detents** — the heights it rests at. A detent is a `fraction` of the screen, a fixed `px` height, or the keyboard:
+
+```tsx
+import { BottomSheet } from '@sigx/lynx-sheet';
+
+function FilterSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <BottomSheet
+      open={open}
+      detents={[{ fraction: 0.4 }, { fraction: 0.9 }]}
+      initialDetentIndex={0}
+      onClose={onClose}
+    >
+      <view>{/* filter controls */}</view>
+    </BottomSheet>
+  );
+}
+```
+
+`detents` (and `maxHeight`) are tracked **live**: change one while the sheet is open and it re-snaps to the new geometry — so a floor that grows with its content stays in view.
+
+## Drag and dismissal
+
+`dragMode` selects what owns the drag — the handle, the whole surface, or a grabber — and inner-scroll arbitration keeps a scrollable body from fighting the sheet. A *dismissible* sheet closes on a drag-down past the lowest detent or a `Backdrop` tap; a *persistent* sheet snaps back to its lowest detent instead.
+
+## The variable-height composer recipe
+
+A chat composer whose height changes (an input that grows, a reply preview that appears) wants its bottom detent to track that height. Measure the floor block with [`useElementLayout()`](/lynx/modules/runtime/api) and feed the measured px as a `px` detent. Because detents are live, the sheet follows the floor as it grows or shrinks, keeping the input above the keyboard — the motivating case the route sheet's snapshotted geometry couldn't handle.
+
+## Custom sheets (the shared engine)
+
+The primitives behind `<BottomSheet>` are exported for building your own sheet surface: `useSheetEngine` (state + snap logic), `createSheetPan` (the pan gesture), `resolveDetents` (turn `DetentSpec`s into px) and `decideDragOwner` (inner-scroll arbitration). See the [API reference](/lynx/modules/sheet/api).

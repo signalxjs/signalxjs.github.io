@@ -66,17 +66,19 @@ export const EditPost = () => (
 
 ## Sheet screens
 
-For a route presented as a `sheet`, the `snapPoints` / `initialSnapIndex` / `backdropDismiss` props configure the partial-height bottom sheet. `snapPoints` are fractions of screen height (0–1, ascending):
+For a route presented as a `sheet`, the `detents` / `initialDetentIndex` / `dragMode` / `backdropDismiss` props configure the partial-height bottom sheet. Each entry in `detents` is a [`DetentSpec`](/lynx/modules/sheet/api#detentspec) — a `fraction` of the screen, a fixed `px`, or the keyboard — and they are tracked live:
 
 ```tsx
 import { Screen } from '@sigx/lynx-navigation';
 
 export const FilterSheet = () => (
-  <Screen snapPoints={[0.4, 0.9]} initialSnapIndex={0} backdropDismiss>
+  <Screen detents={[{ fraction: 0.4 }, { fraction: 0.9 }]} initialDetentIndex={0} backdropDismiss>
     <view>{/* filter controls */}</view>
   </Screen>
 );
 ```
+
+> **Breaking in 0.19.** The route-sheet props were renamed (`snapPoints` → `detents`, `initialSnapIndex` → `initialDetentIndex`, `dragHandle` → `dragMode`), and the inline `<BottomSheet>` export was **removed** from `@sigx/lynx-navigation` — import it from the standalone [`@sigx/lynx-sheet`](/lynx/modules/sheet/overview) instead. `useSheetHeight()` keeps its name.
 
 ## Props
 
@@ -85,8 +87,9 @@ export const FilterSheet = () => (
 | `title` | `string \| (() => string)` | Header title. A function is re-evaluated reactively. |
 | `headerShown` | `boolean` | Whether the header is shown (default `true`). |
 | `gestureEnabled` | `boolean` | Whether the back / dismiss gesture is enabled (default `true`). |
-| `snapPoints` | `readonly number[]` | Sheet presentations: snap heights as fractions of screen height (0–1, ascending; default `[0.5]`). |
-| `initialSnapIndex` | `number` | Sheet presentations: index into `snapPoints` to open at (default: last / most open). |
+| `detents` | `DetentSpec[]` | Sheet presentations: rest heights, each a [`DetentSpec`](/lynx/modules/sheet/api#detentspec) (fraction / px / keyboard; default `[{ fraction: 0.5 }]`), tracked live. Renamed from `snapPoints` in 0.19. |
+| `initialDetentIndex` | `number` | Sheet presentations: index into `detents` to open at (default: last / most open). Renamed from `initialSnapIndex` in 0.19. |
+| `dragMode` | `'handle' \| 'surface' \| 'grabber'` | Sheet presentations: what owns the drag gesture. Renamed from `dragHandle` in 0.19. |
 | `backdropDismiss` | `boolean` | Sheet presentations: whether tapping the backdrop dismisses (default `true`). |
 | `slots` | `Partial<{ default: () => JSXElement \| JSXElement[] \| null }>` | The screen body, rendered inline. |
 

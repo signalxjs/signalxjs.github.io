@@ -1,0 +1,33 @@
+---
+title: "Installation"
+description: "Bottom Sheet — Route-free bottom sheet"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-sheet` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-sheet
+```
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import * as BottomSheet from '@sigx/lynx-sheet';
+
+console.log(Object.keys(BottomSheet));
+```

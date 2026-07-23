@@ -1,0 +1,39 @@
+---
+title: "Overview"
+description: "Bottom Sheet — Route-free bottom sheet"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Bottom Sheet
+
+<p class="lede">Standalone bottom sheet with DetentSpec geometry (px / fraction / keyboard), persistent or dismissible modes, a backdrop, and handle / surface / grabber drag with inner-scroll arbitration and keyboard riding — the shared engine behind the navigation route sheet.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/lynx-sheet" /> <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/lynx-sheet
+```
+
+## About
+
+`@sigx/lynx-sheet` is a **route-free** bottom sheet: a `<BottomSheet>` you mount anywhere, independent of `@sigx/lynx-navigation`. It is the shared engine the navigation route sheet is now built on, extracted so you can use a sheet without routing. Versioned in lockstep with the rest of the Lynx module family.
+
+### What it gives you
+
+- **`<BottomSheet>`** — a partial-height sheet with a draggable surface, a `Backdrop`, and a resting geometry described by **detents**.
+- **`DetentSpec` geometry** — each detent is a `px` height, a `fraction` of the screen, or a `keyboard` detent that tracks the soft keyboard. Detents and `maxHeight` are tracked **live**: the sheet follows their computed values even while open, so a floor that grows with its content (a chat composer) never pushes the input behind the keyboard.
+- **Modes** — *persistent* (always present, snaps between detents) or *dismissible* (a drag-down or a backdrop tap closes it).
+- **Drag** — the handle, the whole surface, or a grabber can own the drag (`dragMode`), with inner-scroll arbitration so a scrollable body and the sheet don't fight.
+- **Keyboard riding** — the sheet rides the soft keyboard up and down.
+
+The lower-level engine (`useSheetEngine`, `createSheetPan`, `resolveDetents`, `decideDragOwner`) is exported for custom sheet UIs — see the [API reference](/lynx/modules/sheet/api).
+
+## Next steps
+
+Continue with [Usage](/lynx/modules/sheet/usage) for a worked example, or jump to the [API reference](/lynx/modules/sheet/api).

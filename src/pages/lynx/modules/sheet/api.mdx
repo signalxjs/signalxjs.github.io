@@ -1,0 +1,52 @@
+---
+title: "API reference"
+description: "Bottom Sheet — Route-free bottom sheet"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-sheet` <PkgVersion npm="@sigx/lynx-sheet" />.</p>
+
+## Exports
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `BottomSheet` | component | The route-free bottom sheet. |
+| `Backdrop` | component | The dimmed, tap-to-dismiss backdrop behind the sheet. |
+| `DetentSpec` | type | A rest position: `{ fraction }`, `{ px }`, or a keyboard detent. |
+| `useSheetEngine` | hook | Sheet state + snap logic for a custom surface. |
+| `createSheetPan` | function | The pan-gesture handler for a sheet. |
+| `resolveDetents` | function | Resolve `DetentSpec[]` to concrete px against the current viewport. |
+| `decideDragOwner` | function | Inner-scroll arbitration — decides whether a drag moves the sheet or scrolls the body. |
+| `useSheetHeight` | hook | The sheet's current reveal height as a shared value, for content that reacts to it. |
+
+```tsx
+import { BottomSheet, Backdrop } from '@sigx/lynx-sheet';
+import type { DetentSpec } from '@sigx/lynx-sheet';
+```
+
+## `<BottomSheet>` props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `detents` | `DetentSpec[]` | The rest positions, ascending. Tracked **live** — changing them re-snaps the open sheet. Default `[{ fraction: 0.5 }]`. |
+| `initialDetentIndex` | `number` | Index into `detents` to open at. Default: the most-open detent. |
+| `maxHeight` | `number` | Upper bound on the sheet height, also tracked live. |
+| `dragMode` | `'handle' \| 'surface' \| 'grabber'` | What owns the drag gesture. |
+| `open` | `boolean` | Controlled open state (dismissible mode). |
+| `onClose` | `() => void` | Fired when a dismissible sheet closes. |
+
+### DetentSpec
+
+A rest position is one of:
+
+- `{ fraction: number }` — a fraction of the screen height (`0`–`1`).
+- `{ px: number }` — a fixed pixel height.
+- a **keyboard** detent — tracks the soft keyboard so the sheet rides it.
+
+> `@sigx/lynx-sheet` is new in 0.19. This page covers the public surface most apps use; the deep engine signatures live in the package's typed source.
