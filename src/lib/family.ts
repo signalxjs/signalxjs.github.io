@@ -62,21 +62,21 @@ export interface SigxPackage {
 const RAW_PACKAGES: SigxPackage[] = [
     // ---- Foundation: reactivity & state ----
     { id: 'core', npm: 'sigx', title: 'Core', cat: 'core', target: 'foundation', kind: 'collection',
-      hue: 285, glyph: '◇', status: 'stable', version: '0.10.0',
+      hue: 285, glyph: '◇', status: 'stable', version: '0.13.0',
       tag: 'Signals, effects & the component model',
       blurb: 'Fine-grained reactivity with signals and effects, plus a tiny TSX component runtime.' },
     { id: 'router', npm: '@sigx/router', title: 'Router', cat: 'core', target: 'foundation',
-      hue: 232, glyph: '⌖', status: 'stable', version: '0.4.5',
+      hue: 232, glyph: '⌖', status: 'stable', version: '0.10.0',
       tag: 'Type-safe routing with SSR',
       blurb: 'Nested routes, navigation guards and reactive params — isomorphic by default.' },
     { id: 'store', npm: '@sigx/store', title: 'Store', cat: 'core', target: 'foundation',
-      hue: 78, glyph: '▦', status: 'stable', version: '0.5.0',
+      hue: 78, glyph: '▦', status: 'stable', version: '0.11.0',
       tag: 'Centralized state on signals',
       blurb: 'Predictable, derived state for larger apps — built on the same reactive core.' },
 
     // ---- Web: rendering ----
     { id: 'ssg', npm: '@sigx/ssg', title: 'SSG', cat: 'render', target: 'web',
-      hue: 158, glyph: '❏', status: 'beta', version: '0.4.8',
+      hue: 158, glyph: '❏', status: 'beta', version: '0.17.0',
       tag: 'Static site generation + MDX',
       blurb: 'File-based routing, MDX content collections and island hydration for content sites.' },
     { id: 'server', npm: '@sigx/server-renderer', title: 'Server', cat: 'render', target: 'web', kind: 'collection', umbrella: false,
@@ -86,31 +86,31 @@ const RAW_PACKAGES: SigxPackage[] = [
 
     // ---- Targets with their own framework package ----
     { id: 'lynx', npm: '@sigx/lynx', title: 'Lynx', cat: 'platform', target: 'lynx', kind: 'collection',
-      hue: 350, glyph: '◑', status: 'experimental', version: '0.2.1',
+      hue: 350, glyph: '◑', status: 'experimental', version: '0.20.0',
       tag: 'Native iOS & Android with Lynx',
       blurb: 'Write one SignalX component tree, render it to real native views on iOS and Android.' },
     { id: 'terminal', npm: '@sigx/terminal', title: 'Terminal', cat: 'platform', target: 'terminal', kind: 'collection',
-      hue: 138, glyph: '▸', status: 'experimental', version: '0.6.2',
+      hue: 138, glyph: '▸', status: 'experimental', version: '0.9.0',
       tag: 'Build TUIs with TSX',
       blurb: 'The reactive model, rendered to the terminal — flexbox layout, input and a cell renderer.' },
 
     // ---- Web: UI ----
     { id: 'daisyui', npm: '@sigx/daisyui', title: 'DaisyUI', cat: 'ui', target: 'web', kind: 'component-library',
-      hue: 24, glyph: '❂', status: 'stable', version: '0.4.3',
+      hue: 24, glyph: '❂', status: 'stable', version: '0.10.0',
       tag: 'Themed component library',
       blurb: 'Accessible buttons, forms, modals and more with full DaisyUI theme support.' },
     { id: 'monaco', npm: '@sigx/monaco-editor', title: 'Monaco', cat: 'ui', target: 'web',
-      hue: 46, glyph: '⌗', status: 'beta', version: '0.1.2',
+      hue: 46, glyph: '⌗', status: 'beta', version: '0.5.0',
       tag: 'Editor + live-code playground',
       blurb: 'A pluggable Monaco wrapper powering the live, runnable code samples in these docs.' },
 
     // ---- Tooling (foundation unless target-specific) ----
     { id: 'cli', npm: '@sigx/cli', title: 'CLI', cat: 'tooling', target: 'foundation',
-      hue: 264, glyph: '›', status: 'stable', version: '0.2.8',
+      hue: 264, glyph: '›', status: 'stable', version: '0.7.0',
       tag: 'Scaffold & manage projects',
       blurb: 'npm create @sigx@latest — project scaffolding, plugin discovery and platform commands.' },
     { id: 'vite', npm: '@sigx/vite', title: 'Vite', cat: 'tooling', target: 'web',
-      hue: 318, glyph: '◮', status: 'stable', version: '0.10.0',
+      hue: 318, glyph: '◮', status: 'stable', version: '0.13.0',
       tag: 'Vite plugin & HMR',
       blurb: 'First-class Vite integration — HMR for components, optimized production builds.' },
     { id: 'devtools', npm: '@sigx/devtools', title: 'DevTools', cat: 'tooling', target: 'foundation',
