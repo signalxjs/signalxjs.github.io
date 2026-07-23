@@ -213,6 +213,10 @@ const RAW_MODULES: SigxModule[] = [
       hue: 168, glyph: '☰', status: 'beta', version: '0.12.1', shots: 0,
       tag: 'Data-driven virtualized list',
       blurb: 'Virtualized wrapper over the native list recycler — grid/waterfall, header/footer/empty slots, pull-to-refresh, chat mode and windowing over long histories.' },
+    { id: 'sheet', parent: 'lynx', npm: '@sigx/lynx-sheet', name: 'Bottom Sheet', category: 'ui',
+      hue: 216, glyph: '⬓', status: 'beta', version: '0.19.0',
+      tag: 'Route-free bottom sheet',
+      blurb: 'Standalone bottom sheet with DetentSpec geometry (px / fraction / keyboard), persistent or dismissible modes, a backdrop, and handle / surface / grabber drag with inner-scroll arbitration and keyboard riding — the shared engine behind the navigation route sheet.' },
 
     // ---- Dev tooling ----
     { id: 'dev-client', parent: 'lynx', npm: '@sigx/lynx-dev-client', name: 'Dev Client', category: 'devtools',
@@ -475,6 +479,10 @@ export const COMPONENT_CATALOGS: Record<string, { cat: string; items: string[] }
     ],
     'lynx-updates-ui': [
         { cat: 'Update flow', items: ['UpdateGate', 'UpdatePrompt', 'UpdateProgress', 'UpdateReadyBanner'] },
+    ],
+    'lynx-sheet': [
+        { cat: 'Sheet', items: ['BottomSheet'] },
+        { cat: 'Parts', items: ['Backdrop'] },
     ],
 };
 

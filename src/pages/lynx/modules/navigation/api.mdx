@@ -349,13 +349,13 @@ interface ScreenOptions {
     title?: string | (() => string);
     headerShown?: boolean;          // default true
     gestureEnabled?: boolean;       // default true
-    snapPoints?: readonly number[]; // sheet: fractions of screen height (0–1), ascending; default [0.5]
-    initialSnapIndex?: number;      // default: last (most open)
+    detents?: DetentSpec[];         // sheet: rest heights (fraction / px / keyboard); default [{ fraction: 0.5 }]
+    initialDetentIndex?: number;    // default: last (most open)
     backdropDismiss?: boolean;      // default true
 }
 ```
 
-Per-screen options, settable via `<Screen>` or `useScreenOptions`. The `snapPoints` / `initialSnapIndex` / `backdropDismiss` fields apply to `sheet` presentations.
+Per-screen options, settable via `<Screen>` or `useScreenOptions`. The `detents` / `initialDetentIndex` / `backdropDismiss` fields apply to `sheet` presentations. They use the `DetentSpec` geometry from [`@sigx/lynx-sheet`](/lynx/modules/sheet/overview) — the route sheet now shares that engine, and the detents are tracked live. **Renamed in 0.19** from `snapPoints` / `initialSnapIndex` (which took plain fraction numbers).
 
 ### ScreenSlotFills
 
