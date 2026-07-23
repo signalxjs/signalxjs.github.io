@@ -93,6 +93,24 @@ interface SSRBoundaryRecord {
 
 The table shares one serializer (and one dev-time serializability warning) with `window.__SIGX_ASYNC__`, so the same escaping and custom-type rules apply to both. That serializer is **codec-aware**: alongside JSON primitives, top-level and nested `Date` / `Map` / `Set` / `bigint` / `URL` / `RegExp` / explicit `undefined` values — plus any registered custom type handlers — round-trip; only functions and circular references are rejected.
 
+## Custom types
+
+The codec ships with handlers for `Date`, `Map`, `Set`, `bigint`, `URL`, `RegExp` and `undefined`. To carry a type of your own across the boundary, define a handler with `defineTypeHandler` from `@sigx/serialize`. Its `test` is a **type guard**, so it drives the `serialize` / `revive` types for you — no casts:
+
+```ts
+import { defineTypeHandler } from '@sigx/serialize';
+
+const moneyHandler = defineTypeHandler({
+  test: (v): v is Money => v instanceof Money,
+  serialize: (m) => ({ cents: m.cents, currency: m.currency }),
+  revive: (e) => new Money(e.cents, e.currency),
+});
+```
+
+Register it once and both the SSR state blob and [server functions](/server/docs/authoring) use it — pass it through the server plugin's `types` option (`serverPlugin({ types: [moneyHandler] })`). A registered handler then round-trips wherever the codec runs: `__SIGX_ASYNC__`, the boundary table, and server-function arguments and results.
+
+`reviveWithHandlers<T>(value, handlers)` applies the same codec manually when you already hold a serialized tree, and the bare `TypeHandler<T, Encoded>` interface is the non-inferring shape (`test(): boolean`) for handlers authored without the `defineTypeHandler` guard.
+
 ## Selective hydration is the hydrator
 
 On the client, `hydrate()` reads the boundary table and schedules work per strategy — this *is* the hydrator, not an add-on. Its behavior is governed by a per-app hydrate default:
