@@ -1,0 +1,77 @@
+---
+title: "API reference"
+description: "Resume — resumePlugin, the resume manifest, and createBoundaryRefresh"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/resume` <PkgVersion npm="@sigx/resume" />, by entry point.</p>
+
+## Entry points
+
+| Subpath | Purpose |
+|---|---|
+| `@sigx/resume` | `resumePlugin` + the resume types. |
+| `@sigx/resume/server` | WinterCG-clean server surface — `createBoundaryRefresh`, signal-state capture. |
+| `@sigx/resume/client` | The scope-resume / upgrade-on-write runtime (lazy-loaded on first interaction). |
+| `@sigx/resume/loader` | The delegation loader — the page's only script. |
+
+Apps usually import only `@sigx/resume` (and `@sigx/resume/server` for boundary refresh); the client and loader entries are wired up by the generated `virtual:sigx-resume/entry`.
+
+## resumePlugin
+
+```ts
+function resumePlugin(options?: ResumePluginOptions): SSRPack;
+
+interface ResumePluginOptions {
+  manifest?: ResumeManifest;
+}
+```
+
+Install on the app: `app.use(resumePlugin({ manifest }))`. On the server it records resume-stamped components as boundaries with `hydrate: 'never'` (the pack's delegation owns all waking) and declines any usage site carrying a `client:*` directive (that belongs to [islands](/server/packages/ssr-islands/overview)). Pass `resumeManifest` from `virtual:sigx-manifests` as the manifest (`undefined` under dev).
+
+```ts
+interface ResumeManifest {
+  components: Record<string, ResumeChunkRef>;  // __resumeId → upgrade chunk
+  handlers: Record<string, ResumeChunkRef>;    // QRL symbol → handler chunk
+}
+interface ResumeChunkRef { chunkUrl: string; exportName: string; }
+```
+
+## createBoundaryRefresh
+
+From `@sigx/resume/server`. Builds the function that re-renders admitted boundaries for a mutation — hand its result to your server-function request handler as `renderBoundaries`.
+
+```ts
+function createBoundaryRefresh(options: BoundaryRefreshOptions): (
+  requests: ReadonlyArray<BoundaryRefreshRequest>,
+  base: number,
+  rq?: unknown,
+) => Promise<BoundaryRefreshEntry[]>;
+
+interface BoundaryRefreshOptions {
+  plugins?: SSRPlugin[];                     // SSR plugins the re-render runs with (resumePlugin at least)
+  components: Record<string, unknown>;       // REQUIRED — __resumeId → server component (factory or lazy loader)
+  app?: (rq?: unknown) => App | Promise<App>; // per-call app for DI (type handlers, provides)
+}
+```
+
+- `components` is **required** and explicit — own-property lookup only (the key is attacker-controlled).
+- `plugins` may be omitted when `app` carries them.
+- The returned function floors the component-id counter at the client-chosen `base` to avoid marker collisions.
+
+```ts
+interface BoundaryRefreshRequest { id: number; component: string; deps?: string[]; props?: Record<string, unknown>; }
+interface BoundaryRefreshEntry { for: number; id: number; html: string; state?: Record<string, unknown>; records: Record<number, unknown>; }
+```
+
+`state` / `records` and the request `props` are encoded with [`@sigx/serialize`](/server/packages/serialize/overview). Failure is silent by design: a descriptor it can't honor (unknown key, unserializable props, a render throw) is omitted — the mutation already succeeded, and those reads converge through `@sigx/cache` invalidation.
+
+## Vite
+
+The `sigxResume()` plugin from `@sigx/vite/resume` runs the transform and emits `.vite/sigx-resume-manifest.json`, surfaced as `resumeManifest` from `virtual:sigx-manifests`.

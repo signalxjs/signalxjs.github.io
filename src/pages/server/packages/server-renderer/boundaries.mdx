@@ -95,21 +95,7 @@ The table shares one serializer (and one dev-time serializability warning) with 
 
 ## Custom types
 
-The codec ships with handlers for `Date`, `Map`, `Set`, `bigint`, `URL`, `RegExp` and `undefined`. To carry a type of your own across the boundary, define a handler with `defineTypeHandler` from `@sigx/serialize`. Its `test` is a **type guard**, so it drives the `serialize` / `revive` types for you — no casts:
-
-```ts
-import { defineTypeHandler } from '@sigx/serialize';
-
-const moneyHandler = defineTypeHandler({
-  test: (v): v is Money => v instanceof Money,
-  serialize: (m) => ({ cents: m.cents, currency: m.currency }),
-  revive: (e) => new Money(e.cents, e.currency),
-});
-```
-
-A simple `instanceof` or discriminant `test` infers `T` cleanly; a **compound** predicate that TypeScript can't narrow may need an explicit type argument — `defineTypeHandler<Money>({ … })`.
-
-Register the handler once and both the SSR state blob and [server functions](/server/docs/authoring) use it — pass it through the `@sigx/server/plugin` app plugin's `types` option:
+The codec ships with handlers for `Date`, `Map`, `Set`, `bigint`, `URL`, `RegExp` and `undefined`. To carry a type of your own across the boundary — the SSR state blob, the boundary table, and server-function arguments and results — register a handler with [`@sigx/serialize`](/server/packages/serialize/overview)'s `defineTypeHandler`, most easily through the `@sigx/server/plugin` app plugin's `types` option:
 
 ```ts
 import { serverPlugin } from '@sigx/server/plugin';
@@ -117,9 +103,7 @@ import { serverPlugin } from '@sigx/server/plugin';
 app.use(serverPlugin({ types: [moneyHandler] }));
 ```
 
-A registered handler then round-trips wherever the codec runs: `__SIGX_ASYNC__`, the boundary table, and server-function arguments and results.
-
-`reviveWithHandlers<T>(value, handlers)` applies the same codec manually when you already hold a serialized tree, and the bare `TypeHandler<T, Encoded>` interface is the non-inferring shape (`test(): boolean`) for handlers authored without the `defineTypeHandler` guard.
+See [Serialize → Usage](/server/packages/serialize/usage) for writing the handler (its `test` type guard drives the `serialize` / `revive` types) and the other registration paths.
 
 ## Selective hydration is the hydrator
 

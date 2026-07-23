@@ -1,0 +1,78 @@
+---
+title: "API reference"
+description: "Server Functions — serverFn, serverStream, ServerFnContext and errors"
+layout: module-docs
+category: "Reference"
+order: 50
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/server` <PkgVersion npm="@sigx/server" />. See [Authoring](/server/packages/server/usage) for the guide and [Deployment & security](/server/packages/server/deployment) for the runtime wiring.</p>
+
+## Authoring (main entry)
+
+```ts
+import { serverFn, serverStream, ServerFnError, isServerFnError } from '@sigx/server';
+```
+
+### serverFn
+
+```ts
+// direct form — context + typed args
+function serverFn<A extends unknown[], R>(
+  impl: (rq: ServerFnContext, ...args: A) => R | Promise<R>
+): ServerFnCallable<A, Awaited<R>>;
+
+// options form — one validated input
+function serverFn<S = void, R = unknown>(
+  options: ServerFnOptions<S, R>
+): ServerFnCallable<[S] extends [void] ? [] : [S], Awaited<R>>;
+```
+
+The client stub is `(...args) => Promise<R>` — the context is server-only and never passed by callers. `ServerFnOptions` carries `input` (a Standard Schema), `use` (guards), `handler`, `invalidates`, `cache`, `form` and `id` — see [Authoring](/server/packages/server/usage#options-form).
+
+### serverStream
+
+```ts
+function serverStream<A extends unknown[], T>(
+  impl: (rq: ServerFnContext, ...args: A) => AsyncGenerator<T>
+): ((...args: A) => AsyncIterable<T>) & WrappedServerFn;
+```
+
+Streams yields as NDJSON; a string stream plugs into [`useStream`](/core/docs/data-loading).
+
+### ServerFnContext
+
+```ts
+interface ServerFnContext {
+  request: Request;
+  url: URL;
+  abortSignal: AbortSignal;
+  responseHeaders: Headers;
+  status(code: number): void;
+  locals: Record<string, unknown>;
+}
+```
+
+### Errors
+
+```ts
+class ServerFnError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string, data?: unknown);
+}
+function isServerFnError(error: unknown): error is ServerFnError;
+```
+
+`ServerFnError` crosses the wire verbatim (`{ status, message, data }`) and never fires `onError`; every other throw is masked to a generic 500 in production.
+
+## Runtime entries
+
+- **`@sigx/server/node`** — `createServerFnHandler(options)` (a connect-style middleware) and `runWithServerFnContext(request, fn)`.
+- **`@sigx/server/server`** — WinterCG/edge: `handleServerFnRequest(request, options)`, `matchesServerFn(request, base?)`.
+- **`@sigx/server/plugin`** — the app-plugin face: `serverPlugin({ transport?, types? })`, `registerWireTypeHandlers(handlers)`. The `types` option registers [`@sigx/serialize`](/server/packages/serialize/overview) handlers for the RPC wire **and** the SSR state registry in one call.
+
+See [Deployment & security](/server/packages/server/deployment) for how these are mounted.

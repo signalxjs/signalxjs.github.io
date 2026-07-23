@@ -17,7 +17,7 @@ const ServerPackageCatalog = component(() => {
 export default ServerPackageCatalog;
 
 export const meta = {
-    title: 'Server packages - SSR & islands for SignalX',
-    description: 'Browse the server-side rendering packages — @sigx/server-renderer for streaming SSR and hydration, and @sigx/ssr-islands for client:* selective hydration.',
+    title: 'Server packages - SSR, RPC, resume & serialize for SignalX',
+    description: 'Browse the server-side packages — @sigx/server-renderer (streaming SSR & hydration), @sigx/ssr-islands (client:* selective hydration), @sigx/server (type-safe server functions), @sigx/resume (resumable boundary refresh) and @sigx/serialize (the boundary codec).',
     layout: 'package',
 };

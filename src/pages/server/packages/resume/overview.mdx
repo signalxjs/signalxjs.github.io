@@ -1,0 +1,40 @@
+---
+title: "Overview"
+description: "Resume — resumable SSR: 0 JS on load, upgrade-on-write, single-flight boundary refresh"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Resume
+
+<p class="lede">Resumability for SignalX SSR — the server renders the page fully, the browser ships only a tiny delegation loader, and a component's chunk loads only when a handler first writes state. Plus single-flight refresh of the server boundaries a mutation invalidated.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/resume" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/resume
+```
+
+## About
+
+`@sigx/resume` is the second first-party strategy pack on [`@sigx/server-renderer`](/server/packages/server-renderer/overview)'s plugin API (the sibling of [islands](/server/packages/ssr-islands/overview)). The `sigxResume()` Vite transform (`@sigx/vite/resume`) lifts event handlers into lazily-imported chunks that run against a **resumed scope** of named signals, so component setup never re-runs on load.
+
+The result is a three-step ladder:
+
+1. **On load — 0 app JS.** The page's only script is the generated delegation loader.
+2. **First interaction.** The handler's chunk (usually < 1 kB, runtime-free) loads, the resumed scope's signals are rebuilt from serialized state, and the triggering event replays.
+3. **State changes.** Only when a handler actually writes does the component's chunk load and *that one boundary* hydrate — "upgrade-on-write".
+
+On top of that, `@sigx/resume` powers **single-flight boundary refresh**: when a mutation [server function](/server/packages/server/overview) declares what it `invalidates`, the endpoint re-renders exactly the server boundaries whose `useData` reads it touched — fresh HTML in the same response, without loading those boundaries' chunks.
+
+Combine it with islands when you need both — `app.use(islandsPlugin()).use(resumePlugin())`.
+
+## Next steps
+
+- [Usage](/server/packages/resume/usage) — write resumable components, install the plugin, wire boundary refresh.
+- [API reference](/server/packages/resume/api) — `resumePlugin`, the manifest, and `createBoundaryRefresh`.

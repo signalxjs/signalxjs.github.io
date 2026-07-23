@@ -1,0 +1,63 @@
+---
+title: "Usage"
+description: "Write resumable components, install the plugin, and wire single-flight boundary refresh"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Resume
+
+<p class="lede">Ordinary components in resume modules, one plugin install, and an optional boundary-refresh endpoint.</p>
+
+## Resumable components
+
+Write ordinary SignalX components in a `*.resume.tsx` file (or under a configured `resume/` directory) — no QRL API, no registration. The transform derives everything: **named** signals (`const x = ctx.signal(…)`, keyed by declaration name) are serialized and rebuilt in the resumed scope; anything else stays local.
+
+```tsx
+export const Counter = component<{ label: string }>((ctx) => {
+    const count = ctx.signal(0);
+    return () => (
+        <button onClick={() => count.value++}>
+            {ctx.props.label}: {count.value}
+        </button>
+    );
+});
+```
+
+A handler is resumable when its captures resolve through the resumed scope — named signals, `ctx.props` reads, imports, globals. Anything else (loop variables, setup helpers, `ctx.emit`) makes the whole component fall back to wake-on-interaction, with a build-time warning naming the capture.
+
+## Install the plugin
+
+`resumePlugin` is an SSR pack — install it on the app in your per-request entry, passing the build's manifest (which is `undefined` under dev, where resume runs manifest-less):
+
+```tsx
+// src/entry-server.tsx
+import { defineApp } from 'sigx';
+import { resumePlugin } from '@sigx/resume';
+import { resumeManifest } from 'virtual:sigx-manifests';
+
+export function createApp(url: string) {
+    return defineApp(<App />).use(resumePlugin({ manifest: resumeManifest }));
+}
+```
+
+The `sigxResume()` transform from `@sigx/vite/resume` produces the manifest and the delegation loader entry; the browser loads only that loader until an interaction upgrades a boundary.
+
+## Single-flight boundary refresh
+
+To let a mutation update the server-rendered boundaries it invalidated, build a refresher with `createBoundaryRefresh` and hand it to your server-function request handler as its `renderBoundaries` option:
+
+```ts
+import { createBoundaryRefresh } from '@sigx/resume/server';
+
+const renderBoundaries = createBoundaryRefresh({
+    plugins: [resumePlugin({ manifest })],  // or omit and let `app` carry them
+    components: { Tracker, Cart },          // registry key (__resumeId) → server component
+});
+// handleServerFnRequest(request, { fns, renderBoundaries })
+```
+
+`components` is **required** and explicit (never ambient) — the same posture as the server-function registry, since the key comes from the client. When a mutation server function declares `invalidates`, the endpoint admits a boundary whose recorded `useData` deps intersect it, re-renders each in an id-seeded isolated context, and returns fresh HTML + state in one response. The client half is automatic (`@sigx/resume/client` applies the fresh entries) — a never-hydrated boundary updates without loading its chunk.
+
+Nothing throws outward: a boundary it can't honor (unknown key, unserializable props, a render throw) is silently omitted, and those reads converge through `@sigx/cache` invalidation instead.

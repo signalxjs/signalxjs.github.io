@@ -1,0 +1,38 @@
+---
+title: "Overview"
+description: "Serialize — the boundary codec: round-trip Date/Map/Set/bigint/URL/RegExp and your own types"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Serialize
+
+<p class="lede">The codec that carries values JSON can't across every server↔client boundary — the SSR state blob, server-function arguments and results, resume boundary props and cache seeds. Round-trips Date / Map / Set / bigint / URL / RegExp / undefined out of the box; <code>defineTypeHandler</code> adds your own types with type-guard-driven inference.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/serialize" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/serialize
+```
+
+## About
+
+`@sigx/serialize` is the low-level codec beneath SignalX's server↔client boundaries. Out of the box it round-trips `Date`, `Map`, `Set`, `bigint`, `URL`, `RegExp` and explicit `undefined`; `defineTypeHandler` adds your own types. It has **zero runtime dependencies** by design — it's imported by the dependency-free `@sigx/server/client` stub — and is side-effect-free.
+
+Two functions do the work — [`encodeWithHandlers`](/server/packages/serialize/api#encodewithhandlers) and [`reviveWithHandlers`](/server/packages/serialize/api#revivewithhandlers) — but most apps never call them directly: the [server renderer](/server/packages/server-renderer/overview), [server functions](/server/packages/server/overview) and [resume](/server/packages/resume/overview) all run the codec for you. You reach for this package only to **register a custom type** — see [Usage](/server/packages/serialize/usage).
+
+On the wire, a handled value takes a single-key tagged form:
+
+```json
+{ "createdAt": { "$date": 1700000000000 }, "tags": { "$set": ["priority"] } }
+```
+
+## Next steps
+
+- [Usage](/server/packages/serialize/usage) — write and register a custom type handler.
+- [API reference](/server/packages/serialize/api) — `defineTypeHandler`, `encodeWithHandlers`, `reviveWithHandlers`, `TypeHandler` and the built-ins.

@@ -126,15 +126,9 @@ export default defineSSGConfig({
             path: '/ssg/docs',
             showDrafts: 'dev',
         },
-        // `server` is a collection — its two packages (server-renderer,
-        // ssr-islands) are documented via the `server-pkg-*` collections
-        // injected by `...moduleCollections` below. The `server-docs`
-        // guide section documents @sigx/server (server functions / RPC),
-        // which ships from the same repo but is not a landing-page package.
-        'server-docs': {
-            path: '/server/docs',
-            showDrafts: 'dev',
-        },
+        // `server` is a collection — its packages (server-renderer,
+        // ssr-islands, server, resume, serialize) are documented via the
+        // `server-pkg-*` collections injected by `...moduleCollections` below.
         'vite-docs': {
             path: '/vite/docs',
             showDrafts: 'dev',
@@ -177,6 +171,16 @@ export default defineSSGConfig({
     // trailing-slash form (the site uses `trailingSlash: 'always'`) and the
     // slash-less form are mapped so neither variant misses.
     redirects: {
+        // @sigx/server functions moved from a /server/docs guide to a proper
+        // collection package at /server/packages/server/*.
+        '/server/docs': '/server/packages/server/overview/',
+        '/server/docs/': '/server/packages/server/overview/',
+        '/server/docs/overview': '/server/packages/server/overview/',
+        '/server/docs/overview/': '/server/packages/server/overview/',
+        '/server/docs/authoring': '/server/packages/server/usage/',
+        '/server/docs/authoring/': '/server/packages/server/usage/',
+        '/server/docs/deployment': '/server/packages/server/deployment/',
+        '/server/docs/deployment/': '/server/packages/server/deployment/',
         '/lynx/modules/device-info': '/lynx/modules/core/overview/',
         '/lynx/modules/device-info/': '/lynx/modules/core/overview/',
         '/lynx/modules/device-info/overview': '/lynx/modules/core/overview/',

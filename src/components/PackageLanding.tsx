@@ -44,6 +44,10 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
         const docs = docsHref(pkg.id);
         const api = apiHref(pkg.id);
         const others = PACKAGES.filter((p) => p.id !== pkg.id).slice(0, 4);
+        // A collection with no umbrella package (server) badges/installs as a
+        // collection of N packages rather than pinning to one member.
+        const noUmbrella = pkg.kind === 'collection' && pkg.umbrella === false;
+        const memberCount = noUmbrella ? modulesByParent(pkg.id as 'server').length : 0;
 
         return (
             <div class="page landing" style={`--pkg-h:${pkg.hue}`}>
@@ -51,8 +55,12 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                 <section class="landing-hero">
                     <div class="lh-deco" />
                     <div class="lh-badge">
-                        <span class="lhb-tile">{pkg.glyph}</span> {pkg.npm}
-                        <span class="lhb-dot">·</span> v{pkg.version}
+                        <span class="lhb-tile">{pkg.glyph}</span>{' '}
+                        {noUmbrella ? (
+                            <>{pkg.title} collection <span class="lhb-dot">·</span> {memberCount} packages</>
+                        ) : (
+                            <>{pkg.npm} <span class="lhb-dot">·</span> v{pkg.version}</>
+                        )}
                     </div>
                     <h1>{pkg.title}</h1>
                     <p class="lh-tag">{pkg.blurb}</p>
@@ -122,7 +130,11 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                 {/* Install — like lynx/core, the collection landing shows the main
                     package; per-package installs live on each module's own page. */}
                 <div class="section-label"><span class="sl-text">Install</span><span class="sl-line" /></div>
-                <CopyLine text={`pnpm add ${pkg.npm}`} prefix="$" />
+                {noUmbrella ? (
+                    <p class="lh-soon">{pkg.title} is a collection — there's no single install. Add the package you need from the list below.</p>
+                ) : (
+                    <CopyLine text={`pnpm add ${pkg.npm}`} prefix="$" />
+                )}
 
                 {/* Collection strips — core & lynx are meta-packages with sub-package docs */}
                 {pkg.id === 'core' && (
@@ -140,9 +152,9 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                 {pkg.id === 'server' && (
                     <>
                         <div class="section-label">
-                            <span class="sl-text">SSR packages</span>
+                            <span class="sl-text">Server packages</span>
                             <span class="sl-line" />
-                            <span class="sl-note">server is a collection — the renderer and the islands add-on</span>
+                            <span class="sl-note">server is a collection — renderer, islands, server functions, resume and serialize</span>
                         </div>
                         <div class="lynx-mod-row">
                             {modulesByParent('server').map(moduleCard)}
