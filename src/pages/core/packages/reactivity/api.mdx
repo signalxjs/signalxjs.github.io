@@ -102,6 +102,31 @@ export function effectScope(detached?: boolean): {
 
 `stop()` disposes the effects and watchers created inside `run()`. Nested scopes are stopped with their parent unless created detached (`effectScope(true)`).
 
+### onScopeDispose
+
+Register an arbitrary teardown callback with the currently-active scope — the component setup being collected, or the innermost running `effectScope()`. It uses the same registration path `effect()` and `watch()` use for their own disposers, exposed for non-reactive resources (event listeners, timers, observers) whose lifetime must match the owning scope's.
+
+```ts
+export function onScopeDispose(fn: () => void): boolean;
+```
+
+- `fn` — a disposer to run when the active scope stops.
+- Returns `true` if a scope captured the disposer, or `false` (without retaining `fn`) when no scope is active — the caller owns the teardown itself in that case.
+
+```ts
+function useIntervalFn(fn: () => void, ms: number) {
+  const id = setInterval(fn, ms);
+  onScopeDispose(() => clearInterval(id));
+}
+
+const tick = () => console.log('tick');
+const scope = effectScope();
+scope.run(() => useIntervalFn(tick, 1000));
+scope.stop(); // interval cleared
+```
+
+This is the primitive that composables build teardown on: a `use*` helper registers its own cleanup with whatever scope is active — no disposer argument to thread through. The boolean return reports whether a scope actually captured it, so a helper meant to also work outside a scope can check it and fall back to returning a manual disposer.
+
 ### watch
 
 Watch a reactive source and invoke a callback when it changes.
@@ -193,6 +218,26 @@ export function isComputed(value: unknown): value is Computed<unknown>;
 
 - `value` — the value to test.
 - Returns `true` if the value carries the internal `ComputedSymbol`, narrowing it to `Computed<unknown>`.
+
+### isSignal
+
+Check whether a value is a signal-shaped `{ value }` handle: a primitive-wrapper signal from `signal(primitive)`, or a property view from `toSignal` / `toSignals`. Orthogonal to `isReactive` and `isComputed` — it matches the `{ value }` box shape, not object proxies or computeds.
+
+```ts
+export function isSignal(value: unknown): value is { value: unknown };
+```
+
+- `value` — the value to test.
+- Returns `true` for primitive-wrapper and property-view signals, narrowing to `{ value: unknown }`; `false` for object signals (use `isReactive`), computeds (use `isComputed`), and unbranded plain `{ value }` objects.
+
+```ts
+const state = signal({ x: 1 });
+
+isSignal(signal(0));            // true  — primitive-wrapper signal
+isSignal(toSignal(state, 'x')); // true  — property view
+isSignal(state);                // false — object signal (use isReactive)
+isSignal({ value: 1 });         // false — plain object
+```
 
 ### detectAccess
 
