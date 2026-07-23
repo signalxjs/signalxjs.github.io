@@ -31,7 +31,7 @@ On the server, `ssrState` registers the slice's **live** state under the key `st
 
 The core `stateSerializationPlugin` emits that registry into `window.__SIGX_ASYNC__`. It runs automatically under `renderDocument` (and the other document renderers), or you can add it explicitly:
 
-```ts
+```tsx
 import { stateSerializationPlugin } from '@sigx/server-renderer';
 import { defineApp } from 'sigx';
 

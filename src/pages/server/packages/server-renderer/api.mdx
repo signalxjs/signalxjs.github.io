@@ -232,17 +232,16 @@ boundaries(): ReadonlyMap<number, SSRBoundaryRecord>;
 Packs install through a small public seam:
 
 ```ts
-import { provideSSRPlugin, SSR_PLUGINS_TOKEN } from '@sigx/server-renderer/client';
-import { reviveFromServer } from '@sigx/server-renderer/client';
-
 interface SSRPack extends SSRPlugin { install(app: App): void }
 ```
 
 - **`SSRPack`** — an `SSRPlugin` with an `install(app)` method; `app.use(pack)`
   calls it. Inside, `provideSSRPlugin(app._context, pack)` registers the plugin on
-  the app so the render pipeline picks it up.
+  the app so the render pipeline picks it up (`getSSRPlugins` / `SSR_PLUGINS_TOKEN`
+  read it back).
 - **`reviveFromServer(...)`** — now public — revives a value serialized into the
-  hydration blob (applying the same codec + custom handlers) on the client.
+  hydration blob (applying the same codec + custom handlers) on the client; it is
+  exported from the client entry (`@sigx/server-renderer/client`).
 
 ## Head management
 

@@ -98,7 +98,7 @@ interface IslandsPluginOptions {
 Add your own scheduling strategy alongside the built-in six. A strategy receives
 the element and a `hydrate` callback to invoke when it should run:
 
-```ts
+```tsx
 const app = defineApp(<App />).use(islandsPlugin({
     strategies: {
         // hydrate after a fixed delay
@@ -115,7 +115,7 @@ client can then load each chunk on demand **without** an eager
 [`sigxIslands()`](/vite/docs/ssr#the-islands-transform) from `@sigx/vite/islands`
 during the build, at `.vite/sigx-islands-manifest.json`:
 
-```ts
+```tsx
 import manifest from './dist/client/.vite/sigx-islands-manifest.json';
 
 const app = defineApp(<App />).use(islandsPlugin({ manifest }));
