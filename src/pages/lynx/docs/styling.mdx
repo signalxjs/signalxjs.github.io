@@ -144,14 +144,14 @@ The `background` prop is token-aware: pass a semantic token like `base-200` or `
 
 Themes on Lynx are sets of CSS custom properties — colors (`--color-<token>`), roundness (`--radius-*`), sizing (`--size-*`) and the text ramp (`--text-*`). Components and utilities read those variables, so switching a theme recolors everything that references them.
 
-### Why a runtime, not inline vars
+### How themes are applied
 
-Lynx in this toolchain does NOT honor CSS custom properties declared via the inline `style` attribute, and its CSS engine does not parse `oklch()` or reliably evaluate `calc(var() * n)`. So themes are applied as real, inheritable custom properties through the Lynx runtime `setProperty` API rather than inline. Two consequences shape how you author themes:
+`ThemeProvider` wraps children in a host `view` and declares the active theme's tokens as **inline CSS custom properties** on it. Because Lynx layout defaults enable CSS inheritance, the variables flow to every descendant — and because they are set inline they paint on the **first frame**, with no post-mount swap and no per-theme CSS class to generate. Inline custom properties require **Lynx ≥ 3.9** on native hosts (the CLI templates pin 3.9.0; an existing app runs `sigx prebuild --clean` once to adopt it).
 
-- Theme colors must be engine-safe strings — hex or `rgb()`, never `oklch()`.
+Two authoring constraints remain — they concern the CSS engine's colour handling, not variable inheritance:
+
+- Theme colors must be engine-safe strings — hex or `rgb()`, never `oklch()`, and avoid `calc(var() * n)`.
 - Structural sizes ship as literal `px`; the provider re-derives any scaled values in JS.
-
-`ThemeProvider` handles all of this. It wraps children in a host `view` carrying the theme classes and pushes the active palette down via `setProperty`. Because Lynx layout defaults enable CSS inheritance, the variables flow to every descendant.
 
 ### Mounting a provider
 

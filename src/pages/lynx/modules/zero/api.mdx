@@ -449,12 +449,11 @@ interface ThemeInput {
   pair?: string;
   radius?: ThemeRadius;
   sizes?: ThemeSizes;
-  staticCss?: boolean;
   softMix?: number;
 }
 ```
 
-What a theme author writes: core tokens required, `*-soft` optional. `softMix` defaults to `0.16`; `staticCss` marks a build-time CSS class (for first-frame paint).
+What a theme author writes: core tokens required, `*-soft` optional. `softMix` defaults to `0.16`. (The `staticCss` option was removed in 0.19 — themes ride inline CSS variables, so first-frame paint is correct without a build-time class.)
 
 ### ThemePaletteInput
 

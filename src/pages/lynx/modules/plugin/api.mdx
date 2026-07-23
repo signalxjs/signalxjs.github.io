@@ -105,6 +105,8 @@ export interface PluginSigxLynxOptions {
   enableCSSInheritance?: boolean;
   /** A list of additional CSS properties to inherit beyond the engine defaults. Only effective when enableCSSInheritance is true. */
   customCSSInheritanceList?: string[];
+  /** Whether themes and safe-area may ride inline CSS custom properties (requires Lynx ≥ 3.9). @defaultValue true */
+  enableCSSInlineVariables?: boolean;
   /** Whether to place debug info outside the template bundle. @defaultValue true */
   debugInfoOutside?: boolean;
 }
@@ -115,7 +117,7 @@ export interface PluginSigxLynxOptions {
 - `enableCSSSelector?: boolean` — enable CSS selector support in the Lynx template. Default `true`.
 - `enableCSSInheritance?: boolean` — enable CSS inheritance in the Lynx engine. Default `false`.
 - `customCSSInheritanceList?: string[]` — additional CSS properties to inherit beyond the engine defaults. Only effective when `enableCSSInheritance` is `true`.
-- `debugInfoOutside?: boolean` — place debug info outside the template bundle. Default `true`.
+- `enableCSSInlineVariables?: boolean` — let themes (`@sigx/lynx-zero` `ThemeProvider`) and safe-area publish inline CSS custom properties for first-frame-perfect runtime theming. Default `true`; requires **Lynx ≥ 3.9** on native hosts. A kill switch for hosts that can't run 3.9.
 
 ### ApplyEntryOptions
 
