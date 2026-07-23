@@ -119,6 +119,7 @@ function useIntervalFn(fn: () => void, ms: number) {
   onScopeDispose(() => clearInterval(id));
 }
 
+const tick = () => console.log('tick');
 const scope = effectScope();
 scope.run(() => useIntervalFn(tick, 1000));
 scope.stop(); // interval cleared
@@ -230,9 +231,11 @@ export function isSignal(value: unknown): value is { value: unknown };
 - Returns `true` for primitive-wrapper and property-view signals, narrowing to `{ value: unknown }`; `false` for object signals (use `isReactive`), computeds (use `isComputed`), and unbranded plain `{ value }` objects.
 
 ```ts
-isSignal(signal(0));            // true
-isSignal(toSignal(state, 'x')); // true
-isSignal(signal({ x: 1 }));     // false — object signal
+const state = signal({ x: 1 });
+
+isSignal(signal(0));            // true  — primitive-wrapper signal
+isSignal(toSignal(state, 'x')); // true  — property view
+isSignal(state);                // false — object signal (use isReactive)
 isSignal({ value: 1 });         // false — plain object
 ```
 
