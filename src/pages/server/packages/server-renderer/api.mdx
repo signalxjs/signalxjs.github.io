@@ -181,8 +181,7 @@ lower-level `.render()`/`.renderStream()`/`.renderNodeStream()`/
 `.renderStreamWithCallbacks()`. With no plugins the hooks are no-ops and it behaves
 like the standalone functions; islands/selective/resumable hydration are layered on
 as `SSRPlugin`s. The `renderDocument*` methods append `stateSerializationPlugin()`
-automatically unless the app already installed it or `serializeState: false` is
-passed.
+automatically unless it is already registered or `serializeState: false` is passed.
 
 ```ts
 function createSSR(instanceOptions?: CreateSSROptions): SSRInstance
@@ -271,9 +270,10 @@ function renderHeadToString(configs: HeadConfig[]): string
 
 The built-in `SSRPlugin` (name `'sigx:state'`) that ships values resolved by keyed
 `useData`/`useStream` to the client as `window.__SIGX_ASYNC__`, keyed by the
-calls' explicit keys, so fetchers don't re-run after hydration. **Opt-in** for the
-lower-level render APIs (install it on the app: `app.use(stateSerializationPlugin())`);
-the `renderDocument*` family enables it by default.
+calls' explicit keys, so fetchers don't re-run after hydration. It's a plain
+`SSRPlugin`, so opt in for the lower-level render APIs by passing it to
+`createSSR({ plugins: [stateSerializationPlugin()] })`; the `renderDocument*` family
+enables it by default.
 
 ```ts
 function stateSerializationPlugin(): SSRPlugin
