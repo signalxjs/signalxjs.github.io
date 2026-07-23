@@ -98,14 +98,18 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         >
                             <Icon name="github" size={16} /> GitHub
                         </a>
-                        <a
-                            class="sx-btn sx-btn-ghost"
-                            href={`https://www.npmjs.com/package/${pkg.npm}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            <Icon name="external" size={15} /> npm
-                        </a>
+                        {/* No single npm to link for a no-umbrella collection —
+                            each package's own page has its npm link. */}
+                        {!noUmbrella && (
+                            <a
+                                class="sx-btn sx-btn-ghost"
+                                href={`https://www.npmjs.com/package/${pkg.npm}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <Icon name="external" size={15} /> npm
+                            </a>
+                        )}
                         <StatusBadge status={pkg.status} />
                         {/* DaisyUI exists on two targets — link the native sibling (local, never a global mode) */}
                         {pkg.id === 'daisyui' && <SiblingTargetPill current="web" />}
