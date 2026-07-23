@@ -1,0 +1,65 @@
+---
+title: "Usage"
+description: "Add a custom type with defineTypeHandler and register it"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Serialize
+
+<p class="lede">Register a custom type once, and it round-trips wherever the codec runs — SSR state, server-function args/results and resume boundaries.</p>
+
+## Define a handler
+
+`defineTypeHandler` describes how one type crosses the wire. Declare `test` as a **type guard** and the `serialize` / `revive` parameter types (and their pairing) are inferred from it — no casts:
+
+```ts
+import { defineTypeHandler } from '@sigx/serialize';
+
+const money = defineTypeHandler({
+  name: 'money',                            // identifies the handler (dev warnings, dedupe)
+  tag: '$money',                            // wire discriminator: { "$money": <payload> }
+  test: (v): v is Money => v instanceof Money,
+  serialize: (m) => m.cents,               // m: Money
+  revive: (cents) => new Money(cents),     // cents: number — serialize's output
+});
+```
+
+- `serialize` returns a JSON-safe payload; the result is itself walked, so nested handled types re-encode.
+- `revive` is optional — omit it for a legacy serialize-only handler whose output ships as-is and is never revived.
+
+> **Inference caveat.** TypeScript only infers the predicate from a **bare** `instanceof` / `typeof` arrow. A compound test like `(v) => typeof URL !== 'undefined' && v instanceof URL` infers `boolean` and collapses `T` to `unknown` — annotate those explicitly: `(v): v is URL => …`.
+
+## Register it
+
+`@sigx/serialize` itself has no registration function — it stays a pure codec. Registration lives with the runtime:
+
+- **Server functions** — pass handlers to the app plugin from `@sigx/server/plugin`; one call covers both the RPC wire and the SSR state registry:
+
+  ```ts
+  import { serverPlugin } from '@sigx/server/plugin';
+  app.use(serverPlugin({ types: [money] }));
+  ```
+
+- **A plugin of your own** — register into the per-app DI registry with `provideTypeHandlers` (re-exported from `sigx/internals`):
+
+  ```ts
+  import { provideTypeHandlers } from 'sigx/internals';
+  export const moneyPack = { install(app) { provideTypeHandlers(app._context, [money]); } };
+  ```
+
+Registered handlers are consulted **before** the built-ins, so you can override a built-in for a type if you need to.
+
+## Encode / revive by hand
+
+When you hold a serialized tree yourself (a custom transport, a stored snapshot), run the codec directly:
+
+```ts
+import { encodeWithHandlers, reviveWithHandlers } from '@sigx/serialize';
+
+const wire = JSON.stringify(encodeWithHandlers(value, [money]));
+const back = reviveWithHandlers<Cart>(JSON.parse(wire), [money]);
+```
+
+`reviveWithHandlers<T>` types the result as `T` for callers that know the tree's shape — it's an **assertion, not validation**; nothing checks wire data against `T`. Only apply it to trees `encodeWithHandlers` produced.

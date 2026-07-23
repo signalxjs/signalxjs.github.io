@@ -1,8 +1,8 @@
 ---
-title: Server Functions
+title: Overview
 description: "Type-safe RPC for SignalX — call server code from a component as a plain async function with @sigx/server"
-layout: docs
-category: Server Functions
+layout: module-docs
+category: "Getting Started"
 order: 10
 ---
 
@@ -57,7 +57,7 @@ call signature. The server keeps the real module.
 - **Secure by default.** Every server function is a public HTTP endpoint, and
   the runtime treats it as one: POST-only with a required JSON content type (a
   CSRF gate), a same-origin check, body-size limits, prod error masking and an
-  app-wide guard hook. See [Deployment & security](/server/docs/deployment).
+  app-wide guard hook. See [Deployment & security](/server/packages/server/deployment).
 - **Streaming.** `serverStream` yields values over time (NDJSON on the wire) and
   plugs a string stream straight into `useStream` for token-at-a-time output.
 
@@ -72,7 +72,7 @@ npm install @sigx/server
 `@sigx/server` depends on `sigx` and `@sigx/serialize` (pulled in
 automatically). During development the endpoint is served with zero config by
 the `sigxServer()` Vite plugin from `@sigx/vite/server`; see
-[Deployment & security](/server/docs/deployment) for the dev, production (Node)
+[Deployment & security](/server/packages/server/deployment) for the dev, production (Node)
 and edge (WinterCG) wiring.
 
 ## The model in one paragraph
@@ -87,7 +87,7 @@ constraint is what makes the boundary safe and the types honest.
 
 ## Next steps
 
-- [Authoring server functions](/server/docs/authoring) — the two forms,
+- [Authoring server functions](/server/packages/server/usage) — the two forms,
   validation, the request context, errors and streaming.
-- [Deployment & security](/server/docs/deployment) — dev, Node and edge wiring,
+- [Deployment & security](/server/packages/server/deployment) — dev, Node and edge wiring,
   plus the security defaults and how to relax them deliberately.

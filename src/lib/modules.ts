@@ -69,7 +69,7 @@ export const MODULE_CATEGORIES: Record<ModuleParent, { id: string; label: string
         { id: 'packages', label: 'Core repo' },
     ],
     server: [
-        { id: 'packages', label: 'SSR packages' },
+        { id: 'packages', label: 'Server packages' },
     ],
     terminal: [
         { id: 'stack', label: 'TUI stack' },
@@ -359,13 +359,25 @@ const RAW_MODULES: SigxModule[] = [
     // released in lockstep: the renderer, plus islands (the first-party
     // reference strategy pack built on the renderer's plugin API).
     { id: 'server-renderer', parent: 'server', npm: '@sigx/server-renderer', name: 'Server Renderer', category: 'packages',
-      hue: 210, glyph: '⊟', status: 'stable', version: '0.12.0', role: 'Renderer',
+      hue: 210, glyph: '⊟', status: 'stable', version: '0.13.0', role: 'Renderer',
       tag: 'Streaming SSR & hydration',
       blurb: 'Render components to an HTML string or stream on the server, hydrate the DOM on the client, manage the document head, and extend rendering through the plugin SPI.' },
     { id: 'ssr-islands', parent: 'server', npm: '@sigx/ssr-islands', name: 'Islands', category: 'packages',
-      hue: 40, glyph: '❖', status: 'stable', version: '0.12.0', role: 'Islands',
+      hue: 40, glyph: '❖', status: 'stable', version: '0.13.0', role: 'Islands',
       tag: 'Selective hydration via client:*',
       blurb: 'The first-party reference strategy pack for SignalX SSR, built on the @sigx/server-renderer plugin API — hydrate only interactive components with client:load / idle / visible / media / only, with per-island code splitting.' },
+    { id: 'server', parent: 'server', npm: '@sigx/server', name: 'Server Functions', category: 'packages',
+      hue: 265, glyph: '⇅', status: 'stable', version: '0.13.0', role: 'RPC',
+      tag: 'Type-safe server functions',
+      blurb: 'Call server code from a component as a plain async function — serverFn / serverStream compile to typed RPC endpoints, run on the server, and return the result. Secure by default: POST-only JSON with a CSRF gate, origin checks, guards and prod error masking.' },
+    { id: 'resume', parent: 'server', npm: '@sigx/resume', name: 'Resume', category: 'packages',
+      hue: 190, glyph: '⟳', status: 'stable', version: '0.13.0', role: 'Resumability',
+      tag: 'Resumable SSR & boundary refresh',
+      blurb: 'The resumability layer — single-flight refresh of the server boundaries a mutation invalidated, driven by createBoundaryRefresh and the build-time resume manifest, so a write re-renders only the parts of the page that depend on it.' },
+    { id: 'serialize', parent: 'server', npm: '@sigx/serialize', name: 'Serialize', category: 'packages',
+      hue: 320, glyph: '⧉', status: 'stable', version: '0.13.0', role: 'Codec',
+      tag: 'Custom-type serialization codec',
+      blurb: 'The codec behind the SSR state blob and server-function arguments — round-trips Date / Map / Set / bigint / URL / RegExp / undefined out of the box, and defineTypeHandler adds your own types with type-guard-driven inference.' },
 
     // ============ Terminal repo packages ============
     // terminal is a collection like core — signalxjs/terminal publishes

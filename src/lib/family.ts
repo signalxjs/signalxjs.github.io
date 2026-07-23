@@ -34,6 +34,14 @@ export interface SigxPackage {
     target: TargetId;
     /** Structural kind; defaults to 'leaf'. */
     kind?: PackageKind;
+    /**
+     * For `kind: 'collection'` only. `true` (default) when `npm` is a real
+     * umbrella package you install to get the collection (core → `sigx`,
+     * terminal → `@sigx/terminal`). `false` for a collection with no single
+     * install package (server) — the landing then reads as a collection of N
+     * packages rather than badging/installing one member.
+     */
+    umbrella?: boolean;
     /** Accent hue (OKLCH hue angle) — drives `--pkg-h`. */
     hue: number;
     /** Monochrome unicode glyph (rendered in the accent colour). */
@@ -71,10 +79,10 @@ const RAW_PACKAGES: SigxPackage[] = [
       hue: 158, glyph: '❏', status: 'beta', version: '0.4.8',
       tag: 'Static site generation + MDX',
       blurb: 'File-based routing, MDX content collections and island hydration for content sites.' },
-    { id: 'server', npm: '@sigx/server-renderer', title: 'Server', cat: 'render', target: 'web', kind: 'collection',
-      hue: 210, glyph: '⊟', status: 'stable', version: '0.10.0',
-      tag: 'Streaming SSR, hydration & islands',
-      blurb: 'Render to an HTML string or stream on the server and hydrate on the client — plus the islands add-on for client:* selective hydration.' },
+    { id: 'server', npm: '@sigx/server-renderer', title: 'Server', cat: 'render', target: 'web', kind: 'collection', umbrella: false,
+      hue: 210, glyph: '⊟', status: 'stable', version: '0.13.0',
+      tag: 'SSR, server functions, resume & serialize',
+      blurb: 'The server-side stack: streaming SSR and hydration, island selective hydration, type-safe server functions (RPC), resumable boundary refresh, and the serialization codec that ties them together.' },
 
     // ---- Targets with their own framework package ----
     { id: 'lynx', npm: '@sigx/lynx', title: 'Lynx', cat: 'platform', target: 'lynx', kind: 'collection',
