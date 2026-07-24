@@ -8,18 +8,37 @@ order: 20
 
 # Installation
 
-<p class="lede">Add `@sigx/vercel` to your project.</p>
+<p class="lede">Add `@sigx/vercel` to your project — a build-time dev dependency, alongside the Vercel CLI for deploys.</p>
 
 ## Install the package
 
 ```bash
 pnpm add -D @sigx/vercel
+pnpm add -D vercel   # or use the globally installed CLI
+```
+
+## Wire the adapter
+
+A separate platform config keeps the default Node build untouched:
+
+```ts
+// vite.config.vercel.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+import { vercel } from '@sigx/vercel';
+
+export default defineConfig({
+    plugins: [sigx({ ssr: { entry: 'src/entry-server.tsx', adapter: vercel() } })]
+});
 ```
 
 ## Verify
 
-```tsx
-import * as Vercel from '@sigx/vercel';
-
-console.log(Object.keys(Vercel));
+```bash
+vite build --app -c vite.config.vercel.ts
 ```
+
+The first build scaffolds `src/entry.vercel.ts` (only when absent — yours
+afterwards) and generates `.vercel/output/` with `config.json`, `static/` and
+`functions/_render.func/`. Link the project (`vercel link`) and deploy the
+prebuilt output with `vercel deploy --prebuilt`.

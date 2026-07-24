@@ -12,8 +12,51 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Exports of `@sigx/cloudflare` <PkgVersion npm="@sigx/cloudflare" />.</p>
 
-## Exports
+## cloudflare
 
-{/* TODO: document the public API of @sigx/cloudflare */}
+Create the Workers adapter for `sigx({ ssr: { adapter } })` — `serverBuild:
+'bundled'`, conditions `['workerd', 'worker']`, `runtimeExternal:
+[/^cloudflare:/]`, plus the entry/wrangler scaffolding and dev-proxy hooks.
 
-See the package source for the complete typed surface.
+```ts
+function cloudflare(options?: CloudflareAdapterOptions): SigxAdapter
+
+interface CloudflareAdapterOptions {
+  /** Platform entry (project-relative). Default 'src/entry.cloudflare.ts'. */
+  entry?: string;
+
+  /**
+   * Boot wrangler's getPlatformProxy() on the dev server and expose it via
+   * getDevPlatform(server) — local KV/D1/R2 simulations for binding-reliant
+   * apps. Requires wrangler as a dev dependency. Default false.
+   */
+  devProxy?: boolean;
+
+  /**
+   * compatibility_date written into a SCAFFOLDED wrangler.jsonc. Pinned
+   * (not "today") so builds are deterministic; an existing config is never
+   * touched. Default: a constant bumped per release.
+   */
+  compatibilityDate?: string;
+}
+```
+
+## getDevPlatform
+
+Read the dev binding proxies booted by `devProxy: true` off the Vite dev server —
+pass the result as the `platform` argument of `createDevRequestHandler` so
+renders see `{ env, cf, ctx, caches }` in dev:
+
+```ts
+function getDevPlatform(server: ViteDevServer): DevPlatform
+
+interface DevPlatform {
+  env: unknown;      // your bindings (KV, D1, R2, …), locally simulated
+  cf: unknown;       // request cf properties
+  ctx: unknown;      // ExecutionContext
+  caches: unknown;   // the Workers cache API
+}
+```
+
+See [Deploying to Workers](/deploy/packages/cloudflare/deploying) for the full
+dev-loop wiring.

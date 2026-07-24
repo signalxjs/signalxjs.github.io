@@ -1,0 +1,74 @@
+---
+title: "Deploying to Vercel"
+description: "Vercel — the generated .vercel/output layout, Node vs Edge runtimes, and the { fetch } entry shape"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Deploying to Vercel
+
+<p class="lede">Every build regenerates the complete Build Output API v3 layout — the route table, the static tier and the bundled render function. This guide walks the layout, the two runtimes, and why the entry's `{ fetch }` shape is load-bearing.</p>
+
+## The generated layout
+
+```
+.vercel/output/
+├── config.json                # routes: fn prefix → filesystem → catch-all
+├── static/                    # the client outDir (minus index.html, .vite)
+└── functions/_render.func/    # the bundled server + .vc-config.json
+```
+
+The Build Output API is a **generation contract** — hand-writing it has no
+copyability value, so `generate()` rebuilds it every time. Two layout choices
+are load-bearing:
+
+- **`static/` omits `index.html`** — the filesystem handle would serve
+  `static/index.html` for `/`, shadowing the document render with the raw
+  outlet template.
+- **The server-fn route precedes the filesystem handle** — POSTs to
+  `/_sigx/fn/*` must never be shadowed by files.
+
+## The platform entry — yours, scaffolded once
+
+The first build scaffolds `src/entry.vercel.ts` iff absent and never touches it
+again. The composition order stays visible in your file:
+
+```
+static assets  →  server functions  →  document render
+```
+
+The `export default { fetch }` shape is **load-bearing on the Node runtime**:
+Vercel's launcher detects a web handler by the `fetch` *method* on the default
+export — a bare default function would be treated as a legacy `(req, res)`
+handler.
+
+## Node vs Edge
+
+The default runtime is **`node`** — Vercel's current guidance (Fluid compute).
+Edge is opt-in:
+
+```ts
+vercel({ runtime: 'edge' })
+```
+
+For `runtime: 'edge'` the build resolves the `edge-light`/`worker` conditions
+and `generate()` emits a tiny wrapper entrypoint — the edge contract is a bare
+default fetch function, while your entry keeps the `{ fetch }` shape, identical
+across platforms.
+
+## Deploy
+
+```bash
+vite build --app -c vite.config.vercel.ts
+vercel deploy --prebuilt          # add --prod for production
+```
+
+## Verification posture
+
+Structural, not emulation (there is no official Build Output API emulator): CI
+asserts the generated layout and invokes the function's fetch export directly
+under Node with real `Request`s — exactly what Vercel's launcher calls. The
+reference wiring lives at `examples/resume` in the
+[SignalX core repo](https://github.com/signalxjs/core)
+(`vite.config.vercel.ts` + the committed `src/entry.vercel.ts`).
