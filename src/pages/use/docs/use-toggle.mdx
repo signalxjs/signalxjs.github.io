@@ -1,0 +1,74 @@
+---
+title: useToggle
+description: "A boolean signal with a toggler — flip with no argument, set with a boolean"
+layout: docs
+category: State
+order: 10
+---
+
+# useToggle
+
+A boolean signal paired with a **toggler**. Call the toggler with no argument to flip the value, or with a boolean to set it explicitly; it returns the new value. Cross-platform — import from `@sigx/use`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { useToggle } from '@sigx/use';
+
+const Switch = component(() => {
+    const [dark, toggleDark] = useToggle(false);
+
+    return () => (
+        <div class="flex items-center gap-3">
+            <button class="btn" onClick={() => toggleDark()}>
+                {dark ? '🌙 Dark' : '☀️ Light'}
+            </button>
+            <button class="btn btn-ghost" onClick={() => toggleDark(false)}>force light</button>
+        </div>
+    );
+});
+
+render(<Switch />, "#sandbox");
+```
+
+## Usage
+
+```ts
+import { useToggle } from '@sigx/use';
+
+const [open, toggleOpen] = useToggle();      // starts false
+toggleOpen();        // true  — flips
+toggleOpen(false);   // false — explicit set
+open.value;          // read the signal directly
+```
+
+Pass an **existing boolean signal** to get just a toggler bound to it — useful when the signal already lives somewhere (a store, a prop):
+
+```ts
+import { signal } from 'sigx';
+
+const visible = signal(false);
+const toggleVisible = useToggle(visible);
+toggleVisible(); // visible.value === true
+```
+
+## Signatures
+
+```ts
+function useToggle(initial?: boolean): [PrimitiveSignal<boolean>, Toggler];
+function useToggle(source: PrimitiveSignal<boolean>): Toggler;
+
+type Toggler = (value?: boolean) => boolean;
+```
+
+| Call | Returns |
+|---|---|
+| `useToggle(initial?)` | `[signal, toggler]` — a new boolean signal (default `false`) and its toggler. |
+| `useToggle(existingSignal)` | `toggler` — a toggler bound to the signal you passed. |
+
+**Platform:** everywhere. No cleanup needed.
+
+## See also
+
+- [`useCounter`](/use/docs/use-counter) — the numeric equivalent, with clamped mutators.
+- [`useCycleList`](/use/docs/use-cycle-list) — cycle through more than two states.
+- [Conventions](/use/docs/conventions) — the shared input/output patterns.

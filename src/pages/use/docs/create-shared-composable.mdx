@@ -1,0 +1,45 @@
+---
+title: createSharedComposable
+description: "Reference-counted sharing of an effect-ful composable — N callers share one instance, torn down when the last subscriber leaves"
+layout: docs
+category: Shared state
+order: 20
+---
+
+# createSharedComposable
+
+Reference-counted sharing of an effect-ful composable: the first subscriber runs it in a fresh detached `effectScope`; later subscribers get the same result. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { createSharedComposable } from '@sigx/use';
+import { useMouse } from '@sigx/use-web';
+
+export const useSharedMouse = createSharedComposable(useMouse);
+
+// in any number of components — ONE mousemove listener total:
+const mouse = useSharedMouse();
+```
+
+This is the standard way to turn a per-caller sensor into an app singleton — N components share ONE `mousemove` listener (see [`useMouse`](/use/docs/use-mouse)). When the **last** subscriber's scope disposes, the shared scope stops (listeners detach, timers clear) and the next call re-creates everything.
+
+## Refcount semantics
+
+Subscribers are counted **per in-scope call** — each call registers a matching dispose with its owning scope. Calling twice in one scope counts twice, and both disposers fire together when that scope stops.
+
+> Calls made **outside** any component or `effectScope` don't participate in refcounting: they receive (and, when first, create) the shared state without incrementing the count. So a shared instance created by an out-of-scope call lives until a later scoped subscriber's dispose brings the count back to zero. **Prefer calling from a scope** (a component setup, or wrap standalone use in `effectScope()`).
+
+## Signature
+
+```ts
+function createSharedComposable<Fn extends (...args: never[]) => unknown>(composable: Fn): Fn;
+```
+
+The returned function has the same signature as the composable you pass.
+
+**Platform:** everywhere.
+
+## See also
+
+- [`createGlobalState`](/use/docs/create-global-state) — a never-disposed singleton for plain state factories (no refcounting).
+- [`useMouse`](/use/docs/use-mouse) — the canonical sensor to share this way.
+- [`@sigx/store`](/store) — `defineStore` for structured, per-user application state.

@@ -1,0 +1,70 @@
+---
+title: useIntersectionObserver
+description: "Observe viewport intersection with an IntersectionObserver that follows reactive targets, pauses without losing config, and disconnects with the owning scope"
+layout: docs
+category: Elements
+order: 50
+---
+
+# useIntersectionObserver
+
+Observe viewport intersection with an `IntersectionObserver`. Browser composable — import from `@sigx/use-web`.
+
+The observer **follows reactive targets**, supports [`pause()`/`resume()`](/use/docs/conventions#control-handles-pausable-and-stop) without losing its config, and disconnects with the owning scope. Point it at a single [element target](/use/docs/conventions#element-targets-web) or an array.
+
+```ts
+import { signal } from 'sigx';
+import { useIntersectionObserver } from '@sigx/use-web';
+
+const sentinel = signal<HTMLElement | null>(null);
+// <div ref={sentinel}> …
+
+useIntersectionObserver(sentinel, ([entry]) => {
+    if (entry.isIntersecting) loadMore();
+});
+```
+
+The callback is the native `IntersectionObserverCallback` — you get `IntersectionObserverEntry[]`. Configure `root` (an [element target](/use/docs/conventions#element-targets-web) or `Document`), `rootMargin`, and `threshold` as with the native observer.
+
+> Just need a reactive "is it on screen?" boolean? Use [`useElementVisibility`](/use/docs/use-element-visibility), which wraps this.
+
+## Signature
+
+```ts
+function useIntersectionObserver(
+    target: MaybeSignalElement | MaybeSignalElement[],
+    callback: IntersectionObserverCallback,
+    options?: UseIntersectionObserverOptions,
+): UseIntersectionObserverReturn;
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `root` | `MaybeSignalElement \| Document` | viewport | Intersection root to observe within. |
+| `rootMargin` | `string` | `'0px'` | Margin around the root (native `rootMargin`). |
+| `threshold` | `number \| number[]` | `0` | Visibility ratio(s) that trigger the callback. |
+| `immediate` | `boolean` | `true` | Start observing on creation. |
+| `window` | `Window` | `defaultWindow` | Override the window (SSR/testing). |
+
+## Returns
+
+```ts
+interface UseIntersectionObserverReturn extends Pausable {
+    isSupported: ReadSignal<boolean>;
+    stop: Stop;
+}
+```
+
+Extends [`Pausable`](/use/docs/conventions#control-handles-pausable-and-stop) (`isActive`, `pause`, `resume`) with `isSupported` and a `stop` that disconnects the observer.
+
+## SSR
+
+Inert: on the server or where `IntersectionObserver` is unavailable, `isSupported` is `false` and the observer never runs.
+
+## See also
+
+- [`useElementVisibility`](/use/docs/use-element-visibility) — reactive boolean built on this.
+- [`useResizeObserver`](/use/docs/use-resize-observer) — the size counterpart.
+- [Conventions → Control handles](/use/docs/conventions#control-handles-pausable-and-stop) — `Pausable` and `Stop`.

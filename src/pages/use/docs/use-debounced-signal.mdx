@@ -1,0 +1,53 @@
+---
+title: useDebouncedSignal
+description: "A read-only signal that trails a source, collapsing bursts of changes into one update"
+layout: docs
+category: Debounce & throttle
+order: 10
+---
+
+# useDebouncedSignal
+
+A read-only signal that trails `source`, collapsing a burst of rapid changes into a single update once things settle. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { signal, watch } from 'sigx';
+import { useDebouncedSignal } from '@sigx/use';
+
+const query = signal('');
+const debounced = useDebouncedSignal(query, 300);
+
+watch(debounced, q => search(q)); // fires 300ms after the last keystroke
+```
+
+Both `source` and `ms` are [`MaybeSignal`](/use/docs/conventions#inputs-maybesignalt-and-tovalue) — pass a reactive `ms` to change the window on the fly. The result is a [`ReadSignal<T>`](/use/docs/conventions#outputs-single-value--readsignalt); `ms` defaults to `200`.
+
+Use `maxWait` to guarantee an update even while the source never stops changing — an upper bound on how long the debounced signal will lag behind.
+
+## Signature
+
+```ts
+function useDebouncedSignal<T>(
+    source: MaybeSignal<T>,
+    ms?: MaybeSignal<number>,
+    options?: UseDebouncedSignalOptions,
+): ReadSignal<T>;
+
+interface UseDebouncedSignalOptions {
+    maxWait?: number;
+}
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `maxWait` | `number` | — | Upper bound (ms) between updates while the source keeps changing. |
+
+**Platform:** everywhere (setTimeout). Any pending update is cancelled when the owning scope disposes.
+
+## See also
+
+- [`useThrottledSignal`](/use/docs/use-throttled-signal) — cap the update *rate* instead of waiting for quiet.
+- [`watchDebounced`](/use/docs/watch-debounced) — debounce a `watch` callback rather than derive a signal.
+- [Conventions](/use/docs/conventions) — `MaybeSignal` inputs and `ReadSignal` outputs.

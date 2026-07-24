@@ -1,0 +1,49 @@
+---
+title: unrefElement
+description: "Resolve an element target — raw element, getter, signal, computed, or a sigx template-ref — to the raw DOM element or null"
+layout: docs
+category: Elements
+order: 10
+---
+
+# unrefElement
+
+Resolve a flexible element target to the **raw** DOM element (or `null`). The primitive every DOM-attaching composable uses to accept `ref`s, signals, getters, and plain elements interchangeably. Browser composable — import from `@sigx/use-web`.
+
+```ts
+import { signal } from 'sigx';
+import { unrefElement } from '@sigx/use-web';
+
+const el = signal<HTMLElement | null>(null);
+// <div ref={el}> …
+
+unrefElement(el);              // the raw <div>, or null before mount
+unrefElement(() => document.body); // getter form
+unrefElement(someElement);     // passed straight through
+```
+
+It accepts every shape in the [element-target convention](/use/docs/conventions#element-targets-web): a raw element or `EventTarget`, a getter, a branded sigx handle (a `PrimitiveSignal`, a `computed`, or a `toSignal`/`toSignals` view), or a sigx template-ref `{ current }` object — the shape sigx's JSX `ref` prop writes into. Reading a reactive handle **tracks**, so a watcher calling `unrefElement` re-runs when the element changes.
+
+> Detection is brand-based (`isSignal`/`isComputed`), so an arbitrary plain `{ value }` object is **not** unwrapped. If you hold an element in a plain object, pass it as a getter (`() => obj.value`).
+
+The result is passed through `toRaw`: reactive object-signal reads wrap elements in proxies, and **raw identity** is what `removeEventListener` pairing, observer bookkeeping, and native element methods require.
+
+## Signature
+
+```ts
+function unrefElement<T extends EventTarget = EventTarget>(
+    target:
+        | MaybeSignalElement
+        | T
+        | ReadSignal<T | null | undefined>
+        | { current: T | null | undefined }
+        | (() => T | null | undefined)
+        | null
+        | undefined,
+): T | null;
+```
+
+## See also
+
+- [Conventions → Element targets (web)](/use/docs/conventions#element-targets-web) — the target shapes and why raw identity matters.
+- [`useEventListener`](/use/docs/use-event-listener) — the canonical consumer, re-attaching when the target changes.

@@ -1,0 +1,67 @@
+---
+title: useWindowSize
+description: "Reactive window inner size as one { width, height } view — on the cross-platform WindowSizeState contract"
+layout: docs
+category: Viewport
+order: 10
+---
+
+# useWindowSize
+
+Reactive window inner size as one `{ width, height }` view, on the cross-platform `WindowSizeState` contract. Browser composable — import from `@sigx/use-web`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { useWindowSize } from '@sigx/use-web';
+
+const Size = component(() => {
+    const size = useWindowSize();
+    return () => <p class="font-mono">{size.width} × {size.height}</p>;
+});
+
+render(<Size />, "#sandbox");
+```
+
+## Usage
+
+The return is a [`ReactiveView<WindowSizeState>`](/use/docs/conventions#outputs-multiple-fields--one-reactiveviewt) — read `width`/`height` by direct property access, each tracked independently:
+
+```ts
+import { computed } from 'sigx';
+import { useWindowSize } from '@sigx/use-web';
+
+const size = useWindowSize();
+const cols = computed(() => (size.width < 768 ? 1 : 3)); // re-runs on width only
+```
+
+To pull a field out without snapshotting it, use core's [`toSignals()`](/core/docs/signals) rather than a plain destructure.
+
+## Signature
+
+```ts
+function useWindowSize(options?: UseWindowSizeOptions): ReactiveView<WindowSizeState>;
+```
+
+`WindowSizeState` is a [cross-platform contract](/use/docs/conventions#cross-platform-contracts) — Lynx implements the same `{ width, height }` shape from its viewport APIs, so layout code ports across targets unchanged. (`useElementSize` returns the same shape for a single element.)
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `initialWidth` | `number` | `Infinity` | Width reported on the server / before mount. |
+| `initialHeight` | `number` | `Infinity` | Height reported on the server / before mount. |
+| `listenOrientation` | `boolean` | `true` | Also re-measure on orientation changes. |
+| `window` | `Window` | `defaultWindow` | Override the window (SSR/testing). See [`Configurable*`](/use/docs/conventions#ssr-safety-and-configurable-overrides). |
+
+## SSR
+
+On the server (no `window`) the view stays at `initialWidth`/`initialHeight`, then reads the real size on mount.
+
+> The initial values default to **`Infinity`, not `0`**, on purpose: a desktop-first computed like `size.width < 768 ? 1 : 3` then resolves to the desktop branch on the server. A wrong desktop layout fails **visibly** during review; a `0`-seeded default would silently render the mobile branch to every server response instead. Set `initialWidth`/`initialHeight` if you have a better guess for first paint.
+
+## See also
+
+- [`useBreakpoints`](/use/docs/use-breakpoints) — named breakpoint queries instead of raw pixels.
+- [`useMediaQuery`](/use/docs/use-media-query) — the underlying `matchMedia` primitive.
+- [`useScroll`](/use/docs/use-scroll) — reactive scroll position for the same window.
+- [Conventions → Cross-platform contracts](/use/docs/conventions#cross-platform-contracts) — the `WindowSizeState` shape a platform pack fulfils.

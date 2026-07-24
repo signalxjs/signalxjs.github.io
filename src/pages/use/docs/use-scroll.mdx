@@ -1,0 +1,71 @@
+---
+title: useScroll
+description: "Reactive scroll position with edge-arrival and direction detection — writing x/y scrolls the target"
+layout: docs
+category: Viewport
+order: 20
+---
+
+# useScroll
+
+Reactive scroll position with edge-arrival and direction detection; writing `x`/`y` scrolls the target. Browser composable — import from `@sigx/use-web`.
+
+```ts
+import { effect } from 'sigx';
+import { useScroll } from '@sigx/use-web';
+
+const { y, arrivedState } = useScroll();      // defaults to the window
+effect(() => { if (arrivedState.bottom) loadMore(); });
+y.value = 0;                                   // scroll to top
+```
+
+The target defaults to the window, so there is deliberately **no separate `useWindowScroll`** — call `useScroll()` for the window, or pass an element/`Document` to scroll something else:
+
+```ts
+const el = signal<HTMLElement | null>(null);
+const { x, y } = useScroll(el);
+```
+
+## Signature
+
+```ts
+function useScroll(target?: MaybeSignal<ScrollTarget>, options?: UseScrollOptions): UseScrollReturn;
+
+type ScrollTarget = Element | Window | Document | null | undefined;
+```
+
+`target` is a [`MaybeSignal`](/use/docs/conventions#inputs-maybesignalt-and-tovalue); a reactive target re-attaches the listener. Listeners are passive and detach with the owning scope.
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `throttle` | `number` | `0` | Throttle scroll handling to at most once per `throttle` ms (`0` = off). |
+| `idle` | `number` | `200` | ms of quiet before `isScrolling` flips back to `false`. |
+| `offset` | `{ left?, right?, top?, bottom? }` | — | Edge tolerance (px) for `arrivedState`. |
+| `behavior` | `ScrollBehavior` | `'auto'` | Scroll behavior for programmatic writes to `x`/`y`. |
+| `onScroll` | `(event: Event) => void` | — | Called on each scroll event. |
+| `onStop` | `(event: Event) => void` | — | Called when scrolling goes idle. |
+| `window` | `Window` | `defaultWindow` | Override the window (SSR/testing). See [`Configurable*`](/use/docs/conventions#ssr-safety-and-configurable-overrides). |
+
+## Returns
+
+| Field | Type | Description |
+|---|---|---|
+| `x` / `y` | `WritableComputed<number>` | Scroll position; **writing scrolls** the target with the configured `behavior`. |
+| `isScrolling` | `ReadSignal<boolean>` | `true` while scrolling, back to `false` after `idle` ms of quiet. |
+| `arrivedState` | `ReactiveView<{ left, right, top, bottom }>` | Which edges the position has arrived at (within `offset`). |
+| `directions` | `ReactiveView<{ left, right, top, bottom }>` | Which directions the latest scroll moved in. |
+| `stop` | `Stop` | Detach the listener/watcher and clear timers — for standalone, no-scope use. |
+
+`arrivedState` and `directions` are [reactive views](/use/docs/conventions#outputs-multiple-fields--one-reactiveviewt) — read fields by property access.
+
+## SSR
+
+On the server `x`/`y` read as `0`, `arrivedState`/`directions` are all `false`, and **writes are a no-op** — nothing scrolls until the client takes over on mount.
+
+## See also
+
+- [`useWindowSize`](/use/docs/use-window-size) — the viewport dimensions to scroll within.
+- [`useThrottledSignal`](/use/docs/use-throttled-signal) — derive a throttled value from `y` for expensive scroll work.
+- [`useMediaQuery`](/use/docs/use-media-query) — react to viewport media instead of position.

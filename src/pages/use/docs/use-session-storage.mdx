@@ -1,0 +1,34 @@
+---
+title: useSessionStorage
+description: "A useStorage preset backed by window.sessionStorage — persists for the current tab session only"
+layout: docs
+category: Storage
+order: 30
+---
+
+# useSessionStorage
+
+A [`useStorage`](/use/docs/use-storage) preset backed by `window.sessionStorage` — a signal that persists for the current **tab session** and is cleared when the tab closes. Browser composable — import from `@sigx/use-web`.
+
+```ts
+import { useSessionStorage } from '@sigx/use-web';
+
+const draft = useSessionStorage('draft', '');
+draft.value = 'hello';   // persisted for this tab session
+```
+
+## Signature
+
+```ts
+function useSessionStorage<T extends Primitive>(key: string, defaults: T, options?: UseStorageOptions<T>): PrimitiveSignal<T>;
+function useSessionStorage<T extends object>(key: string, defaults: T, options?: UseStorageOptions<T>): Signal<T>;
+```
+
+Same two overloads as `useStorage`: an **object default** returns a deep-reactive `Signal<T>` that auto-persists on mutation; a **primitive default** returns a `PrimitiveSignal<T>` that persists on `.value` write.
+
+See [`useStorage`](/use/docs/use-storage) for the full semantics — object proxies, serializers, options, and SSR behaviour.
+
+## See also
+
+- [`useStorage`](/use/docs/use-storage) — the flagship, with every option and the deep-reactive model.
+- [`useLocalStorage`](/use/docs/use-local-storage) — the same preset persisted across sessions.

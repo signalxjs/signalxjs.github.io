@@ -1,0 +1,67 @@
+---
+title: useIntervalFn
+description: "Run a callback on an interval, with pause/resume controls and a reactive period that restarts the timer"
+layout: docs
+category: Timing
+order: 10
+---
+
+# useIntervalFn
+
+Run `cb` every `interval` ms (default `1000`), returning a [`Pausable`](/use/docs/conventions#control-handles-pausable-and-stop) to control it. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { useIntervalFn } from '@sigx/use';
+
+const { pause, resume, isActive } = useIntervalFn(() => tick(), 1000);
+pause();  // stop ticking; isActive.value === false
+resume(); // start again
+```
+
+A **reactive `interval`** restarts the running timer whenever it changes — pass a signal or getter to drive the cadence from state:
+
+```ts
+import { signal } from 'sigx';
+import { useIntervalFn } from '@sigx/use';
+
+const period = signal(1000);
+useIntervalFn(() => poll(), period);
+period.value = 250; // timer restarts at the new period
+```
+
+The timer clears automatically with the owning scope (component setup or the innermost `effectScope()`); `pause()`/`resume()` control it manually.
+
+## Signature
+
+```ts
+function useIntervalFn(
+    cb: () => void,
+    interval?: MaybeSignal<number>,
+    options?: UseIntervalFnOptions,
+): Pausable;
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `immediate` | `boolean` | `true` | Start the timer on creation. |
+| `immediateCallback` | `boolean` | `false` | Also invoke `cb` right away whenever the timer (re)starts. |
+
+## Returns
+
+A [`Pausable`](/use/docs/conventions#control-handles-pausable-and-stop):
+
+| Field | Type | Description |
+|---|---|---|
+| `isActive` | `ReadSignal<boolean>` | Whether the timer is currently running. |
+| `pause` | `() => void` | Stop the timer. |
+| `resume` | `() => void` | Start the timer. |
+
+**Platform:** everywhere (`setInterval`).
+
+## See also
+
+- [`useTimeoutFn`](/use/docs/use-timeout-fn) — the one-shot equivalent.
+- [`useNow`](/use/docs/use-now) — a reactive clock built on the same timer.
+- [Conventions → Control handles](/use/docs/conventions#control-handles-pausable-and-stop) — the shared `Pausable`/`Stop` contract.

@@ -1,0 +1,39 @@
+---
+title: useOnline
+description: "Reactive navigator.onLine — the sugar form of the cross-platform connectivity contract"
+layout: docs
+category: Sensors
+order: 30
+---
+
+# useOnline
+
+Reactive `navigator.onLine` via the `online`/`offline` events. Browser composable — import from `@sigx/use-web`.
+
+```ts
+import { effect } from 'sigx';
+import { useOnline } from '@sigx/use-web';
+
+const online = useOnline();
+effect(() => { if (!online.value) showOfflineBanner(); });
+```
+
+This is the **sugar form** of the cross-platform connectivity contract — `useOnline()` is `useNetwork().isConnected` as a standalone [`ReadSignal<boolean>`](/use/docs/conventions#outputs-single-value--readsignalt). Reach for [`useNetwork`](/use/docs/use-network) when you also need `type` or the Network Information API extras.
+
+## Signature
+
+```ts
+function useOnline(options?: ConfigurableWindow): ReadSignal<boolean>;
+```
+
+Pass `{ window }` to drive it from a mock — see [`Configurable*`](/use/docs/conventions#ssr-safety-and-configurable-overrides).
+
+## SSR
+
+On the server the signal reads `true`, then reflects `navigator.onLine` on mount.
+
+## See also
+
+- [`useNetwork`](/use/docs/use-network) — the full state (`type`, `effectiveType`, `downlink`, `saveData`).
+- [`useDocumentVisibility`](/use/docs/use-document-visibility) — the other "is now a good time to do work" sensor.
+- [Conventions → Cross-platform contracts](/use/docs/conventions#cross-platform-contracts) — connectivity as a shared contract.

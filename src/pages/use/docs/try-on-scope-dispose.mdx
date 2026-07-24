@@ -1,0 +1,43 @@
+---
+title: tryOnScopeDispose
+description: "Register teardown with the active scope — returns false when there's no scope, so the caller knows it owns disposal"
+layout: docs
+category: Utilities
+order: 20
+---
+
+# tryOnScopeDispose
+
+Register teardown with the currently-active scope — the owning component's setup, or the innermost running `effectScope()`. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { tryOnScopeDispose } from '@sigx/use';
+
+const id = setInterval(tick, 1000);
+tryOnScopeDispose(() => clearInterval(id));
+```
+
+It returns `false` (retaining nothing) when called **outside** any scope — the caller keeps responsibility for disposal then. That's exactly why every composable with ongoing work also returns an explicit `stop()`/[`Pausable`](/use/docs/conventions#control-handles-pausable-and-stop) handle: it's the escape hatch for standalone, scope-less use.
+
+```ts
+const registered = tryOnScopeDispose(cleanup);
+if (!registered) {
+    // no active scope — you must call cleanup() yourself
+}
+```
+
+## Signature
+
+```ts
+function tryOnScopeDispose(fn: () => void): boolean;
+```
+
+Returns `true` when the teardown was registered with a scope, `false` when there was no active scope.
+
+**Platform:** everywhere.
+
+## See also
+
+- [`tryOnMounted`](/use/docs/try-on-mounted) — the mount-time counterpart.
+- [Conventions → Lifecycle helpers](/use/docs/conventions#lifecycle-helpers) — how these two power the cleanup model.
+- [Conventions → Control handles](/use/docs/conventions#control-handles-pausable-and-stop) — the `stop()`/`Pausable` handles that back scope-less use.

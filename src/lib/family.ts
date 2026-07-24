@@ -73,6 +73,10 @@ const RAW_PACKAGES: SigxPackage[] = [
       hue: 78, glyph: '▦', status: 'stable', version: '0.11.0',
       tag: 'Centralized state on signals',
       blurb: 'Predictable, derived state for larger apps — built on the same reactive core.' },
+    { id: 'use', npm: '@sigx/use', title: 'Use', cat: 'core', target: 'foundation',
+      hue: 175, glyph: '⎔', status: 'beta', version: '0.3.0',
+      tag: 'VueUse-style reactive composables',
+      blurb: 'Tree-shakable composables built on signals — sensors, storage, timing and more, SSR-safe across every target.' },
 
     // ---- Web: rendering ----
     { id: 'ssg', npm: '@sigx/ssg', title: 'SSG', cat: 'render', target: 'web',

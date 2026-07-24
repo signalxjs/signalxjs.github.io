@@ -1,0 +1,44 @@
+---
+title: createGlobalState
+description: "Wrap a state factory so it runs once in a detached scope and every later call returns the same cached result — app-wide shared signals without a store"
+layout: docs
+category: Shared state
+order: 10
+---
+
+# createGlobalState
+
+Wrap a state factory so its first call runs inside a detached `effectScope()` and every later call returns the **same cached result** — app-wide shared signals without a store. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { signal } from 'sigx';
+import { createGlobalState } from '@sigx/use';
+
+export const useFilters = createGlobalState(() =>
+    signal({ q: '', tags: [] as string[] })
+);
+
+// any component gets the SAME signal:
+const filters = useFilters();
+filters.q = 'sigx';
+```
+
+The scope the factory runs in is **never disposed** — the state lives for the process. That's the point: it's a lightweight singleton for device- and UI-level state that every component shares.
+
+> **SSR caveat.** The cache is module-level, shared across every request in the process. Use it for device/UI state only, **never per-user data** — that's [`defineStore`](/store)'s job. A per-user value cached here would leak between requests.
+
+## Signature
+
+```ts
+function createGlobalState<Fn extends (...args: never[]) => unknown>(stateFactory: Fn): Fn;
+```
+
+The returned function has the same signature as the factory you pass — the wrapping is transparent to callers.
+
+**Platform:** everywhere.
+
+## See also
+
+- [`createSharedComposable`](/use/docs/create-shared-composable) — refcounted sharing that tears down when the last subscriber leaves, for effect-ful composables.
+- [`@sigx/store`](/store) — `defineStore` for structured, per-user application state.
+- [Conventions](/use/docs/conventions) — the shared input/output patterns.

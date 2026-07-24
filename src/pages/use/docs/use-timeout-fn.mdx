@@ -1,0 +1,63 @@
+---
+title: useTimeoutFn
+description: "A restartable one-shot timer — cb fires once after a delay, with start/stop controls and a reactive isPending flag"
+layout: docs
+category: Timing
+order: 20
+---
+
+# useTimeoutFn
+
+A restartable one-shot timer: `cb` fires once, `ms` (default `1000`) after the latest `start()`. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { signal } from 'sigx';
+import { useTimeoutFn } from '@sigx/use';
+
+const toast = signal<string | null>(null);
+const { start, isPending } = useTimeoutFn(() => (toast.value = null), 3000);
+
+toast.value = 'Saved';
+start(); // clear the toast 3s from now
+```
+
+Calling `start()` again **replaces** any pending run — the delay restarts from the latest call. Arguments passed to `start()` flow through to `cb`:
+
+```ts
+const { start } = useTimeoutFn((id: number) => dismiss(id), 3000);
+start(42); // cb receives 42 when it fires
+```
+
+The timer is auto-cancelled when the owning scope disposes (component setup or the innermost `effectScope()`).
+
+## Signature
+
+```ts
+function useTimeoutFn<A extends unknown[] = []>(
+    cb: (...args: A) => void,
+    ms?: MaybeSignal<number>,
+    options?: UseTimeoutFnOptions,
+): UseTimeoutFnReturn<A>;
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `immediate` | `boolean` | `true` | Arm the timer on creation. |
+
+## Returns
+
+| Field | Type | Description |
+|---|---|---|
+| `isPending` | `ReadSignal<boolean>` | True while a run is armed and hasn't fired. |
+| `start` | `(...args: A) => void` | (Re)arm the timer, replacing any pending run. Arguments pass through to `cb`. |
+| `stop` | `() => void` | Cancel the pending run, if any. |
+
+**Platform:** everywhere (`setTimeout`).
+
+## See also
+
+- [`useIntervalFn`](/use/docs/use-interval-fn) — the repeating equivalent.
+- [`useDebouncedSignal`](/use/docs/use-debounced-signal) — a debounced signal built on the same timer.
+- [Conventions](/use/docs/conventions) — the shared input/output patterns.

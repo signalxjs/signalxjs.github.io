@@ -1,0 +1,72 @@
+---
+title: useEventListener
+description: "Attach a DOM event listener scoped to the owning component — re-attached when the target changes, removed on scope disposal"
+layout: docs
+category: Elements
+order: 20
+---
+
+# useEventListener
+
+Attach an event listener that lives exactly as long as the owning scope. Browser composable — import from `@sigx/use-web`.
+
+The listener is added now (or whenever a reactive target produces an element), removed on scope disposal, and **re-attached when the target changes**. It returns an explicit [`stop()`](/use/docs/conventions#control-handles-pausable-and-stop) for standalone use.
+
+```ts
+import { useEventListener } from '@sigx/use-web';
+
+// Omit the target to listen on `window`:
+useEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') closeModal();
+});
+```
+
+Pass an [element target](/use/docs/conventions#element-targets-web) as the first argument to bind to a specific element — a template ref works directly, and the listener follows the element if it changes:
+
+```tsx
+import { signal } from 'sigx';
+import { useEventListener } from '@sigx/use-web';
+
+const el = signal<HTMLElement | null>(null);
+// <div ref={el}> …
+useEventListener(el, 'click', (ev) => console.log(ev.clientX));
+```
+
+You can pass an **array of event names** to attach the same listener to several events, and the usual `boolean | AddEventListenerOptions` third argument (`{ capture, passive, once }`).
+
+## Signature
+
+The overloads specialize the event map and the `ev` type to the target. Omit the target for `window`; pass `document`, a `Window`, or an [element target](/use/docs/conventions#element-targets-web):
+
+```ts
+// window (target omitted)
+function useEventListener<K extends keyof WindowEventMap>(
+    event: K | K[],
+    listener: (ev: WindowEventMap[K]) => void,
+    options?: boolean | AddEventListenerOptions,
+): Stop;
+
+// explicit element target
+function useEventListener<K extends keyof HTMLElementEventMap>(
+    target: MaybeSignalElement,
+    event: K | K[],
+    listener: (ev: HTMLElementEventMap[K]) => void,
+    options?: boolean | AddEventListenerOptions,
+): Stop;
+```
+
+There are matching overloads for `Window` and `Document` targets (typed against `WindowEventMap` / `DocumentEventMap`), plus a string-event fallback for arbitrary `EventTarget`s.
+
+## Returns
+
+A [`Stop`](/use/docs/conventions#control-handles-pausable-and-stop) — call it to remove the listener immediately. Inside a component or `effectScope` you rarely need it; the scope removes the listener for you.
+
+## SSR
+
+No-op: on the server nothing is attached and it returns a **noop stop**.
+
+## See also
+
+- [`unrefElement`](/use/docs/unref-element) — how the target is resolved to a raw element for `add`/`removeEventListener` pairing.
+- [`useMouse`](/use/docs/use-mouse) / [`useScroll`](/use/docs/use-scroll) — sensors built on scoped listeners.
+- [Conventions → Element targets (web)](/use/docs/conventions#element-targets-web) — the accepted target shapes.

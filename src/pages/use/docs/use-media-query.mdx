@@ -1,0 +1,38 @@
+---
+title: useMediaQuery
+description: "Reactive matchMedia — a media query string as a boolean signal, re-subscribing when the query changes"
+layout: docs
+category: Viewport
+order: 30
+---
+
+# useMediaQuery
+
+Reactive `matchMedia` — a media query string as a boolean signal. Browser composable — import from `@sigx/use-web`.
+
+```ts
+import { useMediaQuery } from '@sigx/use-web';
+
+const isWide = useMediaQuery('(min-width: 1024px)');
+const reduced = useMediaQuery('(prefers-reduced-motion: reduce)');
+```
+
+The query is a [`MaybeSignal<string>`](/use/docs/conventions#inputs-maybesignalt-and-tovalue): pass a reactive query and it re-subscribes when the string changes. The change listener detaches with the owning scope. The result is a [`ReadSignal<boolean>`](/use/docs/conventions#outputs-single-value--readsignalt).
+
+## Signature
+
+```ts
+function useMediaQuery(query: MaybeSignal<string>, options?: ConfigurableWindow): ReadSignal<boolean>;
+```
+
+Pass `{ window }` to drive the query from a different document or a mock — see [`Configurable*` overrides](/use/docs/conventions#ssr-safety-and-configurable-overrides).
+
+## SSR
+
+On the server the signal reads `false` and never subscribes; the real match is read on mount.
+
+## See also
+
+- [`useBreakpoints`](/use/docs/use-breakpoints) — named breakpoints built on top of this.
+- [`useWindowSize`](/use/docs/use-window-size) — the raw dimensions when you need the number, not a threshold.
+- [`useColorScheme`](/use/docs/use-color-scheme) — the `prefers-color-scheme` query as a typed contract.

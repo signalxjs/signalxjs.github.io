@@ -1,0 +1,72 @@
+---
+title: useMouse
+description: "Reactive pointer position as one { x, y, sourceType } object — per-key tracked, passive listeners, detaches with the owning scope"
+layout: docs
+category: Elements
+order: 70
+---
+
+# useMouse
+
+Reactive pointer position as **one** `{ x, y, sourceType }` object. Browser composable — import from `@sigx/use-web`.
+
+It returns a [`ReactiveView`](/use/docs/conventions#outputs-multiple-fields--one-reactiveviewt) — read `mouse.x` / `mouse.y` by property access, each tracked per key, so an `x`-only consumer doesn't re-run on `y` changes. Listeners are **passive** and detach with the owning scope.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { useMouse } from '@sigx/use-web';
+
+const Pointer = component(() => {
+    const mouse = useMouse();
+    return () => (
+        <p class="font-mono text-sm">
+            x: {mouse.x} · y: {mouse.y} · {mouse.sourceType ?? 'none'}
+        </p>
+    );
+});
+
+render(<Pointer />, "#sandbox");
+```
+
+By default it tracks both mouse and touch moves on `window`, in **page** coordinates. Switch coordinate systems with `type`, bind to a specific element with `target`, or seed the pre-move value with `initialValue`.
+
+To pull the fields out without snapshotting them, use core's [`toSignals()`](/core/docs/signals):
+
+```ts
+import { toSignals } from 'sigx';
+const { x, y } = toSignals(useMouse()); // each a live signal
+```
+
+> Every caller that mounts `useMouse` adds its own `mousemove` listener. To share **one** listener app-wide, wrap it: `createSharedComposable(useMouse)`.
+
+## Signature
+
+```ts
+function useMouse(options?: UseMouseOptions): ReactiveView<MouseState>;
+
+interface MouseState {
+    x: number;
+    y: number;
+    sourceType: 'mouse' | 'touch' | null;
+}
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `type` | `'page' \| 'client' \| 'screen'` | `'page'` | Coordinate system: page, client (viewport), or screen. |
+| `touch` | `boolean` | `true` | Also track touch moves. |
+| `target` | `MaybeSignal<EventTarget \| null \| undefined>` | `window` | Listen on a specific target instead of `window`. |
+| `initialValue` | `{ x: number; y: number }` | — | Position before the first move. |
+| `window` | `Window` | `defaultWindow` | Override the window (SSR/testing). |
+
+## SSR
+
+Frozen at `initialValue`, with `sourceType: null` — no listeners are attached until mount.
+
+## See also
+
+- [`useScroll`](/use/docs/use-scroll) — reactive scroll position, another passive-listener sensor.
+- [`createSharedComposable`](/use/docs/create-shared-composable) — share one listener across many components.
+- [Conventions → Multiple fields](/use/docs/conventions#outputs-multiple-fields--one-reactiveviewt) — the `ReactiveView` return and `toSignals()`.

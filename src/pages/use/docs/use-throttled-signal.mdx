@@ -1,0 +1,50 @@
+---
+title: useThrottledSignal
+description: "A read-only signal that follows a source at most once per window"
+layout: docs
+category: Debounce & throttle
+order: 20
+---
+
+# useThrottledSignal
+
+A read-only signal that follows `source` at most **once per `ms`** — steady updates while the source streams, instead of waiting for it to fall quiet. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { signal, watch } from 'sigx';
+import { useThrottledSignal } from '@sigx/use';
+
+const scroll = { y: signal(0) };
+const throttled = useThrottledSignal(() => scroll.y.value, 100);
+
+watch(throttled, y => updateMinimap(y)); // at most once every 100ms
+```
+
+Both `source` and `ms` are [`MaybeSignal`](/use/docs/conventions#inputs-maybesignalt-and-tovalue); the result is a [`ReadSignal<T>`](/use/docs/conventions#outputs-single-value--readsignalt) and `ms` defaults to `200`. `leading` updates on the first change of a window; `trailing` delivers the last change of a window (both default `true`).
+
+## Signature
+
+```ts
+function useThrottledSignal<T>(
+    source: MaybeSignal<T>,
+    ms?: MaybeSignal<number>,
+    options?: UseThrottledSignalOptions,
+): ReadSignal<T>;
+
+type UseThrottledSignalOptions = ThrottleOptions;
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `leading` | `boolean` | `true` | Update on the first change of a window. |
+| `trailing` | `boolean` | `true` | Deliver the last change of a window. |
+
+**Platform:** everywhere (setTimeout). Any pending update is cancelled when the owning scope disposes.
+
+## See also
+
+- [`useDebouncedSignal`](/use/docs/use-debounced-signal) — wait for quiet instead of capping the rate.
+- [`watchThrottled`](/use/docs/watch-throttled) — throttle a `watch` callback rather than derive a signal.
+- [Conventions](/use/docs/conventions) — `MaybeSignal` inputs and `ReadSignal` outputs.

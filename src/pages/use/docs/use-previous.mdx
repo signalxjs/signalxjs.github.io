@@ -1,0 +1,40 @@
+---
+title: usePrevious
+description: "A read-only signal holding the value a source had before its latest change (lag-by-one)"
+layout: docs
+category: State
+order: 30
+---
+
+# usePrevious
+
+Tracks the value a source held **before** its latest change — a lag-by-one view. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { signal } from 'sigx';
+import { usePrevious } from '@sigx/use';
+
+const count = signal(0);
+const prev = usePrevious(count); // prev.value === undefined until the first change
+
+count.value = 5;   // prev.value === 0
+count.value = 12;  // prev.value === 5
+```
+
+It accepts any [`MaybeSignal`](/use/docs/conventions#inputs-maybesignalt-and-tovalue) source — a signal, a computed, or a getter — and returns a [`ReadSignal`](/use/docs/conventions#outputs-single-value--readsignalt). Until the source changes for the first time it holds `initialValue` (default `undefined`), so the return type is `ReadSignal<T | undefined>`.
+
+Values are kept **by reference** — objects are not proxied, so identity is preserved across the lag.
+
+## Signature
+
+```ts
+function usePrevious<T>(source: MaybeSignal<T>, initialValue?: T): ReadSignal<T | undefined>;
+```
+
+**Platform:** everywhere. The internal watcher disposes with the owning scope.
+
+## See also
+
+- [`useCounter`](/use/docs/use-counter) — pair with a counter to diff against the last value.
+- [`watchDebounced`](/use/docs/watch-debounced) — react to changes with a collapsed callback.
+- [Conventions](/use/docs/conventions) — `MaybeSignal` inputs and `ReadSignal` outputs.

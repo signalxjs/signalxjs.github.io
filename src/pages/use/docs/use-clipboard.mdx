@@ -1,0 +1,69 @@
+---
+title: useClipboard
+description: "Clipboard writes on the cross-platform UseClipboardReturn contract, with a copied flag for Copied! UI"
+layout: docs
+category: Clipboard & title
+order: 10
+---
+
+# useClipboard
+
+Clipboard writes on the cross-platform `UseClipboardReturn` contract — `copy()` resolves after writing, and `copied` stays true briefly so you can flash "Copied!". Browser composable — import from `@sigx/use-web`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { useClipboard } from '@sigx/use-web';
+
+const CopyButton = component(() => {
+    const { copy, copied, isSupported } = useClipboard({ source: 'https://sigx.dev' });
+
+    return () => (
+        <button class="btn" disabled={!isSupported} onClick={() => copy()}>
+            {copied ? 'Copied!' : 'Copy link'}
+        </button>
+    );
+});
+
+render(<CopyButton />, "#sandbox");
+```
+
+## Signature
+
+```ts
+function useClipboard(options?: UseClipboardOptions): UseClipboardReturn;
+
+interface UseClipboardReturn {
+    isSupported: ReadSignal<boolean>;
+    text: ReadSignal<string>;
+    copied: ReadSignal<boolean>;
+    copy: (text?: string) => Promise<void>;
+}
+```
+
+- **`isSupported`** — whether the platform clipboard is available in this context.
+- **`text`** — the last text written through `copy()` (and clipboard reads, where supported).
+- **`copied`** — true for a short window (`copiedDuring` ms) after a successful `copy()`; drive "Copied!" UI with it.
+- **`copy(text?)`** — write `text`, or the resolved `source` when called without an argument.
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `source` | `MaybeSignal<string>` | — | Default payload for `copy()` when called without an argument. |
+| `copiedDuring` | `number` | `1500` | How long (ms) `copied` stays true after a copy. |
+| `legacy` | `boolean` | `false` | Fall back to `document.execCommand('copy')` where the async Clipboard API is missing. |
+| `navigator` | `Navigator` | `defaultNavigator` | Override the navigator ([`ConfigurableNavigator`](/use/docs/conventions#ssr-safety-and-configurable-overrides)). |
+| `document` | `Document` | `defaultDocument` | Override the document (used by the `legacy` path). |
+
+The `copied` timer cleans up with the owning scope — no manual teardown.
+
+## SSR
+
+In SSR or an insecure (non-HTTPS) context `isSupported` is `false` and `copy()` resolves as a **no-op**. Gate the button on `isSupported` rather than assuming the write happened.
+
+> `copied` reflects only writes made *through this hook's* `copy()`. It won't light up for copies made elsewhere on the page.
+
+## See also
+
+- [Conventions → Cross-platform contracts](/use/docs/conventions#cross-platform-contracts) — the `UseClipboardReturn` contract a platform pack fulfils.
+- [`useTitle`](/use/docs/use-title) — the other document-surface composable.

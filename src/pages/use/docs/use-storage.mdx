@@ -1,0 +1,77 @@
+---
+title: useStorage
+description: "A signal persisted to storage — object defaults become a deep-reactive proxy that auto-persists, with cross-tab sync"
+layout: docs
+category: Storage
+order: 10
+---
+
+# useStorage
+
+A signal backed by browser storage (default `localStorage`). The flagship of the storage family: hand it an **object default** and you get a **deep-reactive proxy** — mutate a property and the change persists automatically, with cross-tab sync. Browser composable — import from `@sigx/use-web`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { useStorage } from '@sigx/use-web';
+
+const Prefs = component(() => {
+    const prefs = useStorage('demo:prefs', { theme: 'light', fontSize: 14 });
+
+    return () => (
+        <div class="space-y-3">
+            <div class="flex items-center gap-3">
+                <button class="btn" onClick={() => (prefs.theme = prefs.theme === 'light' ? 'dark' : 'light')}>
+                    theme: {prefs.theme}
+                </button>
+                <button class="btn" onClick={() => prefs.fontSize++}>font: {prefs.fontSize}px</button>
+            </div>
+            <p class="text-sm opacity-70">Edit, then reload the preview — it comes back persisted.</p>
+        </div>
+    );
+});
+
+render(<Prefs />, "#sandbox");
+```
+
+## Object mode vs primitive mode
+
+The return type follows the default value:
+
+- **Object default → deep-reactive `Signal<T>`.** Mutate properties directly (`prefs.theme = 'dark'`) and every change persists (deep watch → serialize). Replace the whole value with `prefs.$set(next)`.
+- **Primitive default → `PrimitiveSignal<T>`.** Writing `.value` persists.
+
+```ts
+const prefs = useStorage('prefs', { theme: 'light', fontSize: 14 }); // Signal<T>
+prefs.theme = 'dark';            // persisted, reactive — no .value
+
+const token = useStorage('token', '');  // PrimitiveSignal<string>
+token.value = 'abc';                     // persisted
+```
+
+## Signature
+
+```ts
+function useStorage<T extends Primitive>(key: string, defaults: T, options?: UseStorageOptions<T>): PrimitiveSignal<T>;
+function useStorage<T extends object>(key: string, defaults: T, options?: UseStorageOptions<T>): Signal<T>;
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `storage` | `StorageLike` | `localStorage` | Backing store. Any [`StorageLike`](/use/docs/conventions#cross-platform-contracts) works. |
+| `serializer` | `StorageSerializer<T>` | inferred | Custom `{ read, write }`. Default inferred from the default value's type (JSON for objects). |
+| `listenToStorageChanges` | `boolean` | `true` | Sync across tabs via the `storage` event. |
+| `writeDefaults` | `boolean` | `true` | Write the default value to storage when the key is absent. |
+| `onError` | `(error: unknown) => void` | `console.error` | Called with storage/serialization errors. |
+| `window` | `Window` | `defaultWindow` | Override the window (SSR/testing). |
+
+## SSR
+
+On the server `useStorage` returns the **defaults untouched** and reads storage **on mount** — so the stored value wins *after* hydration. Don't render storage-dependent content above the fold unless you accept the post-hydration swap.
+
+## See also
+
+- [`useLocalStorage`](/use/docs/use-local-storage) / [`useSessionStorage`](/use/docs/use-session-storage) — presets bound to a specific store.
+- [Conventions → Cross-platform contracts](/use/docs/conventions#cross-platform-contracts) — the `StorageLike` contract a platform pack implements.
+- [`@sigx/store` persistence](/store/docs/persistence) — for structured, per-user app state instead of a single key.
