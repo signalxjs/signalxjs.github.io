@@ -1,0 +1,136 @@
+---
+title: "Deploying to Workers"
+description: "Cloudflare — the scaffolded worker entry, the wrangler.jsonc posture, dev binding proxies and wrangler deploy"
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Deploying to Workers
+
+<p class="lede">The first build scaffolds a worker entry and a starter `wrangler.jsonc` — both written once when absent and yours from that moment. This guide walks the whole path: entry, config, dev bindings, deploy.</p>
+
+## The platform entry — yours, scaffolded once
+
+The first build writes `src/entry.cloudflare.ts` **iff absent** and never
+touches it again. It is the `server.mjs` of the edge world — the composition
+order is your app's routing policy and stays visible in your file:
+
+```
+static assets  →  server functions  →  document render
+```
+
+```ts
+// src/entry.cloudflare.ts (scaffolded)
+import { createFetchHandler } from '@sigx/server-renderer/server';
+import { template, assets } from 'virtual:sigx-app';
+import { createApp } from './entry-server';
+
+const handler = createFetchHandler({
+    template,
+    app: (url) => createApp(url),
+    document: { assets }
+});
+
+export default {
+    async fetch(request: Request): Promise<Response> {
+        return handler(request);
+    }
+};
+```
+
+Static assets never reach the worker: wrangler's `assets` config serves matching
+files before it runs. Using server functions (`sigxServer()`)? Mount the endpoint
+before the document render — the scaffold carries this block as a comment:
+
+```ts
+import { handleServerFnRequest, matchesServerFn } from '@sigx/server/server';
+// virtual:sigx-server-fns maps each symbol to a LAZY FACTORY — resolve
+// invokes it to get the server function.
+import { serverFns } from 'virtual:sigx-server-fns';
+
+if (matchesServerFn(request)) {
+    return handleServerFnRequest(request, {
+        resolve: (symbol) => serverFns[symbol]?.() ?? null
+    });
+}
+return handler(request);
+```
+
+In a bundled build the `virtual:sigx-app` artifacts and the
+`virtual:sigx-server-fns` registry **inline into the one worker file** — no
+separate chunks, one module graph.
+
+## wrangler.jsonc — written once, validated after
+
+`generate()` writes a starter config iff absent (name from your package.json,
+`main` → the built worker, `assets.directory` → the client outDir, a pinned
+`compatibility_date`); when present it only warns on drift. One default is
+load-bearing:
+
+```jsonc
+"assets": { "directory": "dist/client", "html_handling": "none" }
+```
+
+`html_handling: "none"` limits the asset router to exact file paths. The client
+outDir contains `index.html` — the raw outlet template — and with the default
+handling the router would serve it for `GET /` *before the worker runs*.
+(`run_worker_first` routing is the wrangler ≥ 4.20 alternative.)
+
+## nodejs_compat — one feature, not a requirement
+
+`nodejs_compat` is **not** required to render: sigx's edge graph takes no
+`node:` import. It IS required for one feature — the ambient request scope that
+lets a server function called during SSR read `rq.request`. That scope is
+AsyncLocalStorage (`node:async_hooks`), so a worker whose renders need it wants:
+
+```jsonc
+"compatibility_flags": ["nodejs_compat"]
+```
+
+Without the flag nothing breaks: the render simply runs unscoped, server
+functions still work over RPC, and only SSR-time `rq.request` falls back to the
+request-less detached context (`fn.with({ context })` supplies one with no ALS
+at all). Beyond that, `nodejs_compat` is a concern for your own dependencies
+only.
+
+## Dev — one loop, optional bindings
+
+`vite dev` + `createDevRequestHandler` stays the dev loop; adapters change
+builds, not dev. Apps that read Cloudflare bindings during render opt into local
+proxies:
+
+```ts
+// vite config
+sigx({ ssr: { entry, adapter: cloudflare({ devProxy: true }) } })
+```
+
+```js
+// server.mjs (dev branch) — the composition stays visible
+import { getDevPlatform } from '@sigx/cloudflare';
+
+app.use(await createDevRequestHandler(vite, {
+    entry: '/src/entry-server.tsx',
+    platform: getDevPlatform(vite)   // { env, cf, ctx, caches } — wrangler's local sims
+}));
+```
+
+`devProxy` boots wrangler's `getPlatformProxy()` (install `wrangler` as a dev
+dependency) and disposes it with the dev server. For binding-heavy apps that
+want dev inside real workerd, `@cloudflare/vite-plugin` is the escalation path.
+
+## Deploy
+
+```bash
+vite build --app -c vite.config.cloudflare.ts
+wrangler deploy
+```
+
+## Reference apps
+
+`examples/resume` (full composition including the server-fn mount) and
+`examples/storefront` (islands + resume) in the
+[SignalX core repo](https://github.com/signalxjs/core) each ship a committed
+`entry.cloudflare.ts`, `vite.config.cloudflare.ts`, and `wrangler.jsonc` — CI
+serves both from real workerd (Miniflare) and asserts they behave identically to
+the Node servers.
