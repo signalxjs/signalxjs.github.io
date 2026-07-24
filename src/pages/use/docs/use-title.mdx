@@ -11,8 +11,10 @@ order: 20
 A two-way binding to `document.title`: write `.value` (or change a passed reactive source) and the tab title follows. Browser composable — import from `@sigx/use-web`.
 
 ```ts
+import { signal } from 'sigx';
 import { useTitle } from '@sigx/use-web';
 
+const unread = signal(3);
 const title = useTitle();
 title.value = `(${unread.value}) Inbox`;   // sets document.title
 
