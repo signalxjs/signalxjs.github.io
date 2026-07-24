@@ -1,0 +1,131 @@
+---
+title: The fetch handler
+description: "createFetchHandler — one WinterCG production handler for every fetch-shaped runtime: Cloudflare Workers, Deno, Bun, Vercel Edge and Netlify"
+layout: module-docs
+category: Guides
+order: 46
+---
+
+# The fetch handler
+
+<p class="lede">`createFetchHandler` is the WinterCG sibling of `createRequestHandler`: a production request handler expressed in Web primitives — `(Request) => Promise<Response>` — so the same app deploys to Cloudflare Workers, Deno, Bun, Vercel Edge and Netlify. Same dispatch decisions as the Node handler, no Node built-ins.</p>
+
+## One handler, every platform
+
+```ts
+import { createFetchHandler } from '@sigx/server-renderer/server';
+
+const handler = createFetchHandler({
+    template,
+    app: (url) => createApp(url),   // fresh app per request
+    document: { assets },           // manifest preloads etc.
+});
+
+export default {
+    fetch: (request: Request) => handler(request),
+};
+```
+
+The `{ fetch }` default export is the portable entry shape every platform accepts.
+It mirrors the [Node handler](/server/packages/server-renderer/full-app#a-shortcut-createrequesthandler)
+decision for decision:
+
+- **Bots get a complete document.** The crawler check flips the render to
+  `mode: 'blocking'` — full inline content, no replacement scripts. Everyone else
+  streams shell-first.
+- **The shell decides the response head.** Status, headers and redirects recorded
+  with [`useResponse`](/server/packages/server-renderer/request-lifecycle) resolve
+  before the first byte; a redirect sends `Location` and no body.
+- **A shell failure is a minimal 500.** There is no `next()` in the fetch world —
+  a custom error page is a wrapper around the returned handler.
+
+Also exported from the root entry (`@sigx/server-renderer`); both entries are
+WinterCG-clean, so the import works on every edge runtime.
+
+## Options
+
+```ts
+interface FetchHandlerOptions<TPlatform = unknown> {
+    template:
+        | string
+        | ((url: string, request: Request, platform: TPlatform) => string | Promise<string>);
+    app: (url: string, request: Request, platform: TPlatform) =>
+        App | JSXElement | Promise<App | JSXElement>;
+    document?:
+        | Omit<DocumentOptions, 'template' | 'mode'>
+        | ((url: string, request: Request, platform: TPlatform) =>
+              Omit<DocumentOptions, 'template' | 'mode'>);
+    isBot?: (userAgent: string, request: Request) => boolean;
+    ssr?: Pick<SSRInstance, 'renderDocumentChunks'>;
+}
+```
+
+The contract is frozen with the Node and dev handlers: `app` builds a **fresh app
+per request** from the path + query (`/about?tab=1`) — per-request provides
+(router, cache) are what make concurrent SSR safe — so one `entry-server` serves
+all three. `template` and `document` accept per-request resolvers; `template` and
+the render `mode` themselves are owned by the handler. Pass `ssr` (a `createSSR()`
+instance) to render with plugins — islands, resume, state serialization.
+
+Server functions called during the render see this request: the handler scopes the
+render (streaming body included) so in-process [`@sigx/server`](/server/packages/server/overview)
+calls and `useData` fetchers resolve against the live `Request`.
+
+## The platform argument
+
+The handler's second parameter is the **platform context** — Cloudflare's
+`{ env, ctx }`, Netlify's context object, whatever your runtime hands you. It is
+opaque to sigx and threaded verbatim into `template`, `app` and `document`:
+
+```ts
+type Env = { DB: D1Database };
+
+const handler = createFetchHandler<{ env: Env; ctx: ExecutionContext }>({
+    template,
+    app: (url, request, { env }) => createApp(url, env.DB),   // typed bindings in render
+});
+
+export default {
+    fetch: (request: Request, env: Env, ctx: ExecutionContext) =>
+        handler(request, { env, ctx }),
+};
+```
+
+Under the default `TPlatform = unknown` the argument is optional (Deno and Bun
+pass nothing). Instantiating the generic with real bindings makes it **required** —
+omitting Cloudflare's `{ env, ctx }` is a compile error, so the callbacks' typed
+`platform` can never silently be `undefined`.
+
+## Supporting exports
+
+Both ship from `@sigx/server-renderer/server` (and the root entry) for
+hand-written fetch servers:
+
+### defaultIsBot
+
+```ts
+function defaultIsBot(userAgent: string): boolean;
+```
+
+The crawler UA regex shared by every handler (fetch, Node and dev). It is the
+`isBot` default; pass `() => false` to always stream.
+
+### chunksToBytes
+
+```ts
+function chunksToBytes(chunks: AsyncGenerator<string>): ReadableStream<Uint8Array>;
+```
+
+Encode a render's chunk generator as a pull-based UTF-8 `ReadableStream` — the
+encoder under `renderDocumentToWebStream` and the fetch handler. Backpressure is
+honored (one chunk per pull), and a client disconnect releases the generator so
+render work stops.
+
+## Where to go next
+
+- [Deploying SignalX](/deploy/docs/overview) — the platform matrix; each adapter
+  wires this handler into a platform entry for you
+- [The request lifecycle](/server/packages/server-renderer/request-lifecycle) —
+  `useResponse`, the error seam, the WinterCG-clean entry split
+- [Building a full SSR app](/server/packages/server-renderer/full-app) — the Node
+  counterpart, end to end
