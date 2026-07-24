@@ -1,0 +1,74 @@
+---
+title: Node
+description: "The default deployment — nodeAdapter(), the externalized build, server.mjs and one sigx-app.js import"
+layout: docs
+category: Platforms
+order: 20
+---
+
+# Node
+
+<p class="lede">Node is the default: no adapter to install, an externalized server build, and a `server.mjs` you own. One import — `dist/server/sigx-app.js` — replaces four `readFile`s.</p>
+
+## The build
+
+`sigx({ ssr: { entry } })` without an adapter **is** the Node deployment —
+`nodeAdapter()` (`serverBuild: 'external'`) produces today's output,
+byte-identical to pre-adapter builds: dependencies resolve from `node_modules`
+at runtime, so the bundle stays small and the runtime keeps one DI-token
+identity.
+
+```bash
+vite build --app
+```
+
+## The server
+
+The [full SSR app guide](/server/packages/server-renderer/full-app) builds this
+up step by step; the deployment shape is:
+
+```js
+// server.mjs (prod branch) — static → server functions → document render
+import express from 'express';
+import { createRequestHandler } from '@sigx/server-renderer/node';
+import { createServerFnHandler } from '@sigx/server/node';
+
+// ONE import replaces four readFiles: the build materializes
+// template/assets/manifests as dist/server/sigx-app.js.
+const { template, assets } = await import('./dist/server/sigx-app.js');
+const { createApp } = await import('./dist/server/entry-server.js');
+const { serverFns } = await import('./dist/server/sigx-server-fns.js');
+
+const app = express();
+// The raw outlet template must never be served: index: false keeps it off
+// '/', and the explicit guard keeps /index.html itself unreachable.
+app.get('/index.html', (_req, res) => res.redirect(301, '/'));
+app.use(express.static('dist/client', { index: false }));
+app.use(createServerFnHandler({ resolve: (s) => serverFns[s]?.() ?? null }));
+app.use(createRequestHandler({ template, app: (url) => createApp(url), document: { assets } }));
+
+app.listen(process.env.PORT ?? 3000);
+```
+
+`index: false` keeps the raw outlet template off `/` — the
+[static-tier rule](/deploy/docs/overview/#the-static-tier-rules) every platform
+shares.
+
+## Run
+
+```bash
+node --conditions production server.mjs
+```
+
+`--conditions production` selects the `NODE_ENV`-stripped production dists (the
+server works without it too). Use your process manager of choice — the server
+is a plain Node HTTP app.
+
+## Prefer the fetch shape?
+
+`createFetchHandler` runs on Node too (Node 18+ has WinterCG primitives) — but
+`createRequestHandler` from `@sigx/server-renderer/node` is the
+Node-native `(req, res)` handler and drops into Express/Connect/Polka
+middleware chains, so it stays the recommended shape here. The reference server
+lives at `examples/resume/server.mjs` in the
+[SignalX core repo](https://github.com/signalxjs/core).

@@ -16,25 +16,88 @@ build adapter; Deno and Bun deploy from a few lines of config.</p>
 
 A SignalX SSR app deploys the same way everywhere:
 
-1. **One runtime** — `createFetchHandler` from `@sigx/server-renderer` turns a
-   `Request` into a `Response` on any WinterCG runtime.
-2. **One build seam** — an adapter passed to `sigx({ ssr: { adapter } })` in your
-   Vite config decides how the server bundle is built and what platform output is generated.
-3. **One entry you own** — `src/entry.<platform>.ts` is scaffolded on first build and never
-   overwritten. It composes static assets → server functions → document render, and always
-   exports the portable `{ fetch }` shape.
+1. **One runtime** — [`createFetchHandler`](/server/packages/server-renderer/fetch-handler)
+   from `@sigx/server-renderer` turns a `Request` into a `Response` on any WinterCG
+   runtime. Bots get a complete blocking document; everyone else streams shell-first;
+   `useResponse` status/redirects resolve before the first byte.
+2. **One build seam** — an adapter passed to
+   [`sigx({ ssr: { adapter } })`](/vite/docs/deploy-adapters) in your Vite config
+   decides how the server bundle is built (externalized for Node and Bun, fully
+   bundled for the edge) and what platform output is generated.
+3. **One entry you own** — `src/entry.<platform>.ts` is scaffolded on first build and
+   never overwritten. It composes **static assets → server functions → document
+   render**, and always exports the portable `{ fetch }` shape.
 
-## Platforms
+## The platform matrix
 
-| Platform | Adapter | Deploy with |
-|---|---|---|
-| Node | built-in `nodeAdapter()` (default) | your process manager |
-| Cloudflare Workers | [`@sigx/cloudflare`](/deploy/packages/cloudflare/overview/) | `wrangler deploy` |
-| Vercel — Node runtime | [`@sigx/vercel`](/deploy/packages/vercel/overview/) | `vercel deploy --prebuilt` |
-| Vercel — Edge runtime | [`@sigx/vercel`](/deploy/packages/vercel/overview/) with `{ runtime: 'edge' }` | `vercel deploy --prebuilt` |
-| Netlify | [`@sigx/netlify`](/deploy/packages/netlify/overview/) | `netlify deploy --prod` |
-| Deno / Deno Deploy | inline adapter object — no package | `deno deploy` |
-| Bun | reuses the Node build — no package | `bun run` |
+| Platform | Adapter | serverBuild | Statics | Deploy with |
+|---|---|---|---|---|
+| [Node](/deploy/docs/node/) | built-in `nodeAdapter()` (default) | external | `express.static` / `node:http` | `node --conditions production server.mjs` |
+| [Cloudflare Workers](/deploy/packages/cloudflare/overview/) | `@sigx/cloudflare` | bundled, `['workerd','worker']` | wrangler `assets` — served before the worker runs | `wrangler deploy` |
+| [Deno / Deno Deploy](/deploy/docs/deno/) | inline adapter object — no package | bundled, `['deno']` | `serveDir` (`@std/http`) fallthrough | `deno deploy` |
+| [Bun](/deploy/docs/bun/) | reuses the Node build — no package | external | `Bun.serve` routes / `Bun.file` | `bun --conditions=production server.bun.ts` |
+| [Vercel — Node runtime](/deploy/packages/vercel/overview/) | `@sigx/vercel` | bundled | Build Output `static/` + `filesystem` route | `vercel deploy --prebuilt` |
+| [Vercel — Edge runtime](/deploy/packages/vercel/overview/) | `@sigx/vercel` with `{ runtime: 'edge' }` | bundled, `['edge-light','worker']` | Build Output `static/` + `filesystem` route | `vercel deploy --prebuilt` |
+| [Netlify](/deploy/packages/netlify/overview/) | `@sigx/netlify` | bundled | publish dir CDN, `preferStatic` | `netlify deploy --prod` |
 
-Per-platform guides for Node, Deno and Bun are on their way — the three adapter packages
-above each carry their own docs today.
+## The entry contract
+
+Whatever the platform, the entry rhymes (Cloudflare shown):
+
+```ts
+// src/entry.cloudflare.ts — user-owned, ~20 lines
+import { createFetchHandler } from '@sigx/server-renderer/server';
+import { handleServerFnRequest, matchesServerFn } from '@sigx/server/server';
+import { template, assets } from 'virtual:sigx-app';
+import { serverFns } from 'virtual:sigx-server-fns';
+import { createApp } from './entry-server';
+
+const handler = createFetchHandler({
+    template,
+    app: (url) => createApp(url),
+    document: { assets }
+});
+
+export default {
+    async fetch(request: Request) {
+        if (matchesServerFn(request)) {
+            return handleServerFnRequest(request, {
+                resolve: (s) => serverFns[s]?.() ?? null
+            });
+        }
+        return handler(request);
+    }
+};
+```
+
+The composition order **is** your routing policy: static assets first (served by
+the platform wherever possible), then the server-function endpoint, then the
+document render for everything else.
+
+## The static-tier rules
+
+Two rules hold on every platform — the adapters encode them, and the
+hand-written entries (Deno, Bun) must keep them:
+
+- **GET/HEAD-only.** POSTs belong to the server-function endpoint; a static tier
+  that answers other methods (e.g. `serveDir`'s 405) would swallow them.
+- **Never serve the raw outlet template.** The client build's `index.html` is
+  the unrendered document shell — every adapter keeps it off `/` (wrangler
+  `html_handling: "none"`, Vercel's `static/` omits it, Netlify strips it from
+  the publish dir), because the platform's static tier would otherwise shadow
+  the document render.
+
+Security defaults are unchanged by deployment — the server-function endpoint
+keeps its POST-only JSON, CSRF and origin gates on every platform; see
+[Deployment & security](/server/packages/server/deployment).
+
+## Where to go next
+
+- [Node](/deploy/docs/node/) — the default, no adapter needed
+- [Deno & Deno Deploy](/deploy/docs/deno/) / [Bun](/deploy/docs/bun/) — the
+  package-less platforms
+- [Cloudflare](/deploy/packages/cloudflare/overview/),
+  [Vercel](/deploy/packages/vercel/overview/),
+  [Netlify](/deploy/packages/netlify/overview/) — the adapter packages
+- [Deploy adapters in @sigx/vite](/vite/docs/deploy-adapters) — the
+  `SigxAdapter` contract behind all of them

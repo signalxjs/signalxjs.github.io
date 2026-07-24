@@ -1,0 +1,97 @@
+---
+title: Deno & Deno Deploy
+description: "Deploying to Deno — the inline SigxAdapter (no package), the bundled build, and the serveDir static tier"
+layout: docs
+category: Platforms
+order: 30
+---
+
+# Deno & Deno Deploy
+
+<p class="lede">Deno needs no adapter package — a `SigxAdapter` is a plain object, and hand-rolling it in your Vite config *is* the documentation. The build goes bundled because Deno cannot select custom export conditions at runtime.</p>
+
+## The config
+
+```ts
+// vite.config.deno.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+
+export default defineConfig({
+    plugins: [
+        sigx({
+            ssr: {
+                entry: 'src/entry-server.tsx',
+                clientOutDir: 'dist-deno/client',
+                serverOutDir: 'dist-deno/server',
+                adapter: {
+                    name: 'deno',
+                    serverBuild: 'bundled',
+                    conditions: ['deno'],
+                    // jsr: specifiers stay runtime imports — Deno fetches
+                    // and caches them itself.
+                    runtimeExternal: [/^jsr:/],
+                    entry: 'src/entry.deno.ts'
+                }
+            }
+        })
+    ]
+});
+```
+
+`serverBuild: 'bundled'` bakes the production dists in at build time (no
+`--conditions` flag exists in Deno), and `runtimeExternal: [/^jsr:/]` leaves
+`jsr:` imports for Deno to resolve natively.
+
+## The entry
+
+```ts
+// src/entry.deno.ts — static → server functions → document render
+import { serveDir } from 'jsr:@std/http@^1.0.0/file-server';
+import { createFetchHandler } from '@sigx/server-renderer/server';
+import { template, assets } from 'virtual:sigx-app';
+import { createApp } from './entry-server';
+
+const handler = createFetchHandler({
+    template,
+    app: (url) => createApp(url),
+    document: { assets }
+});
+
+Deno.serve({ port: 8000 }, async (request: Request): Promise<Response> => {
+    // Static tier is GET/HEAD-only: serveDir answers other methods with
+    // 405 (not 404), which would swallow server-fn POSTs. showIndex: false
+    // keeps the raw outlet template off '/', and the explicit /index.html
+    // guard keeps the template file itself unreachable — documents belong
+    // to the render.
+    const { pathname } = new URL(request.url);
+    if ((request.method === 'GET' || request.method === 'HEAD') && pathname !== '/index.html') {
+        const res = await serveDir(request, {
+            fsRoot: 'dist-deno/client',
+            quiet: true,
+            showIndex: false
+        });
+        if (res.status !== 404) return res;
+    }
+    return handler(request);
+});
+```
+
+Statics ride the standard library's `serveDir` — the runtime's own file server
+(a hand-rolled sigx one is a deliberate refusal: traversal, ranges and caching
+are security surface the platform already owns). Using server functions? Mount
+`matchesServerFn`/`handleServerFnRequest` between the static tier and the
+render, exactly as in the
+[entry contract](/deploy/docs/overview/#the-entry-contract).
+
+## Build, run, deploy
+
+```bash
+vite build --app -c vite.config.deno.ts
+deno run --allow-net --allow-read --allow-env dist-deno/server/entry.deno.js
+deno deploy   # ship it to Deno Deploy
+```
+
+The reference wiring — `vite.config.deno.ts` + the committed
+`src/entry.deno.ts` — lives at `examples/resume` in the
+[SignalX core repo](https://github.com/signalxjs/core), exercised by CI.

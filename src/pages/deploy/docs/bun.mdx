@@ -1,0 +1,81 @@
+---
+title: Bun
+description: "Deploying to Bun — the shared external build, Bun.serve({ fetch }) and Bun.file statics"
+layout: docs
+category: Platforms
+order: 40
+---
+
+# Bun
+
+<p class="lede">Bun consumes the **same external build as Node** — it resolves `node_modules` and honors export conditions — so there is nothing platform-specific to build. One `server.bun.ts` with `Bun.serve` is the whole deployment.</p>
+
+## The build
+
+No separate config: run the standard build.
+
+```bash
+vite build --app
+```
+
+Bun runs the externalized `dist/` directly — dependencies resolve from
+`node_modules` at startup, same as Node.
+
+## The server
+
+```ts
+// server.bun.ts — static → server functions → document render
+import { createFetchHandler } from '@sigx/server-renderer/server';
+import { template, assets } from './dist/server/sigx-app.js';
+import { createApp } from './dist/server/entry-server.js';
+import { join, resolve, sep } from 'node:path';
+
+const clientDir = resolve('dist/client');
+
+const handler = createFetchHandler({
+    template,
+    app: (url: string) => createApp(url),
+    document: { assets }
+});
+
+Bun.serve({
+    port: Number(process.env.PORT) || 3000,
+    async fetch(request: Request): Promise<Response> {
+        const { pathname } = new URL(request.url);
+
+        // Static tier: GET/HEAD-only, exact file paths only, and the raw
+        // outlet template (index.html) is explicitly unreachable — it must
+        // never shadow the document render.
+        if (
+            (request.method === 'GET' || request.method === 'HEAD') &&
+            pathname !== '/' && !pathname.endsWith('/') &&
+            pathname !== '/index.html'
+        ) {
+            const filePath = resolve(join(clientDir, decodeURIComponent(pathname)));
+            if (filePath.startsWith(clientDir + sep)) {    // guards ../ traversal
+                const file = Bun.file(filePath);
+                if (await file.exists()) return new Response(file);
+            }
+        }
+
+        return handler(request);
+    }
+});
+```
+
+Statics are served with `Bun.file` — the runtime's own file responses
+(content-type, streaming); the resolved-prefix check guards path traversal.
+Using server functions? Mount `matchesServerFn`/`handleServerFnRequest` between
+the static tier and the render, as in the
+[entry contract](/deploy/docs/overview/#the-entry-contract).
+
+## Run
+
+```bash
+bun --conditions=production server.bun.ts
+```
+
+`--conditions=production` selects the production dists, mirroring the Node
+server's flag. The reference `server.bun.ts` (including the server-fn mount and
+the hardened static tier) lives at `examples/resume` in the
+[SignalX core repo](https://github.com/signalxjs/core), exercised by CI.
