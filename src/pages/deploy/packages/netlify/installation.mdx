@@ -39,7 +39,7 @@ The adapter prints the config it needs and leaves the file to you. All it needs:
 ```toml
 [build]
   publish = "dist/client"
-  command = "npm run build"
+  command = "vite build --app -c vite.config.netlify.ts"
 ```
 
 ## Verify

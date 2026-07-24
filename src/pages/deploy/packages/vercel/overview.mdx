@@ -33,8 +33,8 @@ export default defineConfig({
 });
 ```
 
-`vite build --app` produces a fully bundled function and then generates the
-complete `.vercel/output` layout. Unlike wrangler-style tools, the Build Output
+`vite build --app -c vite.config.vercel.ts` produces a fully bundled function
+and then generates the complete `.vercel/output` layout. Unlike wrangler-style tools, the Build Output
 API **is a generation contract**: hand-writing it has no copyability value, so
 the layout is regenerated every build. Deploy with `vercel deploy --prebuilt`
 (link the project first).

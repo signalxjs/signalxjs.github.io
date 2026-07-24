@@ -33,9 +33,9 @@ export default defineConfig({
 });
 ```
 
-`vite build --app` produces a fully bundled function and generates the
-**Frameworks API** channel — Netlify's recommended target for build-tool
-adapters. Deploy with `netlify deploy --prod` (builds by default) or
+`vite build --app -c vite.config.netlify.ts` produces a fully bundled function
+and generates the **Frameworks API** channel — Netlify's recommended target for
+build-tool adapters. Deploy with `netlify deploy --prod` (builds by default) or
 `netlify deploy --prod --no-build` for prebuilt output.
 
 ## About
