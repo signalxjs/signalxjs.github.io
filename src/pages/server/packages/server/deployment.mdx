@@ -61,21 +61,30 @@ so it drops into Express/Connect/Polka and most Node servers.
 ## Edge (WinterCG)
 
 For fetch-shaped runtimes (Workers, Deno, etc.), use `@sigx/server/server`.
-Match the endpoint and hand the request off; anything else falls through to your
-renderer:
+Match the endpoint and hand the request off; anything else falls through to
+[`createFetchHandler`](/server/packages/server-renderer/fetch-handler) — the
+production document renderer for every fetch-shaped platform:
 
 ```js
+import { createFetchHandler } from '@sigx/server-renderer/server';
 import { handleServerFnRequest, matchesServerFn } from '@sigx/server/server';
+
+const handler = createFetchHandler({ template, app: (url) => createApp(url) });
 
 export default {
   async fetch(request) {
     if (matchesServerFn(request)) {
       return handleServerFnRequest(request, { resolve: (symbol) => registry[symbol] });
     }
-    return renderDocument(request);
+    return handler(request);
   },
 };
 ```
+
+This composition — static assets → server functions → document render — is
+exactly what the [deploy adapters](/deploy/docs/overview) scaffold as your
+platform entry on Cloudflare, Vercel and Netlify; security defaults are
+unchanged by deployment.
 
 ## Security defaults
 
