@@ -8,18 +8,46 @@ order: 20
 
 # Installation
 
-<p class="lede">Add `@sigx/netlify` to your project.</p>
+<p class="lede">Add `@sigx/netlify` to your project — a build-time dev dependency, alongside the Netlify CLI for deploys.</p>
 
 ## Install the package
 
 ```bash
 pnpm add -D @sigx/netlify
+pnpm add -D netlify-cli   # or use the globally installed CLI
+```
+
+## Wire the adapter
+
+A separate platform config keeps the default Node build untouched:
+
+```ts
+// vite.config.netlify.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+import { netlify } from '@sigx/netlify';
+
+export default defineConfig({
+    plugins: [sigx({ ssr: { entry: 'src/entry-server.tsx', adapter: netlify() } })]
+});
+```
+
+## netlify.toml — printed, never written
+
+The adapter prints the config it needs and leaves the file to you. All it needs:
+
+```toml
+[build]
+  publish = "dist/client"
+  command = "npm run build"
 ```
 
 ## Verify
 
-```tsx
-import * as Netlify from '@sigx/netlify';
-
-console.log(Object.keys(Netlify));
+```bash
+vite build --app -c vite.config.netlify.ts
 ```
+
+The first build scaffolds `src/entry.netlify.ts` (only when absent — yours
+afterwards) and emits `.netlify/v1/functions/sigx-ssr/`. `netlify dev` serves
+the result locally; `netlify deploy --prod` ships it.
