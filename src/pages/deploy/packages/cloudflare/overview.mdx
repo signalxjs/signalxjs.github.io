@@ -33,7 +33,7 @@ export default defineConfig({
 });
 ```
 
-`vite build --app` then produces a **fully bundled** workerd-conditioned worker
+`vite build --app -c vite.config.cloudflare.ts` then produces a **fully bundled** workerd-conditioned worker
 (`serverBuild: 'bundled'`, conditions `['workerd', 'worker']` — the `node`
 condition is deliberately dropped; the render path is `node:`-free by CI
 guarantee) plus the client assets. Deploy with `wrangler deploy` — wrangler's
