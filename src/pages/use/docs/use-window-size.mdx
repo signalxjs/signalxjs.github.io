@@ -10,7 +10,7 @@ order: 10
 
 Reactive window inner size as one `{ width, height }` view, on the cross-platform `WindowSizeState` contract. Browser composable — import from `@sigx/use-web`.
 
-```tsx preview code live
+```tsx
 import { component, render } from 'sigx';
 import { useWindowSize } from '@sigx/use-web';
 
@@ -19,7 +19,7 @@ const Size = component(() => {
     return () => <p class="font-mono">{size.width} × {size.height}</p>;
 });
 
-render(<Size />, "#sandbox");
+render(<Size />, "#app");
 ```
 
 ## Usage

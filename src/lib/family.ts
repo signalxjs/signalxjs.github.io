@@ -75,7 +75,7 @@ const RAW_PACKAGES: SigxPackage[] = [
       blurb: 'Predictable, derived state for larger apps — built on the same reactive core.' },
     { id: 'use', npm: '@sigx/use', title: 'Use', cat: 'core', target: 'foundation',
       hue: 175, glyph: '⎔', status: 'beta', version: '0.3.0',
-      tag: 'VueUse-style reactive composables',
+      tag: 'Reactive composables built on signals',
       blurb: 'Tree-shakable composables built on signals — sensors, storage, timing and more, SSR-safe across every target.' },
 
     // ---- Web: rendering ----

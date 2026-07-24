@@ -10,7 +10,7 @@ order: 20
 
 A numeric counter signal paired with **clamped mutators** — `inc`, `dec`, `set`, and `reset` all respect the optional `min`/`max` bounds and return the new value. Cross-platform — import from `@sigx/use`.
 
-```tsx preview code live
+```tsx
 import { component, render } from 'sigx';
 import { useCounter } from '@sigx/use';
 
@@ -27,7 +27,7 @@ const Stepper = component(() => {
     );
 });
 
-render(<Stepper />, "#sandbox");
+render(<Stepper />, "#app");
 ```
 
 ## Usage

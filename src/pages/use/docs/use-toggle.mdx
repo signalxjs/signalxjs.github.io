@@ -10,7 +10,7 @@ order: 10
 
 A boolean signal paired with a **toggler**. Call the toggler with no argument to flip the value, or with a boolean to set it explicitly; it returns the new value. Cross-platform — import from `@sigx/use`.
 
-```tsx preview code live
+```tsx
 import { component, render } from 'sigx';
 import { useToggle } from '@sigx/use';
 
@@ -27,7 +27,7 @@ const Switch = component(() => {
     );
 });
 
-render(<Switch />, "#sandbox");
+render(<Switch />, "#app");
 ```
 
 ## Usage

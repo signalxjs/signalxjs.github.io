@@ -10,7 +10,7 @@ order: 10
 
 A signal backed by browser storage (default `localStorage`). The flagship of the storage family: hand it an **object default** and you get a **deep-reactive proxy** — mutate a property and the change persists automatically, with cross-tab sync. Browser composable — import from `@sigx/use-web`.
 
-```tsx preview code live
+```tsx
 import { component, render } from 'sigx';
 import { useStorage } from '@sigx/use-web';
 
@@ -30,7 +30,7 @@ const Prefs = component(() => {
     );
 });
 
-render(<Prefs />, "#sandbox");
+render(<Prefs />, "#app");
 ```
 
 ## Object mode vs primitive mode

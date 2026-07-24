@@ -8,7 +8,7 @@ const Landing = component(() => {
 export default Landing;
 
 export const meta = {
-    title: 'SignalX Use - VueUse-style reactive composables',
+    title: 'SignalX Use - Reactive composables built on signals',
     description: 'Tree-shakable composables built on signals - sensors, storage, timing and more, SSR-safe across every target.',
     layout: 'package',
 };

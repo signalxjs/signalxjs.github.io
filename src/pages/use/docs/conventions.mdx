@@ -12,7 +12,7 @@ Every composable in `@sigx/use` shares a small set of input and output conventio
 
 ## Inputs: `MaybeSignal<T>` and `toValue()`
 
-Anywhere a composable takes a "reactive-ish" argument, its type is **`MaybeSignal<T>`** — the sigx equivalent of VueUse's `MaybeRefOrGetter`. You can pass:
+Anywhere a composable takes a "reactive-ish" argument, its type is **`MaybeSignal<T>`**. You can pass:
 
 - a **plain value** — `useDebouncedSignal(query, 300)`
 - a **signal-shaped `{ value }` handle** — a `PrimitiveSignal`, a `computed`, or a `toSignal` view

@@ -10,7 +10,7 @@ order: 10
 
 Clipboard writes on the cross-platform `UseClipboardReturn` contract — `copy()` resolves after writing, and `copied` stays true briefly so you can flash "Copied!". Browser composable — import from `@sigx/use-web`.
 
-```tsx preview code live
+```tsx
 import { component, render } from 'sigx';
 import { useClipboard } from '@sigx/use-web';
 
@@ -24,7 +24,7 @@ const CopyButton = component(() => {
     );
 });
 
-render(<CopyButton />, "#sandbox");
+render(<CopyButton />, "#app");
 ```
 
 ## Signature
