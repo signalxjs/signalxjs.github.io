@@ -11,19 +11,21 @@ import { configureLiveCode, initRegisteredModules } from '@sigx/live-code';
 import * as daisyui from '@sigx/daisyui';
 import * as router from '@sigx/router';
 import * as store from '@sigx/store';
-import * as use from '@sigx/use';
-import * as useWeb from '@sigx/use-web';
 
 // Modules become available inside live-code as `window.__SIGX_DAISYUI__`,
-// `window.__SIGX_ROUTER__`, `window.__SIGX_STORE__`, `window.__SIGX_USE__`,
-// `window.__SIGX_USE_WEB__`.
+// `window.__SIGX_ROUTER__`, `window.__SIGX_STORE__`.
+//
+// Note: @sigx/live-code's code runner resolves imports against a fixed,
+// generated allow-list (sigx, @sigx/router, @sigx/store, @sigx/daisyui). It
+// has no generic `@sigx/*` handling, so registering a package here that the
+// runner doesn't know about (e.g. @sigx/use / @sigx/use-web) exposes a global
+// the runner never references — its import stays unresolved. Until live-code
+// ships those specifiers, the /use docs use plain (non-runnable) code fences.
 configureLiveCode({
     modules: {
         '@sigx/daisyui': () => daisyui,
         '@sigx/router': () => router,
         '@sigx/store': () => store,
-        '@sigx/use': () => use,
-        '@sigx/use-web': () => useWeb,
     }
 });
 

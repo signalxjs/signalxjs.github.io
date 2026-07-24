@@ -12,7 +12,7 @@ Reactive pointer position as **one** `{ x, y, sourceType }` object. Browser comp
 
 It returns a [`ReactiveView`](/use/docs/conventions#outputs-multiple-fields--one-reactiveviewt) — read `mouse.x` / `mouse.y` by property access, each tracked per key, so an `x`-only consumer doesn't re-run on `y` changes. Listeners are **passive** and detach with the owning scope.
 
-```tsx preview code live
+```tsx
 import { component, render } from 'sigx';
 import { useMouse } from '@sigx/use-web';
 
@@ -25,7 +25,7 @@ const Pointer = component(() => {
     );
 });
 
-render(<Pointer />, "#sandbox");
+render(<Pointer />, "#app");
 ```
 
 By default it tracks both mouse and touch moves on `window`, in **page** coordinates. Switch coordinate systems with `type`, bind to a specific element with `target`, or seed the pre-move value with `initialValue`.

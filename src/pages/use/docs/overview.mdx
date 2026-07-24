@@ -1,6 +1,6 @@
 ---
 title: Overview
-description: "@sigx/use — tree-shakable, VueUse-style reactive composables built on signals"
+description: "@sigx/use — tree-shakable, reactive composables built on signals"
 layout: docs
 category: Getting Started
 order: 10
@@ -16,11 +16,11 @@ import { PrereqCallout } from '@/components/PrereqCallout';
     { name: 'Components', path: '/core/docs/components' },
 ]} />
 
-`@sigx/use` is a collection of small, **tree-shakable composables** built directly on the SignalX reactive core — the signal-first answer to [VueUse](https://vueuse.org). Toggles and counters, debounced and throttled signals, timers, element sensors, storage, clipboard, media queries: each is an ordinary function you call from a component's setup, and each returns plain signals you read as values.
+`@sigx/use` is a collection of small, **tree-shakable composables** built directly on the SignalX reactive core. Toggles and counters, debounced and throttled signals, timers, element sensors, storage, clipboard, media queries: each is an ordinary function you call from a component's setup, and each returns plain signals you read as values.
 
 Here's the shape of it — a clamped counter in three lines:
 
-```tsx preview code live
+```tsx
 import { component, render } from 'sigx';
 import { useCounter } from '@sigx/use';
 
@@ -37,7 +37,7 @@ const Counter = component(() => {
     );
 });
 
-render(<Counter />, "#sandbox");
+render(<Counter />, "#app");
 ```
 
 No `.value` at the call site inside JSX, no manual subscriptions — `count` is a signal, and reading it in the render function re-renders the component. That's the whole ergonomic.

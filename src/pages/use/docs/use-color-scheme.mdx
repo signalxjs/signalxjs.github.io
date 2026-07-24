@@ -10,7 +10,7 @@ order: 10
 
 The system color-scheme preference as the cross-platform `ColorScheme` contract. Browser composable — import from `@sigx/use-web`.
 
-```tsx preview code live
+```tsx
 import { component, render } from 'sigx';
 import { useColorScheme } from '@sigx/use-web';
 
@@ -19,7 +19,7 @@ const Scheme = component(() => {
     return () => <p>System prefers: {scheme.value}</p>;
 });
 
-render(<Scheme />, "#sandbox");
+render(<Scheme />, "#app");
 ```
 
 The return is a [`ReadSignal<ColorScheme>`](/use/docs/conventions#outputs-single-value--readsignalt) where `ColorScheme` is `'light' | 'dark'` — `no-preference` maps to `'light'`:

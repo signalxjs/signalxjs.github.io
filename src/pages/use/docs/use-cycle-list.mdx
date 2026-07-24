@@ -10,7 +10,7 @@ order: 40
 
 Steps through a list with wrap-around — `next`, `prev`, and `go` move the current item and wrap past either end. Cross-platform — import from `@sigx/use`.
 
-```tsx preview code live
+```tsx
 import { component, render } from 'sigx';
 import { useCycleList } from '@sigx/use';
 
@@ -26,7 +26,7 @@ const ThemePicker = component(() => {
     );
 });
 
-render(<ThemePicker />, "#sandbox");
+render(<ThemePicker />, "#app");
 ```
 
 ## Usage
