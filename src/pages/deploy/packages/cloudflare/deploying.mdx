@@ -45,6 +45,8 @@ before the document render — the scaffold carries this block as a comment:
 
 ```ts
 import { handleServerFnRequest, matchesServerFn } from '@sigx/server/server';
+// virtual:sigx-server-fns maps each symbol to a LAZY FACTORY — resolve
+// invokes it to get the server function.
 import { serverFns } from 'virtual:sigx-server-fns';
 
 if (matchesServerFn(request)) {
