@@ -1,0 +1,40 @@
+---
+title: Deploying SignalX
+description: "Deploy your SSR app to Node, Cloudflare Workers, Deno, Bun, Vercel or Netlify — one fetch handler, an adapter per platform"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+# Deploying SignalX
+
+<p class="lede">Every platform runs the same app: a WinterCG `createFetchHandler` behind an
+entry file you own. The Node server is built in; Cloudflare, Vercel and Netlify each have a
+build adapter; Deno and Bun deploy from a few lines of config.</p>
+
+## The deployment model
+
+A SignalX SSR app deploys the same way everywhere:
+
+1. **One runtime** — `createFetchHandler` from `@sigx/server-renderer` turns a
+   `Request` into a `Response` on any WinterCG runtime.
+2. **One build seam** — an adapter passed to `sigx({ ssr: { adapter } })` in your
+   Vite config decides how the server bundle is built and what platform output is generated.
+3. **One entry you own** — `src/entry.<platform>.ts` is scaffolded on first build and never
+   overwritten. It composes static assets → server functions → document render, and always
+   exports the portable `{ fetch }` shape.
+
+## Platforms
+
+| Platform | Adapter | Deploy with |
+|---|---|---|
+| Node | built-in `nodeAdapter()` (default) | your process manager |
+| Cloudflare Workers | [`@sigx/cloudflare`](/deploy/packages/cloudflare/overview/) | `wrangler deploy` |
+| Vercel — Node runtime | [`@sigx/vercel`](/deploy/packages/vercel/overview/) | `vercel deploy --prebuilt` |
+| Vercel — Edge runtime | [`@sigx/vercel`](/deploy/packages/vercel/overview/) with `{ runtime: 'edge' }` | `vercel deploy --prebuilt` |
+| Netlify | [`@sigx/netlify`](/deploy/packages/netlify/overview/) | `netlify deploy --prod` |
+| Deno / Deno Deploy | inline adapter object — no package | `deno deploy` |
+| Bun | reuses the Node build — no package | `bun run` |
+
+Per-platform guides for Node, Deno and Bun are on their way — the three adapter packages
+above each carry their own docs today.

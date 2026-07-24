@@ -1,0 +1,29 @@
+---
+title: "Overview"
+description: "Cloudflare — Bundled workerd worker + wrangler scaffold"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Cloudflare
+
+<p class="lede">The flagship adapter — a fully bundled, workerd-conditioned worker with a node-free render path, a wrangler.jsonc scaffolded once and validated on drift, and optional local binding proxies in dev. Deploy with wrangler deploy.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/cloudflare" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add -D @sigx/cloudflare
+```
+
+## About
+
+`@sigx/cloudflare` is a Deploy adapter — bundled workerd worker + wrangler scaffold. It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.
+
+## Next steps
+
+Continue with [Installation](/deploy/packages/cloudflare/installation) for project setup, or jump to the [API reference](/deploy/packages/cloudflare/api).

@@ -27,6 +27,8 @@ const HomePage = component(() => {
                 <span class="hb-sep" />
                 <div class="hb-stat"><span class="hb-num">4</span><span>render targets</span></div>
                 <span class="hb-sep" />
+                <div class="hb-stat"><span class="hb-num">7</span><span>deploy targets</span></div>
+                <span class="hb-sep" />
                 <div class="hb-stat"><span class="hb-num">MIT</span><span>licensed</span></div>
             </div>
 

@@ -42,6 +42,14 @@ const FEATURES: Record<string, LandingFeature[]> = {
         { icon: 'book', title: 'Your types on the wire', body: 'Date, Map, Set, bigint, URL and your own classes round-trip across every boundary through the serialize codec — not just JSON.' },
         { icon: 'terminal', title: 'One plugin wires it all', body: 'The Vite plugin sets up SSR and wires in server functions and resume when you add them — manifests and endpoints included, zero config in dev.' },
     ],
+    deploy: [
+        { icon: 'bolt', title: 'One fetch handler', body: 'createFetchHandler is the whole runtime story — a WinterCG Request → Response handler that runs unchanged on Node, workerd, Deno, Bun and the edge runtimes.' },
+        { icon: 'book', title: 'You own the entry', body: 'src/entry.<platform>.ts is scaffolded once and never overwritten — the static → server functions → document composition stays a readable file in your repo.' },
+        { icon: 'cube', title: 'Adapters are build glue', body: 'Each adapter rides the public SigxAdapter seam in @sigx/vite — export conditions, bundling mode and platform output generation. No privileged access, no runtime lock-in.' },
+        { icon: 'layers', title: 'Platform-native statics', body: 'Static assets are served by each platform’s own tier — Workers assets, the Build Output filesystem route, Netlify’s CDN — before your code ever runs.' },
+        { icon: 'terminal', title: 'Deploy with their CLI', body: 'vite build --app, then wrangler deploy, vercel deploy --prebuilt or netlify deploy --prod — the output sits on disk, inspectable before it ships.' },
+        { icon: 'sparkle', title: 'No package for Deno & Bun', body: 'A SigxAdapter is a plain object — Deno and Bun deploy from a few documented lines of vite config, no adapter package required.' },
+    ],
     lynx: [
         { icon: 'layers', title: 'Real native views', body: 'Components render to UIView / Android View — not a webview.' },
         { icon: 'bolt', title: 'Fine-grained updates', body: 'Only the nodes that read a changed signal re-render. No diffing.' },

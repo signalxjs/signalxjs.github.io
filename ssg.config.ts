@@ -3,7 +3,7 @@ import { defineSSGConfig } from '@sigx/ssg';
 // esbuild, so the relative .ts registry import works on every supported Node.
 // (scripts/generate-module-docs.mjs imports the registry directly and still
 // needs Node ≥22.18 — dev-only.)
-import { MODULES, moduleDocsCollection, moduleRoutePrefix } from './src/lib/modules.ts';
+import { MODULES, moduleDocsCollection, moduleRoutePrefix, type ModuleParent } from './src/lib/modules.ts';
 
 /**
  * Sub-package docs collections, generated from the module registry —
@@ -24,10 +24,10 @@ const moduleCollections = Object.fromEntries(
  * stay individually fetchable as `.md`), with the registry `tag` as the note.
  * Alias entries are documented by their top-level package and skipped.
  */
-const moduleLlmsLinks = (parent: 'core' | 'lynx' | 'server' | 'terminal') =>
+const moduleLlmsLinks = (parent: ModuleParent) =>
     MODULES.filter((m) => m.parent === parent && !m.aliasFor).map((m) => ({
         title: m.name,
-        href: `${moduleRoutePrefix(m)}/overview`,
+        href: `${moduleRoutePrefix(m)}/overview/`,
         note: m.tag,
     }));
 
@@ -133,6 +133,14 @@ export default defineSSGConfig({
             path: '/vite/docs',
             showDrafts: 'dev',
         },
+        // `deploy` is a collection — its adapters (cloudflare, vercel,
+        // netlify) are documented via the `deploy-pkg-*` collections injected
+        // by `...moduleCollections` below. This collection holds the
+        // cross-platform guides (the Deploying matrix + Node/Deno/Bun).
+        'deploy-docs': {
+            path: '/deploy/docs',
+            showDrafts: 'dev',
+        },
         'cli-docs': {
             path: '/cli/docs',
             showDrafts: 'dev',
@@ -197,6 +205,15 @@ export default defineSSGConfig({
         '/terminal/docs/args/': '/terminal/packages/args/overview/',
         '/terminal/docs/dev-mode': '/terminal/packages/terminal-dev/overview/',
         '/terminal/docs/dev-mode/': '/terminal/packages/terminal-dev/overview/',
+        // The deploy adapters' npm `homepage` fields point at
+        // /deploy/<platform>/ — keep those short URLs alive on the
+        // canonical per-adapter pages.
+        '/deploy/cloudflare': '/deploy/packages/cloudflare/overview/',
+        '/deploy/cloudflare/': '/deploy/packages/cloudflare/overview/',
+        '/deploy/vercel': '/deploy/packages/vercel/overview/',
+        '/deploy/vercel/': '/deploy/packages/vercel/overview/',
+        '/deploy/netlify': '/deploy/packages/netlify/overview/',
+        '/deploy/netlify/': '/deploy/packages/netlify/overview/',
     },
 
     // Navigation configuration
@@ -236,6 +253,8 @@ export default defineSSGConfig({
             { title: 'Static Site Generation', collections: ['ssg-docs'] },
             { title: 'Server (SSR, server functions, resume & serialize)', links: moduleLlmsLinks('server') },
             { title: 'Vite Plugin', collections: ['vite-docs'] },
+            { title: 'Deploying (Node, Cloudflare, Deno, Bun, Vercel, Netlify)', collections: ['deploy-docs'] },
+            { title: 'Deploy Adapters', links: moduleLlmsLinks('deploy') },
             { title: 'CLI', collections: ['cli-docs'] },
             { title: 'Terminal UIs', collections: ['terminal-docs'] },
             { title: 'Terminal Packages', links: moduleLlmsLinks('terminal') },

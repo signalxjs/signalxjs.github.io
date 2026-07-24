@@ -20,7 +20,7 @@
 import type { PackageStatus } from './family';
 import { VERSIONS } from './versions.generated.ts';
 
-export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal';
+export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy';
 
 export interface SigxModule {
     /** Stable id — also the route segment and collection infix. */
@@ -74,6 +74,9 @@ export const MODULE_CATEGORIES: Record<ModuleParent, { id: string; label: string
     terminal: [
         { id: 'stack', label: 'TUI stack' },
         { id: 'tooling', label: 'Standalone tooling' },
+    ],
+    deploy: [
+        { id: 'adapters', label: 'Platform adapters' },
     ],
 };
 
@@ -409,6 +412,26 @@ const RAW_MODULES: SigxModule[] = [
       hue: 264, glyph: '›', status: 'stable', version: '0.9.0', role: 'CLI parser',
       tag: 'Fluent, type-aware argument parser',
       blurb: 'A fluent, type-aware command & argument parser where the builders you chain drive your handler types. Zero runtime dependencies, fully standalone — the engine behind @sigx/cli.' },
+
+    // ============ Deploy adapters ============
+    // `deploy` is a docs-only collection — there is no umbrella npm package.
+    // All three adapters ship from signalxjs/core (packages/cloudflare +
+    // packages/vercel + packages/netlify) in lockstep with the core release.
+    // They are build glue over the public SigxAdapter seam in @sigx/vite;
+    // the runtime on every platform is @sigx/server-renderer's
+    // createFetchHandler. Node, Deno and Bun need no adapter package.
+    { id: 'cloudflare', parent: 'deploy', npm: '@sigx/cloudflare', name: 'Cloudflare', category: 'adapters',
+      hue: 55, glyph: '≋', status: 'stable', version: '0.13.0', role: 'Workers',
+      tag: 'Bundled workerd worker + wrangler scaffold',
+      blurb: 'The flagship adapter — a fully bundled, workerd-conditioned worker with a node-free render path, a wrangler.jsonc scaffolded once and validated on drift, and optional local binding proxies in dev. Deploy with wrangler deploy.' },
+    { id: 'vercel', parent: 'deploy', npm: '@sigx/vercel', name: 'Vercel', category: 'adapters',
+      hue: 240, glyph: '▲', status: 'stable', version: '0.13.0', role: 'Node & Edge',
+      tag: 'Build Output API v3 generation',
+      blurb: 'Generates the complete .vercel/output layout on every build — static assets, the bundled render function and the route table — on the Node runtime (default) or the edge. Deploy with vercel deploy --prebuilt.' },
+    { id: 'netlify', parent: 'deploy', npm: '@sigx/netlify', name: 'Netlify', category: 'adapters',
+      hue: 180, glyph: '⟡', status: 'stable', version: '0.13.0', role: 'Functions',
+      tag: 'Frameworks API function generation',
+      blurb: 'Emits the .netlify/v1/functions/sigx-ssr catch-all function with preferStatic routing — CDN files win, the raw outlet template stays off "/", and netlify.toml stays yours. Deploy with netlify deploy --prod.' },
 ];
 
 /** Registry with live npm versions overlaid (falls back to the literal). */
@@ -512,6 +535,7 @@ export const moduleRoutePrefix = (m: SigxModule): string =>
     m.parent === 'lynx' ? `/lynx/modules/${m.id}`
         : m.parent === 'server' ? `/server/packages/${m.id}`
         : m.parent === 'terminal' ? `/terminal/packages/${m.id}`
+        : m.parent === 'deploy' ? `/deploy/packages/${m.id}`
         : `/core/packages/${m.id}`;
 
 /**
@@ -526,4 +550,5 @@ export const moduleDocsCollection = (m: SigxModule): string | undefined =>
         : m.parent === 'lynx' ? `lynx-mod-${m.id}-docs`
         : m.parent === 'server' ? `server-pkg-${m.id}-docs`
         : m.parent === 'terminal' ? `terminal-pkg-${m.id}-docs`
+        : m.parent === 'deploy' ? `deploy-pkg-${m.id}-docs`
         : `core-pkg-${m.id}-docs`;

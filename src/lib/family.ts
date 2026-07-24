@@ -113,6 +113,10 @@ const RAW_PACKAGES: SigxPackage[] = [
       hue: 318, glyph: '◮', status: 'stable', version: '0.13.0',
       tag: 'Vite plugin & HMR',
       blurb: 'First-class Vite integration — HMR for components, optimized production builds.' },
+    { id: 'deploy', npm: '@sigx/cloudflare', title: 'Deploy', cat: 'tooling', target: 'web', kind: 'collection', umbrella: false,
+      hue: 60, glyph: '⇪', status: 'stable', version: '0.13.0',
+      tag: 'Deploy adapters for every platform',
+      blurb: 'Ship your SSR app anywhere — one WinterCG fetch handler plus build adapters for Cloudflare Workers, Vercel and Netlify, and documented Node, Deno and Bun entries.' },
     { id: 'devtools', npm: '@sigx/devtools', title: 'DevTools', cat: 'tooling', target: 'foundation',
       hue: 196, glyph: '⊙', status: 'beta', version: '0.1.0',
       tag: 'Inspect signals at runtime',
@@ -191,14 +195,14 @@ export function packageForCollection(collection?: string | null): SigxPackage | 
 /**
  * Resolve a sub-package/module from a module collection name
  * (`lynx-mod-<id>-docs` / `core-pkg-<id>-docs` / `server-pkg-<id>-docs` /
- * `terminal-pkg-<id>-docs` — see lib/modules.ts).
+ * `terminal-pkg-<id>-docs` / `deploy-pkg-<id>-docs` — see lib/modules.ts).
  * The `-mod-`/`-pkg-` infix keeps these unambiguous against top-level
  * collections (`core-api` vs a core sub-package named `api`), while
  * `packageForCollection`'s prefix split still yields the parent package.
  */
 export function moduleForCollection(collection?: string | null): SigxModule | undefined {
     if (!collection) return undefined;
-    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg|terminal-pkg)-(.+?)-(?:docs|api)$/);
+    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg|terminal-pkg|deploy-pkg)-(.+?)-(?:docs|api)$/);
     return m ? moduleById[m[1]] : undefined;
 }
 

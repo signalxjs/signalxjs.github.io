@@ -1,0 +1,25 @@
+---
+title: "Installation"
+description: "Cloudflare — Bundled workerd worker + wrangler scaffold"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/cloudflare` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add -D @sigx/cloudflare
+```
+
+## Verify
+
+```tsx
+import * as Cloudflare from '@sigx/cloudflare';
+
+console.log(Object.keys(Cloudflare));
+```

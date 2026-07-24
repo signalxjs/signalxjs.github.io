@@ -42,6 +42,7 @@ const CATALOG_LABEL: Record<ModuleParent, string> = {
     core: 'All Core packages',
     server: 'All Server packages',
     terminal: 'All Terminal packages',
+    deploy: 'All Deploy adapters',
 };
 
 /**

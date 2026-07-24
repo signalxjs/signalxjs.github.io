@@ -1,0 +1,29 @@
+---
+title: "Overview"
+description: "Vercel — Build Output API v3 generation"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Vercel
+
+<p class="lede">Generates the complete .vercel/output layout on every build — static assets, the bundled render function and the route table — on the Node runtime (default) or the edge. Deploy with vercel deploy --prebuilt.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/vercel" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add -D @sigx/vercel
+```
+
+## About
+
+`@sigx/vercel` is a Deploy adapter — build Output API v3 generation. It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.
+
+## Next steps
+
+Continue with [Installation](/deploy/packages/vercel/installation) for project setup, or jump to the [API reference](/deploy/packages/vercel/api).
