@@ -27,7 +27,7 @@ const moduleCollections = Object.fromEntries(
 const moduleLlmsLinks = (parent: ModuleParent) =>
     MODULES.filter((m) => m.parent === parent && !m.aliasFor).map((m) => ({
         title: m.name,
-        href: `${moduleRoutePrefix(m)}/overview`,
+        href: `${moduleRoutePrefix(m)}/overview/`,
         note: m.tag,
     }));
 
