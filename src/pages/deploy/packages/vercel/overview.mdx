@@ -20,10 +20,34 @@ import { PkgVersion } from '@/components/PkgVersion';
 pnpm add -D @sigx/vercel
 ```
 
+## Usage
+
+```ts
+// vite.config.vercel.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+import { vercel } from '@sigx/vercel';
+
+export default defineConfig({
+    plugins: [sigx({ ssr: { entry: 'src/entry-server.tsx', adapter: vercel() } })]
+});
+```
+
+`vite build --app -c vite.config.vercel.ts` produces a fully bundled function
+and then generates the complete `.vercel/output` layout. Unlike wrangler-style tools, the Build Output
+API **is a generation contract**: hand-writing it has no copyability value, so
+the layout is regenerated every build. Deploy with `vercel deploy --prebuilt`
+(link the project first).
+
 ## About
 
-`@sigx/vercel` is a Deploy adapter — build Output API v3 generation. It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.
+`@sigx/vercel` is a Deploy adapter — Build Output API v3 generation. It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.
+
+It rides `@sigx/vite`'s public [`SigxAdapter` seam](/vite/docs/deploy-adapters)
+with no privileged access; the runtime story is
+[`createFetchHandler`](/server/packages/server-renderer/fetch-handler)
+(WinterCG-clean, CI-enforced) — everything in this package is **build glue**.
 
 ## Next steps
 
-Continue with [Installation](/deploy/packages/vercel/installation) for project setup, or jump to the [API reference](/deploy/packages/vercel/api).
+Continue with [Deploying to Vercel](/deploy/packages/vercel/deploying) for the output layout, runtimes and entry walkthrough, or jump to the [API reference](/deploy/packages/vercel/api).

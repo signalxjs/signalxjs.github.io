@@ -12,8 +12,20 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Exports of `@sigx/netlify` <PkgVersion npm="@sigx/netlify" />.</p>
 
-## Exports
+## netlify
 
-{/* TODO: document the public API of @sigx/netlify */}
+Create the Netlify adapter for `sigx({ ssr: { adapter } })` — a fully bundled
+function emitted through the Frameworks API
+(`.netlify/v1/functions/sigx-ssr/`), with `preferStatic` catch-all routing.
 
-See the package source for the complete typed surface.
+```ts
+function netlify(options?: NetlifyAdapterOptions): SigxAdapter
+
+interface NetlifyAdapterOptions {
+  /** Platform entry (project-relative), scaffolded iff absent. Default 'src/entry.netlify.ts'. */
+  entry?: string;
+}
+```
+
+See [Deploying to Netlify](/deploy/packages/netlify/deploying) for the
+generated layout and routing policy.

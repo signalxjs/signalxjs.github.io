@@ -20,10 +20,33 @@ import { PkgVersion } from '@/components/PkgVersion';
 pnpm add -D @sigx/netlify
 ```
 
+## Usage
+
+```ts
+// vite.config.netlify.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+import { netlify } from '@sigx/netlify';
+
+export default defineConfig({
+    plugins: [sigx({ ssr: { entry: 'src/entry-server.tsx', adapter: netlify() } })]
+});
+```
+
+`vite build --app -c vite.config.netlify.ts` produces a fully bundled function
+and generates the **Frameworks API** channel — Netlify's recommended target for
+build-tool adapters. Deploy with `netlify deploy --prod` (builds by default) or
+`netlify deploy --prod --no-build` for prebuilt output.
+
 ## About
 
-`@sigx/netlify` is a Deploy adapter — frameworks API function generation. It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.
+`@sigx/netlify` is a Deploy adapter — Frameworks API function generation. It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.
+
+It rides `@sigx/vite`'s public [`SigxAdapter` seam](/vite/docs/deploy-adapters);
+the runtime story is
+[`createFetchHandler`](/server/packages/server-renderer/fetch-handler)
+(WinterCG-clean, CI-enforced) — everything in this package is **build glue**.
 
 ## Next steps
 
-Continue with [Installation](/deploy/packages/netlify/installation) for project setup, or jump to the [API reference](/deploy/packages/netlify/api).
+Continue with [Deploying to Netlify](/deploy/packages/netlify/deploying) for the function layout and routing policy, or jump to the [API reference](/deploy/packages/netlify/api).

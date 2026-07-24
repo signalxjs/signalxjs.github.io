@@ -12,8 +12,30 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Exports of `@sigx/vercel` <PkgVersion npm="@sigx/vercel" />.</p>
 
-## Exports
+## vercel
 
-{/* TODO: document the public API of @sigx/vercel */}
+Create the Vercel adapter for `sigx({ ssr: { adapter } })` — a fully bundled
+function plus complete `.vercel/output` (Build Output API v3) generation on
+every build.
 
-See the package source for the complete typed surface.
+```ts
+function vercel(options?: VercelAdapterOptions): SigxAdapter
+
+interface VercelAdapterOptions {
+  /**
+   * 'node' (default — Vercel's current guidance; Fluid compute) | 'edge'.
+   * Edge resolves the edge-light/worker conditions and wraps your entry in
+   * the bare-default-function edge contract.
+   */
+  runtime?: 'node' | 'edge';
+
+  /** Platform entry (project-relative), scaffolded iff absent. Default 'src/entry.vercel.ts'. */
+  entry?: string;
+
+  /** .vc-config.json runtime string for the node runtime. Default 'nodejs22.x'. */
+  nodeVersion?: string;
+}
+```
+
+See [Deploying to Vercel](/deploy/packages/vercel/deploying) for the generated
+layout and the load-bearing `{ fetch }` entry shape.
