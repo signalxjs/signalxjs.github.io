@@ -40,9 +40,11 @@ const ssr = createSSR({ plugins: [stateSerializationPlugin()] });
 
 Detection of the server is **duck-typed** via the component instance's `ssr` helper — `@sigx/store` has **no dependency on `@sigx/server-renderer`**. A store created on the server outside a render context (no instance to detect) serializes nothing; it never falls through to the client path, so one request's state can't leak into another.
 
-## Client: seed once, atomically
+## Client: seed on creation
 
-On the client, `ssrState` seeds the slice from `window.__SIGX_ASYNC__['store:<name>']` as **one atomic `patch()`** — a single reactivity flush over the defaults, so the first render is already populated. Seeding is **consume-once**: the entry is removed as it's read, so a later instance of the same store starts from defaults instead of forking from a stale seed.
+On the client, `ssrState` seeds the slice from `window.__SIGX_ASYNC__['store:<name>']` as **one atomic `patch()`** — a single reactivity flush over the defaults, so the first render is already populated.
+
+By default the seed is **shared**: reading it doesn't consume it. The entry stays on `window.__SIGX_ASYNC__`, so **every** store instance created in the client runtime seeds from it — each getting its own structural copy of the value. This is what a page needs whenever the same store is instantiated more than once: across [`@sigx/ssr-islands`](/server) island roots or `@sigx/resume` boundaries, every instance hydrates from the server state instead of only the first one forking from the seed and the rest silently starting from defaults.
 
 Client seeding only runs in a **browser-like environment** (`window` present); it never runs on the server. `ssrState` returns `{ hydrated }`, `true` only when a server seed was actually applied (always `false` on the server):
 
@@ -57,6 +59,27 @@ const useTodos = defineStore('todos', (ctx) => {
     return { ...signals, hydrated };
 });
 ```
+
+## `scope` — shared across instances, or consume-once
+
+`scope` decides what happens to the transfer entry once it's read:
+
+```ts
+ssrState(ctx, { state, patch }, {
+    scope: 'instance',   // consume the seed on first read — default: 'shared'
+});
+```
+
+- **`'shared'`** (default) — the seed persists for the page lifetime and every instance of the store seeds from it, each with its own copy. Use it for runtime-wide state that more than one instance reads: across [`@sigx/ssr-islands`](/server) island roots or `@sigx/resume` boundaries a store now needs no extra wiring — every island or boundary hydrates from the same server state.
+- **`'instance'`** — consume-once: the entry is removed as it's read, so a second instance of the same store starts from defaults. Use it for state that belongs to a single store instance rather than to the runtime as a whole.
+
+> **Upgrading from consume-once?** Earlier releases always consumed the seed on first read. If you relied on that — a second instance intentionally starting from defaults — pass `scope: 'instance'` to keep the old behaviour.
+
+## Rich values cross the wire intact
+
+Transferred slices round-trip rich types — `Date`, `Map`, `Set`, `BigInt` — not just JSON primitives. The read goes through core's blob accessors, the same codec [`useData`](/core/docs/data-loading) uses, so a `Date` arrives on the client as a `Date`, not a tagged string.
+
+Under the shared default each instance gets its own copy via `structuredClone`, which preserves those types. On a runtime without `structuredClone`, a value JSON can't represent exactly is shared **by reference** across instances — with a dev warning — rather than being flattened: handing a store a `Date` collapsed to a string is worse than sharing one.
 
 ## `pick` — limit what crosses the wire
 
@@ -97,6 +120,8 @@ This is the store-shaped entry point to the **same** SSR state-transfer mechanis
 ## Requirements
 
 SSR state transfer needs the server renderer in the picture: `sigx` (or `@sigx/server-renderer` directly) on the server, rendering through `renderDocument` or a `createSSR()` pipeline with `stateSerializationPlugin()`. The store package itself adds no SSR dependency — on a purely client-rendered page `ssrState` is a no-op that returns `{ hydrated: false }`, and the store renders from defaults.
+
+The shared default, the `scope` option, and the rich-value round-trip need `@sigx/store@0.11` or newer, which pins the **0.13.x core line** (`sigx` / `@sigx/reactivity` / `@sigx/runtime-core` `^0.13.0`).
 
 ## Next steps
 
