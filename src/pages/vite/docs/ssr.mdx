@@ -35,10 +35,11 @@ export default defineConfig({
 | `entry` | — (required) | Your server entry module. |
 | `clientOutDir` | `'dist/client'` | Where the browser bundle + manifest are written. |
 | `serverOutDir` | `'dist/server'` | Where the server bundle is written. |
+| `adapter` | `nodeAdapter()` | The [deployment adapter](/vite/docs/deploy-adapters) shaping the server build — externalized Node output by default; Cloudflare/Vercel/Netlify adapters produce bundled platform builds. |
 
 One `vite build` now runs both environments (via Vite's builder API): the client build emits `.vite/manifest.json` alongside the browser assets, and the server build emits `entry-server.js`.
 
-The server bundle **externalizes its dependencies** rather than bundling a second copy of the runtime. That matters for correctness, not just size: a bundled runtime carries its own DI token identities and would never see the app's provides. (In practice the spa-ssr server bundle drops from ~97 kB to ~25 kB.)
+With the default adapter the server bundle **externalizes its dependencies** rather than bundling a second copy of the runtime. That matters for correctness, not just size: a bundled runtime carries its own DI token identities and would never see the app's provides. (In practice the spa-ssr server bundle drops from ~97 kB to ~25 kB.) Edge platforms can't resolve `node_modules` at runtime, which is why their [deploy adapters](/vite/docs/deploy-adapters) switch to a **total** bundle — everything in one module graph preserves the same DI invariant from the other direction.
 
 ## The islands transform
 
@@ -96,6 +97,7 @@ For **production**, the counterpart is `createRequestHandler` from `@sigx/server
 
 ## Where to go next
 
+- [Deploy adapters](/vite/docs/deploy-adapters) — `ssr.adapter`, the `SigxAdapter` contract and `virtual:sigx-app`
 - [The boundary model](/server/packages/server-renderer/boundaries) — what the transform's output feeds
 - [Request lifecycle](/server/packages/server-renderer/request-lifecycle) — `createRequestHandler`, `useResponse`, the error seam
 - [Islands plugin setup](/server/packages/ssr-islands/plugin-setup) — consuming the islands manifest

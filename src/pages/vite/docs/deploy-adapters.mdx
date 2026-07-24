@@ -1,0 +1,121 @@
+---
+title: Deploy adapters
+description: "The SigxAdapter build seam — ssr.adapter, platform entries, and the virtual:sigx-app build artifact"
+layout: docs
+category: Guides
+order: 46
+---
+
+# Deploy adapters
+
+<p class="lede">`ssr.adapter` is the plugin's deployment seam: a plain object that shapes how the server bundle is built — externalized for Node, fully bundled for the edge — and generates whatever your platform needs around it. The adapter packages for [Cloudflare, Vercel and Netlify](/deploy/packages/) ride this contract; so can yours.</p>
+
+## The adapter option
+
+```ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+import { cloudflare } from '@sigx/cloudflare';
+
+export default defineConfig({
+    plugins: [
+        sigx({
+            ssr: {
+                entry: 'src/entry-server.tsx',
+                adapter: cloudflare(),
+            },
+        }),
+    ],
+});
+```
+
+The default — no `adapter` — is `nodeAdapter()`: today's externalized Node
+output, byte-identical to pre-adapter builds. Only an explicit adapter changes
+the build. Adapters cannot be combined with library mode.
+
+## The SigxAdapter contract
+
+An adapter is a **plain object**, not a second Vite plugin — the sigx plugin
+stays the one authority over the ssr environment:
+
+```ts
+interface SigxAdapter {
+    name: string;                              // 'node', 'cloudflare', …
+    serverBuild: 'external' | 'bundled';
+    conditions?: string[];                     // e.g. ['workerd', 'worker']
+    runtimeExternal?: (string | RegExp)[];     // kept as runtime imports when bundled
+    entry?: string;                            // platform entry; default: ssr.entry
+    target?: string;                           // default 'esnext' for 'bundled'
+    setup?(ctx: AdapterSetupContext): void | Promise<void>;
+    generate?(ctx: AdapterGenerateContext): void | Promise<void>;
+    dev?(server: ViteDevServer): void | Promise<void>;
+}
+```
+
+- **`serverBuild`** is deliberately binary. `'external'` resolves dependencies
+  from `node_modules` at runtime (Node and Bun hosts). `'bundled'` produces a
+  fully self-contained server build — the ssr **environment**'s
+  `resolve.noExternal: true` (the environments-API home of the classic
+  `ssr.noExternal`), your platform `conditions` replacing the Node defaults,
+  target `esnext`. The
+  partially-external middle ground is unrepresentable on purpose: it is the
+  dangerous zone for DI-token identity, while a total bundle lands the entry,
+  strategy packs, handlers and registry in **one** module graph.
+- **`runtimeExternal`** keeps platform builtins as runtime imports in a bundled
+  build — `/^cloudflare:/`, `/^jsr:/`.
+- **`setup`** runs before any environment builds and scaffolds build inputs —
+  most importantly the platform entry — **iff absent**: written once when
+  missing, never touched again. The file is user-owned from that moment.
+- **`generate`** runs after both environments have written: copy statics, emit
+  platform config, validate. This is where `.vercel/output` assembly lives.
+- **`dev`** hooks the Vite dev server for platform-binding proxies (how
+  `cloudflare({ devProxy: true })` boots wrangler's local bindings).
+
+## The platform entry
+
+Each adapter scaffolds `src/entry.<platform>.ts` on first build and never
+overwrites it. Its composition order **is** your app's routing policy —
+
+```
+static assets → server functions → document render
+```
+
+— and every entry exports the portable `{ fetch }` shape around
+[`createFetchHandler`](/server/packages/server-renderer/fetch-handler). No sigx
+handler serves static files; the static tier is platform-native and sits in
+front.
+
+## virtual:sigx-app
+
+A production fetch handler needs the document-side artifacts — with no
+filesystem in the output. `virtual:sigx-app` inlines the client build's outputs
+as literals (also materialized as `dist/server/sigx-app.js`, so a Node
+`server.mjs` collapses four `readFile`s into one import):
+
+```ts
+import { template, assets, manifest, islandsManifest, resumeManifest }
+    from 'virtual:sigx-app';
+```
+
+| Export | What it is |
+|---|---|
+| `template` | the built `index.html` with the outlet marker |
+| `assets` | precomputed `collectAssets()` preloads for every client entry |
+| `manifest` | the client `.vite/manifest.json` |
+| `islandsManifest` | the islands pack manifest, or `undefined` |
+| `resumeManifest` | the resume pack manifest, or `undefined` |
+
+It is a **build artifact**: importing it under `vite dev` throws, pointing you at
+`createDevRequestHandler` (dev resolves template and assets live). The narrower
+sibling `virtual:sigx-manifests` exports just the two pack manifests and resolves
+in every mode — that's the one your `entry-server` app factory imports to
+construct its packs without threading manifests through server wiring.
+
+## Where to go next
+
+- [Deploying SignalX](/deploy/docs/overview) — the platform matrix: Node,
+  Cloudflare, Deno, Bun, Vercel, Netlify
+- [The fetch handler](/server/packages/server-renderer/fetch-handler) — the
+  WinterCG runtime the adapters wire up
+- [Vite SSR mode](/vite/docs/ssr) — entries, the islands transform and the dev
+  handler
