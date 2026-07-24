@@ -20,10 +20,35 @@ import { PkgVersion } from '@/components/PkgVersion';
 pnpm add -D @sigx/cloudflare
 ```
 
+## Usage
+
+```ts
+// vite.config.cloudflare.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+import { cloudflare } from '@sigx/cloudflare';
+
+export default defineConfig({
+    plugins: [sigx({ ssr: { entry: 'src/entry-server.tsx', adapter: cloudflare() } })]
+});
+```
+
+`vite build --app` then produces a **fully bundled** workerd-conditioned worker
+(`serverBuild: 'bundled'`, conditions `['workerd', 'worker']` — the `node`
+condition is deliberately dropped; the render path is `node:`-free by CI
+guarantee) plus the client assets. Deploy with `wrangler deploy` — wrangler's
+own bundling is a pass-through for the prebundled output (`no_bundle` is the
+escape hatch if it ever isn't).
+
 ## About
 
 `@sigx/cloudflare` is a Deploy adapter — bundled workerd worker + wrangler scaffold. It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.
 
+It is a pack in the established sense: it rides `@sigx/vite`'s public
+[`SigxAdapter` seam](/vite/docs/deploy-adapters) with no privileged access. The
+runtime story is [`createFetchHandler`](/server/packages/server-renderer/fetch-handler)
+(WinterCG-clean, CI-enforced); everything in this package is **build glue**.
+
 ## Next steps
 
-Continue with [Installation](/deploy/packages/cloudflare/installation) for project setup, or jump to the [API reference](/deploy/packages/cloudflare/api).
+Continue with [Deploying to Workers](/deploy/packages/cloudflare/deploying) for the entry, wrangler.jsonc and dev-bindings walkthrough, or jump to the [API reference](/deploy/packages/cloudflare/api).
