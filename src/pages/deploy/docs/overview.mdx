@@ -30,7 +30,8 @@ A SignalX SSR app deploys the same way everywhere:
 |---|---|---|
 | Node | built-in `nodeAdapter()` (default) | your process manager |
 | Cloudflare Workers | [`@sigx/cloudflare`](/deploy/packages/cloudflare/overview/) | `wrangler deploy` |
-| Vercel (Node or Edge) | [`@sigx/vercel`](/deploy/packages/vercel/overview/) | `vercel deploy --prebuilt` |
+| Vercel — Node runtime | [`@sigx/vercel`](/deploy/packages/vercel/overview/) | `vercel deploy --prebuilt` |
+| Vercel — Edge runtime | [`@sigx/vercel`](/deploy/packages/vercel/overview/) with `{ runtime: 'edge' }` | `vercel deploy --prebuilt` |
 | Netlify | [`@sigx/netlify`](/deploy/packages/netlify/overview/) | `netlify deploy --prod` |
 | Deno / Deno Deploy | inline adapter object — no package | `deno deploy` |
 | Bun | reuses the Node build — no package | `bun run` |

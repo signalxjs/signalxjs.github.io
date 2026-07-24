@@ -3,7 +3,7 @@ import { defineSSGConfig } from '@sigx/ssg';
 // esbuild, so the relative .ts registry import works on every supported Node.
 // (scripts/generate-module-docs.mjs imports the registry directly and still
 // needs Node ≥22.18 — dev-only.)
-import { MODULES, moduleDocsCollection, moduleRoutePrefix } from './src/lib/modules.ts';
+import { MODULES, moduleDocsCollection, moduleRoutePrefix, type ModuleParent } from './src/lib/modules.ts';
 
 /**
  * Sub-package docs collections, generated from the module registry —
@@ -24,7 +24,7 @@ const moduleCollections = Object.fromEntries(
  * stay individually fetchable as `.md`), with the registry `tag` as the note.
  * Alias entries are documented by their top-level package and skipped.
  */
-const moduleLlmsLinks = (parent: 'core' | 'lynx' | 'server' | 'terminal' | 'deploy') =>
+const moduleLlmsLinks = (parent: ModuleParent) =>
     MODULES.filter((m) => m.parent === parent && !m.aliasFor).map((m) => ({
         title: m.name,
         href: `${moduleRoutePrefix(m)}/overview`,
