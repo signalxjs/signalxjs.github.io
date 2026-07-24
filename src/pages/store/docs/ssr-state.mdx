@@ -42,9 +42,9 @@ Detection of the server is **duck-typed** via the component instance's `ssr` hel
 
 ## Client: seed on creation
 
-On the client, `ssrState` seeds the slice from `window.__SIGX_ASYNC__['store:<name>']` as **one atomic `patch()`** — a single reactivity flush over the defaults, so the first render is already populated.
+On the client, `ssrState` seeds the slice from `window.__SIGX_ASYNC__['store:<storeName>']` as **one atomic `patch()`** — a single reactivity flush over the defaults, so the first render is already populated.
 
-By default the seed is **shared**: reading it doesn't consume it. The entry stays on `window.__SIGX_ASYNC__`, so **every** store instance created in the client runtime seeds from it — each getting its own structural copy of the value. This is what a page needs whenever the same store is instantiated more than once: across [`@sigx/ssr-islands`](/server) island roots or `@sigx/resume` boundaries, every instance hydrates from the server state instead of only the first one forking from the seed and the rest silently starting from defaults.
+By default the seed is **shared**: reading it doesn't consume it. The entry stays on `window.__SIGX_ASYNC__`, so **every** store instance created in the client runtime seeds from it — each getting its own copy of the value (via `structuredClone`; see [Rich values](#rich-values-cross-the-wire-intact) for the fallback where that's unavailable). This is what a page needs whenever the same store is instantiated more than once: across [`@sigx/ssr-islands`](/server/packages/ssr-islands/overview) island roots or [`@sigx/resume`](/server/packages/resume/overview) boundaries, every instance hydrates from the server state instead of only the first one forking from the seed and the rest silently starting from defaults.
 
 Client seeding only runs in a **browser-like environment** (`window` present); it never runs on the server. `ssrState` returns `{ hydrated }`, `true` only when a server seed was actually applied (always `false` on the server):
 
@@ -70,7 +70,7 @@ ssrState(ctx, { state, patch }, {
 });
 ```
 
-- **`'shared'`** (default) — the seed persists for the page lifetime and every instance of the store seeds from it, each with its own copy. Use it for runtime-wide state that more than one instance reads: across [`@sigx/ssr-islands`](/server) island roots or `@sigx/resume` boundaries a store now needs no extra wiring — every island or boundary hydrates from the same server state.
+- **`'shared'`** (default) — the seed persists for the page lifetime and every instance of the store seeds from it, each with its own copy ([via `structuredClone`](#rich-values-cross-the-wire-intact)). Use it for runtime-wide state that more than one instance reads: across [`@sigx/ssr-islands`](/server/packages/ssr-islands/overview) island roots or [`@sigx/resume`](/server/packages/resume/overview) boundaries a store now needs no extra wiring — every island or boundary hydrates from the same server state.
 - **`'instance'`** — consume-once: the entry is removed as it's read, so a second instance of the same store starts from defaults. Use it for state that belongs to a single store instance rather than to the runtime as a whole.
 
 > **Upgrading from consume-once?** Earlier releases always consumed the seed on first read. If you relied on that — a second instance intentionally starting from defaults — pass `scope: 'instance'` to keep the old behaviour.
@@ -115,7 +115,7 @@ The ordering is what makes it work: `ssrState` seeds **synchronously** as the st
 
 ## Relationship to `useData` / `useStream`
 
-This is the store-shaped entry point to the **same** SSR state-transfer mechanism that core's [`useData` and `useStream`](/core/docs/data-loading) use. They share one wire format — `window.__SIGX_ASYNC__`, a prototype-pollution-safe, page-lifetime blob the server renderer emits — and `store:<name>` is simply the **store keyspace** within it. Component-level fetches use `useData`; store-owned state uses `ssrState`. The server half of both is owned by `@sigx/server-renderer`'s document renderers; see the [data-loading guide](/core/docs/data-loading) for the component side and the [server renderer guide](/server) for the document-rendering APIs.
+This is the store-shaped entry point to the **same** SSR state-transfer mechanism that core's [`useData` and `useStream`](/core/docs/data-loading) use. They share one wire format — `window.__SIGX_ASYNC__`, a prototype-pollution-safe, page-lifetime blob the server renderer emits — and `store:<storeName>` is simply the **store keyspace** within it. Component-level fetches use `useData`; store-owned state uses `ssrState`. The server half of both is owned by `@sigx/server-renderer`'s document renderers; see the [data-loading guide](/core/docs/data-loading) for the component side and the [server renderer guide](/server) for the document-rendering APIs.
 
 ## Requirements
 
