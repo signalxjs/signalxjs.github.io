@@ -39,7 +39,7 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props, sig
         const parentHref = `/${mod?.parent}`;
         const parentLabel = mod?.parent === 'core' ? 'Core' : mod?.parent === 'server' ? 'Server' : mod?.parent === 'terminal' ? 'Terminal' : mod?.parent === 'deploy' ? 'Deploy' : 'Lynx';
         const groupHref = mod?.parent === 'lynx' ? '/lynx/modules' : `/${mod?.parent}/packages`;
-        const groupLabel = mod?.parent === 'lynx' ? 'Modules' : 'Packages';
+        const groupLabel = mod?.parent === 'lynx' ? 'Modules' : mod?.parent === 'deploy' ? 'Adapters' : 'Packages';
         const pageTitle = (props.meta?.title as string | undefined) ?? '';
 
         return (
