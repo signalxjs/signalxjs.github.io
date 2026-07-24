@@ -8,18 +8,38 @@ order: 20
 
 # Installation
 
-<p class="lede">Add `@sigx/cloudflare` to your project.</p>
+<p class="lede">Add `@sigx/cloudflare` to your project — a build-time dev dependency, alongside `wrangler` for deploys.</p>
 
 ## Install the package
 
 ```bash
 pnpm add -D @sigx/cloudflare
+pnpm add -D wrangler   # deploys, and the devProxy local bindings
+```
+
+## Wire the adapter
+
+The adapter is passed to the sigx Vite plugin — a separate platform config keeps
+the default Node build untouched:
+
+```ts
+// vite.config.cloudflare.ts
+import { defineConfig } from 'vite';
+import sigx from '@sigx/vite';
+import { cloudflare } from '@sigx/cloudflare';
+
+export default defineConfig({
+    plugins: [sigx({ ssr: { entry: 'src/entry-server.tsx', adapter: cloudflare() } })]
+});
 ```
 
 ## Verify
 
-```tsx
-import * as Cloudflare from '@sigx/cloudflare';
-
-console.log(Object.keys(Cloudflare));
+```bash
+vite build --app -c vite.config.cloudflare.ts
 ```
+
+The first build scaffolds `src/entry.cloudflare.ts` and a starter
+`wrangler.jsonc` (both only when absent — they are yours afterwards) and writes
+the bundled worker plus client assets. `wrangler dev` serves the result from
+local workerd.
