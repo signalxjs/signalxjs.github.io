@@ -1,0 +1,59 @@
+---
+title: useColorScheme
+description: "The system light/dark preference as the cross-platform ColorScheme contract — the same shape Lynx returns"
+layout: docs
+category: Sensors
+order: 10
+---
+
+# useColorScheme
+
+The system color-scheme preference as the cross-platform `ColorScheme` contract. Browser composable — import from `@sigx/use-web`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { useColorScheme } from '@sigx/use-web';
+
+const Scheme = component(() => {
+    const scheme = useColorScheme();
+    return () => <p>System prefers: {scheme.value}</p>;
+});
+
+render(<Scheme />, "#sandbox");
+```
+
+The return is a [`ReadSignal<ColorScheme>`](/use/docs/conventions#outputs-single-value--readsignalt) where `ColorScheme` is `'light' | 'dark'` — `no-preference` maps to `'light'`:
+
+```ts
+import { effect } from 'sigx';
+
+const scheme = useColorScheme();
+effect(() => (document.documentElement.dataset.theme = scheme.value));
+```
+
+> `ReadSignal` preserves the literal union: `scheme.value` is typed `'light' | 'dark'`, not widened to `string`. That's the whole reason single-value returns are structural — see [Outputs](/use/docs/conventions#outputs-single-value--readsignalt).
+
+## Signature
+
+```ts
+function useColorScheme(options?: UseColorSchemeOptions): ReadSignal<ColorScheme>;
+```
+
+`ColorScheme` is a [cross-platform contract](/use/docs/conventions#cross-platform-contracts) — the same return shape as Lynx's `useSystemColorScheme`, so theme code ports across platforms unchanged.
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `ssrDefault` | `ColorScheme` | `'light'` | Value reported on the server / where `matchMedia` is unavailable. |
+| `window` | `Window` | `defaultWindow` | Override the window (SSR/testing). See [`Configurable*`](/use/docs/conventions#ssr-safety-and-configurable-overrides). |
+
+## SSR
+
+On the server (no `matchMedia`) the signal reads `ssrDefault` — `'light'` by default — then reads the real preference on mount.
+
+## See also
+
+- [`useMediaQuery`](/use/docs/use-media-query) — the `prefers-color-scheme` query underneath, untyped.
+- [`useStorage`](/use/docs/use-storage) — persist a user override of the system scheme.
+- [Conventions → Cross-platform contracts](/use/docs/conventions#cross-platform-contracts) — the `ColorScheme` shape shared with Lynx.

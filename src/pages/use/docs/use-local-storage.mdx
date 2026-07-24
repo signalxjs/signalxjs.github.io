@@ -1,0 +1,37 @@
+---
+title: useLocalStorage
+description: "A useStorage preset backed by window.localStorage — persists across sessions, with cross-tab sync"
+layout: docs
+category: Storage
+order: 20
+---
+
+# useLocalStorage
+
+A [`useStorage`](/use/docs/use-storage) preset backed by `window.localStorage` — a signal that persists across sessions. Browser composable — import from `@sigx/use-web`.
+
+```ts
+import { useLocalStorage } from '@sigx/use-web';
+
+const prefs = useLocalStorage('prefs', { theme: 'light' });
+prefs.theme = 'dark';   // persisted, reactive — no .value
+
+const token = useLocalStorage('token', '');  // primitive mode
+token.value = 'abc';                          // persisted
+```
+
+## Signature
+
+```ts
+function useLocalStorage<T extends Primitive>(key: string, defaults: T, options?: UseStorageOptions<T>): PrimitiveSignal<T>;
+function useLocalStorage<T extends object>(key: string, defaults: T, options?: UseStorageOptions<T>): Signal<T>;
+```
+
+Same two overloads as `useStorage`: an **object default** returns a deep-reactive `Signal<T>` that auto-persists on mutation; a **primitive default** returns a `PrimitiveSignal<T>` that persists on `.value` write.
+
+See [`useStorage`](/use/docs/use-storage) for the full semantics — object proxies, cross-tab sync, serializers, options, and SSR behaviour.
+
+## See also
+
+- [`useStorage`](/use/docs/use-storage) — the flagship, with every option and the deep-reactive model.
+- [`useSessionStorage`](/use/docs/use-session-storage) — the same preset scoped to one tab session.

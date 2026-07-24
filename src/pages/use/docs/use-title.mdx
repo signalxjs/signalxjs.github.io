@@ -1,0 +1,62 @@
+---
+title: useTitle
+description: "A two-way binding to document.title — a signal you write to set the tab title, for post-load dynamic titles"
+layout: docs
+category: Clipboard & title
+order: 20
+---
+
+# useTitle
+
+A two-way binding to `document.title`: write `.value` (or change a passed reactive source) and the tab title follows. Browser composable — import from `@sigx/use-web`.
+
+```ts
+import { useTitle } from '@sigx/use-web';
+
+const title = useTitle();
+title.value = `(${unread.value}) Inbox`;   // sets document.title
+
+// Or bind a reactive source directly:
+const page = signal('Home');
+useTitle(() => `${page.value} · sigx`);      // updates as page changes
+```
+
+## Signature
+
+```ts
+function useTitle(
+    newTitle?: MaybeSignal<string | null | undefined>,
+    options?: UseTitleOptions,
+): PrimitiveSignal<string | null | undefined>;
+```
+
+Returns the backing `PrimitiveSignal`. Pass an initial title (plain string, signal, or getter) as the first argument, or omit it and write `.value` later.
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `observe` | `boolean` | `false` | Mirror external `document.title` changes back into the signal (via `MutationObserver`). |
+| `restoreOnUnmount` | `false \| ((original, current) => string)` | `false` | Restore the title on scope disposal. |
+| `document` | `Document` | `defaultDocument` | Override the document ([`ConfigurableDocument`](/use/docs/conventions#ssr-safety-and-configurable-overrides)). |
+
+> `restoreOnUnmount` is **not a boolean**. Pass a function that computes the value to restore — `(original) => original` puts the title back the way it was — or leave it `false` to keep whatever title is current when the scope disposes.
+
+## `useTitle` vs core's `useHead`
+
+They own different moments:
+
+- [`useHead`](/server/packages/server-renderer/rendering) is the **SSR-rendered, dedupe-aware** path — it owns first paint, so the correct title ships in the server HTML.
+- `useTitle` is the **imperative, client-side** signal for **post-load dynamic** titles — unread counters, "Saving…", the active document name.
+
+Reach for `useHead` for the title a page loads with; reach for `useTitle` to mutate it while the app runs.
+
+## SSR
+
+The signal works on the server, but the **DOM is untouched** — no `document.title` write happens until the client. Use `useHead` for the title that must be present in the server-rendered markup.
+
+## See also
+
+- [`useHead`](/server/packages/server-renderer/rendering) — the SSR-owning head/title path for first paint.
+- [`useClipboard`](/use/docs/use-clipboard) — the other document-surface composable.
+- [Conventions](/use/docs/conventions) — the shared input/output patterns.

@@ -1,0 +1,54 @@
+---
+title: useElementVisibility
+description: "Whether an element intersects the viewport (or a scroll container), as a reactive boolean over an IntersectionObserver"
+layout: docs
+category: Elements
+order: 60
+---
+
+# useElementVisibility
+
+Whether an element intersects the viewport (or a scroll container), as a reactive boolean. Browser composable — import from `@sigx/use-web`.
+
+It builds on [`useIntersectionObserver`](/use/docs/use-intersection-observer) and returns a [`ReadSignal<boolean>`](/use/docs/conventions#outputs-single-value--readsignalt).
+
+```ts
+import { signal, effect } from 'sigx';
+import { useElementVisibility } from '@sigx/use-web';
+
+const heroRef = signal<HTMLElement | null>(null);
+// <section ref={heroRef}> …
+
+const visible = useElementVisibility(heroRef);
+effect(() => {
+    if (visible.value) startAnimation();
+});
+```
+
+Pass any [element target](/use/docs/conventions#element-targets-web). Set `scrollTarget` to observe within a scroll container instead of the viewport, and `threshold` to require more of the element on screen before it counts as visible.
+
+## Signature
+
+```ts
+function useElementVisibility(
+    target: MaybeSignalElement,
+    options?: UseElementVisibilityOptions,
+): ReadSignal<boolean>;
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `threshold` | `number` | — | Visibility ratio required before `visible` flips true. |
+| `scrollTarget` | `MaybeSignalElement` | viewport | Observe within this scroll container instead of the viewport. |
+| `window` | `Window` | `defaultWindow` | Override the window (SSR/testing). |
+
+## SSR
+
+`false` — the element is reported not visible until the observer runs on mount.
+
+## See also
+
+- [`useIntersectionObserver`](/use/docs/use-intersection-observer) — the observer this wraps; use it for entry-level detail or `pause`/`resume`.
+- [`useElementSize`](/use/docs/use-element-size) — the size counterpart, over `useResizeObserver`.

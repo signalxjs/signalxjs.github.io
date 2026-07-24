@@ -1,0 +1,83 @@
+---
+title: useCycleList
+description: "Cycle through a (possibly reactive) list with wrap-around next/prev/go"
+layout: docs
+category: State
+order: 40
+---
+
+# useCycleList
+
+Steps through a list with wrap-around — `next`, `prev`, and `go` move the current item and wrap past either end. Cross-platform — import from `@sigx/use`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { useCycleList } from '@sigx/use';
+
+const ThemePicker = component(() => {
+    const { state, next, prev } = useCycleList(['light', 'dark', 'system']);
+
+    return () => (
+        <div class="flex items-center gap-3">
+            <button class="btn" onClick={() => prev()}>‹</button>
+            <span class="font-mono w-16 text-center">{state}</span>
+            <button class="btn" onClick={() => next()}>›</button>
+        </div>
+    );
+});
+
+render(<ThemePicker />, "#sandbox");
+```
+
+## Usage
+
+```ts
+import { useCycleList } from '@sigx/use';
+
+const { state, index, next, prev, go } = useCycleList(['light', 'dark', 'system']);
+next();   // state.value === 'dark',  index.value === 1
+next();   // 'system'
+next();   // wraps to 'light'
+prev();   // wraps back to 'system'
+go(0);    // 'light'
+```
+
+The list is a [`MaybeSignal<T[]>`](/use/docs/conventions#inputs-maybesignalt-and-tovalue) — pass a reactive list and the cycle follows it. If the current value drops out of a changed list, `state` falls back to the item at `fallbackIndex`; an empty list keeps the last known value (and `index` reports `-1`).
+
+## Signature
+
+```ts
+function useCycleList<T>(list: MaybeSignal<T[]>, options?: UseCycleListOptions<T>): UseCycleListReturn<T>;
+
+interface UseCycleListOptions<T> {
+    initialValue?: T;
+    fallbackIndex?: number;
+}
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `initialValue` | `T` | the list item at `fallbackIndex` | Starting value. |
+| `fallbackIndex` | `number` | `0` | Index used when the current value is not in the (possibly changed) list. |
+
+## Returns
+
+`useCycleList` returns a `UseCycleListReturn<T>` object:
+
+| Field | Type | Description |
+|---|---|---|
+| `state` | `ReadSignal<T>` | The current item. Falls back to `fallbackIndex` if the list no longer contains it; an empty list keeps the last known value. |
+| `index` | `ReadSignal<number>` | Index of the current item in the list (`-1` while the list is empty). |
+| `next` | `(n?: number) => T` | Advance `n` steps (default 1), wrapping around. Returns the new item. |
+| `prev` | `(n?: number) => T` | Go back `n` steps (default 1), wrapping around. Returns the new item. |
+| `go` | `(index: number) => T` | Jump to `index` (wrapped into range). Returns the new item. |
+
+**Platform:** everywhere. No cleanup needed.
+
+## See also
+
+- [`useToggle`](/use/docs/use-toggle) — cycle between exactly two states.
+- [`useCounter`](/use/docs/use-counter) — step a number instead of a list.
+- [Conventions](/use/docs/conventions) — `MaybeSignal` inputs and `ReadSignal` outputs.

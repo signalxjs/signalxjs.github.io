@@ -1,0 +1,39 @@
+---
+title: useDocumentVisibility
+description: "Reactive document.visibilityState via the visibilitychange event"
+layout: docs
+category: Sensors
+order: 40
+---
+
+# useDocumentVisibility
+
+Reactive `document.visibilityState` via the `visibilitychange` event. Browser composable — import from `@sigx/use-web`.
+
+```ts
+import { watch } from 'sigx';
+import { useDocumentVisibility } from '@sigx/use-web';
+
+const visibility = useDocumentVisibility();
+watch(visibility, v => v === 'visible' && refetch()); // refetch when the tab returns
+```
+
+The return is a [`ReadSignal<DocumentVisibilityState>`](/use/docs/conventions#outputs-single-value--readsignalt) — `'visible'` or `'hidden'`.
+
+## Signature
+
+```ts
+function useDocumentVisibility(options?: ConfigurableDocument): ReadSignal<DocumentVisibilityState>;
+```
+
+Pass `{ document }` to drive it from another document or a mock — see [`Configurable*`](/use/docs/conventions#ssr-safety-and-configurable-overrides).
+
+## SSR
+
+On the server the signal reads `'visible'`, then reflects the real `document.visibilityState` on mount.
+
+## See also
+
+- [`useOnline`](/use/docs/use-online) — pair with connectivity to gate background work.
+- [`useNetwork`](/use/docs/use-network) — full reactive network state.
+- [`useIntervalFn`](/use/docs/use-interval-fn) — pause polling while the tab is hidden.

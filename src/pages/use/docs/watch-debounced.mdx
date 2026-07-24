@@ -1,0 +1,62 @@
+---
+title: watchDebounced
+description: "watch with a debounced callback — bursts of source changes collapse into one run carrying the latest value"
+layout: docs
+category: Debounce & throttle
+order: 30
+---
+
+# watchDebounced
+
+`watch` with a **debounced callback** — a burst of source changes collapses into a single callback run carrying the latest value. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { signal } from 'sigx';
+import { watchDebounced } from '@sigx/use';
+
+const query = signal('');
+watchDebounced(query, q => api.search(q), { debounce: 300, maxWait: 2000 });
+```
+
+It takes the same `source`/`cb` as core's `watch`, plus debounce options that extend [`WatchOptions`](/core/docs/effects). The callback's `onCleanup` behaves as in `watch`: the registered cleanup runs before the next (debounced) invocation and on stop.
+
+`watchDebounced` returns core's [`WatchHandle`](/core/docs/effects) shape — a callable stop, plus `.stop()`, `.pause()`, and `.resume()`:
+
+```ts
+const handle = watchDebounced(query, run, { debounce: 300 });
+handle.pause();
+handle.resume();
+handle();        // stop — cancels any pending run
+```
+
+## Signature
+
+```ts
+function watchDebounced<T>(
+    source: WatchSource<T> | ReadSignal<T>,
+    cb: WatchCallback<T, T | undefined>,
+    options?: WatchDebouncedOptions,
+): WatchHandle;
+
+interface WatchDebouncedOptions extends WatchOptions {
+    debounce?: MaybeSignal<number>;
+    maxWait?: number;
+}
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `debounce` | `MaybeSignal<number>` | `200` | Debounce window in ms. |
+| `maxWait` | `number` | — | Upper bound (ms) between callback runs while the source keeps changing. |
+
+Plus every [`WatchOptions`](/core/docs/effects) field (`immediate`, `deep`, …).
+
+**Platform:** everywhere (setTimeout). Stopping — or scope disposal — cancels any pending run.
+
+## See also
+
+- [`watchThrottled`](/use/docs/watch-throttled) — run at most once per window instead.
+- [`useDebouncedSignal`](/use/docs/use-debounced-signal) — derive a debounced signal rather than run a callback.
+- [Conventions](/use/docs/conventions) — the shared input/output patterns.

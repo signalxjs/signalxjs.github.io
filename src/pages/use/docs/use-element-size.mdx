@@ -1,0 +1,55 @@
+---
+title: useElementSize
+description: "An element's content size as one reactive { width, height } object, driven by a ResizeObserver"
+layout: docs
+category: Elements
+order: 40
+---
+
+# useElementSize
+
+An element's content size as **one** reactive `{ width, height }` object. Browser composable — import from `@sigx/use-web`.
+
+It builds on [`useResizeObserver`](/use/docs/use-resize-observer), and returns a [`ReactiveView`](/use/docs/conventions#outputs-multiple-fields--one-reactiveviewt) — read `size.width` / `size.height` by property access, each tracked per key.
+
+```ts
+import { signal, computed } from 'sigx';
+import { useElementSize } from '@sigx/use-web';
+
+const el = signal<HTMLElement | null>(null);
+// <div ref={el}> …
+
+const size = useElementSize(el);
+const isNarrow = computed(() => size.width < 480);
+```
+
+Pass any [element target](/use/docs/conventions#element-targets-web). An `initialSize` (default `{ width: 0, height: 0 }`) seeds the value before the first measurement, and options pass straight through to the underlying `ResizeObserver`.
+
+To pull fields out without snapshotting them, use core's [`toSignals()`](/core/docs/signals):
+
+```ts
+import { toSignals } from 'sigx';
+const { width, height } = toSignals(useElementSize(el)); // each a live signal
+```
+
+## Signature
+
+```ts
+function useElementSize(
+    target: MaybeSignalElement,
+    initialSize?: WindowSizeState,
+    options?: UseResizeObserverOptions,
+): ReactiveView<WindowSizeState>;
+
+interface WindowSizeState { width: number; height: number; }
+```
+
+## SSR
+
+Stays at `initialSize` (no observer runs on the server).
+
+## See also
+
+- [`useResizeObserver`](/use/docs/use-resize-observer) — the observer this wraps; use it when you need the raw entries.
+- [`useWindowSize`](/use/docs/use-window-size) — the same `{ width, height }` shape for the viewport.
+- [`useElementVisibility`](/use/docs/use-element-visibility) — the intersection counterpart.

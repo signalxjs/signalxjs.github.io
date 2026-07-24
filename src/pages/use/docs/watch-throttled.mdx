@@ -1,0 +1,55 @@
+---
+title: watchThrottled
+description: "watch with a throttled callback — runs at most once per window, always with the latest value"
+layout: docs
+category: Debounce & throttle
+order: 40
+---
+
+# watchThrottled
+
+`watch` with a **throttled callback** — it runs at most once per `throttle` ms, always with the latest value. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { signal } from 'sigx';
+import { watchThrottled } from '@sigx/use';
+
+const scrollY = signal(0);
+watchThrottled(scrollY, y => updateMinimap(y), { throttle: 100 });
+```
+
+It takes the same `source`/`cb` as core's `watch`, plus throttle options that extend [`WatchOptions`](/core/docs/effects), and returns core's [`WatchHandle`](/core/docs/effects) shape (a callable stop, plus `.stop()`, `.pause()`, `.resume()`). `leading` runs on the leading edge of the window; `trailing` runs the latest pending change on the trailing edge (both default `true`).
+
+## Signature
+
+```ts
+function watchThrottled<T>(
+    source: WatchSource<T> | ReadSignal<T>,
+    cb: WatchCallback<T, T | undefined>,
+    options?: WatchThrottledOptions,
+): WatchHandle;
+
+interface WatchThrottledOptions extends WatchOptions {
+    throttle?: MaybeSignal<number>;
+    leading?: boolean;
+    trailing?: boolean;
+}
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `throttle` | `MaybeSignal<number>` | `200` | Throttle window in ms. |
+| `leading` | `boolean` | `true` | Run on the leading edge of the window. |
+| `trailing` | `boolean` | `true` | Run the latest pending change on the trailing edge. |
+
+Plus every [`WatchOptions`](/core/docs/effects) field (`immediate`, `deep`, …).
+
+**Platform:** everywhere (setTimeout). Stopping — or scope disposal — cancels any pending trailing run.
+
+## See also
+
+- [`watchDebounced`](/use/docs/watch-debounced) — collapse bursts into one run after quiet instead.
+- [`useThrottledSignal`](/use/docs/use-throttled-signal) — derive a throttled signal rather than run a callback.
+- [Conventions](/use/docs/conventions) — the shared input/output patterns.

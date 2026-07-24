@@ -1,0 +1,70 @@
+---
+title: useBreakpoints
+description: "Reactive breakpoint queries over a { name: width } map — greater/smaller/between and the active breakpoint"
+layout: docs
+category: Viewport
+order: 40
+---
+
+# useBreakpoints
+
+Reactive breakpoint queries over a `{ name: width }` map — `greater`, `smaller`, `between`, and the currently `active` breakpoint. Browser composable — import from `@sigx/use-web`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { useBreakpoints, breakpointsTailwind } from '@sigx/use-web';
+
+const Layout = component(() => {
+    const bp = useBreakpoints(breakpointsTailwind);
+    const isMobile = bp.smaller('md');
+    return () => (
+        <p>{isMobile.value ? '📱 mobile' : '🖥️ desktop'} — active: {bp.active().value || 'xs'}</p>
+    );
+});
+
+render(<Layout />, "#sandbox");
+```
+
+Each query method returns its own [`ReadSignal<boolean>`](/use/docs/conventions#outputs-single-value--readsignalt) (or `ReadSignal<K | ''>` for `active`). One `matchMedia` subscription is created lazily per distinct comparison and memoized, so calling the same query twice is free.
+
+## Signature
+
+```ts
+function useBreakpoints<K extends string>(
+    breakpoints: Record<K, number | string>,
+    options?: ConfigurableWindow,
+): UseBreakpointsReturn<K>;
+```
+
+A breakpoint value is a **number** (px) or **any CSS length string**. Pass `{ window }` to drive it from another document — see [`Configurable*`](/use/docs/conventions#ssr-safety-and-configurable-overrides).
+
+## Returns
+
+| Method | Returns | Description |
+|---|---|---|
+| `greater(k)` | `ReadSignal<boolean>` | Viewport strictly wider than breakpoint `k`. |
+| `greaterOrEqual(k)` | `ReadSignal<boolean>` | Viewport at least as wide as `k` (`min-width`). |
+| `smaller(k)` | `ReadSignal<boolean>` | Viewport strictly narrower than `k`. |
+| `smallerOrEqual(k)` | `ReadSignal<boolean>` | Viewport at most as wide as `k` (`max-width`). |
+| `between(a, b)` | `ReadSignal<boolean>` | Viewport within `[a, b)`. |
+| `active()` | `ReadSignal<K \| ''>` | The widest breakpoint currently matched, or `''` below the smallest. |
+
+## `breakpointsTailwind`
+
+A ready-made map of Tailwind CSS's default breakpoints, exported alongside the composable:
+
+```ts
+import { breakpointsTailwind } from '@sigx/use-web';
+// Record<'sm' | 'md' | 'lg' | 'xl' | '2xl', number>
+const bp = useBreakpoints(breakpointsTailwind);
+```
+
+## SSR
+
+On the server every query reads `false` and `active()` reads `''`; real matches resolve on mount.
+
+## See also
+
+- [`useMediaQuery`](/use/docs/use-media-query) — the `matchMedia` primitive underneath.
+- [`useWindowSize`](/use/docs/use-window-size) — the raw dimensions when a numeric threshold isn't enough.
+- [Conventions → Outputs](/use/docs/conventions#outputs-single-value--readsignalt) — why each method hands back a `ReadSignal`.

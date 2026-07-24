@@ -1,0 +1,129 @@
+---
+title: Conventions
+description: "The shared patterns behind every @sigx/use composable — MaybeSignal, toValue, reactive-view returns, element targets, and the cross-platform contracts"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Conventions
+
+Every composable in `@sigx/use` shares a small set of input and output conventions. Learn them once here and each function page stays short — it only documents what's specific to that composable.
+
+## Inputs: `MaybeSignal<T>` and `toValue()`
+
+Anywhere a composable takes a "reactive-ish" argument, its type is **`MaybeSignal<T>`** — the sigx equivalent of VueUse's `MaybeRefOrGetter`. You can pass:
+
+- a **plain value** — `useDebouncedSignal(query, 300)`
+- a **signal-shaped `{ value }` handle** — a `PrimitiveSignal`, a `computed`, or a `toSignal` view
+- a **getter function** — `() => scroll.y.value`
+
+```ts
+export type MaybeSignal<T> = T | ReadSignal<T> | (() => T);
+```
+
+Internally the composable resolves it with [`toValue`](/use/docs/to-value), which calls getters, unwraps `{ value }` handles, and passes plain values through. Reading inside a reactive context tracks as usual — a reactive argument makes the composable react to it.
+
+> One sharp edge: a plain (non-signal) object that happens to have a `value` property is passed through **as-is**, not unwrapped. If you mean it as a value, wrap it in a getter: `() => obj`.
+
+## Outputs: single value → `ReadSignal<T>`
+
+Every composable that returns **one** reactive value returns a **`ReadSignal<T>`** — a read-only `{ value }` view. Read `.value` (or read it bare in JSX, where signals unwrap):
+
+```ts
+export interface ReadSignal<T> { readonly value: T; }
+```
+
+It's deliberately structural rather than `PrimitiveSignal<T> | Computed<T>`: `ReadSignal` **preserves literal unions** where `PrimitiveSignal` would widen them (`ReadSignal<'light' | 'dark'>` stays a union; `PrimitiveSignal<'light' | 'dark'>` degrades to `{ value: string }`). That's why `useColorScheme()` can hand you a `ReadSignal<'light' | 'dark'>`.
+
+## Outputs: multiple fields → one `ReactiveView<T>`
+
+A composable exposing **several** related fields (a mouse's `x`/`y`, an element's `width`/`height`) returns **one deep-reactive object**, not a bag of separate signals. Read it by **property access** — each key is tracked independently:
+
+```ts
+const mouse = useMouse();
+effect(() => positionTooltip(mouse.x, mouse.y)); // no .value; per-key tracked
+```
+
+`ReactiveView<T>` is `Readonly<T>` — a typing contract that you must not write to it. To pull fields out **without losing reactivity**, use core's [`toSignals()`](/core/docs/signals) rather than a plain destructure (which would snapshot the values):
+
+```ts
+import { toSignals } from 'sigx';
+const { x, y } = toSignals(useMouse()); // each a live signal
+```
+
+## Element targets (web)
+
+Web composables that attach to a DOM element accept a flexible **element target** — resolved reactively, and re-attached when the element changes:
+
+- a **raw element** (or `EventTarget`)
+- a **getter** — `() => document.body`
+- a **`{ value }` signal/computed** holding an element
+- a **sigx template-ref `{ current }`** — the shape sigx's JSX `ref` prop writes into
+
+```tsx
+import { signal } from 'sigx';
+import { useEventListener } from '@sigx/use-web';
+
+const el = signal<HTMLElement | null>(null);
+// <div ref={el}> …
+useEventListener(el, 'click', onClick); // re-attaches if el changes
+```
+
+Targets are resolved by [`unrefElement`](/use/docs/unref-element), which always returns the **raw** element (via `toRaw`) — raw identity is what `removeEventListener` pairing and observer bookkeeping require. Detection is brand-based (`isSignal`/`isComputed`), so an arbitrary plain `{ value }` object is **not** unwrapped — pass those as a getter.
+
+## SSR safety and `Configurable*` overrides
+
+Every web composable is **SSR-safe**: on the server (no `window`) it returns sensible defaults and never touches the DOM, then reads the real environment on mount. Each function page states its exact server value (e.g. `useWindowSize` reports `Infinity`, `useOnline` reports `true`).
+
+To make that testable — or to drive a composable from a different document, iframe, or a mock — web composables accept a `Configurable*` option:
+
+```ts
+interface ConfigurableWindow    { window?: Window; }
+interface ConfigurableDocument  { document?: Document; }
+interface ConfigurableNavigator { navigator?: Navigator; }
+```
+
+Pass `{ window }` / `{ document }` / `{ navigator }` to override the default global. `isClient`, `defaultWindow`, `defaultDocument`, and `defaultNavigator` are exported for the same purpose.
+
+## Control handles: `Pausable` and `Stop`
+
+Composables with ongoing work return an explicit handle so you can control (and, when standalone, tear down) that work:
+
+```ts
+export interface Pausable {
+    isActive: ReadSignal<boolean>;
+    pause: () => void;
+    resume: () => void;
+}
+export type Stop = () => void;
+```
+
+A `Stop` detaches whatever was attached; a `Pausable` toggles it while tracking `isActive`. See [the cleanup model](/use/docs/overview#the-cleanup-model) for when you need these versus letting the owning scope clean up for you.
+
+## Lifecycle helpers
+
+Two small helpers power the cleanup model and are exported for your own composables:
+
+- [`tryOnScopeDispose(fn)`](/use/docs/try-on-scope-dispose) — register teardown with the active scope (component setup or the innermost `effectScope()`); returns `false` when there's no scope, so the caller owns disposal.
+- [`tryOnMounted(fn)`](/use/docs/try-on-mounted) — run `fn` after mount inside a component, or immediately when standalone. Web composables use it to defer environment reads (storage, layout) to the client-mounted moment without failing outside components.
+
+## Cross-platform contracts
+
+The composables that describe **platform capabilities** return **shared, platform-neutral contract types** — the same shapes a Lynx or terminal pack fulfils, so feature code ports across targets unchanged:
+
+| Contract | Used by | Notes |
+|---|---|---|
+| `ColorScheme` (`'light' \| 'dark'`) | `useColorScheme` | Same shape as Lynx's `useSystemColorScheme`. |
+| `ConnectionType`, `NetworkState` | `useNetwork`, `useOnline` | Field-for-field match with lynx-network; web reports `isInternetReachable: null`. |
+| `WindowSizeState` (`{ width, height }`) | `useWindowSize`, `useElementSize` | |
+| `StorageLike` / `StorageLikeAsync` | `useStorage` and presets | Sync (web `localStorage`) vs async-read (Lynx native) storage. |
+| `UseClipboardReturn` | `useClipboard` | `{ isSupported, text, copied, copy }`. |
+
+These live in `@sigx/use` (not `@sigx/use-web`), so a platform pack implements them against its own host APIs. See [Building a platform pack](/use/docs/overview#building-a-platform-pack).
+
+## Next steps
+
+- [`useToggle`](/use/docs/use-toggle) — the simplest composable, start here.
+- [`useMouse`](/use/docs/use-mouse) — a reactive-view return in practice.
+- [`useStorage`](/use/docs/use-storage) — the flagship deep-reactive persisted signal.

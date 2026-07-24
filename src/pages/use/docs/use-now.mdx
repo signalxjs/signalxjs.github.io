@@ -1,0 +1,64 @@
+---
+title: useNow
+description: "The current time as a reactive Date, updated on an interval — optionally with pause/resume controls"
+layout: docs
+category: Timing
+order: 30
+---
+
+# useNow
+
+The current time as a reactive `Date`, updated every `interval` ms (default `1000`). Cross-platform — import from `@sigx/use`.
+
+```ts
+import { computed } from 'sigx';
+import { useNow } from '@sigx/use';
+
+const now = useNow();
+const clock = computed(() => now.value.toLocaleTimeString());
+```
+
+> The `Date` is held by reference and replaced wholesale on each tick — `Date` is an exotic built-in sigx deliberately never proxies. Read `now.value` to get the current instant; don't mutate it in place.
+
+The timer clears with the owning scope (component setup or the innermost `effectScope()`).
+
+## Controls form
+
+Pass `{ controls: true }` to also get [`Pausable`](/use/docs/conventions#control-handles-pausable-and-stop) controls alongside the time. The return shape then becomes `{ now, pause, resume, isActive }`:
+
+```ts
+import { useNow } from '@sigx/use';
+
+const { now, pause, resume, isActive } = useNow({ controls: true, interval: 1000 });
+pause(); // freeze the clock
+```
+
+## Signature
+
+```ts
+function useNow(): ReadSignal<Date>;
+function useNow(options: UseNowOptions<true>): { now: ReadSignal<Date> } & Pausable;
+function useNow(options: UseNowOptions<false>): ReadSignal<Date>;
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `interval` | `number` | `1000` | Update period in ms. |
+| `controls` | `boolean` | `false` | Also return `pause`/`resume`/`isActive` controls. |
+
+## Returns
+
+| Call | Returns |
+|---|---|
+| `useNow()` | `ReadSignal<Date>` — the current time, bare. |
+| `useNow({ controls: true })` | `{ now: ReadSignal<Date> } & Pausable` — the time plus `pause`/`resume`/`isActive`. |
+
+**Platform:** everywhere (`setInterval`).
+
+## See also
+
+- [`useIntervalFn`](/use/docs/use-interval-fn) — the timer `useNow` is built on.
+- [`useTimeoutFn`](/use/docs/use-timeout-fn) — a restartable one-shot timer.
+- [Conventions → Control handles](/use/docs/conventions#control-handles-pausable-and-stop) — the `Pausable` contract the controls form returns.

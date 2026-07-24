@@ -1,0 +1,111 @@
+---
+title: Overview
+description: "@sigx/use — tree-shakable, VueUse-style reactive composables built on signals"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PrereqCallout } from '@/components/PrereqCallout';
+
+# @sigx/use
+
+<PrereqCallout items={[
+    { name: 'Signals', path: '/core/docs/signals' },
+    { name: 'Effects & scopes', path: '/core/docs/effects' },
+    { name: 'Components', path: '/core/docs/components' },
+]} />
+
+`@sigx/use` is a collection of small, **tree-shakable composables** built directly on the SignalX reactive core — the signal-first answer to [VueUse](https://vueuse.org). Toggles and counters, debounced and throttled signals, timers, element sensors, storage, clipboard, media queries: each is an ordinary function you call from a component's setup, and each returns plain signals you read as values.
+
+Here's the shape of it — a clamped counter in three lines:
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { useCounter } from '@sigx/use';
+
+const Counter = component(() => {
+    const { count, inc, dec, reset } = useCounter(0, { min: 0, max: 10 });
+
+    return () => (
+        <div class="flex items-center gap-3">
+            <button class="btn" onClick={() => dec()}>-</button>
+            <span class="text-xl font-bold w-12 text-center">{count}</span>
+            <button class="btn" onClick={() => inc()}>+</button>
+            <button class="btn btn-ghost" onClick={() => reset()}>reset</button>
+        </div>
+    );
+});
+
+render(<Counter />, "#sandbox");
+```
+
+No `.value` at the call site inside JSX, no manual subscriptions — `count` is a signal, and reading it in the render function re-renders the component. That's the whole ergonomic.
+
+## Two packages, one import for apps
+
+`@sigx/use` ships as **two packages** so the same composables work on every SignalX target without dragging the DOM into places that don't have one:
+
+| Package | Runs on | Contains |
+|---|---|---|
+| **`@sigx/use`** | web, Lynx, SSR, terminal — statically **DOM-free** | The cross-platform composables (state, timing, debounce/throttle, shared state, utilities). |
+| **`@sigx/use-web`** | the browser (but **SSR-safe**) | The DOM/BOM sensors (elements, viewport, storage, clipboard, …) **plus a re-export of all of `@sigx/use`**. |
+
+Because `@sigx/use-web` re-exports the core package, a **web app installs one package and imports everything from it**:
+
+```bash
+npm install @sigx/use-web
+```
+
+```ts
+// a web app: both cross-platform and browser composables from one entry
+import { useCounter, useStorage, useMouse } from '@sigx/use-web';
+```
+
+A **library** or a **non-web platform** (Lynx, terminal) that only needs the DOM-free composables installs the core package directly:
+
+```bash
+npm install @sigx/use
+```
+
+Throughout these docs, cross-platform composables show `from '@sigx/use'` and browser composables show `from '@sigx/use-web'` — but in a web app you can import both from `@sigx/use-web`.
+
+> **Peers.** Both packages peer-depend on `@sigx/reactivity` and `@sigx/runtime-core` `^0.13.0` (the `sigx` umbrella your app already runs on provides these). `@sigx/use-web` additionally peers `@sigx/use`. They never bundle their own copy of the core — a composable always shares the *same* reactive runtime as your components.
+
+## The cleanup model
+
+Every composable that starts ongoing work — a timer, an event listener, an observer — cleans up on its own when the **owning scope** disposes. "Owning scope" means the component you called it in, or the innermost [`effectScope()`](/core/docs/effects#effect-scope) if you're outside a component. Call `useIntervalFn` in a component and the interval clears on unmount; you write nothing.
+
+For **standalone** use — outside any component or scope, in a script or a test — there's no scope to hook, so every such composable also returns an **explicit handle**: a `stop()` function, or a [`Pausable`](/use/docs/conventions#control-handles-pausable-and-stop) (`pause`/`resume`/`isActive`). Hold it and call `stop()` yourself.
+
+```ts
+import { useIntervalFn } from '@sigx/use';
+
+// in a component: auto-clears on unmount
+const { pause, resume } = useIntervalFn(() => tick(), 1000);
+
+// standalone: you own teardown
+const timer = useIntervalFn(() => tick(), 1000);
+// ... later
+timer.pause();
+```
+
+This is the same [`tryOnScopeDispose`](/use/docs/conventions#lifecycle-helpers) mechanism the composables use internally, and one you can reuse in your own.
+
+## What's deliberately *not* here
+
+`@sigx/use` stays focused on device, UI, and reactivity utilities. A few neighbours own their space, and these docs point you at them rather than duplicating:
+
+- **Async data / server state** → core's [`useData` / `useAction`](/core/docs/data-loading). `createGlobalState` here is for device/UI state, not per-user data.
+- **URL query params** → the router's [`useQuery`](/router/docs/getting-started).
+- **Per-user, structured app state** → [`@sigx/store`](/store).
+
+## Building a platform pack
+
+`@sigx/use-web` is the reference **platform pack**: it implements the web side of the shared contracts (`StorageLike`, `NetworkState`, `ColorScheme`, …) and re-exports the core package. `@sigx/use-lynx` and third-party packs follow the same recipe — implement the platform contracts, re-export the seam, peer-depend on `@sigx/use`, and pull shared helpers from the `@sigx/use/internals` subpath. See [Conventions → Cross-platform contracts](/use/docs/conventions#cross-platform-contracts) for the type surface a pack fulfils.
+
+## Next steps
+
+- [Conventions](/use/docs/conventions) — `MaybeSignal`, `toValue`, `ReadSignal`, reactive-view returns, element targets, and the cross-platform contracts. **Read this next** — it explains patterns every composable shares.
+- [`useToggle`](/use/docs/use-toggle), [`useCounter`](/use/docs/use-counter) — start with the state composables.
+- [`useStorage`](/use/docs/use-storage) — the flagship: a deep-reactive object that auto-persists.

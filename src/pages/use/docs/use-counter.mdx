@@ -1,0 +1,84 @@
+---
+title: useCounter
+description: "A numeric signal with clamped inc/dec/set/reset mutators"
+layout: docs
+category: State
+order: 20
+---
+
+# useCounter
+
+A numeric counter signal paired with **clamped mutators** — `inc`, `dec`, `set`, and `reset` all respect the optional `min`/`max` bounds and return the new value. Cross-platform — import from `@sigx/use`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { useCounter } from '@sigx/use';
+
+const Stepper = component(() => {
+    const { count, inc, dec, reset } = useCounter(0, { min: 0, max: 10 });
+
+    return () => (
+        <div class="flex items-center gap-3">
+            <button class="btn" onClick={() => dec()}>−</button>
+            <span class="font-mono text-lg w-8 text-center">{count}</span>
+            <button class="btn" onClick={() => inc()}>+</button>
+            <button class="btn btn-ghost" onClick={() => reset()}>reset</button>
+        </div>
+    );
+});
+
+render(<Stepper />, "#sandbox");
+```
+
+## Usage
+
+```ts
+import { useCounter } from '@sigx/use';
+
+const { count, inc, dec, set, reset } = useCounter(0, { min: 0, max: 10 });
+inc();    // 1
+inc(4);   // 5
+dec(5);   // clamped to 0
+set(20);  // clamped to 10
+reset();  // back to the initial value (0)
+```
+
+> Writing `count.value` directly is allowed but **bypasses clamping** — the mutators are the clamped path. Reach for `set()` when you want the bound enforced.
+
+## Signature
+
+```ts
+function useCounter(initial?: number, options?: UseCounterOptions): UseCounterReturn;
+
+interface UseCounterOptions {
+    min?: number;
+    max?: number;
+}
+```
+
+## Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `min` | `number` | `-Infinity` | Lower clamp bound applied by every mutator. |
+| `max` | `number` | `Infinity` | Upper clamp bound applied by every mutator. |
+
+## Returns
+
+`useCounter` returns a `UseCounterReturn` object:
+
+| Field | Type | Description |
+|---|---|---|
+| `count` | `PrimitiveSignal<number>` | The counter signal. Read `.value` (or bare in JSX). |
+| `inc` | `(delta?: number) => number` | Increment by `delta` (default 1), clamped. Returns the new value. |
+| `dec` | `(delta?: number) => number` | Decrement by `delta` (default 1), clamped. Returns the new value. |
+| `set` | `(value: number) => number` | Set to `value`, clamped. Returns the new value. |
+| `reset` | `(value?: number) => number` | Reset to `value` (default: the initial value), clamped. Returns the new value. |
+
+**Platform:** everywhere. No cleanup needed.
+
+## See also
+
+- [`useToggle`](/use/docs/use-toggle) — the boolean equivalent.
+- [`useCycleList`](/use/docs/use-cycle-list) — step through a list instead of a number.
+- [Conventions](/use/docs/conventions) — the shared input/output patterns.

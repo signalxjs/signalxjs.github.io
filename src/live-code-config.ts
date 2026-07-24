@@ -11,14 +11,19 @@ import { configureLiveCode, initRegisteredModules } from '@sigx/live-code';
 import * as daisyui from '@sigx/daisyui';
 import * as router from '@sigx/router';
 import * as store from '@sigx/store';
+import * as use from '@sigx/use';
+import * as useWeb from '@sigx/use-web';
 
 // Modules become available inside live-code as `window.__SIGX_DAISYUI__`,
-// `window.__SIGX_ROUTER__`, `window.__SIGX_STORE__`.
+// `window.__SIGX_ROUTER__`, `window.__SIGX_STORE__`, `window.__SIGX_USE__`,
+// `window.__SIGX_USE_WEB__`.
 configureLiveCode({
     modules: {
         '@sigx/daisyui': () => daisyui,
         '@sigx/router': () => router,
         '@sigx/store': () => store,
+        '@sigx/use': () => use,
+        '@sigx/use-web': () => useWeb,
     }
 });
 

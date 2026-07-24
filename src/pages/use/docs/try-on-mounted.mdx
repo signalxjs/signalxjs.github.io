@@ -1,0 +1,37 @@
+---
+title: tryOnMounted
+description: "Run fn after mount inside a component, or immediately when standalone — defer environment reads without failing outside components"
+layout: docs
+category: Utilities
+order: 30
+---
+
+# tryOnMounted
+
+Run `fn` after mount when called during a component's setup; immediately otherwise (standalone scopes, tests, plain scripts). Cross-platform — import from `@sigx/use`.
+
+```ts
+import { tryOnMounted } from '@sigx/use';
+
+tryOnMounted(() => {
+    // inside a component: runs after mount
+    // standalone: runs right now
+    measure();
+});
+```
+
+Web composables use this to defer environment reads (storage, layout) to the client-mounted moment without failing outside components — so the same code works in a component, an `effectScope()`, or a bare script.
+
+## Signature
+
+```ts
+function tryOnMounted(fn: () => void): void;
+```
+
+**Platform:** everywhere.
+
+## See also
+
+- [`tryOnScopeDispose`](/use/docs/try-on-scope-dispose) — the teardown counterpart.
+- [Conventions → Lifecycle helpers](/use/docs/conventions#lifecycle-helpers) — how these two power the cleanup model.
+- [Conventions](/use/docs/conventions) — the shared input/output patterns.

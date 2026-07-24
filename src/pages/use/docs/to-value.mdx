@@ -1,0 +1,39 @@
+---
+title: toValue
+description: "Resolve a MaybeSignal to its current value — call getters, unwrap { value } handles, pass everything else through"
+layout: docs
+category: Utilities
+order: 10
+---
+
+# toValue
+
+Resolve a [`MaybeSignal<T>`](/use/docs/conventions#inputs-maybesignalt-and-tovalue) to its current value: call getters, unwrap signal-shaped `{ value }` handles (primitive signals, computeds, `toSignal`/`toSignals` views), pass everything else through. Cross-platform — import from `@sigx/use`.
+
+```ts
+import { signal, computed } from 'sigx';
+import { toValue } from '@sigx/use';
+
+toValue(42);                 // 42
+toValue(signal(42));         // 42
+toValue(computed(() => 42)); // 42
+toValue(() => 42);           // 42
+```
+
+This is the resolver behind every composable's `MaybeSignal` argument — reach for it when you build your own. Reading inside a reactive context tracks as usual — `toValue` adds no `untrack`, so a reactive source makes the surrounding effect/computed react to it.
+
+> A plain (non-signal) object that happens to have a `value` property is passed through **as-is**, not unwrapped. If you mean it as a value, hand it over as a getter: `() => obj`.
+
+## Signature
+
+```ts
+function toValue<T>(source: MaybeSignal<T>): T;
+```
+
+**Platform:** everywhere.
+
+## See also
+
+- [Conventions → Inputs](/use/docs/conventions#inputs-maybesignalt-and-tovalue) — the `MaybeSignal` contract this resolves.
+- [`usePrevious`](/use/docs/use-previous) — a composable that takes a `MaybeSignal` source.
+- [`unrefElement`](/use/docs/unref-element) — the element-target equivalent for the DOM.

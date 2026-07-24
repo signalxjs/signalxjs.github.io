@@ -1,0 +1,65 @@
+---
+title: useResizeObserver
+description: "Observe element size changes with a ResizeObserver that follows reactive targets and disconnects with the owning scope"
+layout: docs
+category: Elements
+order: 30
+---
+
+# useResizeObserver
+
+Observe element size changes with a `ResizeObserver`. Browser composable — import from `@sigx/use-web`.
+
+The observer **follows reactive targets** — re-observing when the element changes — and disconnects with the owning scope. Point it at a single [element target](/use/docs/conventions#element-targets-web) or an array of them.
+
+```ts
+import { signal } from 'sigx';
+import { useResizeObserver } from '@sigx/use-web';
+
+const box = signal<HTMLElement | null>(null);
+// <div ref={box}> …
+
+useResizeObserver(box, ([entry]) => {
+    console.log(entry.contentRect.width, entry.contentRect.height);
+});
+```
+
+The callback is the native `ResizeObserverCallback` — you receive `ResizeObserverEntry[]`, so `contentRect`, `borderBoxSize`, and friends are all available. Options extend the native `ResizeObserverOptions` (e.g. `{ box: 'border-box' }`) alongside the `ConfigurableWindow` override.
+
+> Reaching for `width`/`height` as reactive values? Use [`useElementSize`](/use/docs/use-element-size), which wraps this into a `{ width, height }` reactive view.
+
+## Signature
+
+```ts
+function useResizeObserver(
+    target: MaybeSignalElement | MaybeSignalElement[],
+    callback: ResizeObserverCallback,
+    options?: UseResizeObserverOptions,
+): UseResizeObserverReturn;
+
+interface UseResizeObserverOptions extends ConfigurableWindow, ResizeObserverOptions {}
+```
+
+## Returns
+
+```ts
+interface UseResizeObserverReturn {
+    isSupported: ReadSignal<boolean>;
+    stop: Stop;
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `isSupported` | `ReadSignal<boolean>` | Whether `ResizeObserver` exists in this context. |
+| `stop` | [`Stop`](/use/docs/conventions#control-handles-pausable-and-stop) | Disconnect the observer manually (for standalone, no-scope use). |
+
+## SSR
+
+Inert: `isSupported` is `false` and the callback **never fires**.
+
+## See also
+
+- [`useElementSize`](/use/docs/use-element-size) — reactive `{ width, height }` built on this.
+- [`useIntersectionObserver`](/use/docs/use-intersection-observer) — the visibility counterpart.
+- [Conventions → Element targets (web)](/use/docs/conventions#element-targets-web) — the accepted target shapes.
