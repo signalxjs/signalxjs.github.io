@@ -86,6 +86,55 @@ interface DocumentOptions extends SSRContextOptions {
 - **serializeState** — serialize resolved `useData`/`useStream` values for
   hydration pickup. Set `false` to opt out.
 
+## Production fetch handler
+
+Exported from `/server` and the main entry — both WinterCG-clean. See
+[The fetch handler](/server/packages/server-renderer/fetch-handler) for the guide.
+
+### createFetchHandler
+
+Create a fetch-shaped production request handler — the WinterCG sibling of
+`createRequestHandler` for Cloudflare Workers, Deno, Bun, Vercel Edge and Netlify.
+Streams shell-first, switches to `mode: 'blocking'` for crawlers, resolves
+`useResponse` status/redirects before the first byte.
+
+```ts
+function createFetchHandler<TPlatform = unknown>(
+  options: FetchHandlerOptions<TPlatform>
+): FetchHandler<TPlatform>
+
+type FetchHandler<TPlatform = unknown> =
+  (request: Request, platform?: TPlatform) => Promise<Response>
+// `platform` becomes REQUIRED when TPlatform doesn't admit undefined
+
+interface FetchHandlerOptions<TPlatform = unknown> {
+  template: string | ((url: string, request: Request, platform: TPlatform) => string | Promise<string>);
+  app: (url: string, request: Request, platform: TPlatform) => App | JSXElement | Promise<App | JSXElement>;
+  document?: Omit<DocumentOptions, 'template' | 'mode'>
+    | ((url: string, request: Request, platform: TPlatform) => Omit<DocumentOptions, 'template' | 'mode'>);
+  isBot?: (userAgent: string, request: Request) => boolean;   // default: defaultIsBot
+  ssr?: Pick<SSRInstance, 'renderDocumentChunks'>;            // default: plugin-less shared instance
+}
+```
+
+### defaultIsBot
+
+The crawler UA regex shared by the fetch, Node and dev handlers.
+
+```ts
+function defaultIsBot(userAgent: string): boolean
+```
+
+### chunksToBytes
+
+Encode a chunk generator as a pull-based UTF-8 byte stream (backpressure honored;
+cancellation releases the generator). The encoder under `renderDocumentToWebStream`
+and `createFetchHandler`.
+
+```ts
+function chunksToBytes(chunks: AsyncGenerator<string>): ReadableStream<Uint8Array>
+```
+
 ## Render functions
 
 ### renderToString
