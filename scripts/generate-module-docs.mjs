@@ -37,8 +37,9 @@ const pageSet = (m) => {
         m.parent === 'lynx' ? 'Lynx'
             : m.parent === 'server' ? 'Server'
             : m.parent === 'terminal' ? 'Terminal'
+            : m.parent === 'deploy' ? 'Deploy'
             : 'Core';
-    const noun = m.parent === 'lynx' ? 'module' : 'package';
+    const noun = m.parent === 'lynx' ? 'module' : m.parent === 'deploy' ? 'adapter' : 'package';
     // Lynx, core & terminal ship lockstep from one repo; the server packages do not.
     const lockstep = m.parent === 'lynx'
         ? ' It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.'
@@ -46,8 +47,11 @@ const pageSet = (m) => {
             ? ' It is versioned in lockstep with the rest of the Core repo, so any combination of packages just works together.'
         : m.parent === 'terminal'
             ? ' It is versioned in lockstep with the rest of the terminal repo, so any combination of packages just works together.'
+        : m.parent === 'deploy'
+            ? ' It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.'
             : '';
-    const installCmd = `pnpm add ${m.npm}`;
+    // Deploy adapters are build-time tooling — install as devDependencies.
+    const installCmd = m.parent === 'deploy' ? `pnpm add -D ${m.npm}` : `pnpm add ${m.npm}`;
     const importName = m.name.replace(/[^A-Za-z0-9]/g, '');
     const pages = [
         {
@@ -139,10 +143,11 @@ See the package source for the complete typed surface.
 `,
         },
     ];
-    // Server & terminal packages are documented with custom guides (terminal's
-    // live in the umbrella's docs/), not the generic "Usage" stub — skip it so
-    // re-runs stay idempotent.
-    return m.parent === 'server' || m.parent === 'terminal'
+    // Server, terminal & deploy packages are documented with custom guides
+    // (terminal's live in the umbrella's docs/; deploy adapters get a
+    // hand-authored "Deploying" guide), not the generic "Usage" stub — skip
+    // it so re-runs stay idempotent.
+    return m.parent === 'server' || m.parent === 'terminal' || m.parent === 'deploy'
         ? pages.filter((p) => p.file !== 'usage.mdx')
         : pages;
 };

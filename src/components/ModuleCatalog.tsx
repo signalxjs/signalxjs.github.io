@@ -50,7 +50,7 @@ export const ModuleCatalog = component<ModuleCatalogProps>(({ props, signal }) =
                     </SxLink>
                     <h1>
                         {parentPkg.title}{' '}
-                        <span class="cat-accent">{isLynx ? 'modules' : 'packages'}</span>
+                        <span class="cat-accent">{isLynx ? 'modules' : props.parent === 'deploy' ? 'adapters' : 'packages'}</span>
                     </h1>
                     {isLynx ? (
                         <p>
@@ -64,6 +64,15 @@ export const ModuleCatalog = component<ModuleCatalogProps>(({ props, signal }) =
                             streams your component tree to HTML and hydrates it on the client, and{' '}
                             <code class="inline">@sigx/ssr-islands</code> layers on selective{' '}
                             <code class="inline">client:*</code> hydration. Each one carries its own docs.
+                        </p>
+                    ) : props.parent === 'deploy' ? (
+                        <p>
+                            One build seam, every platform — each adapter rides the public{' '}
+                            <code class="inline">SigxAdapter</code> contract in{' '}
+                            <code class="inline">@sigx/vite</code>, and the runtime everywhere is a single
+                            WinterCG <code class="inline">createFetchHandler</code>. Node, Deno and Bun need
+                            no adapter package at all — see the{' '}
+                            <SxLink to="/deploy/docs/overview">Deploying guide</SxLink>.
                         </p>
                     ) : props.parent === 'terminal' ? (
                         <p>

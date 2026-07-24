@@ -1,0 +1,29 @@
+---
+title: "Overview"
+description: "Netlify — Frameworks API function generation"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Netlify
+
+<p class="lede">Emits the .netlify/v1/functions/sigx-ssr catch-all function with preferStatic routing — CDN files win, the raw outlet template stays off "/", and netlify.toml stays yours. Deploy with netlify deploy --prod.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/netlify" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add -D @sigx/netlify
+```
+
+## About
+
+`@sigx/netlify` is a Deploy adapter — frameworks API function generation. It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.
+
+## Next steps
+
+Continue with [Installation](/deploy/packages/netlify/installation) for project setup, or jump to the [API reference](/deploy/packages/netlify/api).

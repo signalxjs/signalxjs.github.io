@@ -14,7 +14,7 @@ import { component, type Define } from 'sigx';
 import { useRouter } from '@sigx/router';
 import { SxLink } from '@/components/ui/SxLink';
 import { byId, PACKAGES, type SigxPackage } from '@/lib/family';
-import { modulesByParent, type SigxModule } from '@/lib/modules';
+import { modulesByParent, type ModuleParent, type SigxModule } from '@/lib/modules';
 import { featuresFor } from '@/lib/landing-features';
 import { docsHref, apiHref, moduleHref } from '@/lib/packageLinks';
 import { canonicalPath } from '@/lib/url';
@@ -47,7 +47,7 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
         // A collection with no umbrella package (server) badges/installs as a
         // collection of N packages rather than pinning to one member.
         const noUmbrella = pkg.kind === 'collection' && pkg.umbrella === false;
-        const memberCount = noUmbrella ? modulesByParent(pkg.id as 'server').length : 0;
+        const memberCount = noUmbrella ? modulesByParent(pkg.id as ModuleParent).length : 0;
 
         return (
             <div class="page landing" style={`--pkg-h:${pkg.hue}`}>
@@ -57,7 +57,7 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                     <div class="lh-badge">
                         <span class="lhb-tile">{pkg.glyph}</span>{' '}
                         {noUmbrella ? (
-                            <>{pkg.title} collection <span class="lhb-dot">·</span> {memberCount} packages</>
+                            <>{pkg.title} collection <span class="lhb-dot">·</span> {memberCount} {pkg.id === 'deploy' ? 'adapters' : 'packages'}</>
                         ) : (
                             <>{pkg.npm} <span class="lhb-dot">·</span> v{pkg.version}</>
                         )}
@@ -83,6 +83,11 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         {pkg.id === 'terminal' && (
                             <SxLink to="/terminal/packages" class={`sx-btn ${docs ? 'sx-btn-outline' : 'sx-btn-primary'}`}>
                                 <Icon name="cube" size={15} /> Browse packages
+                            </SxLink>
+                        )}
+                        {pkg.id === 'deploy' && (
+                            <SxLink to="/deploy/packages" class={`sx-btn ${docs ? 'sx-btn-outline' : 'sx-btn-primary'}`}>
+                                <Icon name="cube" size={15} /> Browse adapters
                             </SxLink>
                         )}
                         {api && (
@@ -174,6 +179,18 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         </div>
                         <div class="lynx-mod-row">
                             {modulesByParent('terminal').map(moduleCard)}
+                        </div>
+                    </>
+                )}
+                {pkg.id === 'deploy' && (
+                    <>
+                        <div class="section-label">
+                            <span class="sl-text">Deploy adapters</span>
+                            <span class="sl-line" />
+                            <span class="sl-note">deploy is a collection — build adapters for Cloudflare, Vercel and Netlify; Node, Deno and Bun need none</span>
+                        </div>
+                        <div class="lynx-mod-row">
+                            {modulesByParent('deploy').map(moduleCard)}
                         </div>
                     </>
                 )}
