@@ -13,6 +13,7 @@ order: 46
 ## The adapter option
 
 ```ts
+import { defineConfig } from 'vite';
 import sigx from '@sigx/vite';
 import { cloudflare } from '@sigx/cloudflare';
 
@@ -53,8 +54,10 @@ interface SigxAdapter {
 
 - **`serverBuild`** is deliberately binary. `'external'` resolves dependencies
   from `node_modules` at runtime (Node and Bun hosts). `'bundled'` produces a
-  fully self-contained server build — `resolve.noExternal: true`, your platform
-  `conditions` replacing the Node defaults, target `esnext`. The
+  fully self-contained server build — the ssr **environment**'s
+  `resolve.noExternal: true` (the environments-API home of the classic
+  `ssr.noExternal`), your platform `conditions` replacing the Node defaults,
+  target `esnext`. The
   partially-external middle ground is unrepresentable on purpose: it is the
   dangerous zone for DI-token identity, while a total bundle lands the entry,
   strategy packs, handlers and registry in **one** module graph.
