@@ -61,8 +61,11 @@ const handler = createFetchHandler({
 Deno.serve({ port: 8000 }, async (request: Request): Promise<Response> => {
     // Static tier is GET/HEAD-only: serveDir answers other methods with
     // 405 (not 404), which would swallow server-fn POSTs. showIndex: false
-    // keeps the raw outlet template off '/'.
-    if (request.method === 'GET' || request.method === 'HEAD') {
+    // keeps the raw outlet template off '/', and the explicit /index.html
+    // guard keeps the template file itself unreachable — documents belong
+    // to the render.
+    const { pathname } = new URL(request.url);
+    if ((request.method === 'GET' || request.method === 'HEAD') && pathname !== '/index.html') {
         const res = await serveDir(request, {
             fsRoot: 'dist-deno/client',
             quiet: true,
@@ -86,7 +89,7 @@ render, exactly as in the
 ```bash
 vite build --app -c vite.config.deno.ts
 deno run --allow-net --allow-read --allow-env dist-deno/server/entry.deno.js
-deployctl deploy --entrypoint dist-deno/server/entry.deno.js   # Deno Deploy
+deno deploy   # ship it to Deno Deploy
 ```
 
 The reference wiring — `vite.config.deno.ts` + the committed

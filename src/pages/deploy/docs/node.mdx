@@ -40,7 +40,10 @@ const { createApp } = await import('./dist/server/entry-server.js');
 const { serverFns } = await import('./dist/server/sigx-server-fns.js');
 
 const app = express();
-app.use(express.static('dist/client', { index: false }));   // never index.html
+// The raw outlet template must never be served: index: false keeps it off
+// '/', and the explicit guard keeps /index.html itself unreachable.
+app.get('/index.html', (_req, res) => res.redirect(301, '/'));
+app.use(express.static('dist/client', { index: false }));
 app.use(createServerFnHandler({ resolve: (s) => serverFns[s]?.() ?? null }));
 app.use(createRequestHandler({ template, app: (url) => createApp(url), document: { assets } }));
 

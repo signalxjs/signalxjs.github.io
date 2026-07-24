@@ -43,11 +43,13 @@ Bun.serve({
     async fetch(request: Request): Promise<Response> {
         const { pathname } = new URL(request.url);
 
-        // Static tier: GET/HEAD-only, exact file paths only — never
-        // index.html (the raw outlet template must not shadow the render).
+        // Static tier: GET/HEAD-only, exact file paths only, and the raw
+        // outlet template (index.html) is explicitly unreachable — it must
+        // never shadow the document render.
         if (
             (request.method === 'GET' || request.method === 'HEAD') &&
-            pathname !== '/' && !pathname.endsWith('/')
+            pathname !== '/' && !pathname.endsWith('/') &&
+            pathname !== '/index.html'
         ) {
             const filePath = resolve(join(clientDir, decodeURIComponent(pathname)));
             if (filePath.startsWith(clientDir + sep)) {    // guards ../ traversal

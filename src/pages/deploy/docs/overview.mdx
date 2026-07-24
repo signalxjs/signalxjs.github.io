@@ -34,7 +34,7 @@ A SignalX SSR app deploys the same way everywhere:
 |---|---|---|---|---|
 | [Node](/deploy/docs/node/) | built-in `nodeAdapter()` (default) | external | `express.static` / `node:http` | `node --conditions production server.mjs` |
 | [Cloudflare Workers](/deploy/packages/cloudflare/overview/) | `@sigx/cloudflare` | bundled, `['workerd','worker']` | wrangler `assets` — served before the worker runs | `wrangler deploy` |
-| [Deno / Deno Deploy](/deploy/docs/deno/) | inline adapter object — no package | bundled, `['deno']` | `serveDir` (`@std/http`) fallthrough | `deployctl deploy` |
+| [Deno / Deno Deploy](/deploy/docs/deno/) | inline adapter object — no package | bundled, `['deno']` | `serveDir` (`@std/http`) fallthrough | `deno deploy` |
 | [Bun](/deploy/docs/bun/) | reuses the Node build — no package | external | `Bun.serve` routes / `Bun.file` | `bun --conditions=production server.bun.ts` |
 | [Vercel — Node runtime](/deploy/packages/vercel/overview/) | `@sigx/vercel` | bundled | Build Output `static/` + `filesystem` route | `vercel deploy --prebuilt` |
 | [Vercel — Edge runtime](/deploy/packages/vercel/overview/) | `@sigx/vercel` with `{ runtime: 'edge' }` | bundled, `['edge-light','worker']` | Build Output `static/` + `filesystem` route | `vercel deploy --prebuilt` |
