@@ -8,7 +8,7 @@ order: 46
 
 # The fetch handler
 
-<p class="lede">`createFetchHandler` is the WinterCG sibling of `createRequestHandler`: a production request handler expressed in Web primitives — `(Request) => Promise<Response>` — so the same app deploys to Cloudflare Workers, Deno, Bun, Vercel Edge and Netlify. Same dispatch decisions as the Node handler, no Node built-ins.</p>
+<p class="lede">`createFetchHandler` is the WinterCG sibling of `createRequestHandler`: a production request handler expressed in Web primitives — `(Request, platform?) => Promise<Response>` — so the same app deploys to Cloudflare Workers, Deno, Bun, Vercel Edge and Netlify. Same dispatch decisions as the Node handler, no Node built-ins.</p>
 
 ## One handler, every platform
 
