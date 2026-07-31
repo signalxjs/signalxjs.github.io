@@ -147,6 +147,36 @@ A direct re-export of Vite's own `defineConfig` from the `@sigx/vite/lib`
 subpath, for convenience when composing custom configs alongside
 `defineLibConfig`.
 
+## Assets (from `@sigx/vite/assets`)
+
+### collectAssets
+
+```ts
+function collectAssets(
+    manifest: ViteManifest,
+    entries: string[],
+    base?: string     // public base path, default '/'
+): CollectedAssets;   // { modulepreload: string[]; stylesheets: string[] }
+```
+
+Turns the Vite client manifest into `DocumentOptions.assets` — the
+`<link rel="modulepreload">` and stylesheet set for the given client entries.
+`entries` are manifest keys (source-relative ids such as
+`'src/entry-client.tsx'`); one that isn't in the manifest is skipped with a
+warning. URLs are deduped and prefixed with `base`.
+
+```ts
+import { collectAssets } from '@sigx/vite/assets';
+
+const assets = collectAssets(manifest, ['src/entry-client.tsx']);
+```
+
+The `assets` entry imports nothing — no `node:` builtins, no `process` — so it
+is importable from a workerd, Deno or Bun entry. `@sigx/vite/ssr` re-exports it,
+but that module also carries `createDevRequestHandler` and so imports `node:fs/promises`
+and `node:path` at its top level; reach for `/ssr` in dev and `/assets`
+everywhere else.
+
 ## Types
 
 ### SigxPluginOptions

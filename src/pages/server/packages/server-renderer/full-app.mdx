@@ -124,7 +124,7 @@ decisions by hand is repetitive. `createRequestHandler` from
 ```ts
 // server.mjs
 import { createRequestHandler } from '@sigx/server-renderer/node';
-import { collectAssets } from '@sigx/server-renderer';
+import { collectAssets } from '@sigx/vite/assets';
 import { App } from './dist/server/entry-server.js';
 import manifest from './dist/client/.vite/manifest.json' with { type: 'json' };
 
@@ -147,6 +147,12 @@ file-system routing, no conventions beyond these seams.
 `document.assets` (from `collectAssets(manifest, entries)`) injects
 `<link rel="modulepreload">` and stylesheet links before `</head>` on the first
 flush; every lazy boundary chunk is preloaded on top of that, deduped.
+
+`collectAssets` lives at `@sigx/vite/assets`, an entry that imports nothing at
+all — no `node:` builtins, no `process` — so it runs on workerd, Deno and Bun as
+happily as on Node. `@sigx/vite/ssr` is the dev half (`createDevRequestHandler`)
+and is Node-only by nature; it re-exports `collectAssets` too, so an existing
+import keeps working.
 
 ## Adding routing
 
