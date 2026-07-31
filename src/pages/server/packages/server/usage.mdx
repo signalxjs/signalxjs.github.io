@@ -128,9 +128,9 @@ callable takes **no** arguments — you call it as `fn()`, not `fn(undefined)`.
 | `input?` | A Standard Schema. Always validated server-side; a rejection becomes `ServerFnError(400, 'Invalid input', { issues })`. Also the source of the input type. |
 | `use?` | An array of guards — `(rq, info) => void \| Promise<void>` — run before the handler on **every** transport (including in-process SSR calls). Veto by throwing; hand data to the handler via `rq.locals`. |
 | `handler` | The implementation: `(rq, input) => R \| Promise<R>`. |
-| `invalidates?` | `(input, result) => InvalidatePattern[]` — cache keys to invalidate after the handler runs. **Declare it after `handler`** so TypeScript infers `result`. Patterns are key strings, tuple prefixes, or server-function references. |
+| `invalidates?` | `(input, result) => InvalidatePattern[]` — keys to invalidate after the handler runs. **Declare it after `handler`** so TypeScript infers `result`. Patterns are key strings, tuple prefixes, or server-function references, and reach every matching read whether or not it carries a `cache` option. |
 | `cache?` | Marks a side-effect-free GET read (`{ maxAge, staleWhileRevalidate?, public?, sMaxAge? }`) and emits `Cache-Control`. Mutually exclusive with `invalidates`. |
-| `form?` | `true` marks a progressive-enhancement form target (accepts form-encoded bodies, does a 303 redirect). Must be the literal `true`, and **requires `input`** — a form target without an input schema is a definition-time error. Mutually exclusive with `cache`. |
+| `form?` | `true` marks a progressive-enhancement form target (accepts form-encoded bodies, does a 303 redirect). Must be the literal `true`, and **requires `input`** — a form target without an input schema is a definition-time error. Mutually exclusive with `cache`. The native `action` is stamped by the [resume](/server/packages/resume/usage) extractor, so the no-JS half needs a resume component; elsewhere the form still posts as RPC. |
 | `id?` | An explicit, stable string id that pins the route across file moves/renames. |
 | `unguarded?` | The literal `true`, declaring the function deliberately open. Read statically by the build's `requireGuards` check; runtime-inert. |
 
