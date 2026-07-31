@@ -22,7 +22,7 @@ Plus **`useStream(key, source)`** for progressive, token-at-a-time text.
 
 Every read has a **key** — data always has identity. The key is the reactive trigger, the cache / SSR identity, and the fetcher's input, all at once. The fetcher runs untracked; only the key getter is reactive, so anything that should re-run the fetch belongs in the key.
 
-`useData` returns a reactive `AsyncState<T>` with a `state` of `idle | pending | ready | refreshing | errored`, the last-good `value`, the `error`, a `loading` flag (`state === 'pending'` only), a `match()` dispatcher, and a `refresh()` method.
+`useData` returns a reactive `AsyncState<T>` with a `state` of `idle | pending | ready | refreshing | errored`, the last-good `value`, a `hasValue` flag, the `error`, a `loading` flag (`state === 'pending'` only), a `match()` dispatcher, and a `refresh()` method.
 
 ```tsx code preview live
 import { component, render, useData } from 'sigx';
@@ -62,7 +62,7 @@ The fetcher receives the resolved key as its first argument and an `AbortSignal`
 
 ### match — the value-first render
 
-`match()` is the type-safe way to render every state at once. The `ready` arm is the only route to a non-null `T`:
+`match()` is the type-safe way to render every state at once. The `ready` arm is the only route to a **present** `T`:
 
 | Arm | When | Notes |
 |---|---|---|
@@ -71,7 +71,36 @@ The fetcher receives the resolved key as its first argument and an `AbortSignal`
 | `error(e, retry, stale)` | fetch failed | `stale` is the last-good value (for "keep content + toast"); omitted ⇒ bubbles to an [error scope](/core/docs/error-handling) |
 | `ready(value)` | the happy path | **required** |
 
-You never have to use `match` — `state`, `value`, `error` and `loading` are plain reactive reads — but it keeps the four states exhaustive and the success type non-null.
+You never have to use `match` — `state`, `value`, `error` and `loading` are plain reactive reads — but it keeps the four states exhaustive.
+
+### Presence is not the value
+
+`value` is not a presence signal. A fetch that legitimately resolves `null` — a
+"not found" read — has a value, and `ready` is the correct arm for it. Presence
+is `state` (`'ready'` or `'refreshing'`) or the `hasValue` flag:
+
+```tsx code
+const profile = useData(() => ['profile', props.id], loadProfile);
+
+// A nullable T reaches `ready` with null, and stays there across a refresh.
+profile.match({
+    pending: () => <Skeleton />,
+    ready: (p) => p ? <Profile data={p} /> : <p>No profile yet</p>,
+});
+
+// The flag, when you're reading the cell directly rather than matching.
+if (profile.hasValue) { /* value is what the fetcher returned, null included */ }
+```
+
+Because presence is tracked separately, a cell holding `null` moves to
+`refreshing` on `refresh()` rather than back to `pending`, so the content on
+screen survives a background revalidate.
+
+`hasValue` is on every `AsyncState` — `useData` cells, [`@sigx/cache`](/core/packages/cache/overview) cells, `all()` and SSR-side state.
+
+There is no need to wrap a nullable result in an envelope to survive SSR
+transfer. The `__SIGX_ASYNC__` transfer is presence-based — own-key membership —
+so a transferred `null` or `undefined` round-trips as a hit.
 
 ### Reactive keys
 
@@ -152,6 +181,29 @@ const post = useData(() => [getPost, props.id]);   // re-runs when props.id chan
 The build stamps each server function with a stable key derived from its id and name, so these reads are SSR-transferable and deduped just like string-keyed ones. (Move a function between files without pinning an explicit `id` and its key changes — set `id` on anything you invalidate by reference.)
 
 To refresh a server-function read after a write, declare what it invalidates **by reference** — a bare server-function reference prefix-matches every parameterized read of it, and the same declaration drives single-flight refresh of the server boundaries that rendered it. That declaration can live on the server function's own [options](/server/packages/server/usage) (its `invalidates`, which runs on every transport) or on a client action via [`@sigx/cache`](/core/packages/cache/overview); with neither, refresh the read explicitly with `.refresh()` (below).
+
+### What invalidates reaches
+
+An `invalidates` pattern matches a read's **canonical key**, and that is the
+whole rule. A pattern is an exact key string, a tuple prefix, or a bare
+server-function reference that matches every read of that function:
+
+```ts
+export const addItem = serverFn({
+    input: ItemInput,
+    handler,
+    invalidates: () => [getCart],        // every useData(getCart) read
+});
+```
+
+Every mounted `useData` read whose key matches is refetched — a read needs no
+`cache` option to be reachable, and no cache pack has to be installed. A pattern
+that matches nothing warns in development rather than failing silently.
+
+Invalidation also drops matching keys from the `__SIGX_ASYNC__` transfer blob.
+Keys transferred from SSR live for the page's lifetime and a fresh mount restores
+from them as `ready` without fetching, so clearing them is what makes leaving a
+route and coming back show the post-mutation value.
 
 ## useAction
 
@@ -247,7 +299,7 @@ The server side of keyed data loading is owned by `@sigx/server-renderer`'s docu
 
 ## Caching
 
-Everything above is core's *mechanism* — keyed reads, dedup, SSR transfer. Freshness and retention are **policy**, and policy lives in a pack. Add [`@sigx/cache`](/core/packages/cache/overview) and the same `useData`/`useAction` gain a `cache` option: `staleTime`, focus and interval revalidation, `keepPreviousData`, cache-aware `invalidate()` and optimistic `mutate()` — one plugin, no change to your call sites.
+Everything above is core's *mechanism* — keyed reads, dedup, SSR transfer, and key-addressable refresh. Freshness and retention are **policy**, and policy lives in a pack. Add [`@sigx/cache`](/core/packages/cache/overview) and the same `useData`/`useAction` gain a `cache` option: `staleTime`, focus and interval revalidation, `keepPreviousData`, cache-aware `invalidate()` and optimistic `mutate()` — one plugin, no change to your call sites.
 
 ```tsx
 const user = useData('user', fetchUser, {

@@ -16,7 +16,7 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 ## Why it exists
 
-SignalX's async is [value-first](/core/docs/data-loading): `useData` returns reactive state you render through `.match()`, not a promise you throw to a wrapper. Core ships the *mechanism* — keyed reads, deduplication, SSR transfer — and deliberately stops there. Everything about **policy** — how long a value stays fresh, when to revalidate, how long to keep it after the last consumer leaves — lives in a pack.
+SignalX's async is [value-first](/core/docs/data-loading): `useData` returns reactive state you render through `.match()`, not a promise you throw to a wrapper. Core ships the *mechanism* — keyed reads, deduplication, SSR transfer, and key-addressable refresh — and deliberately stops there. Everything about **policy** — how long a value stays fresh, when to revalidate, how long to keep it after the last consumer leaves — lives in a pack.
 
 `@sigx/cache` is that pack. It rides core's async-engine seam (the `rfc-async` §7 contract), so it's a drop-in equal of any third-party pack with no privileged access. Installing it changes one line, not your components:
 
@@ -45,14 +45,14 @@ user.mutate((u) => ({ ...u, name }));   // optimistic write-through
 | `gcTime` | Entries are retained after the last consumer unmounts (default 5 minutes) — navigating back is instant. |
 | `revalidateOnFocus` / `revalidateOnInterval` | Mounted reads refetch on window focus/visibility, or on a timer. |
 | `keepPreviousData` | Across a key change with nothing cached yet, the previous value keeps rendering instead of resetting to `pending` — pagination without skeleton flashes. |
-| `invalidate()` | Drop freshness and refetch for every mounted consumer. Actions can invalidate exact keys or tuple prefixes. |
+| `invalidate()` | Drop an entry's **freshness** and refetch for every mounted consumer. Actions can invalidate exact keys or tuple prefixes. |
 | `mutate()` / `optimistic` | Write through the cache immediately; a failed action rolls back, unless something newer wrote in the meantime. |
 
 ## What it inherits, not invents
 
 The pack is additive — it never changes the rules you already rely on:
 
-- Reads and actions **without** a `cache` option keep core's default-engine behavior verbatim (the pack delegates to it).
+- Reads and actions **without** a `cache` option keep core's default-engine behavior verbatim (the pack delegates to it) — including invalidation, which is core's own key-addressable refresh and reaches an uncached read just the same. What the pack adds on top is freshness, `staleTime` and retention.
 - Keys are core's canonical identities — strings, or tuples as canonical JSON — so the cache store and core's SSR blob speak the same language.
 - **SSR and hydration**: the pack adopts `window.__SIGX_ASYNC__` as its *initial* cache state, so server-fetched values hydrate as fresh entries and nothing refetches on load. Server rendering itself is untouched — the SSR provider seam outranks any engine.
 - Core's pinned guarantees hold: `loading === (state === 'pending')`, value and error are mutually exclusive, `refresh()` / `run()` never reject.
