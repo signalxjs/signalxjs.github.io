@@ -86,6 +86,56 @@ batch(() => {
 console.log('Outer batch complete - effect ran once!');
 ```
 
+## Enumerating Reactive Objects
+
+Enumerating a reactive object inside an effect or a computed subscribes to its
+**key set**, so a key appearing or disappearing re-runs the reader. That covers
+`Object.keys()`, `for…in`, object spread and rest destructuring:
+
+```tsx code
+const state = signal<Record<string, number>>({ a: 1 });
+
+effect(() => {
+    console.log(Object.keys(state).join(', '));
+});
+
+state.b = 2;      // re-runs — the key set changed
+delete state.a;   // re-runs — so does removal
+```
+
+The key-set subscription is **on top of** the per-key ones, which is what makes
+the two enumeration styles differ:
+
+- `Object.keys()` reads no values, so it depends on the key set alone. Changing
+  `state.a` from `1` to `2` doesn't re-run it.
+- A spread copies every value, so it depends on the key set *and* every key —
+  it re-runs when any of them changes.
+
+`'x' in state` subscribes to the same per-key dependency a read of `state.x`
+would, so presence and value always agree.
+
+Arrays key on `length` rather than a separate iteration dependency, since an
+index write already triggers `length`. Maps and Sets have always tracked their
+own iteration and `.size`.
+
+Plain property access is unaffected: `state.foo` never goes through the traps
+that enumeration uses, so the common path costs nothing extra.
+
+### Bulk Key Insertion
+
+Because each new key re-runs every reader that enumerates the object, adding
+keys one at a time is quadratic. Wrap the loop in `batch()`:
+
+```tsx code
+// One re-run, not one per key.
+batch(() => {
+    for (const [key, value] of entries) state[key] = value;
+});
+```
+
+This is worth knowing about any object something enumerates for a side effect —
+it now runs more often than a reader that only touched individual keys.
+
 ## Reading Without Tracking
 
 Use `untrack()` to read signal values without creating a dependency:

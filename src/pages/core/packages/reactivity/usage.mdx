@@ -53,6 +53,39 @@ user.$set({ name: 'Carol', tags: [] }); // logs: Carol (0)
 
 Nested objects become reactive lazily on first access, and array mutator methods like `push`, `splice`, and `sort` are batched automatically. Note that exotic built-ins such as `Date` and `RegExp` are returned unwrapped and are not reactive.
 
+## Enumerating a reactive object
+
+Enumeration inside an effect or computed — `Object.keys()`, `for…in`, spread,
+rest destructuring — subscribes to the object's **key set**, so adding or
+deleting a key re-runs the reader:
+
+```ts
+import { signal, effect, batch } from '@sigx/reactivity';
+
+const config = signal<Record<string, string>>({ theme: 'dark' });
+
+effect(() => console.log(Object.keys(config).length));
+// logs: 1
+
+config.locale = 'sv';   // logs: 2
+delete config.theme;    // logs: 1
+```
+
+The key-set dependency sits alongside the per-key ones. `Object.keys()` reads no
+values, so it re-runs only when the key set changes; a spread copies every value,
+so it re-runs on a value change too. `'x' in obj` subscribes to the same
+dependency `obj.x` would.
+
+Arrays key on `length` instead, and Maps and Sets keep their own iteration and
+`.size` tracking. Since every inserted key notifies enumerating readers, bulk
+insertion belongs in a `batch`:
+
+```ts
+batch(() => {
+    for (const [key, value] of entries) config[key] = value;
+});
+```
+
 ## Destructuring without losing reactivity
 
 Destructuring a reactive object snapshots its values — `const { name } = user` is just a plain string afterwards. Use `toSignal` (one property) or `toSignals` (every property) to get `{ value }` views that read and write through to the source:
