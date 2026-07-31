@@ -44,6 +44,78 @@ export function createApp(url: string) {
 
 The `sigxResume()` transform from `@sigx/vite/resume` produces the manifest and the delegation loader entry; the browser loads only that loader until an interaction upgrades a boundary.
 
+## The client half
+
+There are two postures, and picking the wrong one fails silently — so pick
+deliberately.
+
+### Coexisting with a hydrated app
+
+The common case: an app that has a root — a shell, a router, ordinary
+interactive components — and *also* wants some resumable components on the page.
+Install the plugin on the **server** app as above, and on the client import only
+the generated loader entry:
+
+```tsx
+// src/entry-client.tsx
+import { defineApp } from 'sigx';
+import 'virtual:sigx-resume/entry';   // the delegation loader — that's it
+import { App } from './App';
+
+const app = defineApp(<App />);
+app.hydrate(document.getElementById('app')!);
+```
+
+Nothing else is needed, and that's the point. `hydrate()` walks the root as
+usual and **skips** resume boundaries on the way past — the server plugin
+records them `hydrate: 'never'` — while everything around them hydrates
+normally. The loader wakes a boundary on first interaction.
+
+Adding `app.use(resumePlugin())` before `hydrate()` is harmless but unnecessary:
+on the client the plugin only registers the pack's DI provides, and none of the
+wake-on-interaction behaviour depends on it.
+
+### App-less resumable pages
+
+A page whose entire bootstrap is the loader entry: no root app and no hydration
+walk, so the browser downloads little more than the loader itself. There's
+nothing to configure — just don't create an app.
+
+If you *do* have an app and deliberately want no root walk (the islands
+posture), ask for it:
+
+```ts
+app.use(resumePlugin({ boundaries: 'explicit' }));
+```
+
+That mode takes `hydrate()` down the no-root-walk path, so it schedules the
+boundary table and returns. Since every resume record is `hydrate: 'never'`,
+combining it with a root app you expected to hydrate leaves a dead shell — which
+is why it's opt-in rather than the default.
+
+## Progressive enhancement and `form: true`
+
+A [server function](/server/packages/server/usage) marked `form: true` gets its
+native `action` stamped by the resume extractor, so the stamping reaches only
+files matching `sigxResume()`'s `include` **and** components that extract in
+resume mode. A `<form>` anywhere else still submits through the server function
+as RPC, once its component is running — hydrated, or resumed on interaction — it
+just has no native no-JS fallback to fall back to before then.
+
+The build warns when a `form: true` `<form>` will never be stamped, either
+because its file is outside `include` or because the component fell back to
+hydrate mode.
+
+## What makes a boundary unrefreshable
+
+A boundary is stamped `refreshable: false` when its props snapshot can't
+reproduce the render. Dropped event handlers are forgiven — they never shape
+server HTML — and the rule is **an `on*` prop whose value is a function**,
+whatever its spelling: `onclick` counts exactly as `onClick` does.
+
+An `on`-prefixed *data* prop that the snapshot can't carry is a different thing,
+and correctly still counts as dropped state.
+
 ## Single-flight boundary refresh
 
 To let a mutation update the server-rendered boundaries it invalidated, build a refresher with `createBoundaryRefresh` and hand it to your server-function request handler as its `renderBoundaries` option:
