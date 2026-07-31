@@ -298,6 +298,51 @@ render(
 );
 ```
 
+#### Two ways to fill a scoped slot
+
+A function passed as **children** fills the default slot and receives the same
+scoped props. The two forms are equivalent:
+
+```tsx code
+// As a function child
+<Row>{({ active }) => <span>{active ? 'on' : 'off'}</span>}</Row>
+
+// As a `slots` prop
+<Row slots={{ default: ({ active }) => <span>{active ? 'on' : 'off'}</span> }} />
+```
+
+The function child is what makes the `asChild` render-prop pattern work — a
+component that owns behaviour and hands the caller its state, letting the caller
+decide the markup:
+
+```tsx code
+import { component, type Define } from 'sigx';
+
+type ToggleProps = Define.Slot<'default', { on: boolean; toggle: () => void }>;
+
+const Toggle = component<ToggleProps>(({ signal, slots }) => {
+    const state = signal({ on: false });
+    const toggle = () => state.on = !state.on;
+    return () => slots.default?.({ on: state.on, toggle });
+});
+
+// The caller supplies the element.
+<Toggle>
+    {({ on, toggle }) => (
+        <button onClick={toggle} aria-pressed={on}>{on ? 'On' : 'Off'}</button>
+    )}
+</Toggle>
+```
+
+The function is invoked once per accessor call, inside the consumer's render, so
+reactivity is preserved — and the client and SSR agree, keeping hydration in
+step. A fill returning `null` or `undefined` is dropped and an array is
+flattened one level, exactly as the `slots`-prop form behaves.
+
+Element children with a `slot="x"` attribute are unaffected: a function only
+ever fills the default slot, because a function never satisfies the `slot`-prop
+test that routes a child to a named one.
+
 ### Slot presence
 
 A slot accessor is a **callable only when the parent actually provided content**;
