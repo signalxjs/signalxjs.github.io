@@ -61,6 +61,24 @@ In a bundled build the `virtual:sigx-app` artifacts and the
 `virtual:sigx-server-fns` registry **inline into the one worker file** — no
 separate chunks, one module graph.
 
+### Resolving preloads yourself
+
+`virtual:sigx-app`'s `assets` export is precomputed for every client entry. When
+a worker needs to resolve preloads itself — per route, or for an entry the build
+didn't know about — import `collectAssets` from `@sigx/vite/assets`:
+
+```ts
+import { collectAssets } from '@sigx/vite/assets';
+import { manifest } from 'virtual:sigx-app';
+
+const resolvedAssets = collectAssets(manifest, ['src/entry-client.tsx']);
+```
+
+That is the entry to reach for on workerd: it imports nothing at all, with no
+`node:` builtins and no `process`. `@sigx/vite/ssr` re-exports the same function,
+but it also carries the dev request handler, which imports `node:fs/promises` and
+`node:path` at module top level — fine on Node, unusable in a worker.
+
 ## wrangler.jsonc — written once, validated after
 
 `generate()` writes a starter config iff absent (name from your package.json,

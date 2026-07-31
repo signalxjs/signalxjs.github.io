@@ -105,7 +105,22 @@ import { template, assets, manifest, islandsManifest, resumeManifest }
 | `islandsManifest` | the islands pack manifest, or `undefined` |
 | `resumeManifest` | the resume pack manifest, or `undefined` |
 
-It is a **build artifact**: importing it under `vite dev` throws, pointing you at
+To resolve preloads yourself instead — per route, say — import `collectAssets`
+from **`@sigx/vite/assets`**:
+
+```ts
+import { collectAssets } from '@sigx/vite/assets';
+import { manifest } from 'virtual:sigx-app';
+
+const resolvedAssets = collectAssets(manifest, ['src/entry-client.tsx']);
+```
+
+That entry imports nothing at all — no `node:` builtins, no `process` — so it
+runs on workerd, Deno and Bun. Keep `@sigx/vite/ssr` for the dev half
+(`createDevRequestHandler`), which is Node-only by nature; it re-exports
+`collectAssets` as well, so an existing import keeps working.
+
+`virtual:sigx-app` is a **build artifact**: importing it under `vite dev` throws, pointing you at
 `createDevRequestHandler` (dev resolves template and assets live). The narrower
 sibling `virtual:sigx-manifests` exports just the two pack manifests and resolves
 in every mode — that's the one your `entry-server` app factory imports to
