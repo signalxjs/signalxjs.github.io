@@ -240,6 +240,10 @@ When a component receives a `model` binding, SignalX provides a `Model<T>` objec
 
 For named models like `model:title`, you get `props.title.value` and `props.title`.
 
+Model props are available during **server** setup too, so `props.model.value`
+reads the bound value inside `renderToString` exactly as it does on the client.
+A component taking a model needs no SSR guard around it.
+
 ### Why Model Objects?
 
 The `Model<T>` object on props provides several benefits:
