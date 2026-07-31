@@ -111,7 +111,7 @@ mechanism, and the pack layers freshness on top of it. So a read written without
 any cache policy is still refetched:
 
 ```tsx
-const users = useData(['users', page], loadUsers);   // no cache option
+const users = useData(() => ['users', page], loadUsers);   // no cache option
 ```
 
 Don't add `cache: { staleTime: … }` to a read just to make invalidation fire —
