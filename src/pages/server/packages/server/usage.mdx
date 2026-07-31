@@ -132,6 +132,175 @@ callable takes **no** arguments — you call it as `fn()`, not `fn(undefined)`.
 | `cache?` | Marks a side-effect-free GET read (`{ maxAge, staleWhileRevalidate?, public?, sMaxAge? }`) and emits `Cache-Control`. Mutually exclusive with `invalidates`. |
 | `form?` | `true` marks a progressive-enhancement form target (accepts form-encoded bodies, does a 303 redirect). Must be the literal `true`, and **requires `input`** — a form target without an input schema is a definition-time error. Mutually exclusive with `cache`. |
 | `id?` | An explicit, stable string id that pins the route across file moves/renames. |
+| `unguarded?` | The literal `true`, declaring the function deliberately open. Read statically by the build's `requireGuards` check; runtime-inert. |
+
+## Guards are required
+
+Every server function is a public endpoint reachable on every transport, so the
+build requires each one to say what guards it. `sigxServer({ requireGuards })` is
+**on by default**: an extracted `serverFn` or `serverStream` must either derive
+from a `serverFnPreset({ use })`, declare its own `use: [...]`, or declare
+`unguarded: true`. A bare one fails the build, naming all three remedies with
+file and line.
+
+```js
+sigxServer()                             // the check is on
+sigxServer({ requireGuards: 'warn' })    // list them without failing
+sigxServer({ requireGuards: false })     // opt out deliberately
+```
+
+The declaration channel is the **options form**, so a direct-form function that
+needs to declare converts:
+
+```ts
+// before — no channel to declare on
+export const health = serverFn(async () => 'ok');
+
+// after
+export const health = serverFn({
+  unguarded: true,
+  handler: async () => 'ok',
+});
+```
+
+`unguarded` is a word rather than an omission on purpose: "I meant this to be
+public" and "I forgot" must not look identical. It also makes the app's open
+surface greppable — `grep -rn unguarded --include='*.server.ts' src/` prints
+every endpoint that deliberately has no chain.
+
+```ts
+export const submitPat = serverFn({
+  unguarded: true,          // deliberate: this IS the sign-in
+  form: true,
+  input: PatSchema,
+  handler: async (rq, pat) => exchangeToken(pat),
+});
+```
+
+Declaring `unguarded: true` on a preset-derived function throws at definition
+time — the preset's guards still run, so the claim would be false.
+
+Two limits worth stating plainly:
+
+- **It checks declaration, not correctness.** `use: [logRequest]` passes. What
+  the check buys is turning "silently unguarded" into a list somebody wrote.
+- **A module the build never analyzes ships unchecked.** A `*.server.ts` outside
+  `include`/`scan` is not extracted, so no rule reaches it. The build marks what
+  it *did* check and development warns when an unmarked function is called, so
+  absence shows up as an alarm rather than a false pass — but a production build
+  containing an unanalyzed module stays unguarded. Add its directory to `scan`.
+
+## Sharing a guard chain
+
+A `use:` chain is the only mechanism that runs on **every** transport, RPC and
+in-process SSR calls alike — the endpoint's `guard` option is wire-only. That
+makes it the right place for app-wide auth, and `serverFnPreset({ use })` is how
+you avoid repeating it on every function. It returns `serverFn`'s exact
+overloads bound to the chain, plus a `serverStream` twin at `.stream`:
+
+```ts
+// src/guards.ts
+export const appGuards = [requireUser];
+
+// src/board.server.ts
+import { serverFnPreset } from '@sigx/server';
+import { appGuards } from './guards';
+
+const authed = serverFnPreset({ use: appGuards });
+
+export const boardIssues = authed({ input: BoardKey, handler });
+export const addItem     = authed(async (rq, sku: string, qty: number) => …);
+export const feed        = authed.stream(async function* (rq) { … });
+```
+
+Semantics to know:
+
+- Preset guards run **before** the function's own `use:`.
+- The array is **copied at definition** — mutating it afterwards changes
+  nothing. A policy the app can push to later isn't a policy.
+- It is **not a builder**. A preset carries `use` only and cannot derive another
+  preset; `preset.stream` is a second factory over the same array, not a chain.
+- Statically-read options — `id`, `cache`, `invalidates`, `form` — stay at the
+  call site and behave exactly as they do on a plain `serverFn`.
+
+**Share the guard array across modules, not the preset.** The build analyzes one
+file at a time, so a preset imported from elsewhere is invisible where it's used:
+exporting one is a build warning, and using one in the inline
+(component-file) form is a build error.
+
+Editing the shared chain re-mints the hashed symbols of every function derived
+from it, since the preset's source is part of their content hash — the same
+thing editing a function body does. Stable symbols (`<id>#<name>`) never move,
+so installed clients keep their routes.
+
+> **Note:** a spread inside a `serverFn({ ... })` options literal hides `id`,
+> `cache`, `invalidates` and `form` from the static readers — which silently
+> disables single-flight boundary refresh. The build warns about it.
+
+## Per-request values
+
+A value derived from the request — a decoded session, an authenticated API
+client, a request id — usually needs to be shared by a guard, a handler, and
+every other server function the same render calls. `perRequest(setup)` computes
+it at most once per request and hands back the accessor:
+
+```ts
+// src/session.server.ts
+import { perRequest, ServerFnError } from '@sigx/server';
+
+export const session = perRequest(async (rq) =>
+  decodeSession(rq.request.headers.get('cookie')));
+
+export const github = perRequest(async (rq) => {
+  const s = await session(rq);          // the SAME memoized promise
+  if (!s) throw new ServerFnError(401, 'Sign in');
+  return createGitHubClient(s.token);
+});
+
+// src/guards.ts
+export const requireUser: ServerFnGuard = async (rq) => {
+  if (!(await session(rq))) throw new ServerFnError(401, 'Sign in');
+};
+
+// src/board.server.ts
+const authed = serverFnPreset({ use: [requireUser] });
+
+export const boardIssues = authed({
+  input: BoardKey,
+  handler: async (rq, key) => (await github(rq)).issues(key),  // no decode, no cast
+});
+```
+
+Without this, a page with five SSR-enabled `useData` cells decodes the same
+session five times — cookie parse, signature verify, database read, decrypt, per
+call.
+
+- **The accessor takes `rq`.** There is no ambient no-argument form; the context
+  stays a parameter, which is the rule `rq` itself follows.
+- **Values compose by calling each other.** There is no composition API.
+- **The memoized promise is shared**, so a guard and a handler racing on first
+  touch get one in-flight decode.
+- **A failed setup stays failed for that request** — retrying a failed decode
+  once per cell would be a footgun. A setup that resolves itself throws
+  "circular request value".
+
+`perRequest` and `rq.locals` are two faces of the same store, not two equals.
+`rq.locals` is the untyped escape hatch, for a value too small or transient to
+name. A per-request value is the recommended hand-off: it types itself from its
+own setup, and the accessor is the only way to reach it, so there is nothing to
+cast.
+
+There is no disposal in v1, deliberately. On WinterCG runtimes the render's
+scope settles at the shell, so "released once the response has flushed" would
+fire mid-stream; teardown belongs to the app's own handler for now.
+
+Where `AsyncLocalStorage` is unavailable — workerd without `nodejs_compat` —
+there is no scope to share, so a value is computed per invocation. The guards
+and handler of one call still share it; nothing throws and nothing splits.
+
+With `.with({ context })`, passing the **same** `{ request, locals }` object
+shares one store across explicit calls. A fresh `Request` per call is its own
+store, which is how a test isolates calls.
 
 ## The request context
 
@@ -174,6 +343,23 @@ Supply a request when you need one:
   `@sigx/server/node` (backed by `AsyncLocalStorage`). The Node and edge request
   handlers already open this scope, so most apps get an ambient context for free
   and never call either API.
+
+The ambient form also takes a source object, which is how you pre-seed a render:
+
+```ts
+runWithServerFnContext({ request, locals: { user } }, () => renderHandler(…));
+```
+
+Nested scopes for the **same request** merge rather than replace, so the seed
+survives the inner scope a document handler opens with the raw request: the
+inner source's fields win where it supplies them, and the enclosing `locals`
+stays the request's store. "Same request" means same URL and method — protocol
+is excluded, so a TLS-terminating proxy doesn't split one request in two.
+
+A source naming no request always merges, which makes
+`runWithServerFnContext({ locals }, …)` the simplest pre-seed. A genuinely
+different request gets its own store, plus a once-per-process development notice
+naming both. To isolate a nested render deliberately, hand it its own `locals`.
 
 On the client, `.with()` is ignored (with a dev warning) — context is a
 server-only concept.
@@ -231,9 +417,27 @@ return () => <p>{reply.text}</p>;
 
 Streams are lazy — the request starts on the first iteration, and a consumer
 that `break`s or returns early aborts the fetch and runs the generator's
-`finally`. There is no options form for `serverStream`; validate arguments at the
-top of the generator (any Standard Schema validates a value standalone). Response
-status and headers freeze at the first `yield`.
+`finally`. Response status and headers freeze at the first `yield`.
+
+`serverStream` has the same two authoring forms as `serverFn`. The options form
+carries `use`, `unguarded` and `handler`:
+
+```ts
+export const feed = serverStream({
+  use: [requireUser],
+  async *handler(rq, room: string) {
+    for await (const msg of subscribe(room, rq.abortSignal)) yield msg;
+  },
+});
+```
+
+There is deliberately no `input`: a stream takes many arguments and has no
+single-input shape to validate. Validate at the top of the generator — any
+Standard Schema validates a value standalone.
+
+A guard veto surfaces on the **first pull** rather than at the call, which is
+where the wire path's pre-first-yield errors surface too. Streams run the same
+middleware pipeline in-process during SSR as they do over the wire.
 
 ## Next steps
 
