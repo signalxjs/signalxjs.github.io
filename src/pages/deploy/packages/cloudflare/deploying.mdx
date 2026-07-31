@@ -71,7 +71,7 @@ didn't know about — import `collectAssets` from `@sigx/vite/assets`:
 import { collectAssets } from '@sigx/vite/assets';
 import { manifest } from 'virtual:sigx-app';
 
-const assets = collectAssets(manifest, ['src/entry-client.tsx']);
+const resolvedAssets = collectAssets(manifest, ['src/entry-client.tsx']);
 ```
 
 That is the entry to reach for on workerd: it imports nothing at all, with no

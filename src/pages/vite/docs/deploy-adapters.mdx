@@ -110,8 +110,9 @@ from **`@sigx/vite/assets`**:
 
 ```ts
 import { collectAssets } from '@sigx/vite/assets';
+import { manifest } from 'virtual:sigx-app';
 
-const assets = collectAssets(manifest, ['src/entry-client.tsx']);
+const resolvedAssets = collectAssets(manifest, ['src/entry-client.tsx']);
 ```
 
 That entry imports nothing at all — no `node:` builtins, no `process` — so it
