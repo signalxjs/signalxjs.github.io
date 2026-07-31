@@ -32,7 +32,25 @@ function serverFn<S = void, R = unknown>(
 ): ServerFnCallable<[S] extends [void] ? [] : [S], Awaited<R>>;
 ```
 
-The client stub is `(...args) => Promise<R>` — the context is server-only and never passed by callers. `ServerFnOptions` carries `input` (a Standard Schema), `use` (guards), `handler`, `invalidates`, `cache`, `form` and `id` — see [Authoring](/server/packages/server/usage#options-form).
+The client stub is `(...args) => Promise<R>` — the context is server-only and never passed by callers. `ServerFnOptions` carries `input` (a Standard Schema), `use` (guards), `handler`, `invalidates`, `cache`, `form`, `id` and `unguarded` — see [Authoring](/server/packages/server/usage#options-form).
+
+### serverFnPreset
+
+```ts
+type ServerFnPreset = typeof serverFn & { stream: typeof serverStream };
+
+function serverFnPreset(base: { use: ServerFnGuard[] }): ServerFnPreset;
+```
+
+Returns `serverFn`'s exact overloads bound to a shared guard chain, plus the `serverStream` twin at `.stream`. The array is copied at definition; preset guards run before the function's own `use:`. **Same-module only** — exporting a preset is a build warning and using one in the inline form is a build error, so share the guard *array* across modules. See [Sharing a guard chain](/server/packages/server/usage#sharing-a-guard-chain).
+
+### perRequest
+
+```ts
+function perRequest<T>(setup: (rq: ServerFnContext) => T): (rq: ServerFnContext) => T;
+```
+
+Declares a value derived from the request and computed at most once per request, shared by every guard, handler and nested in-process call in that flow. Returns the accessor, which is the only way to reach the value; values compose by calling each other. A rejected setup stays rejected for the request. See [Per-request values](/server/packages/server/usage#per-request-values).
 
 ### serverStream
 
@@ -40,9 +58,19 @@ The client stub is `(...args) => Promise<R>` — the context is server-only and 
 function serverStream<A extends unknown[], T>(
   impl: (rq: ServerFnContext, ...args: A) => AsyncGenerator<T>
 ): ((...args: A) => AsyncIterable<T>) & WrappedServerFn;
+
+function serverStream<A extends unknown[], T>(
+  options: ServerStreamOptions<A, T>
+): ((...args: A) => AsyncIterable<T>) & WrappedServerFn;
+
+interface ServerStreamOptions<A extends unknown[], T> {
+  use?: ServerFnGuard[];
+  unguarded?: true;
+  handler(rq: ServerFnContext, ...args: A): AsyncGenerator<T>;
+}
 ```
 
-Streams yields as NDJSON; a string stream plugs into [`useStream`](/core/docs/data-loading).
+Streams yield as NDJSON; a string stream plugs into [`useStream`](/core/docs/data-loading). The options form has no `input` — validate at the top of the generator. A guard veto surfaces on the first pull.
 
 ### ServerFnContext
 
@@ -71,7 +99,7 @@ function isServerFnError(error: unknown): error is ServerFnError;
 
 ## Runtime entries
 
-- **`@sigx/server/node`** — `createServerFnHandler(options)` (a connect-style middleware) and `runWithServerFnContext(request, fn)`.
+- **`@sigx/server/node`** — `createServerFnHandler(options)` (a connect-style middleware) and `runWithServerFnContext(source, fn)`, where `source` is a `Request` or a partial `{ request?, locals? }`. Nested scopes for the same request (same URL and method) merge, so `runWithServerFnContext({ locals }, …)` pre-seeds a render that opens its own inner scope.
 - **`@sigx/server/server`** — WinterCG/edge: `handleServerFnRequest(request, options)`, `matchesServerFn(request, base?)`.
 - **`@sigx/server/plugin`** — the app-plugin face: `serverPlugin({ transport?, types? })`, `registerWireTypeHandlers(handlers)`. The `types` option registers [`@sigx/serialize`](/server/packages/serialize/overview) handlers for the RPC wire **and** the SSR state registry in one call.
 

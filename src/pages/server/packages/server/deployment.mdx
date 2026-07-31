@@ -32,8 +32,17 @@ export default defineConfig({
 
 `sigxServer()` options: `include` (default `**/*.server.{ts,tsx}`), `exclude`,
 `base` (default `/_sigx/fn`), `guard` (a root-relative module path applied to
-every function), `origin` and `maxBodyBytes` — the same security knobs described
-below, applied in dev too.
+every function), `origin`, `maxBodyBytes` and `requireGuards` — the same security
+knobs described below, applied in dev too.
+
+`requireGuards` defaults to `true` and fails the build when an extracted
+`serverFn` or `serverStream` declares no guard chain. Set it to `'warn'` to list
+offenders without failing, or `false` to opt out. See
+[Guards are required](/server/packages/server/usage#guards-are-required).
+
+Note the division of labour: `guard` is a **wire-only** check the endpoint runs,
+so it can't cover in-process SSR calls. A function's own `use:` chain is what
+runs on every transport, which is why `requireGuards` asks for that one.
 
 ## Production (Node)
 
