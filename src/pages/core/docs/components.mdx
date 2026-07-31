@@ -108,6 +108,134 @@ const Button = component<ButtonProps>(({ props, slots }) => {
 render(<Button variant="primary">Click Me</Button>, "#sandbox");
 ```
 
+### Forwarding Props
+
+A component that wraps an element usually wants the consumer's leftover props to
+reach that element. That's plain destructuring — take the props the component
+handles itself, spread the rest:
+
+```tsx code
+const Button = component<ButtonProps>((ctx) => {
+    return () => {
+        const { variant, ...rest } = ctx.props;
+        return <button class={`btn btn-${variant ?? 'primary'}`} {...rest} />;
+    };
+});
+```
+
+`ctx.props` carries the props the parent declared and nothing else. `key` and
+`ref` are peeled off before setup runs — alongside `children`, `slots` and
+`$models` — because both are vnode-level concerns the renderer reads off the
+vnode directly. So the spread above can't bind the consumer's `ref` a second
+time with the element, and a spread onto a *child* can't stamp it with a key the
+author never wrote.
+
+At the element, framework-internal keys are skipped rather than rendered:
+`client:*` hydration directives and `Model`-valued props never become DOM
+attributes, on the client or in SSR output.
+
+Forwarding is reactive in both directions. A wrapper that spreads its props —
+`component((ctx) => () => <Child {...ctx.props} />)` — re-renders when the parent
+starts passing a **new** prop key, not only when a prop it already passed
+changes: enumerating a reactive object subscribes to its key set as well as to
+the individual keys. The same holds for rest destructuring forwarded onto an
+element.
+
+> **Note:** two spellings of one event on the same element — `onClick` from the
+> component and `onclick` arriving through a spread — resolve to the same
+> `'click'` listener slot, so whichever is patched last wins and the other never
+> runs. Development builds warn once per element when that happens.
+
+### Host Attributes
+
+A component accepts host attributes — `id`, `class`, `style`, `title`, `role`,
+`tabIndex`, `hidden`, `dir`, `lang`, the rest of the universal set, plus
+`data-*`, `aria-*` and the camelCase DOM handlers — when it declares
+`Define.Attrs`:
+
+```tsx code
+import { component, type Define } from 'sigx';
+
+type ButtonProps =
+    & Define.Prop<'variant', 'primary' | 'secondary'>
+    & Define.Attrs;
+```
+
+Declare it only if the component really does forward its leftover props to an
+element. The declaration is a promise to the consumer: a type that accepts
+`title` on a component that drops it is exactly the failure the opt-in exists to
+prevent.
+
+When the component declares a prop whose name collides with a host attribute,
+use `Define.WithAttrs<TOwn>` — the component's own declaration wins:
+
+```tsx code
+// `title` here is a heading, not the HTML tooltip attribute.
+type DialogProps = Define.WithAttrs<Define.Prop<'title', string, true>>;
+```
+
+Handlers are advertised in camelCase only. Both spellings reach the same DOM
+listener slot, so offering `onclick` alongside `onClick` in the type would
+advertise a collision.
+
+> **Note:** TypeScript exempts JSX attribute names that aren't valid identifiers
+> from excess-property checking, so `data-*` and `aria-*` compile on *any*
+> component whatever its props type says. No declaration can make those an
+> error — only forwarding them at runtime makes them work.
+
+### Combining Prop Sources
+
+A rest spread covers the common case, and needs no helper. What it can't do is
+*combine* two sources. A JSX spread is lowered by the compiler into a single
+object literal before the runtime sees anything, so in
+`<button {...rest} {...bag} />` later keys clobber earlier ones — if the consumer
+and the component both set `class`, one is lost.
+
+`mergeProps(...sources)` combines the four kinds of key that must not overwrite:
+
+| Key | How it combines |
+|---|---|
+| `class` / `className` | Concatenated in source order into one `class` |
+| `style` | Merged left-to-right into an object; string sources are parsed first |
+| `on*` handlers | Chained in source order, grouped by the event they resolve to, so `onClick` and `onclick` become one entry |
+| `ref` | Chained into one ref that feeds every source's ref |
+| everything else | Exact spread semantics — the last source with the key wins |
+
+Sources may be objects or zero-argument thunks, and the result resolves on read,
+so thunks stay reactive:
+
+```tsx code
+import { component, mergeProps, type Define } from 'sigx';
+
+type ButtonProps =
+    & Define.Prop<'variant', 'primary' | 'secondary'>
+    & Define.Slot<'default'>
+    & Define.Attrs;
+
+const Button = component<ButtonProps>((ctx) => {
+    const onActivate = () => console.log('activated');
+
+    const merged = mergeProps(
+        () => { const { variant: _v, ...rest } = ctx.props; return rest; },
+        () => ({ class: 'btn', onClick: onActivate })
+    );
+
+    return () => <button {...merged}>{ctx.slots.default?.()}</button>;
+});
+```
+
+Three things to get right:
+
+- **Call it once in setup**, as above. The derived `ref` and the chained
+  handlers are identity-cached, which a per-render call throws away — the
+  renderer then tears down and re-applies refs for nothing.
+- **It is not a defaults helper.** It replaces a spread and behaves like one,
+  so a later source's explicit `undefined` wins. Destructuring with defaults
+  already covers defaulting.
+- **Chaining can't express swallow.** A component that gates a consumer's
+  handler — dropping `onClick` while disabled — keeps destructuring it out and
+  calling it itself.
+
 ## Slots
 
 Slots allow parent components to inject content:

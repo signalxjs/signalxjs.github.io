@@ -201,6 +201,8 @@ Rules that trip up generators:
 - **Events**: declare with `Define.Event<'change', T>`, emit with `emit('change', value)`, parents listen with `onChange={...}` (camelCase `on` + capitalized event name).
 - **Two-way binding**: `<input model={() => state.name} />` — a thunk returning the property, not a value.
 - **Lifecycle** from the setup context: `onMounted(fn)`, `onUnmounted(fn)`, `onCreated(fn)`, `onUpdated(fn)`. Expose an API to the parent with `expose({...})` + `ref`.
+- **Host attributes on a component are an opt-in**: `id`, `class`, `style`, `title`, DOM handlers and friends are accepted only when the component declares `& Define.Attrs` and forwards its leftover props. On an intrinsic element they always work.
+- **Forwarding props**: `const { own, ...rest } = ctx.props` then `<el {...rest} />`. `ctx.props` never carries `key` or `ref`. To combine two sources without one clobbering the other (`class`, `style`, `on*`, `ref`), use `mergeProps(...sources)` — called once in setup, not per render.
 - **Multiple roots**: wrap in `<Fragment>` (or `<>...</>`).
 - **Keys**: give list items a stable `key` when mapping.
 
