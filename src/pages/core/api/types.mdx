@@ -326,6 +326,77 @@ formApi.submit();
 
 ---
 
+## Define.Attrs
+
+Opt a component into accepting host attributes.
+
+```tsx
+type Define.Attrs = ComponentAttributes;
+```
+
+`ComponentAttributes` is empty in `@sigx/runtime-core` and filled by the
+platform. On the web (`@sigx/runtime-dom`) it declares the universal HTML
+attributes — `id`, `class`, `className`, `style`, `title`, `role`, `tabIndex`,
+`hidden`, `inert`, `popover`, `dir`, `lang`, `slot`, `part`, `draggable`,
+`spellCheck`, `translate`, `autoFocus`, `accessKey`, `contentEditable`,
+`enterKeyHint`, `inputMode` — the `data-*` and `aria-*` patterns, and the DOM
+event handlers in camelCase.
+
+Declare it only on a component that forwards its leftover props to an element;
+the type is a promise the component has to keep.
+
+### Examples
+
+```tsx
+import { component, mergeProps, type Define } from 'sigx';
+
+type ButtonProps =
+    & Define.Prop<'variant', 'primary' | 'secondary'>
+    & Define.Attrs;
+
+const Button = component<ButtonProps>((ctx) => {
+    const merged = mergeProps(
+        () => { const { variant: _v, ...rest } = ctx.props; return rest; },
+        () => ({ class: 'btn' })
+    );
+    return () => <button {...merged}>{ctx.slots.default?.()}</button>;
+});
+
+<Button variant="primary" id="save" aria-label="Save" onClick={save} />
+```
+
+There is no index signature and no `on${string}` catch-all, so a typo in an
+attribute or handler name is still an error on an opted-in component.
+
+---
+
+## Define.WithAttrs
+
+`Define.Attrs` for a component that declares a prop of its own with the same
+name as a host attribute. The component's declaration wins.
+
+```tsx
+type Define.WithAttrs<TOwn> = TOwn & Omit<ComponentAttributes, keyof TOwn>;
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `TOwn` | `object` | The component's own definition types |
+
+### Examples
+
+```tsx
+// `title` here is a heading, not the HTML tooltip attribute.
+type DialogProps = Define.WithAttrs<
+    & Define.Prop<'title', string, true>
+    & Define.Slot<'default'>
+>;
+```
+
+---
+
 ## ComponentRef
 
 Extract the ref type from a component for typed refs.

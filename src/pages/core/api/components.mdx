@@ -364,6 +364,44 @@ function useStream(
 
 ## Helper Functions
 
+### mergeProps
+
+Combine several prop sources into one object, without the key collisions a JSX
+spread produces.
+
+```tsx
+type MergeSource =
+    | Record<string, any>
+    | (() => Record<string, any>)
+    | null
+    | undefined;
+
+function mergeProps(...sources: MergeSource[]): Record<string, any>;
+```
+
+| Key | How it combines |
+|---|---|
+| `class` / `className` | Concatenated in source order, emitted as `class` |
+| `style` | Merged into an object left-to-right; string sources are parsed |
+| `on*` handlers | Chained in source order, grouped by resolved event name |
+| `ref` | Chained into one ref feeding every source's ref |
+| everything else | Exact spread semantics — last source with the key wins, including an explicit `undefined` |
+
+Sources may be objects or zero-argument thunks; the result resolves on read, so
+thunk sources stay reactive. Call it **once in setup** — the derived `ref` and
+chained handlers are identity-cached, and a per-render call discards that cache.
+
+```tsx
+const merged = mergeProps(
+    () => { const { variant: _v, ...rest } = ctx.props; return rest; },
+    () => ({ class: 'btn', onClick: onActivate })
+);
+return () => <button {...merged}>{slots.default?.()}</button>;
+```
+
+See [Combining Prop Sources](/core/docs/components#combining-prop-sources) for
+the guide.
+
 ### supportsMoveBefore
 
 Check if browser supports state-preserving DOM moves.
