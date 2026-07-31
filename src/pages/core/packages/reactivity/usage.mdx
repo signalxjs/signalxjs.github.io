@@ -73,12 +73,12 @@ delete config.theme;    // logs: 1
 
 The key-set dependency sits alongside the per-key ones. `Object.keys()` reads no
 values, so it re-runs only when the key set changes; a spread copies every value,
-so it re-runs on a value change too. `'x' in obj` subscribes to the same
-dependency `obj.x` would.
+so it re-runs on a value change too. `'theme' in config` subscribes to the same
+dependency `config.theme` would.
 
-Arrays key on `length` instead, and Maps and Sets keep their own iteration and
-`.size` tracking. Since every inserted key notifies enumerating readers, bulk
-insertion belongs in a `batch`:
+Arrays carry their enumeration dependency on `length` instead, and Maps and Sets
+keep their own iteration and `.size` tracking. Since every inserted key notifies
+enumerating readers, bulk insertion belongs in a `batch`:
 
 ```ts
 batch(() => {

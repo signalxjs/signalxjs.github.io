@@ -114,12 +114,15 @@ the two enumeration styles differ:
 `'x' in state` subscribes to the same per-key dependency a read of `state.x`
 would, so presence and value always agree.
 
-Arrays key on `length` rather than a separate iteration dependency, since an
-index write already triggers `length`. Maps and Sets have always tracked their
-own iteration and `.size`.
+Arrays carry their enumeration dependency on `length` rather than a separate
+one, and every change to an array's key set is routed there — including the two
+cases where the key set moves but the length doesn't, `delete list[i]` and
+filling the hole it leaves. Maps and Sets have always tracked their own
+iteration and `.size`.
 
-Plain property access is unaffected: `state.foo` never goes through the traps
-that enumeration uses, so the common path costs nothing extra.
+Plain property access is unaffected. Reading `state.foo` goes through the proxy
+as it always has, but it never reaches the enumeration trap, so it creates no
+key-set dependency and the common path costs nothing extra.
 
 ### Bulk Key Insertion
 

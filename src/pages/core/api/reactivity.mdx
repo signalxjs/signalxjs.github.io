@@ -65,8 +65,8 @@ user.$set({ name: 'Bob', age: 25 });
 Enumerating an object proxy inside an effect or computed — `Object.keys()`,
 `for…in`, spread, rest destructuring — also subscribes to its key set, so adding
 or deleting a key re-runs the reader. `'x' in obj` subscribes to the same
-dependency `obj.x` does. Arrays key on `length`; Maps and Sets track iteration
-and `.size`. See [Enumerating Reactive
+dependency `obj.x` does. Arrays carry that dependency on `length`; Maps and Sets
+track iteration and `.size`. See [Enumerating Reactive
 Objects](/core/docs/advanced/reactivity#enumerating-reactive-objects).
 
 ---
