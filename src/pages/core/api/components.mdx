@@ -396,7 +396,7 @@ const merged = mergeProps(
     () => { const { variant: _v, ...rest } = ctx.props; return rest; },
     () => ({ class: 'btn', onClick: onActivate })
 );
-return () => <button {...merged}>{slots.default?.()}</button>;
+return () => <button {...merged}>{ctx.slots.default?.()}</button>;
 ```
 
 See [Combining Prop Sources](/core/docs/components#combining-prop-sources) for

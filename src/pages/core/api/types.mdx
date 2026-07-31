@@ -352,6 +352,7 @@ import { component, mergeProps, type Define } from 'sigx';
 
 type ButtonProps =
     & Define.Prop<'variant', 'primary' | 'secondary'>
+    & Define.Slot<'default'>
     & Define.Attrs;
 
 const Button = component<ButtonProps>((ctx) => {
