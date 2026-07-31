@@ -485,12 +485,18 @@ interface ComponentOptions {
 interface AsyncState<T> {
     readonly state: 'idle' | 'pending' | 'ready' | 'refreshing' | 'errored';
     readonly value: T | null;     // SWR last-good; kept across same-key refresh, cleared on key change
+    readonly hasValue: boolean;    // presence — a resolved null IS a value
     readonly error: Error | null;
     readonly loading: boolean;     // state === 'pending' ONLY (refresh reads state === 'refreshing')
     match<R>(arms: MatchArms<T, R>): R | undefined;
     refresh(): Promise<void>;      // re-run in place; NEVER rejects (failures land on .error)
 }
 ```
+
+`value` is not a presence signal: a fetch that legitimately resolves `null` has a
+value, and the cell stays `ready`. Read presence from `state` (`'ready'` or
+`'refreshing'`) or from `hasValue`, which is present on `useData` cells,
+`@sigx/cache` cells, `all()` and SSR-side state.
 
 ### MatchArms
 
@@ -499,7 +505,7 @@ interface MatchArms<T, R> {
     idle?: () => R;                                    // defaults to `pending`
     pending?: () => R;                                 // omitted ⇒ renders nothing
     error?: (e: Error, retry: () => void, stale: T | null) => R; // omitted ⇒ bubbles to errorScope / app onError
-    ready: (v: T) => R;                                // required — the only route to a non-null T
+    ready: (v: T) => R;                                // required — the only route to a present T
 }
 ```
 

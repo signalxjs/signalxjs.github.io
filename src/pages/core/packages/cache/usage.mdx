@@ -105,12 +105,28 @@ const save = useAction(saveUser, {
 const r = await save.run(draft);
 ```
 
+A declared pattern reaches **every mounted read whose canonical key matches**,
+not only the ones that carry a `cache` option — key-addressable refresh is core's
+mechanism, and the pack layers freshness on top of it. So a read written without
+any cache policy is still refetched:
+
+```tsx
+const users = useData(['users', page], loadUsers);   // no cache option
+```
+
+Don't add `cache: { staleTime: … }` to a read just to make invalidation fire —
+adding `cache: {}` forces a freshness decision the read may not want.
+
 Calling `invalidate()` by hand works too, when the trigger isn't an action:
 
 ```ts
 const user = useData('user', fetchUser, { cache: {} });
 user.invalidate();   // refetch this read everywhere it's mounted
 ```
+
+A cached `null` revalidates as `'refreshing'`, keeping the null on screen rather
+than falling back to a skeleton — presence is tracked separately from the value,
+so see [Presence is not the value](/core/docs/data-loading#presence-is-not-the-value).
 
 ## Optimistic updates: `mutate()` and `optimistic`
 
