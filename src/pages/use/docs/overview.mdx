@@ -70,7 +70,7 @@ npm install @sigx/use
 
 Throughout these docs, cross-platform composables show `from '@sigx/use'` and browser composables show `from '@sigx/use-web'` — but in a web app you can import both from `@sigx/use-web`.
 
-> **Peers.** Both packages peer-depend on `@sigx/reactivity` and `@sigx/runtime-core` `^0.13.0` (the `sigx` umbrella your app already runs on provides these). `@sigx/use-web` additionally peers `@sigx/use`. They never bundle their own copy of the core — a composable always shares the *same* reactive runtime as your components.
+> **Peers.** Both packages peer-depend on `@sigx/reactivity` and `@sigx/runtime-core` `^0.14.0` (the `sigx` umbrella your app already runs on provides these). `@sigx/use-web` additionally peers `@sigx/use`. They never bundle their own copy of the core — a composable always shares the *same* reactive runtime as your components.
 
 ## The cleanup model
 

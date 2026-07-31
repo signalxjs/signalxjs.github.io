@@ -6,6 +6,8 @@ category: Guides
 order: 56
 ---
 
+import { PkgVersion } from '@/components/PkgVersion';
+
 # SSR state transfer
 
 `@sigx/store/ssr` is a composable that carries a state slice from the **server render** to the **client hydration**: you compute or fetch the data once on the server, ship it inside the page, and the store seeds itself from it on the client — no refetch. Call it inside a store setup, exactly like [`persist`](/store/docs/persistence), passing the setup context and the `{ state, patch }` pair from `defineState`:
@@ -121,7 +123,7 @@ This is the store-shaped entry point to the **same** SSR state-transfer mechanis
 
 SSR state transfer needs the server renderer in the picture: `sigx` (or `@sigx/server-renderer` directly) on the server, rendering through `renderDocument` or a `createSSR()` pipeline with `stateSerializationPlugin()`. The store package itself adds no SSR dependency — on a purely client-rendered page `ssrState` is a no-op that returns `{ hydrated: false }`, and the store renders from defaults.
 
-The shared default, the `scope` option, and the rich-value round-trip need `@sigx/store@0.11` or newer, which pins the **0.13.x core line** (`sigx` / `@sigx/reactivity` / `@sigx/runtime-core` `^0.13.0`).
+The shared default, the `scope` option, and the rich-value round-trip need `@sigx/store@0.11` or newer. The current `@sigx/store` <PkgVersion npm="@sigx/store" /> pins the **0.14.x core line** (`@sigx/reactivity` / `@sigx/runtime-core` `^0.14.0`).
 
 ## Next steps
 

@@ -6,6 +6,8 @@ category: Guides
 order: 30
 ---
 
+import { PkgVersion } from '@/components/PkgVersion';
+
 # Commands
 
 The CLI has two core commands shipped in `@sigx/cli` (`create` and `info`) plus a set of commands contributed by plugins at runtime. Run any command through your package runner:
@@ -68,9 +70,9 @@ npx sigx create
 
 **Templates & pinned versions**
 
-Templates pin a **matched set** of `sigx` / `@sigx/*` versions — never `latest` — so a freshly scaffolded project's peer graph resolves with a single copy of `@sigx/reactivity` under strict peer deps. The web templates (`basic`, `ssr`) pin the 0.6 core line; the `ssg` and `lynx` templates pin the matched set their plugin (`@sigx/ssg` / `@sigx/lynx-cli`) is built against. Third-party deps (`vite`, `express`, `tailwindcss`, …) keep their own caret ranges.
+Templates pin a **matched set** of `sigx` / `@sigx/*` versions — never `latest` — so a freshly scaffolded project's peer graph resolves with a single copy of `@sigx/reactivity` under strict peer deps. Each template pins the set it was authored against rather than the newest core line, and the `ssg` and `lynx` templates pin the matched set their plugin (`@sigx/ssg` / `@sigx/lynx-cli`) is built against. Third-party deps (`vite`, `express`, `tailwindcss`, …) keep their own caret ranges. To start from the current core, bump the scaffolded `package.json` to `sigx` <PkgVersion npm="sigx" /> and its matching `@sigx/*` set after creating the project.
 
-The **SSR templates** (`ssr`, `ssr-tailwind`, `ssr-daisyui`) scaffold a server built on the 0.6 document render API:
+The **SSR templates** (`ssr`, `ssr-tailwind`, `ssr-daisyui`) scaffold a server built on the document render API:
 
 - an Express 5 **`server.js`** — Vite middleware in dev (`ssrLoadModule` for `entry-server`), static client assets + the built server bundle in prod;
 - an **`index.html`** with the standard `<!--ssr-outlet-->` marker;
