@@ -39,9 +39,7 @@ export const SxLink = component<SxLinkProps>(({ props, slots, emit }) => {
         <a
             href={href()}
             class={props.class}
-            /* '' not undefined: the server renderer stringifies the style
-               value unconditionally, so undefined would emit style="undefined" */
-            style={props.style ?? ''}
+            style={props.style}
             data-active={props.active === undefined ? undefined : String(props.active)}
             onClick={onClick}
         >
