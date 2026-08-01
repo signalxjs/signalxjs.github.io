@@ -114,13 +114,39 @@ A component that wraps an element usually wants the consumer's leftover props to
 reach that element. That's plain destructuring — take the props the component
 handles itself, spread the rest:
 
-```tsx code
+```tsx code preview live
+import { component, render, type Define } from 'sigx';
+
+type ButtonProps =
+    & Define.Prop<'variant', 'primary' | 'secondary'>
+    & Define.Slot<'default'>
+    & Define.Attrs;
+
 const Button = component<ButtonProps>((ctx) => {
     return () => {
         const { variant, ...rest } = ctx.props;
-        return <button class={`btn btn-${variant ?? 'primary'}`} {...rest} />;
+        return (
+            <button class={`btn btn-${variant ?? 'primary'}`} {...rest}>
+                {ctx.slots.default?.()}
+            </button>
+        );
     };
 });
+
+// `title` and `onClick` are never named by Button — they ride the rest spread.
+const App = component(() => {
+    return () => (
+        <Button
+            variant="primary"
+            title="forwarded straight through"
+            onClick={() => console.log('clicked')}
+        >
+            Hover me
+        </Button>
+    );
+});
+
+render(<App />, "#sandbox");
 ```
 
 `ctx.props` carries the props the parent declared and nothing else. `key` and
@@ -204,8 +230,8 @@ and the component both set `class`, one is lost.
 Sources may be objects or zero-argument thunks, and the result resolves on read,
 so thunks stay reactive:
 
-```tsx code
-import { component, mergeProps, type Define } from 'sigx';
+```tsx code preview live
+import { component, mergeProps, render, type Define } from 'sigx';
 
 type ButtonProps =
     & Define.Prop<'variant', 'primary' | 'secondary'>
@@ -213,7 +239,7 @@ type ButtonProps =
     & Define.Attrs;
 
 const Button = component<ButtonProps>((ctx) => {
-    const onActivate = () => console.log('activated');
+    const onActivate = () => console.log('the component handler ran');
 
     const merged = mergeProps(
         () => { const { variant: _v, ...rest } = ctx.props; return rest; },
@@ -222,7 +248,26 @@ const Button = component<ButtonProps>((ctx) => {
 
     return () => <button {...merged}>{ctx.slots.default?.()}</button>;
 });
+
+// The consumer sets `class` and `onClick` too — both sides survive.
+const App = component(() => {
+    return () => (
+        <Button
+            variant="primary"
+            class="danger"
+            onClick={() => console.log('the consumer handler ran')}
+        >
+            Click me
+        </Button>
+    );
+});
+
+render(<App />, "#sandbox");
 ```
+
+Click it and both handlers log, in source order; inspect the button and its
+class is `btn danger`. A plain `{...rest} {...bag}` spread would have kept only
+one of each.
 
 Three things to get right:
 
@@ -315,8 +360,8 @@ The function child is what makes the `asChild` render-prop pattern work — a
 component that owns behaviour and hands the caller its state, letting the caller
 decide the markup:
 
-```tsx code
-import { component, type Define } from 'sigx';
+```tsx code preview live
+import { component, render, type Define } from 'sigx';
 
 type ToggleProps = Define.Slot<'default', { on: boolean; toggle: () => void }>;
 
@@ -326,12 +371,18 @@ const Toggle = component<ToggleProps>(({ signal, slots }) => {
     return () => slots.default?.({ on: state.on, toggle });
 });
 
-// The caller supplies the element.
-<Toggle>
-    {({ on, toggle }) => (
-        <button onClick={toggle} aria-pressed={on}>{on ? 'On' : 'Off'}</button>
-    )}
-</Toggle>
+// The caller supplies the element — Toggle only owns the state.
+const App = component(() => {
+    return () => (
+        <Toggle>
+            {({ on, toggle }) => (
+                <button onClick={toggle} aria-pressed={on}>{on ? 'On' : 'Off'}</button>
+            )}
+        </Toggle>
+    );
+});
+
+render(<App />, "#sandbox");
 ```
 
 The function is invoked once per accessor call, inside the consumer's render, so

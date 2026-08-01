@@ -92,7 +92,9 @@ Enumerating a reactive object inside an effect or a computed subscribes to its
 **key set**, so a key appearing or disappearing re-runs the reader. That covers
 `Object.keys()`, `for…in`, object spread and rest destructuring:
 
-```tsx code
+```tsx code console live
+import { signal, effect } from 'sigx';
+
 const state = signal<Record<string, number>>({ a: 1 });
 
 effect(() => {
@@ -101,6 +103,7 @@ effect(() => {
 
 state.b = 2;      // re-runs — the key set changed
 delete state.a;   // re-runs — so does removal
+state.b = 99;     // no re-run — Object.keys reads no values
 ```
 
 The key-set subscription is **on top of** the per-key ones, which is what makes
