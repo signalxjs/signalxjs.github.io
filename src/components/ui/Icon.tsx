@@ -33,7 +33,8 @@ type IconProps =
     & Define.Prop<'name', IconName, true>
     & Define.Prop<'size', number>
     & Define.Prop<'stroke', number>
-    & Define.Prop<'class', string>;
+    & Define.Prop<'class', string>
+    & Define.Prop<'style', string>;
 
 export const Icon = component<IconProps>(({ props }) => {
     return () => {
@@ -50,6 +51,7 @@ export const Icon = component<IconProps>(({ props }) => {
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 class={`sx-icon ${props.class ?? ''}`}
+                style={props.style}
                 aria-hidden="true"
             >
                 <path d={ICONS[props.name]} />
