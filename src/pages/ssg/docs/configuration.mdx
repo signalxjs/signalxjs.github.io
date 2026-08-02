@@ -181,7 +181,7 @@ export default defineSSGConfig({
 ```
 
 - `transformers` — Shiki transformers applied to every highlighted block (including each package-manager variant). The raw fence meta is exposed to transformers as `options.meta.__raw`, so the `@shikijs/transformers` meta-driven features (line highlighting `{1,3-5}`, diff, focus, word highlight) work without any core changes.
-- `skipLanguages` — fence languages the highlighter leaves untouched, so the raw `<pre><code class="language-…">` survives in the output for a later rehype plugin or island to claim — e.g. `['mermaid', 'math']`.
+- `skipLanguages` — fence languages the highlighter leaves untouched, so the raw `<pre><code class="language-…">` survives in the output for a later rehype plugin or island to claim — e.g. `['mermaid', 'math']`. [`@sigx/mermaid`](/mermaid/docs/ssg) is the ready-made consumer for the first of those.
 
 ### Package-manager code fences
 

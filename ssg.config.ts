@@ -140,6 +140,16 @@ export default defineSSGConfig({
                 'Clipboard & title',
             ],
         },
+        'i18n-docs': {
+            path: '/i18n/docs',
+            showDrafts: 'dev',
+            sectionOrder: ['Getting Started', 'Guides', 'Reference'],
+        },
+        'mermaid-docs': {
+            path: '/mermaid/docs',
+            showDrafts: 'dev',
+            sectionOrder: ['Getting Started', 'Guides', 'Reference'],
+        },
         'ssg-docs': {
             path: '/ssg/docs',
             showDrafts: 'dev',
@@ -307,6 +317,8 @@ export default defineSSGConfig({
             { title: 'Router', collections: ['router-docs', 'router-api'] },
             { title: 'Store', collections: ['store-docs'] },
             { title: 'Use', collections: ['use-docs'] },
+            { title: 'Internationalization', collections: ['i18n-docs'] },
+            { title: 'Mermaid Diagrams', collections: ['mermaid-docs'] },
             { title: 'daisyUI Components', collections: ['daisyui-docs', 'daisyui-api'] },
             { title: 'Static Site Generation', collections: ['ssg-docs'] },
             { title: 'Server (SSR, server functions, resume & serialize)', links: moduleLlmsLinks('server') },

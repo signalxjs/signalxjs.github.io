@@ -1,0 +1,59 @@
+---
+title: Overview
+description: "@sigx/i18n — reactive localization for SignalX: namespaces, a master locale with automatic fallback, detection and SSR-safe state transfer"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Internationalization
+
+<p class="lede">Reactive localization for SignalX — namespaces, a master locale with automatic fallback, API-defined targets, locale detection, SSR-safe state transfer, and easy UI binding.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/i18n" /> <span class="mmr-dot" /> ESM-only <span class="mmr-dot" /> MIT</p>
+
+Translations are signals. Switch the locale and every component that read a message re-renders — no context plumbing, no re-mounting a provider tree, no manual subscription.
+
+```tsx
+import { createI18n, useTranslation } from '@sigx/i18n';
+
+const app = defineApp(<Root />).use(createI18n({
+    fallbackLocale: 'en',
+    supported: ['en', 'sv'],
+    load: (target, locale, ns) => import(`./locales/${target}/${locale}/${ns}.json`),
+}));
+
+const Greeting = component(() => {
+    const t = useTranslation('home');
+    return () => <p>{t('greeting', { name: 'Ada' })}</p>;
+});
+```
+
+## It is renderer-neutral
+
+`@sigx/i18n` depends on `@sigx/runtime-core` and `@sigx/reactivity`, **never on the `sigx` umbrella**. That is a deliberate constraint, and it is what makes the package usable outside the browser.
+
+`sigx` is the DOM meta-package: its entry imports `@sigx/runtime-dom`, which declares `JSX.IntrinsicElements` globally. A single import of a package that reached for the umbrella would type **every** JSX element in the consuming app against the DOM intrinsics — so a lynx app would suddenly see `Property 'bindinput' does not exist on type 'InputHTMLAttributes<HTMLInputElement>'` on components that had nothing to do with i18n.
+
+It was a runtime problem too, not only a typing one: pulling `sigx/jsx-runtime` would build `<T>` with the DOM JSX factory instead of the host renderer's, which fails silently rather than at the typecheck.
+
+So the package takes no dependency on `sigx` at all — it is not even an optional peer — and a packaging test asserts the core entry's source graph contains no bare `sigx` specifier. Use it from web, lynx and terminal apps alike.
+
+## The model
+
+**A master locale defines the key set.** `fallbackLocale` is the source of truth for which keys exist; other locales supply translations for those keys, and anything missing falls through to it.
+
+**Namespaces split catalogs.** A namespace is a unit of loading — list the ones your first paint needs in `namespaces` and leave section-specific ones out, so they load on use.
+
+**Locale resolution walks a chain.** BCP-47 truncation (`sv-FI` → `sv` → the fallback) plus any explicit `localeFallbacks` you declare. A message is always formatted **in the locale it was found in**, which is what plural selection depends on.
+
+## What's here
+
+- [Installation](/i18n/docs/installation) — install, entry points and the Vite plugin.
+- [Translating](/i18n/docs/usage) — `useTranslation`, `<T>`, namespaces, plurals and rich text.
+- [Locales](/i18n/docs/locales) — detection, switching, persistence and the load-error surface.
+- [Runtime catalogs](/i18n/docs/runtime-catalogs) — messages that come from a CMS or a database.
+- [Server & SSR](/i18n/docs/server) — request locale, state transfer and `forLocale`.
+- [API reference](/i18n/docs/api) — every export.

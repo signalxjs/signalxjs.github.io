@@ -1,0 +1,79 @@
+---
+title: Installation
+description: "Install @sigx/i18n, its entry points, and the Vite plugin that generates types from your catalogs"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Installation
+
+<p class="lede">Install the package, install the plugin on your app, and — optionally — add the Vite plugin that types your catalogs.</p>
+
+```bash
+pnpm add @sigx/i18n
+```
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/i18n" /></p>
+
+## Entry points
+
+| Import path | Use it for |
+|---|---|
+| `@sigx/i18n` | Everything an app needs — `createI18n`, `useTranslation`, `<T>`, detection, the store |
+| `@sigx/i18n/server` | Request-side translation: `createServerT`, `forLocale`, the SSR state seam |
+| `@sigx/i18n/server/node` | The Node flavour of the above |
+| `@sigx/i18n/vite` | The build plugin — catalog scanning, type generation, the consistency check |
+| `@sigx/i18n/virtual` | Types for the generated virtual module |
+
+**No `sigx` dependency.** The package never imports the DOM umbrella — not even as an optional peer — so it is importable from a lynx or terminal app without dragging the DOM JSX intrinsics into your program. See [renderer-neutral](/i18n/docs/overview#it-is-renderer-neutral).
+
+## Install the plugin
+
+```tsx
+import { defineApp } from 'sigx';
+import { createI18n } from '@sigx/i18n';
+
+const app = defineApp(<Root />).use(createI18n({
+    fallbackLocale: 'en',
+    supported: ['en', 'sv'],
+    namespaces: ['common'],
+    load: (target, locale, ns) => import(`./locales/${target}/${locale}/${ns}.json`),
+}));
+```
+
+The store itself is created lazily on the first `useI18n()` / `useTranslation()` **during render** — so under SSR it is constructed inside the request render and its state registration attaches to the correct per-request context.
+
+## The Vite plugin
+
+```ts
+// vite.config.ts
+import { i18n } from '@sigx/i18n/vite';
+
+export default {
+    plugins: [i18n({ localesDir: 'src/locales', masterLocale: 'en' })],
+};
+```
+
+It scans the catalog tree, generates a `.d.ts` so namespaces and keys are typed, and reports catalogs that have drifted from the master locale. Rewrites happen only when the content changed.
+
+`runI18nCheck`, `writeI18nTypes`, `checkCatalogs` and `formatReport` are exported for wiring the same check into CI without running a build.
+
+## Without a client app
+
+`@sigx/resume` upgrades a boundary by hydrating its component directly — there is no client app, so nothing installed `createI18n` and DI has nothing to resolve. Call `provideI18nConfig` from a module the translating boundary's chunk imports:
+
+```ts
+// src/i18n.ts — imported by the app entry AND by resumable components
+export const i18nOptions = { fallbackLocale: 'en', supported: ['en', 'sv'], load };
+provideI18nConfig(i18nOptions);
+```
+
+This is **client-only by design**, and a no-op on the server. A server-side config would be shared by every request in a long-lived process, and detection context is per-request — so on the server, install the plugin, which is per-app and per-request correct.
+
+## Next steps
+
+- [Translating](/i18n/docs/usage) — `useTranslation`, `<T>`, plurals and rich text.
+- [Locales](/i18n/docs/locales) — detection, switching and persistence.
