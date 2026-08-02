@@ -21,6 +21,10 @@ Each component has its own page with usage, props, slots and events — see the 
 - [**Swipeable**](/lynx/modules/gestures/components/swipeable) — a horizontal swipe-to-reveal container that snaps to closed / open-left / open-right on release.
 - [**ScrollView**](/lynx/modules/gestures/components/scrollview) — a `scroll-view` wrapper that mirrors scroll position into `SharedValue`s and coordinates descendant gestures.
 - [**Swiper**](/lynx/modules/gestures/components/swiper) — a paged horizontal carousel built on a native paging `scroll-view`, with a controlled `index` and live `offset`.
+- [**PinchRotate**](/lynx/modules/gestures/components/pinchrotate) — two-finger pinch-zoom and twist-rotate on the native `<sigx-pinch>` element, transformed on the platform UI thread.
+- [**TouchGuard**](/lynx/modules/gestures/components/touchguard) — an overlay that consumes the platform touch stream, so a native view underneath cannot steal focus through it.
+
+`PinchRotate` and `TouchGuard` render **native** elements and therefore require `sigx prebuild`. `TOUCH_GUARD_TAG` (`'sigx-touch-guard'`) is exported for components that render their own overlay root — [`@sigx/lynx-sheet`](/lynx/modules/sheet/api)'s backdrop takes it as `guardTag`.
 
 Their prop types and related APIs remain documented below.
 
@@ -85,6 +89,8 @@ export function useSwiperDotTranslate(
 ```
 
 ## Hooks — multi-touch
+
+> **Prefer [`<PinchRotate>`](/lynx/modules/gestures/components/pinchrotate) when you can prebuild.** It is backed by the platform's own recognizers (`UIPinchGestureRecognizer` / `ScaleGestureDetector`) and applies the transform natively on the UI thread, so finger tracking is reliable and no frame crosses a thread boundary. The two hooks below are the JS reconstruction, for surfaces that must run without a native build.
 
 ### usePinch
 

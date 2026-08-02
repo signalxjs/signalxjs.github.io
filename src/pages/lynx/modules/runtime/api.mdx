@@ -142,6 +142,28 @@ Immediately flushes all buffered ops synchronously. Used on initial mount so the
 function flushNow(): void;
 ```
 
+### waitForFlush
+
+Resolves once the most recent ops batch has been applied on the main thread; resolves immediately when nothing is in flight.
+
+```ts
+function waitForFlush(): Promise<void>;
+```
+
+Acks are tracked **per batch** — each send closes over its own resolver — so with several batches in flight, an earlier batch's ack can never resolve a later batch's promise.
+
+### pendingOps
+
+The quiescence probe: `true` while ops are buffered awaiting their microtask flush, scheduled but unsent, or sent with the main-thread ack still outstanding. `false` means the main thread has applied everything the background thread has emitted so far.
+
+```ts
+function pendingOps(): boolean;
+```
+
+Callers that stage work behind a quiescence point poll this between `waitForFlush()` waits. That is exactly what `@sigx/lynx-navigation`'s [pre-staged transitions](/lynx/modules/navigation/usage#transitions-pre-stage-the-incoming-screen) do — hold a push animation until the incoming screen's mount and post-mount flushes have all landed.
+
+**Bound your own wait.** `waitForFlush()` settles only when the host acks the batch; a dropped ack leaves it unresolved forever. Race it against a budget rather than awaiting it bare.
+
 ### resetOpQueue
 
 Resets op-queue module state (buffer, scheduled flag, pending acks). Testing only.
@@ -247,6 +269,36 @@ function useElementLayout(): UseElementLayoutResult;
 
 **Returns** — a [`UseElementLayoutResult`](#useelementlayoutresult): a reactive `layout` signal and the `onLayoutChange` handler.
 
+### useViewportRect
+
+An element's live rect **relative to the viewport**, transforms included — the only correct input for deciding where an anchored surface (dropdown, suggestion popup, tooltip) fits.
+
+```ts
+function useViewportRect(): {
+  ref: MainThreadRef<MainThread.Element | null>;
+  rect: SharedValue<ViewportRect | null>;
+  measure: () => void;
+};
+```
+
+```tsx
+const { ref, rect, measure } = useViewportRect();
+
+return () => (
+  <view main-thread:ref={ref} bindlayoutchange={() => measure()}>
+    …
+  </view>
+);
+```
+
+**Why not [`useElementLayout`](#useelementlayout).** `bindlayoutchange` reports **layout-page** coordinates. They are produced by layout, so they know nothing about what happens after it — main-thread transforms (a sheet riding the keyboard lift, a screen mid-transition), scroll offsets, or a `position: fixed` ancestor. A surface that flips against the screen from those numbers places itself against where its anchor *would* be if nothing had moved it: a suggestion popup decides there is no room above and flips down, behind the keyboard.
+
+**The rule.** Layout events give you size and a "something moved, re-measure" signal. Screen-space geometry comes from here, and feeds **only** the flip/clamp decision — keep the surface positioned relative to its container so it rides along with the transform between measurements.
+
+**Cost.** The measurement is an async UI-method call on the main thread, so the rect lands a frame or two after `measure()`, and `rect.value` is `null` until the first one arrives. Measure eagerly (when the surface is about to open), not in a render path, and render against the layout frame as the first-paint fallback.
+
+`measureViewportRect(el, apply)` is the direct form, for main-thread handlers that already hold the element — a tap that opens a menu. On Android, `androidEnableTransformProps` is what makes the result transform-aware; iOS reports post-transform geometry either way.
+
 ### useSharedValue
 
 Allocates a [`SharedValue<T>`](#sharedvalue) whose main-thread mutations are observable on the background thread via sigx reactivity. Pushes `INIT_MT_REF` and `REGISTER_AV_BRIDGE` on create; `UNREGISTER_AV_BRIDGE`, `RELEASE_MT_REF`, and drops the background signal on unmount.
@@ -305,6 +357,39 @@ function useGestureDetector(
 - `gesture` — a gesture from [`Gesture`](#gesture), or any builder/descriptor.
 
 Note: `block-native-event` / `block-native-event-areas` route through Lynx's bind-event path and bypass the gesture arena, so they do not compose with `useGestureDetector`.
+
+### useDerivedValue
+
+A `SharedValue` computed **on the main thread** from one or more source SVs via a **named** reducer, recomputed on each flush where a source changed. Bind it to `useAnimatedStyle` like any SV; read `.value` on the background thread as usual.
+
+```ts
+function useDerivedValue<R extends DerivedReducerName>(
+  sources: ReadonlyArray<SharedValue<number>>,
+  reducer: R,
+  params?: DerivedReducerParams[R],
+): SharedValue<number>;
+```
+
+Built-in reducers: `max`, `min`, `sum`, and `scale` (`sources[0] * factor + offset`). Register your own on the main thread with `registerReducer` from `@sigx/lynx-runtime-main`.
+
+The canonical use is composing two motions so an element sits above **whichever is taller** — a chat composer bar over `max(keyboardLift, sheetHeight)`:
+
+```tsx
+const lift = useDerivedValue([keyboardLift, sheetHeight], 'max');
+useAnimatedStyle(barRef, lift, 'translateY', { factor: -1 });
+```
+
+Two separate `translateY` bindings would **sum** — transform outputs concatenate — so this is not a convenience, it is the only correct shape. Scaling a `0..1` progress into px is the other common case:
+
+```tsx
+const px = useDerivedValue([progress], 'scale', { factor: travelPx });
+```
+
+**Why a name rather than a closure.** The recompute runs in the main-thread flush loop, which is plain MT code — it cannot invoke a captured worklet by value. A name is a primitive the op layer ships trivially.
+
+**Treat the result as read-only.** It is not frozen, but the derive owns the value: any write is overwritten on the next recompute. Drive it through its sources.
+
+`useDerivedValueReactive(accessor)` is the variant for a runtime-reactive factor — the accessor runs in an `effect` and re-registers on the **same** derived SV when sources or params change, so consumers never rebind. Returning `null` holds the last registration.
 
 ### useAnimatedValue
 

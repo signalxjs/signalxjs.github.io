@@ -72,6 +72,56 @@ export function useSystemColorSchemeMT(): ColorScheme
 - **Returns** — the current [`ColorScheme`](#colorscheme). Returns `'light'` when the publisher has not populated yet (cold start before first publish) or on non-Lynx hosts.
 - Platform: shared (main thread).
 
+### useFontScale
+
+Background-thread reactive read of the **OS font scale** — the effective text-size multiplier the engine applies to every font-relevant CSS length. `1` is the default.
+
+```ts
+export function useFontScale(): Computed<number>
+```
+
+- **Returns** — a stable `Computed<number>`. Read `.value` in render or effects and the component re-renders when the user changes the system text size.
+- Re-exported from `@sigx/lynx-core`, where it sits next to the native publisher.
+- Platform: shared (background thread).
+
+**The engine already scales plain `<text>` and `font-size`.** You do not need this to honour Dynamic Type — that happens whether you read it or not. Use it to adapt **around** larger text: swap a row layout for a stacked one, grow custom-drawn text, size icons to match.
+
+```tsx
+const scale = useFontScale();
+
+return () => (
+  <view style={{ flexDirection: scale.value > 1.3 ? 'column' : 'row' }}>
+    …
+  </view>
+);
+```
+
+### useFontScaleMT
+
+Main-thread synchronous read of the effective font scale, for `'main thread'`-marked worklet bodies. Reads `lynx.__globalProps` directly with no subscription — callers re-evaluate per worklet invocation.
+
+```ts
+export function useFontScaleMT(): number
+```
+
+- **Returns** — the effective scale, or `1` when the publisher has not populated yet or on non-Lynx hosts.
+- Platform: shared (main thread).
+
+### readGlobalFontScale
+
+Synchronous, non-reactive read of the raw font-scale map.
+
+```ts
+export function readGlobalFontScale(): { scale: number; os: number } | null
+```
+
+- `scale` — the policy-clamped effective value the engine applies.
+- `os` — the raw system setting (Dynamic Type / `Configuration.fontScale`), equal to `scale` unless the app's `fontScale.min`/`max` config clamped it.
+- **Returns `null`** when the publisher has not populated yet (early cold start) or outside a Lynx host (web preview, SSR, tests). Treat `null` as "unknown — assume 1".
+- Safe on both threads; `__globalProps` is mirrored across both.
+
+**Not reactive.** A read taken during the render triggered by `onFontScaleChanged` can still see the previous `os`, because the globalProps mirror updates independently of the event. Prefer [`useFontScale`](#usefontscale) for the live effective value and treat `os` as informational.
+
 ## Functions
 
 ### setSystemBarsStyle
@@ -179,6 +229,22 @@ export const APPEARANCE_EVENT = 'appearanceChanged';
 ```
 
 The `GlobalEventEmitter` event name fired by the native publishers (iOS `AppearancePublisher.swift`, Android `AppearancePublisher.kt`) every time the host's system color scheme flips. The payload mirrors the map stored under `lynx.__globalProps.appearance` (a `{ colorScheme }` object). Exported as a single shared constant so the iOS/Android publishers and the JS listener agree on one string. Typed as the literal `'appearanceChanged'`.
+
+### FONT_SCALE_EVENT
+
+```ts
+export const FONT_SCALE_EVENT = 'onFontScaleChanged';
+```
+
+The global event fired by the Lynx **engine** — not a sigx publisher — whenever the host calls `LynxView.updateFontScale()`. Payload: `{ scale }`, the new effective scale. The name is engine-owned upstream.
+
+### FONT_SCALE_GLOBAL_KEY
+
+```ts
+export const FONT_SCALE_GLOBAL_KEY = 'fontScale';
+```
+
+The key under `lynx.__globalProps` where the native `FontScalePublisher` writes the font-scale map before the main thread's first paint — so a cold start renders at the right size rather than correcting after.
 
 ### GLOBAL_PROPS_KEY
 

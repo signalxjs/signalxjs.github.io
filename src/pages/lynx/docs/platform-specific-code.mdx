@@ -60,6 +60,18 @@ if (__WEB__) {
 
 `__NATIVE__` is always `!__WEB__`. Use this when a branch imports something that only exists on one platform — the dead branch (and its imports) never reach the other bundle.
 
+### `__MAIN_THREAD__` / `__BACKGROUND__`
+
+A second pair splits by **thread layer** rather than platform. A Lynx bundle is emitted per layer, so these fold to literals independently in each and dead-code-eliminate the same way:
+
+```tsx
+if (__BACKGROUND__) {
+  // only the background-thread layer keeps this
+}
+```
+
+Use them to keep layer-specific setup out of the layer that will never run it. They apply to **app code** — a packaged dist does not get the per-layer fold.
+
 To type the defines, reference the client types once at your source root (`env.d.ts`):
 
 ```ts

@@ -1,0 +1,73 @@
+---
+title: "TouchGuard"
+description: "TouchGuard — an overlay that consumes the platform touch stream, so native views underneath can't steal focus"
+layout: module-docs
+category: ["Components", "Touch"]
+order: 102
+---
+
+# TouchGuard
+
+<p class="lede">An overlay container that <strong>consumes the platform touch stream</strong>, backed by the native <code>&lt;sigx-touch-guard&gt;</code> element.</p>
+
+## Import
+
+```tsx
+import { TouchGuard, TOUCH_GUARD_TAG } from '@sigx/lynx-gestures';
+```
+
+## The problem it fixes
+
+A Lynx `catchtap` overlay blocks Lynx-level handlers beneath it — but the **raw platform touch still reaches native views**. On Android that means an `EditText` under an overlay dim grabs focus and pops the keyboard, straight through what looks like a solid scrim.
+
+`flatten={false}`, `catchtouchstart`, `block-native-event` and `ignore-focus` are all insufficient. Only a **native view claiming the touch target** stops the fall-through, which is what this element is.
+
+On iOS and web, overlays don't leak, so the element is an inert container there — the same JSX works everywhere.
+
+## Usage
+
+```tsx
+<TouchGuard
+  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+  onTap={() => dismiss()}
+>
+  <DimContent />
+</TouchGuard>
+```
+
+## Props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `enabled` | `boolean` | Consume the platform touch stream. Default `true`. |
+| `class` / `style` | | Passthrough to the host element. |
+
+## Events
+
+| Event | Fires |
+|---|---|
+| `tap` | A tap on the guard. It is consumed — it never passes through. |
+
+## Slots
+
+| Slot | Notes |
+|---|---|
+| `default` | The overlay content. |
+
+## Using the raw tag
+
+A component that renders its own overlay root takes the tag rather than this wrapper. `@sigx/lynx-sheet`'s backdrop does exactly that, via its `guardTag` option:
+
+```tsx
+import { TOUCH_GUARD_TAG } from '@sigx/lynx-gestures';
+
+<BottomSheet detents={detents} backdrop={{ guardTag: TOUCH_GUARD_TAG }}>
+  {/* … */}
+</BottomSheet>
+```
+
+`TOUCH_GUARD_TAG` is the string `'sigx-touch-guard'`. Passing it as a plain string is what lets `@sigx/lynx-sheet` stay pure JS while still rendering a native guard.
+
+## Requirements
+
+The element is native, so this needs `sigx prebuild` — see [Prebuilding native projects](/lynx/modules/cli/usage#prebuilding-native-projects).

@@ -17,13 +17,15 @@ Mount `<BottomSheet>` and give it a set of **detents** — the heights it rests 
 ```tsx
 import { BottomSheet } from '@sigx/lynx-sheet';
 
-function FilterSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function FilterSheet({ open, onDismiss }: { open: boolean; onDismiss: () => void }) {
   return (
     <BottomSheet
       open={open}
       detents={[{ fraction: 0.4 }, { fraction: 0.9 }]}
-      initialDetentIndex={0}
-      onClose={onClose}
+      openDetentIndex={1}
+      dismissible
+      backdrop
+      onDismiss={onDismiss}
     >
       <view>{/* filter controls */}</view>
     </BottomSheet>
@@ -31,16 +33,123 @@ function FilterSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
 }
 ```
 
-`detents` (and `maxHeight`) are tracked **live**: change one while the sheet is open and it re-snaps to the new geometry — so a floor that grows with its content stays in view.
+Detents are re-resolved on **every render**, never snapshotted: change one while the sheet is open and it re-seats to the new geometry — so a floor that grows with its content stays in view.
 
-## Drag and dismissal
+The lowest resolved detent is the **floor**, and it decides which of the two modes you get:
 
-`dragMode` selects what owns the drag — the handle, the whole surface, or a grabber — and inner-scroll arbitration keeps a scrollable body from fighting the sheet. A *dismissible* sheet closes on a drag-down past the lowest detent or a `Backdrop` tap; a *persistent* sheet snaps back to its lowest detent instead.
+- **Persistent** (default) — the sheet never goes below its floor. A composer accessory. `open` toggles floor ↔ `openDetentIndex`.
+- **Dismissible** — a release projecting below half the floor settles at 0 and emits `dismiss`. The sheet only *parks*; you flip `open` or unmount it. With `backdrop`, this is the modal tray a route sheet used to be needed for.
+
+## Drag modes
+
+`dragMode` is **mount-constant** — the worklets register at setup, so it cannot change after mount.
+
+| Mode | What drags |
+|---|---|
+| `'handle'` (default) | Only the `handle` slot. A raw `<list>` body keeps scrolling untouched. |
+| `'surface'` | The whole panel, arbitrating against an adopted inner `<ScrollView>`. |
+| `'grabber'` | Only the top chrome strip (`grabberPx`). The body never drags. |
+| `'none'` | No gesture at all. |
+
+### Surface drag and scroll arbitration
+
+`'surface'` is the iOS-style behaviour: a drag moves **the sheet** until it reaches its maximum detent, and only past that point does the **content** scroll — with a one-way handoff back. `<BottomSheet>` provides the ScrollDragHost, and an inner `@sigx/lynx` `<ScrollView>` adopts it automatically.
+
+The arbitration itself is `decideDragOwner`, exported for custom surfaces.
+
+> **`<list>` does not participate.** `@sigx/lynx-list` has not adopted the ScrollDragHost protocol, so a `<list>` body under `dragMode="surface"` will fight the sheet. Use `'handle'` or `'grabber'` for list bodies.
+
+`grabberPx` (default `28`) sizes the always-drags strip at the top edge. WhatsApp-style sheets drag by a whole ~64px input row rather than a pill, which is what the knob is for:
+
+```tsx
+<BottomSheet
+  detents={detents}
+  dragMode="grabber"
+  grabberPx={64}
+  slots={{ handle: () => <ComposerRow /> }}
+>
+  <EmojiGrid />
+</BottomSheet>
+```
+
+## Riding the keyboard
+
+Pass a keyboard lift and the sheet floats above it — the effective reveal becomes `max(reveal, floor + liftSV)`:
+
+```tsx
+import { useKeyboardLiftSV } from '@sigx/lynx-keyboard';
+
+const lift = useKeyboardLiftSV();
+
+<BottomSheet detents={detents} liftSV={lift} openToLift dragEnabled={!keyboardOpen}>
+  {/* … */}
+</BottomSheet>
+```
+
+`openToLift` captures the live keyboard height on the main thread the instant the sheet opens and snaps there, instead of to `openDetentIndex`. The payoff is that when the keyboard's lift animates away, the content does **not** move — the dip-free reveal. The captured value also becomes the low snap target for drags.
+
+Two consequences worth knowing:
+
+- A sheet with `liftSV` **cannot visually dismiss** under an open keyboard: the lift wins the `max`. Don't pass one to a dismissible overlay sheet.
+- Under `openToLift`, the `snap` payload indexes `[floor, rest, top]` rather than your detents. Index 0 is still the floor and the last index still the top.
+
+## Pinning to the visible edge
+
+An element that should sit on the sheet's **visible** bottom edge — an emoji category bar, a sticky action row — cannot just use `position: absolute; bottom: 0`. The panel is laid out as tall as the top detent and slid *down* by `panelHeight - combined`, so its own bottom edge is off-screen at every rest below the top detent. Absolute-bottom pins it somewhere nobody can see.
+
+`pinnedBottomRef` cancels that slide out, with `factor: -1`, so the element keeps its normal place in flow and paints flush with the bottom of the revealed slice — on the main thread, every frame of a drag or keyboard lift.
+
+```tsx
+const barRef = useMainThreadRef<MainThread.Element | null>(null);
+
+<BottomSheet detents={detents} pinnedBottomRef={barRef}>
+  <EmojiGrid />
+  <view main-thread:ref={barRef} style={CATEGORY_BAR_STYLE}>
+    <CategoryTabs />
+  </view>
+</BottomSheet>
+```
+
+Three rules, all of which fail silently if broken:
+
+- **Put the element last.** It keeps its normal place in flow.
+- **Mount-constant** — the binding registers at setup.
+- **Identity-stable inline style, and no other `translateY` binding.** A re-emitted `SET_STYLE` clobbers the main-thread transform until the next reveal change, and transform outputs concatenate.
+
+## Sizing content to the sheet
+
+`snap` tells you *which* detent settled; `rest` tells you *how tall* the sheet actually is, in px, on mount, on `open` toggle, on drag settle and on dismiss.
+
+Size content from `rest`. A body sized from the top detent instead hangs its tail below the screen edge whenever the sheet is resting lower:
+
+```tsx
+<BottomSheet detents={detents} onRest={(px) => (gridHeight.value = px)}>
+  <EmojiGrid height={gridHeight} />
+</BottomSheet>
+```
+
+Both events fire on the **background thread**.
+
+## Blocking touches underneath
+
+On Android, an `EditText` under a dim can still grab focus through it. Render the backdrop as a touch guard so its native view consumes the platform touch stream:
+
+```tsx
+import { TOUCH_GUARD_TAG } from '@sigx/lynx-gestures';
+
+<BottomSheet detents={detents} backdrop={{ guardTag: TOUCH_GUARD_TAG }}>
+  {/* … */}
+</BottomSheet>
+```
+
+The tag is a plain string so `lynx-sheet` stays pure JS — rendering it requires `sigx prebuild`.
 
 ## The variable-height composer recipe
 
-A chat composer whose height changes (an input that grows, a reply preview that appears) wants its bottom detent to track that height. Measure the floor block with [`useElementLayout()`](/lynx/modules/runtime/api) and feed the measured px as a `px` detent. Because detents are live, the sheet follows the floor as it grows or shrinks, keeping the input above the keyboard — the motivating case the route sheet's snapshotted geometry couldn't handle.
+A chat composer whose height changes (an input that grows, a reply preview that appears) wants its bottom detent to track that height. Measure the floor block with [`useElementLayout()`](/lynx/modules/runtime/api) and feed the measured px as a `px` detent. Because detents re-resolve every render, the sheet follows the floor as it grows or shrinks, keeping the input above the keyboard — the motivating case the route sheet's snapshotted geometry couldn't handle.
+
+Pair it with `bottomOffset` when a `<SafeAreaView edges={['bottom']}>` ancestor already pads the gesture bar, or the `topOffset` cap is measured from the wrong anchor and the open sheet slides under your header.
 
 ## Custom sheets (the shared engine)
 
-The primitives behind `<BottomSheet>` are exported for building your own sheet surface: `useSheetEngine` (state + snap logic), `createSheetPan` (the pan gesture), `resolveDetents` (turn `DetentSpec`s into px) and `decideDragOwner` (inner-scroll arbitration). See the [API reference](/lynx/modules/sheet/api).
+The primitives behind `<BottomSheet>` are exported for building your own sheet surface: `useSheetEngine` (state + snap logic), `createSheetPan` (the pan gesture), `resolveDetents` (turn `DetentSpec`s into px) and `decideDragOwner` (surface-drag arbitration). See the [API reference](/lynx/modules/sheet/api).
