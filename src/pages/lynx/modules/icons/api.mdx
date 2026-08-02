@@ -73,6 +73,7 @@ export type IconProps =
     & Define.Prop<'name', string, true>
     & Define.Prop<'size', number, false>
     & Define.Prop<'color', string, false>
+    & Define.Prop<'scaleWithText', boolean, false>
     & Define.Prop<'class', string, false>
     & IconPropsExtensions;
 ```
@@ -81,7 +82,21 @@ export type IconProps =
 - `name` (required) — the glyph name in the set's canonical kebab-case.
 - `size` (optional) — pixel size, default `16`.
 - `color` (optional) — CSS color, default `'currentColor'`; runs through an allow-list before substitution.
+- `scaleWithText` (optional) — follow the OS text-size setting. Default `false`.
 - `class` (optional) — class string applied to the host.
+
+#### Icons and the OS text size
+
+By default an icon **holds its designed `size` in dp** regardless of the system font scale. That is the layout-stable choice, and the right one for chrome — tab bars, headers, list accessories — where a growing glyph would break the bar it sits in.
+
+Set `scaleWithText` for icons sitting **inline with scaling text**, where holding still would look wrong next to text that grew. The glyph and its box then grow together by the effective scale, live, and both backends (SVG and font mode) behave identically.
+
+```tsx
+<Icon set="lucide" name="settings" />                      {/* chrome: fixed 16dp */}
+<Icon set="lucide" name="info" scaleWithText />            {/* inline with body text */}
+```
+
+Read the scale yourself with [`useFontScale()`](/lynx/modules/appearance/api#usefontscale) when a layout has to change shape rather than just grow.
 
 ### IconColorResolver
 
