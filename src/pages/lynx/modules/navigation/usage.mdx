@@ -207,6 +207,21 @@ useNavSerializer({
 
 `onRestoreError` reports `'version'`, `'shape'`, `'unknown-route'` or `'load-threw'` so you can fall back to a clean initial stack.
 
+## Transitions pre-stage the incoming screen
+
+An animated push commits its render immediately but parks the incoming layer off-screen, and holds the slide until the background→main pipeline goes quiet: the screen's mount batch, post-mount effect flushes, native layout and a `<list>`'s initial cell pulls all complete while the outgoing screen is still on screen. Then the slide animates a fully built tree.
+
+The effect is that a heavy destination slides in at vsync cadence instead of stuttering into place. There is **no new API** — this is how animated transitions behave.
+
+What to expect in practice:
+
+- **A short, capped delay before motion starts.** The settle window is bounded at 160 ms, so a screen that never goes quiet — a poller, a streaming feed — still transitions promptly, just with a best-effort pre-stage instead of a complete one.
+- **Cards and modals park with a ~2px sliver on screen**, not exactly off it. A fully off-screen layer's texture is culled and never rasterized, which puts the whole screen's raster cost on the first animation frame; the sliver forces that raster into the settle window instead.
+- **Pops get the same window** for the underneath layer's reveal relayout.
+- **Sheet height semantics are unaffected** — [`useSheetHeight`](/lynx/modules/navigation/api#usesheetheight) reports the same values it always did.
+
+The quiescence probe underneath is [`pendingOps()`](/lynx/modules/runtime/api#pendingops) from `@sigx/lynx-runtime`, paired with `waitForFlush()`.
+
 ## Platform notes
 
 - **Android hardware back** — `NavigationRoot` auto-wires the system back button by default. Only call `useHardwareBack()` yourself if you set `hardwareBack={false}`. It is a no-op on iOS and in non-native runtimes (web / SSR / test).

@@ -161,6 +161,26 @@ const useDrawer: () => DrawerNav
 
 Accesses the enclosing `Drawer` navigator: `{ isOpen, open(), close(), toggle() }`. Reactive. Throws when called outside `Drawer`.
 
+### useSheetHeight
+
+```ts
+const useSheetHeight: () => SharedValue<number>
+```
+
+The live visible **height in px** of the top bottom sheet — `0` when none is open, rising to its detent height as the sheet opens or drags, tracking the finger frame for frame. Reveal px *is* the visible height, so there is no progress→px scaling and no per-sheet rebind: the identity is stable for consumers.
+
+Bind it like any `SharedValue`. The canonical use is a composer bar that must sit above **whichever is taller**, the soft keyboard or the sheet:
+
+```tsx
+const sheetH = useSheetHeight();
+const lift = useDerivedValue([keyboardLift, sheetH], 'max');
+useAnimatedStyle(barRef, lift, 'translateY', { factor: -1 });
+```
+
+Two separate `translateY` bindings would sum — see [`useDerivedValue`](/lynx/modules/runtime/api#usederivedvalue).
+
+Must be called under a `<NavigationRoot>`. Returns a constant-`0` SharedValue when the navigator was created with `animated={false}`, since there is no sheet SV to track.
+
 ## Components
 
 Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/navigation/components) catalog:
