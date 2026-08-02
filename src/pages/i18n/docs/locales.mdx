@@ -1,0 +1,78 @@
+---
+title: Locales
+description: "Detecting, switching and persisting the locale — plus the load-error surface"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Locales
+
+<p class="lede">Pick a starting locale from the request or the device, let the user change it, and keep the choice.</p>
+
+## Switching
+
+```tsx
+import { useLocale } from '@sigx/i18n';
+
+const LocalePicker = component(() => {
+    const { locale, locales, setLocale } = useLocale();
+
+    return () => (
+        <select value={locale.value} onChange={(e) => setLocale(e.target.value)}>
+            {locales.map((l) => <option value={l}>{l}</option>)}
+        </select>
+    );
+});
+```
+
+`setLocale` is typed to the known locales when the [Vite plugin](/i18n/docs/installation#the-vite-plugin) has generated your schema. It returns a promise that settles once the new catalogs have loaded.
+
+`whenReady` resolves when the initial catalogs and any device hydration have settled — useful for holding a splash screen rather than flashing untranslated keys.
+
+## Detection
+
+`detectLocale` runs an ordered list of detectors and returns the first supported match:
+
+```ts
+import { createDetectors, detectLocale } from '@sigx/i18n';
+
+const detectors = createDetectors(['url', 'cookie', 'settings', 'browser']);
+const locale = detectLocale(detectors, { supported: ['en', 'sv'] });
+```
+
+The built-ins are `urlDetector`, `cookieDetector`, `settingsDetector` and `browserDetector`; `parseAcceptLanguage` and `parseCookie` are exported for building your own.
+
+On the server, `resolveRequestLocale(request, options)` does the whole job from a `Request` — see [Server & SSR](/i18n/docs/server).
+
+`Detector.detect` is **synchronous**. A native locale that can only be read asynchronously — a lynx settings module, say — goes through `initialLocale` or `await setLocale()` instead.
+
+## Persistence
+
+`localeCookie` and `localeSwitchUrl` build the cookie and the URL for a locale switch that survives a reload. On the client, `@sigx/i18n` hands persistence to [`@sigx/store`](/store/docs/persistence)'s `persist` rather than touching storage itself.
+
+Two things follow from that, and both matter off the web:
+
+- **An async backend is supported.** `StorageLike`'s `getItem` / `setItem` / `removeItem` may each return a promise, so `@sigx/lynx-storage` works as-is. Hydration is awaited and applied as one atomic patch.
+- **With no Web-Storage-shaped global present, persistence silently no-ops.** The locale does not survive a restart and nothing is logged. If you need it on a non-DOM renderer, pass a backend explicitly.
+
+`@sigx/i18n` selects **no backend of its own** — omitting `persistence.storage` defers to whatever `@sigx/store` resolves.
+
+## When a catalog fails to load
+
+A bundled `import()` failing is a broken build. A `fetch` failing is Tuesday. So a load failure is surfaced rather than only logged:
+
+```tsx
+const { error, retry } = useLocale();
+
+return () => error.value
+    ? <button onClick={() => retry()}>Translations unavailable — retry</button>
+    : <App />;
+```
+
+`error` is reactive and holds the most recent failure (`{ error, locale, namespace }`); `retry()` re-attempts every load that failed. `onLoadError` in the config replaces the default console logging if you would rather route it to telemetry.
+
+## Next steps
+
+- [Runtime catalogs](/i18n/docs/runtime-catalogs) — messages from a CMS or database.
+- [Server & SSR](/i18n/docs/server) — request locale and state transfer.

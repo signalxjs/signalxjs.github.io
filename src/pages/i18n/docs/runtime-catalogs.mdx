@@ -1,0 +1,94 @@
+---
+title: Runtime catalogs
+description: "Messages that come from a CMS or database — runtimeNamespaces, useDynamicTranslation and invalidation"
+layout: docs
+category: Guides
+order: 50
+---
+
+# Runtime catalogs
+
+<p class="lede">Some messages are not in your repository. A CMS block, a product description, a tenant's custom label — the keys are not knowable at build time, so the typed path cannot cover them.</p>
+
+## The problem with typing them
+
+`useTranslation` checks both the namespace and the key against the schema the [Vite plugin](/i18n/docs/installation#the-vite-plugin) generates from your catalog tree. That is what you want for the app's own chrome: a typo in `t('cart.titel')` should not compile.
+
+It is exactly wrong for content that arrives at runtime. Those keys do not exist in any scanned catalog, so every one of them would be an error.
+
+## `runtimeNamespaces`
+
+Declare which namespaces are sourced at runtime:
+
+```ts
+i18n({
+    localesDir: 'src/locales',
+    masterLocale: 'en',
+    runtimeNamespaces: ['content'],
+});
+```
+
+The generator then knows those namespaces are real but their keys are open, and the consistency check stops reporting them as missing from the master locale.
+
+## `useDynamicTranslation`
+
+The reader for those namespaces. The **namespace is still checked**; only the keys are open:
+
+```tsx
+import { useDynamicTranslation } from '@sigx/i18n';
+
+const Block = component<{ block: ContentBlock }>((ctx) => {
+    const content = useDynamicTranslation('content');
+
+    return () => (
+        <section>
+            <h2>{content(ctx.props.block.labelKey, { count }, { default: ctx.props.block.label })}</h2>
+            {content.exists(ctx.props.block.helpKey) && <p>{content(ctx.props.block.helpKey)}</p>}
+        </section>
+    );
+});
+```
+
+Two things it adds over the typed translator:
+
+- **`default`** — the author's original text, used when the key resolves to nothing. A CMS block always has *something* to show; falling back to the raw key would put `content.block_1841.label` on the page.
+- **`exists(key)`** — branch on presence rather than rendering an empty element. Optional content is normal here in a way it is not for app chrome.
+
+Keep [`useTranslation`](/i18n/docs/usage#usetranslation) for everything else. Reaching for the dynamic translator to dodge a type error in your own catalog is throwing away the check that makes the typed path worth having.
+
+## Supplying the messages
+
+Runtime catalogs arrive the same way any other catalog does — through `load`, or seeded with `addMessages`:
+
+```ts
+createI18n({
+    fallbackLocale: 'en',
+    load: async (target, locale, ns) =>
+        ns === 'content'
+            ? await fetchCmsCatalog(locale)
+            : import(`./locales/${target}/${locale}/${ns}.json`),
+});
+```
+
+For overrides that layer over a base catalog rather than replacing it, see [layers](/i18n/docs/usage#layers).
+
+## Invalidating
+
+Content changes without a deploy, which is the whole point of putting it in a CMS. Re-seed the namespace and every component that read one of its messages re-renders, because the catalogs are signals:
+
+```ts
+const i18n = useI18n();
+
+await i18n.invalidate(locale, 'content');   // drop and reload one namespace
+await i18n.invalidate();                    // everything
+```
+
+`invalidate(locale?, ns?, layer?)` narrows from the left — omit an argument to cover every value of it. `addMessages(locale, ns, catalog)` is the direct form when you already hold the new catalog and would rather not round-trip through `load`.
+
+## Handling failures
+
+A `fetch`-backed catalog fails in ways a bundled `import()` does not, so wire the [load-error surface](/i18n/docs/locales#when-a-catalog-fails-to-load): `useLocale().error` with `retry()`, or `onLoadError` to route it to telemetry. With `default` values on your dynamic calls, a failed content load degrades to the authored text rather than to raw keys.
+
+## Next steps
+
+- [Server & SSR](/i18n/docs/server) — resolving the locale per request.

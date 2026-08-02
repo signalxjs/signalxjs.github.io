@@ -1,0 +1,66 @@
+---
+title: API reference
+description: "Every export of @sigx/mermaid, grouped by entry point"
+layout: docs
+category: Reference
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/mermaid` <PkgVersion npm="@sigx/mermaid" />.</p>
+
+`mermaid` and `sigx` are **peer dependencies**; the package has no runtime dependencies of its own.
+
+## `@sigx/mermaid`
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `Mermaid` | component | The diagram component. Props: `code` (required), `title`, `options`, `eager`, plus anything else forwarded to the `<figure>`. |
+| `MermaidProps` | type | Its prop type. |
+| `configureMermaid(options)` | function | Set global options. Calls **merge**. |
+| `getMermaidConfig()` | function | Read the resolved global config. |
+| `resetMermaidConfig()` | function | Clear it — useful between tests. |
+| `mergeMermaidConfig(a, b)` | function | The merge used internally, exposed. |
+| `loadMermaid()` | function | Load the mermaid module on demand. |
+| `renderDiagram(…)` | function | Render one diagram imperatively; returns a `RenderResult`. |
+| `resolveColorScheme()` | function | The detected scheme (`'light' \| 'dark'`). |
+| `resolveTheme()` / `resolveSchemeTheme(scheme)` | function | The resolved theme for the active or a given scheme. |
+| `defaultThemeVariables()` | function | The variables the package supplies. |
+| `pageBackgroundColor()` | function | The detected page background — the input to scheme detection's last step. |
+| `watchTheme(cb)` | function | Subscribe to appearance changes. |
+| `resetMermaidLoader()` | function | Drop the cached module, for tests. |
+
+### Option types
+
+`MermaidOptions`, `MermaidSchemeTheme`, `MermaidThemeName`, `MermaidThemes`, `MermaidThemeVariables`, `RenderResult`.
+
+`MermaidOptions` carries `themes`, `securityLevel`, `config` and `resolveColorScheme` — see [Configuration](/mermaid/docs/usage#configuration).
+
+## `@sigx/mermaid/client`
+
+Installs on import.
+
+| Export | Purpose |
+|---|---|
+| `installMermaid(options?)` | Install explicitly; returns a disposer. Safe to call repeatedly. |
+| `uninstallMermaid()` | Tear down whatever is installed. A no-op if nothing is. |
+| `MermaidClientOptions` | `{ root?, rootMargin? }`. |
+
+`configureMermaid` and `getMermaidConfig` are re-exported here, so a client-only entry needs one import.
+
+## `@sigx/mermaid/ssg`
+
+| Export | Purpose |
+|---|---|
+| `rehypeMermaid(options?)` | The rehype plugin. Also the default export. |
+| `RehypeMermaidOptions` | `{ language?, className? }`. |
+| `mermaidThemeContribution` | Drop-in `ThemeConfig` slice for an `@sigx/ssg` theme. |
+
+See [SSG integration](/mermaid/docs/ssg).
+
+## `@sigx/mermaid/styles`
+
+The cosmetic stylesheet. Everything functional is done in JS with the `hidden` attribute, so a site that skips it still behaves correctly. Override the custom properties on `.sigx-mermaid` — see [Styling](/mermaid/docs/usage#styling).
