@@ -72,6 +72,55 @@ interface ServerStreamOptions<A extends unknown[], T> {
 
 Streams yield as NDJSON; a string stream plugs into [`useStream`](/core/docs/data-loading). The options form has no `input` — validate at the top of the generator. A guard veto surfaces on the first pull.
 
+### Per-call options
+
+Every wrapped callable carries `.with(options)`, returning the same signature with
+those options bound.
+
+```ts
+type ServerFnCallable<A extends unknown[], R> = ((...args: A) => Promise<R>) & {
+  with(options?: ServerFnCallOptions): (...args: A) => Promise<R>;
+  /** The build-stamped stable data key, `<stableId>#<name>`. */
+  __sigxKey: string;
+} & WrappedServerFn;
+
+interface ServerFnCallOptions {
+  /** Aborts the call — the client fetch, or `rq.abortSignal` in-process. */
+  signal?: AbortSignal;
+  /** Client transport only. Merged over the transport headers; `content-type` is not overridable. */
+  headers?: Record<string, string>;
+  /** Client transport only, cache-marked GET reads. Sets `cache: 'no-cache'` on the fetch. */
+  fresh?: boolean;
+  /** In-process (SSR) only. The request this call should see; beats the ambient scope. */
+  context?: Request | Partial<ServerFnContext>;
+}
+
+/** A stream's channel — the same, minus `fresh` (a stream is never HTTP-cached). */
+type ServerStreamCallOptions = Omit<ServerFnCallOptions, 'fresh'>;
+```
+
+Options that do not apply to the current transport are dev-warned no-ops, not
+errors — see [Per-call options](/server/packages/server/usage#per-call-options).
+
+### configureServerFn
+
+```ts
+function configureServerFn(config: ServerFnTransport | null): void;
+
+interface ServerFnTransport {
+  /** Absolute URL or path prefix; wins over the build-time endpoint. */
+  endpoint?: string;
+  /** Static map, or a (possibly async) factory called per request. */
+  headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
+  /** Fetch implementation; defaults to the global fetch. */
+  fetch?: typeof globalThis.fetch;
+}
+```
+
+From `@sigx/server/client`. Sets the transport every stub resolves at **call**
+time, so one build serves dev, staging and production. Pass `null` to clear it.
+See [Native clients](/server/packages/server/native-clients).
+
 ### ServerFnContext
 
 ```ts

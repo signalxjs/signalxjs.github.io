@@ -117,9 +117,70 @@ by default. You get all of this without opting in:
 - **Structured version-skew `404`** — a stale client calling a symbol that no
   longer exists gets a typed 404, not a silent hang.
 
-These are configured through the request-handler options (`guard`, `origin`,
-`maxBodyBytes`, `maxUrlBytes`, `onError`, `timeoutMs`, …), which are shared by
-the dev plugin, the Node handler and the edge handler.
+### Request-handler options
+
+`handleServerFnRequest` (edge) and `createServerFnHandler` (Node) take the same
+`ServerFnRequestOptions`:
+
+| Option | Default | Purpose |
+|---|---|---|
+| `resolve` | — | **Required.** Symbol → wrapped function. Return null/undefined for unknown symbols; the stub surfaces that as a version-skew error. |
+| `guard` | — | Runs before every function reached through **this endpoint**. See the note below. |
+| `origin` | `'same-origin'` | `'verify-when-present'`, an allowlist, or `false`. |
+| `maxBodyBytes` | 1 MiB | Body cap, enforced while reading. |
+| `maxUrlBytes` | 8 KiB | Cap on a GET read's encoded query string → `414`. Sits under mainstream proxies' request-line caps. |
+| `onError` | — | Observability seam for **masked** failures. |
+| `timeoutMs` | none | Upper bound on guard + handler. |
+| `renderBoundaries` | — | Single-flight boundary refresh; `createBoundaryRefresh` from [`@sigx/resume/server`](/server/packages/resume/api) builds one. |
+
+#### `onError`
+
+Called for every **masked** failure — any non-`ServerFnError` throw from a guard
+or handler, timeouts included — in dev *and* production, **before** the client
+response is built:
+
+```ts
+handleServerFnRequest(request, {
+  resolve,
+  onError(error, info, rq) {
+    telemetry.report(error, { fn: info.name, url: rq.url.pathname });
+  },
+});
+```
+
+`ServerFnError`s are expected, client-visible failures and do **not** fire it —
+this hook is for the errors the client never sees.
+
+It is **awaited**, because an edge runtime may cancel post-response microtasks
+and lose fire-and-forget telemetry. Its own throws are swallowed and never affect
+the response.
+
+#### `timeoutMs`
+
+An upper bound on guard + handler, in milliseconds:
+
+```ts
+handleServerFnRequest(request, { resolve, timeoutMs: 10_000 });
+```
+
+On expiry the caller gets a `504`, `rq.abortSignal` fires — alongside client
+disconnect, via `AbortSignal.any` — and `onError` receives the timeout error. So
+a handler that threads `rq.abortSignal` into its own `fetch` and database calls
+gets those cancelled too; one that ignores it keeps running.
+
+For a stream, the bound covers **time to first chunk** only. Once an NDJSON
+stream has started it is not bounded — cancel a long stream from the consumer
+side instead.
+
+There is no default: without `timeoutMs`, a handler runs until it settles.
+
+> **`guard` here is wire-only.** It runs for endpoint requests — POST, GET reads,
+> form posts, streams — and never for an in-process SSR-time call, which does not
+> enter the handler at all. A chain that must hold on *every* transport belongs in
+> the definition: `use:` per function, or one
+> [`serverFnPreset({ use })`](/server/packages/server/usage#sharing-a-guard-chain)
+> per module. Use this hook as the wire-level backstop, not as the app's only
+> authorization.
 
 ### Relaxing a default — deliberately
 

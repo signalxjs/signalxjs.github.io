@@ -361,8 +361,116 @@ A source naming no request always merges, which makes
 different request gets its own store, plus a once-per-process development notice
 naming both. To isolate a nested render deliberately, hand it its own `locals`.
 
-On the client, `.with()` is ignored (with a dev warning) — context is a
-server-only concept.
+## Cacheable reads
+
+By default every call is a `POST`. Declaring `cache` marks a function a
+**side-effect-free idempotent read**: the stub issues `GET` with the arguments in
+the query string, and the endpoint emits `Cache-Control`, so browser and edge
+caches can absorb the traffic before it reaches your server.
+
+```ts
+export const listProducts = serverFn({
+  id: 'catalog',
+  input: z.object({ category: z.string() }),
+  unguarded: true,
+  cache: { maxAge: 60, staleWhileRevalidate: 300, public: true },
+  handler: async (rq, { category }) => db.products.byCategory(category),
+});
+```
+
+```ts
+interface ServerFnReadCache {
+  maxAge: number;                  // seconds fresh in HTTP caches. No default — you choose.
+  staleWhileRevalidate?: number;   // seconds a stale answer may still be served
+  public?: boolean;                // opt into SHARED caches
+  sMaxAge?: number;                // shared-cache TTL; defaults to maxAge
+}
+```
+
+The emitted header follows directly from the declaration:
+
+| Declaration | `Cache-Control` |
+|---|---|
+| `{ maxAge: 60 }` | `private, max-age=60` — plus `Vary: Cookie` |
+| `{ maxAge: 60, staleWhileRevalidate: 300 }` | `private, max-age=60, stale-while-revalidate=300` |
+| `{ maxAge: 60, public: true }` | `public, max-age=60, s-maxage=60` |
+| `{ maxAge: 60, public: true, sMaxAge: 600 }` | `public, max-age=60, s-maxage=600` |
+
+`POST` stays valid for a cache-marked function — the GET is what makes it
+*cacheable*, not the only way to call it.
+
+### The two promises you are making
+
+**`cache` asserts the function does not mutate.** A GET read drops the JSON
+content-type CSRF gate, so marking a mutating function `cache` re-opens CSRF
+completely. Nothing checks this for you; it is the author's promise.
+
+**`public: true` asserts the output depends only on the arguments** — never
+cookies, never auth, never a request header. A shared cache will serve one user's
+response to another. Without it, the endpoint emits `private` and appends
+`Vary: Cookie`.
+
+`cache` and [`invalidates`](#options-form) are mutually exclusive — a read
+that invalidates is not a read. So is `cache` with `form: true`; a form target is
+a mutation.
+
+Bypass the HTTP cache for a single call with
+[`.with({ fresh: true })`](#per-call-options).
+
+> **`cache` is the HTTP layer.** `@sigx/cache`'s `staleTime` is the in-app layer,
+> and the two compose: `cache` decides what a browser or CDN may reuse without
+> asking, `staleTime` decides when a mounted read refetches.
+
+Long argument lists are the one operational limit — a GET's encoded query string
+is capped at `maxUrlBytes` (default 8 KiB) and answered with a `414` past it.
+
+## Per-call options
+
+Every wrapped function carries a `.with(options)` channel that returns the same
+callable with those options bound. It is a **separate** channel on purpose: your
+arguments stay exactly your arguments, with no trailing-options parameter for the
+transport to sniff.
+
+```ts
+const cart = await getCart.with({ signal: controller.signal })(cartId);
+```
+
+```ts
+interface ServerFnCallOptions {
+  signal?: AbortSignal;
+  headers?: Record<string, string>;
+  fresh?: boolean;
+  context?: Request | Partial<ServerFnContext>;
+}
+```
+
+| Option | Where it applies | Effect |
+|---|---|---|
+| `signal` | Everywhere | Aborts the in-flight call. On the client the `fetch` is aborted; on an in-process (SSR) call it becomes `rq.abortSignal`. |
+| `headers` | **Client transport only** | One-off request headers for this call, merged over `configureServerFn`'s transport headers — the per-call value wins. `content-type` is never overridable (stripped case-insensitively; the endpoint 415s anything else). |
+| `fresh` | **Client transport only**, cache-marked GET reads | Sets `cache: 'no-cache'` on the fetch, so the browser revalidates with the origin instead of answering from `max-age`. |
+| `context` | **In-process (SSR) only** | The request this call should see — see [Calling a server function during SSR](#calling-a-server-function-during-ssr) above. Wins over the ambient `runWithServerFnContext` scope. |
+
+The two "client only" options are no-ops in-process, and `context` is a no-op on
+the client — each warns in development rather than failing, because the same code
+legitimately runs on both sides. The mirror is deliberate: an in-process call
+makes no HTTP request, so there are no headers to send and no cache to bypass; a
+client stub's context *is* the request it makes, and silently accepting one there
+would imply it travelled.
+
+`fresh` is meaningless on a POST, which is never HTTP-cached, so it is a
+dev-warned no-op there too.
+
+**Streams take the same channel minus `fresh`.** A `serverStream` is always POST
+and therefore never answered from an HTTP cache, so `ServerStreamCallOptions`
+omits the option entirely — using it is a compile error rather than a silent
+no-op:
+
+```ts
+for await (const line of tailLog.with({ signal, headers: { 'x-trace': id } })(jobId)) {
+  console.log(line);
+}
+```
 
 ## Errors
 
@@ -382,7 +490,7 @@ export const publish = serverFn(async (rq, id: string) => {
 
 ```tsx
 try {
-  await publish.run(id);
+  await publish(id);
 } catch (err) {
   if (isServerFnError(err) && err.status === 409) {
     // err.message and err.data are the values thrown on the server
@@ -443,5 +551,7 @@ middleware pipeline in-process during SSR as they do over the wire.
 
 - [Deployment & security](/server/packages/server/deployment) — serve the endpoint in dev,
   Node and edge runtimes, and the security defaults you're getting.
+- [Native clients](/server/packages/server/native-clients) — pointing a lynx or
+  terminal app's stubs at a remote backend.
 - [Data Loading](/core/docs/data-loading) — `useData` / `useAction` / `useStream`,
   the value-first primitives server functions feed.
