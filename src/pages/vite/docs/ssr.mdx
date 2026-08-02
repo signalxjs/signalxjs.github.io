@@ -93,6 +93,25 @@ app.use(handler);
 
 It fails fast at startup if `@sigx/server-renderer` isn't installed, and applies `ssrFixStacktrace` so errors point at your source.
 
+### Styles in dev
+
+The dev handler inlines the SSR module graph's CSS into the document `<head>`. There is nothing to configure.
+
+This matters because of how Vite serves CSS in dev: a stylesheet reached through a JS import (`import './styles.css'` — so any app with Tailwind, daisyUI, CSS modules, or plain imported CSS) is served as a **JS module that injects a `<style>` at runtime**. Without inlining, dev SSR streamed a fully rendered document with no styles in the head, and the browser painted the entire page unstyled until the client entry executed.
+
+The styles are emitted as `<style data-vite-dev-id="…">` — the shape Vite's client adopts on boot and HMR-replaces in place, so there are no duplicated rules and CSS HMR is untouched.
+
+```ts
+const handler = await createDevRequestHandler(vite, {
+    entry: '/src/entry-server.tsx',
+    devStyles: false,   // default: true
+});
+```
+
+Set `devStyles: false` only when your template already ships a stylesheet link of its own.
+
+This is **dev-only**. Production has always emitted the built manifest's real `<link>` tags via [`collectAssets`](/vite/docs/api), so it was never affected.
+
 For **production**, the counterpart is `createRequestHandler` from `@sigx/server-renderer/node`, fed your built `entry-server.js` and manifest — see [Building a full SSR app](/server/packages/server-renderer/full-app).
 
 ## Where to go next
