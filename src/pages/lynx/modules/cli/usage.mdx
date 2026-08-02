@@ -20,7 +20,7 @@ Install both packages into a Lynx app:
 pnpm add -D @sigx/cli @sigx/lynx-cli
 ```
 
-`@sigx/lynx-cli` requires `@sigx/cli` **≥ 0.4** — it builds on the 0.4 plugin API (typed args via `@sigx/cli`'s re-exported `a` builders, and the dashboard shell).
+`@sigx/lynx-cli` requires `@sigx/cli` **≥ 0.9** — the dev dashboard is built on that release's pane-aware shell (a tab is told the pane it must fill, and `ShellHandle` exposes the active tab).
 
 A project is detected as a Lynx project when `signalx.config.ts` (or `.js`/`.mjs`) or `lynx.config.ts` exists at its root. From there, the day-to-day commands are:
 
@@ -30,6 +30,7 @@ sigx prebuild       # render native ios/ and android/ projects + autolink
 sigx run:android    # build, install and launch on Android
 sigx run:ios        # build, install and launch on iOS (macOS only)
 sigx run:web        # build, serve and live-reload in the browser
+sigx build:web      # deployable static export to dist/web/
 sigx build          # production rspeedy bundle
 sigx doctor         # environment health report
 ```
@@ -140,7 +141,16 @@ A `variants` map lets a dev/staging/preview build install **alongside** producti
 
 ## Running the dev server
 
-`sigx dev` starts the rspeedy dev server, probes for a free port (default `8788`), and — in an interactive terminal — renders a **full-screen dev dashboard**: live status (port, build id, selected targets), the QR code and LAN-IP URLs for loading the bundle on a device, streaming device logs, and keyboard shortcuts / slash-commands. (In a non-TTY environment it falls back to plain banner output.)
+`sigx dev` starts the rspeedy dev server, probes for a free port (default `8788`), and — in an interactive terminal — renders a **full-screen dev dashboard**. (In a non-TTY environment it falls back to plain banner output.)
+
+The dashboard is laid out in **panes** rather than one scrolling column, so status stays put while output moves:
+
+- **Status** — port, build id, selected targets.
+- **One QR code** with the LAN-IP URL for loading the bundle on a device. It is a single QR regardless of how many targets are selected; the URL is the same for all of them.
+- **Build and Logs as separate tabs**, so a noisy device log never buries a build error.
+- **Device logs as a structured table** — level, source and message in columns, rather than raw interleaved lines — with **filters** to narrow to what you're chasing.
+
+Press <kbd>z</kbd> to **zoom** the focused pane to full screen and back, which is the fastest way to read a long stack trace without leaving the dashboard.
 
 ```bash
 sigx dev                  # interactive target picker (TTY)
@@ -165,14 +175,31 @@ Behavior worth knowing:
 `sigx prebuild` renders the managed `ios/` and `android/` native projects from templates, autolinks every installed `@sigx/lynx-*` module (generating the native registries, Podfile entries, Gradle deps, manifest permissions and so on), then runs your `prebuild.post` hook.
 
 ```bash
-sigx prebuild             # both platforms
-sigx prebuild --android   # Android only
-sigx prebuild --ios       # iOS only
-sigx prebuild --clean     # bypass the fingerprint fast-path, full re-render
-sigx prebuild --variant dev  # render the dev variant into android-dev/ + ios-dev/
+sigx prebuild                  # both platforms
+sigx prebuild --android        # Android only
+sigx prebuild --ios            # iOS only
+sigx prebuild --clean          # bypass the fingerprint fast-path, full re-render
+sigx prebuild --variant dev    # render the dev variant into android-dev/ + ios-dev/
+sigx prebuild --embed-bundle   # also bake the built JS bundle in (release pipelines)
 ```
 
 Prebuild has a **fingerprint-based fast path**: it skips work when its inputs are unchanged. Editing `signalx.config.ts` or the post-hook script re-triggers it; `--clean` forces a full re-render regardless.
+
+### `--embed-bundle` for external release pipelines
+
+A plain `prebuild` seeds a **0-byte iOS placeholder** (and nothing on Android). That is deliberate: the native loaders treat a non-empty `main.lynx.bundle` as "load this" regardless of build configuration, so an always-embedded bundle would stop dev and sandbox builds from falling through to the dev server and `DevHomeScreen`.
+
+The real bundle is therefore copied in only on **explicit release intent**. `sigx run:ios --release` and `sigx run:android --release` do it for you. `--embed-bundle` is that same step for pipelines that archive the native project themselves:
+
+```bash
+sigx build
+sigx prebuild --embed-bundle --ios
+xcodebuild archive …            # fastlane, Xcode Cloud, gradle bundleRelease, …
+```
+
+It copies `dist/main.lynx.bundle` over the native project's bundle slot, and mirrors any **async chunks** from dynamic `import()` into the project so the production resource fetchers can serve them locally. The stale chunk subtree is removed first — hashes change every build, and leftovers would ship dead code and grow the project unboundedly.
+
+It **throws** when the built bundle is missing or empty rather than no-op'ing: you asked to embed, so silently baking the placeholder again would produce an archive that looks fine and loads nothing. Run `sigx build` first.
 
 Because prebuild re-renders managed native files pristine each time, a `prebuild.post` hook that patches them must anchor on template text and fail loudly when the anchor is missing:
 
@@ -267,6 +294,33 @@ Two things to know about the web target:
 
 - **Live reload is a full reload**, not hot-swap — a file change rebuilds the bundle and the page re-fetches it. Lynx's HMR transport is device-oriented and stays off for the web target (matching upstream).
 - **Gestures work in the browser.** Tap, long-press and pan map to pointer input, so `Pressable`, `Draggable`, sheets and swipe-to-reveal all behave on web; `useAnimatedStyle` animations fall back to inline styles.
+
+### Shipping it: `sigx build:web`
+
+`run:web` is the dev server. `sigx build:web` produces a **deployable static export** in `dist/web/` that any static host can serve:
+
+```bash
+sigx build:web
+sigx build:web --coi     # also emit the COI service-worker shim
+```
+
+```
+index.html            host page (no reload client)
+engine/static/**      the upstream @lynx-js/web-core prebuilt engine
+app/**                your app bundle and its static assets, async chunks included
+host/sigx-host.js     the @sigx/lynx-web-host page bridge
+coi.js                (--coi only) the COI service-worker shim
+_headers, vercel.json header samples
+```
+
+#### Cross-origin isolation is required
+
+`web-core` needs `SharedArrayBuffer`, which means the page must be **cross-origin isolated**: `Cross-Origin-Opener-Policy: same-origin` plus `Cross-Origin-Embedder-Policy: require-corp`. Without both, the engine will not start.
+
+Headers are a serving concern, not a build one, so the export emits samples (`_headers`, `vercel.json`) rather than trying to guess your host:
+
+- **Hosts that can set headers** (Netlify, Vercel, Cloudflare, your own nginx) should set them. Use the samples.
+- **Header-less hosts** (GitHub Pages) can use `--coi`, which registers a service worker that injects the headers client-side. The cost is one automatic reload on a visitor's first visit.
 
 ## Keeping the module family in sync
 

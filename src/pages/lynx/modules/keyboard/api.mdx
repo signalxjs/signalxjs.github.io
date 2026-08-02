@@ -27,6 +27,8 @@ export type KeyboardAvoidingViewProps =
   & Define.Prop<'behavior', KeyboardAvoidingBehavior, false>
   & Define.Prop<'keyboardVerticalOffset', number, false>
   & Define.Prop<'discountBottomInset', boolean, false>
+  & Define.Prop<'pinned', boolean, false>
+  & Define.Prop<'extraLiftSV', SharedValue<number>, false>
   & Define.Prop<'class', string, false>
   & Define.Prop<'style', Record<string, string | number>, false>
   & Define.Slot<'default'>;
@@ -35,8 +37,43 @@ export type KeyboardAvoidingViewProps =
 - `behavior` — how content is kept above the keyboard. One of `KeyboardAvoidingBehavior`; defaults to `'padding'`.
 - `keyboardVerticalOffset` — number (dp) added to the computed lift, for RN parity. Defaults to `0`.
 - `discountBottomInset` — subtract the bottom safe-area inset from the lift. Defaults to `true`; set `false` to lift by the full keyboard height when no ancestor applies the bottom inset.
+- `pinned` — turn avoidance **off** (lift 0) while something else already occupies the keyboard's space in flow. See [Pinning](#pinning-when-something-else-owns-the-space).
+- `extraLiftSV` — an extra bottom lift the content must also clear; it shrinks by `max(keyboardLift, extraLiftSV)`. See [Clearing a bottom accessory](#clearing-a-bottom-accessory).
 - `class` / `style` — passthrough to the host view. `style` is merged over the component's base flex defaults and wins on conflicts.
 - `default` slot — the content to keep above the keyboard.
+
+`KeyboardStickyViewProps` carries the same two props, with the same meanings.
+
+### Pinning: when something else owns the space
+
+An emoji panel painted in flow already occupies the keyboard's pixels. Left alone, the panel and a `KeyboardAvoidingView` both claim them — and the content between gets squeezed, which reads as a dark band eating the message list as the keyboard rises back over the panel.
+
+`pinned` resolves it by zeroing the lift for as long as that holds:
+
+```tsx
+<KeyboardAvoidingView pinned={panelEngaged()}>
+  <MessageList />
+</KeyboardAvoidingView>
+<KeyboardStickyView pinned={panelEngaged()}>
+  <Composer />
+</KeyboardStickyView>
+```
+
+Drive **both** from the same condition — in `@sigx/lynx-emoji` that is `useKeyboardPanelReveal()`'s `engaged()`.
+
+### Clearing a bottom accessory
+
+`extraLiftSV` lets content clear something that is not the keyboard. Pass a bottom accessory's live height and the content shrinks by `max(keyboardLift, extraLiftSV)`, so an emoji sheet overlaying the bottom pushes the thread up too:
+
+```tsx
+import { useSheetHeight } from '@sigx/lynx-navigation';
+
+<KeyboardAvoidingView extraLiftSV={useSheetHeight()}>
+  <MessageList />
+</KeyboardAvoidingView>
+```
+
+Same unit as the lift (dp). `pinned` still zeroes it.
 
 ### KeyboardStickyView
 

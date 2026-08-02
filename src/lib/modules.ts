@@ -496,9 +496,10 @@ export const COMPONENT_CATALOGS: Record<string, { cat: string; items: string[] }
         { cat: 'Layout', items: ['Row', 'Col', 'Center', 'Spacer', 'ScrollView'] },
     ],
     'lynx-gestures': [
-        { cat: 'Touch', items: ['Pressable'] },
+        { cat: 'Touch', items: ['Pressable', 'TouchGuard'] },
         { cat: 'Drag & swipe', items: ['Draggable', 'Swipeable'] },
         { cat: 'Scroll', items: ['ScrollView', 'Swiper'] },
+        { cat: 'Multi-touch', items: ['PinchRotate'] },
     ],
     'lynx-maps': [
         { cat: 'Map', items: ['Map', 'MapMarker'] },

@@ -22,6 +22,17 @@ pnpm add @sigx/lynx-emoji
 
 The package has two hard dependencies — `@sigx/lynx-gestures` (the `Pressable` each cell is built on) and `@sigx/lynx-keyboard` (used by `KeyboardPanelPicker`). `@sigx/lynx-storage` is an optional peer used for recents and skin-tone persistence; it is loaded via a guarded dynamic import and every call is try/caught, so a missing storage module never breaks the picker — without it everything works, state just resets per session.
 
+### Cells are template rows, not components
+
+Every grid row is a **plain template vnode**, not a component instance. A `component()` wrapper costs a runtime-core instance — proxies, an effect, lifecycle — per row, and at ~1,900 rows that dominated the picker's mount. Rows are staged snapshot-template records instead: the main thread builds them from a pooled template, so mount cost collapses to a vnode plus hole normalization and the full dataset ships without a per-row instance.
+
+Two consequences you can see:
+
+- The template compiles to a **zero-slot** shape — the glyph is a `text` *attribute* hole, not a child — so cells pool and recycle.
+- `item-key` is **tone-free**, so changing the sticky skin tone re-patches glyph holes in place rather than rebuilding rows.
+
+`createStagingDriver` (the budget-adaptive cooperative staging) and `EmojiGridScrollHandle` are exported if you are building your own grid surface on the same machinery.
+
 ## Basic usage
 
 `EmojiPicker` is the full surface: a search row, a category tab bar, a recycled glyph grid, a skin-tone long-press popover and a persistent recents tab. Give it a dataset and an `onPick` handler. The picker is a flex column, so it must live in a bounded-height container or it resolves to zero height.
@@ -103,6 +114,42 @@ function ChatComposer({ insert }: { insert: (glyph: string) => void }) {
 ```
 
 `fallbackHeight` (default 300) is used before the keyboard has ever opened, so the panel has a sensible size on first toggle. `KeyboardPanelPicker` accepts every `EmojiPickerProps` field except `style` and `onPick`.
+
+### The WhatsApp reveal, with `useKeyboardPanelReveal`
+
+Toggling `open` directly works, but it is not what WhatsApp does. There, **the app animates nothing** — the system keyboard's own show/hide animation does all the visible motion, and the panel is simply already painted underneath it.
+
+`useKeyboardPanelReveal` is that as a state machine:
+
+```tsx
+import { useKeyboardPanelReveal } from '@sigx/lynx-emoji';
+
+const panel = useKeyboardPanelReveal({
+    blur: () => inputRef.current?.blur(),
+    focus: () => inputRef.current?.focus(),
+});
+
+<KeyboardStickyView pinned={panel.engaged()}>
+    <ComposerRow onEmojiTap={() => panel.toggle()} emojiActive={panel.mode() === 'open'} />
+    <KeyboardPanelPicker open={panel.engaged()} data={enData} onPick={({ glyph }) => insert(glyph)} />
+</KeyboardStickyView>
+```
+
+| Member | Use it for |
+|---|---|
+| `mode()` | `'closed'` / `'open'` / `'closing'` — drive the toggle button's icon off `'open'`. |
+| `engaged()` | True while the panel must stay **painted** and the bar **pinned** (`'open'` *and* `'closing'`). Feed it to both `KeyboardStickyView`'s `pinned` and the picker's `open`. |
+| `open()` / `close()` / `toggle()` | Drive the machine. |
+
+The three states, and why the middle one exists:
+
+- **`open`** — the bar is pinned and the panel is painted in the keyboard's remembered space. Blurring the input lets the keyboard slide down and *reveal* it.
+- **`closing`** — the keyboard is rising back **over** the still-painted panel. The inset event reports the keyboard's final height once, at the *start* of its visual rise, while the sticky view's main-thread tween is still in flight. So the space handoff waits `settleMs` (default 350) after that event. Handing off on the event itself re-registers the bar's transform binding mid-tween, and the bar visibly rides up with the keyboard — the bug this state exists to prevent.
+- **`closed`** — the panel is parked; the bar tracks the live keyboard again.
+
+The handoff itself is a single frame: unpin and collapse are equal numbers applied together, so the bar cannot move. A returning keyboard whose height changed since the panel opened shifts the bar once at that frame, and `KeyboardPanelPicker` adopts the new height for the next cycle.
+
+`settleMs` must outlast `KeyboardStickyView`'s 250 ms lift tween — both are started by the same event. `noKeyboardMs` (default 600) is the fallback for when no keyboard ever rises after `close()`, as with a lost focus or a hardware keyboard.
 
 ## A bottom-sheet picker
 
@@ -226,6 +273,40 @@ function Themed({ insert }: { insert: (glyph: string) => void }) {
 
 A theme package can also extend props onto `EmojiPickerProps` by augmenting the empty `EmojiPropsExtensions` interface (the `declare module '@sigx/lynx-emoji'` pattern).
 
+## Picker chrome
+
+### Bottom tabs
+
+`tabPlacement` puts the category row above or below the grid. `'bottom'` is the WhatsApp arrangement, where the tab row is the picker's last row:
+
+```tsx
+<EmojiPicker tabPlacement="bottom" data={enData} onPick={…} />
+```
+
+It is **flow order only** — the grid region measures the same either way.
+
+The package ships no icons and takes no icon dependency. `EMOJI_CATEGORY_ICONS` is plain data naming a Lucide icon per category; render them yourself through `renderCategoryTab`. That render prop receives the tab glyph's **visual** size as its fourth argument — the em already multiplied by the platform ink ratio — so a custom tab can match the grid's cells.
+
+### A one-row strip
+
+`<EmojiStrip>` is the horizontal row WhatsApp shows above the keyboard while you search, and the shape a reaction bar wants:
+
+```tsx
+<EmojiStrip emojis={hits} onPick={({ glyph }) => insert(glyph)} />
+```
+
+It is deliberately **not** an `<EmojiGrid>`. The grid is a virtualized `<list>` whose cells are `<list-item>` templates — only valid inside a list — with a mount cost tuned for ~1,900 rows. A strip is a handful of real cells in a `<scroll-view>`, so it can mount and re-mount **per keystroke** without the grid's staging machinery. `limit` (default 48) caps it; hand a longer list to a grid instead.
+
+Picks push to the shared recents when an `<EmojiProvider>` is in scope, exactly like the picker's, so a strip and a picker stay in sync.
+
+### Cell size, ink ratio and OS text size
+
+`cellSize` is resolved adaptively rather than fixed. The glyph is sized so its **visible ink** covers ~93% of the cell width — and ink is a per-platform font metric (Noto Color Emoji runs about 64% of the em on Android; iOS models Apple's worst-case glyphs at 1.1), so the same em renders at different visual densities per platform and row heights adapt with it. With no known width it falls back to `32`. Pass a number for full control; it is never clamped, and it freezes for the mount.
+
+The resolved size also **scales with the OS text-size setting**, like `columns`, and `<EmojiStrip>` defaults to the same resolved size so a strip and a grid on one surface read as one control.
+
+Inside the picker the glyph's `fontSize` is counter-divided by the effective [font scale](/lynx/modules/appearance/api#usefontscale). The picker is pinned like a keyboard panel, so the engine's font-relevant multiply has to land the glyph back on the intended size for the row-geometry estimate to stay correct.
+
 ## Skin tones
 
 The model is sticky and grid-wide (WhatsApp / Telegram style): long-press a tonal emoji to open the `SkinTonePopover`, and the chosen tone applies to every tonal emoji and persists. `SkinTone` is `0` (base) or `1..5` (light to dark). Long-press only fires when an emoji actually has uniform tone variants (`datum.s`); `glyphForTone` falls back to the base glyph for non-tonal or mixed-tone-only emoji.
@@ -233,7 +314,7 @@ The model is sticky and grid-wide (WhatsApp / Telegram style): long-press a tona
 ## Gotchas
 
 - **The picker needs a bounded-height container.** It is a flex column; without a concrete height ceiling it resolves to zero height and nothing renders. Wrap it (or use a sheet/panel wrapper, which sizes itself).
-- **First paint is one frame after mount.** The grid renders through the windowed `List` from `@sigx/lynx-list`, which only lays out at a concrete px height, so a measuring wrapper pins it to the measured size after the first layout. Windowing keeps a category to ~120 live cells regardless of its length; a tab switch or new search re-anchors the grid to the top, and `initialHeight` skips the first-frame placeholder.
+- **First paint is one frame after mount.** The grid renders through a `List` from `@sigx/lynx-list`, which only lays out at a concrete px height, so a measuring wrapper pins it to the measured size after the first layout. `initialHeight` skips that first-frame placeholder. A tab switch or new search re-anchors the grid to the top.
 - **`EmojiPicker` throws if no dataset is available** — pass a `data` prop, or render it inside an `EmojiProvider`.
 - **`useEmojiContext()` returns `null` outside a provider** — branch on it if you read the context directly.
 

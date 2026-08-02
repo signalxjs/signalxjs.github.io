@@ -48,6 +48,29 @@ When a signal changes, the renderer does not re-serialize your component tree. I
 
 This is the default path for all ordinary reactive UI. You opt into the primitives below only when a value must be readable on the main thread directly.
 
+## Snapshot templates
+
+Building a subtree the naive way means the background thread emits an op per element — create, set an attribute, append a child, and so on — and then hops threads so the main thread can apply them. For a list cell rebuilt on every fling, that adds up.
+
+**Static JSX subtrees are compiled to main-thread templates instead.** The main thread *constructs* the subtree from a template it already holds: one snapshot op rather than ~10 element ops plus a thread hop, and hole-granular patches after mount. Cell construction measures roughly 25–30× cheaper on release builds.
+
+This is on by default and there is nothing to write differently. What is worth knowing is when it *doesn't* apply:
+
+- **The JSX must be statically analyzable.** Dynamic parts become holes; a subtree that can't be analyzed keeps the per-element path **automatically**, so nothing breaks — it is just not accelerated.
+- **A file using `use:*` directives falls back wholesale.**
+- **Library dists keep the per-element path** for now, so a subtree that comes from a package rather than your source is unaffected.
+
+It works in development too: template registrations ride the main-thread hot-update bridge, stale templates are purged per edited file, and an op batch that outruns its registration parks and replays.
+
+The kill switch is a plugin option:
+
+```ts
+// lynx.config.ts
+pluginSigxLynx({ snapshots: false })   // default: true
+```
+
+One visible consequence, for raw `<list>` JSX: cells are now built **synchronously on the main thread, on demand** — so a fling no longer shows blank cells — and offscreen cell trees are recycled, keyed by template plus `reuse-identifier`. `@sigx/lynx-list` ships as a dist and so is unaffected for now.
+
 ## SharedValue: a value the main thread can write
 
 A `SharedValue<T>` is a value the **main thread writes** and the **background thread reads**. It is the bridge in the other direction — main thread → background thread — and it is what powers gestures, scroll and animations.
