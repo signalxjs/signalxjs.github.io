@@ -156,6 +156,8 @@ export const nodeOps: RendererOptions<Node, Element>
 
 Complete `RendererOptions` implementation for the DOM platform: create/insert/remove nodes, text handling, SVG namespace, customized built-in elements via the `is` option, and focus preservation (`restoreFocus` refocuses with `preventScroll` and suppresses focus/blur events during restoration). Used to construct the DOM renderer.
 
+**SVG lives here, not in core.** `@sigx/runtime-core` is namespace-agnostic — it threads an opaque boolean flag and asks the host what it means. `nodeOps` supplies the three [namespace host ops](/core/packages/runtime-core/api#host-namespaces-rendereroptions): the SVG tag-name set in `getElementNamespace`, the `foreignObject` reset in `getChildNamespace`, and the container rule in `getContainerNamespace`. It is the reference implementation for anyone writing a DOM-like custom renderer.
+
 ## Renderer primitives (SSR/hydration)
 
 These are low-level primitives, exported for SSR/hydration plugins and extensions. They are also available from `@sigx/runtime-dom/internals`, are not stable public API, and may change without notice.

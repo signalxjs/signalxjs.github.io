@@ -89,6 +89,8 @@ function effect(fn: EffectFn): EffectRunner;
 
 `EffectRunner` - Callable function with a `stop()` method.
 
+Called **directly in a component's setup body**, the effect is tied to that component and stops on unmount — the handle is there if you want it, not something you must keep. Created anywhere else (including inside `onMounted` or an async callback), stopping it is yours to do. See [Effect cleanup](/core/docs/effects#effect-cleanup).
+
 ### Examples
 
 ```tsx
@@ -184,6 +186,8 @@ function watch<T>(
 ### Returns
 
 `WatchHandle` - Object with `stop()`, `pause()`, `resume()` methods.
+
+Like [`effect`](#effect), a `watch` created directly in a component's setup body stops automatically on unmount; `pause()`/`resume()` remain useful in the meantime. See [Effect cleanup](/core/docs/effects#effect-cleanup).
 
 ### Examples
 

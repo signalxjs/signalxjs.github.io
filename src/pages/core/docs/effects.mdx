@@ -56,7 +56,39 @@ const UserProfile = component<UserProfileProps>(({ signal, props }) => {
 
 ## Effect Cleanup
 
-Effects return an `EffectRunner` with a `stop` method:
+### In a component: disposal is automatic
+
+`effect()`, `watch()` and non-detached `effectScope()` created **directly in a component's setup body** are tied to that component's lifetime. They stop when it unmounts — and are re-created on HMR reload — so there is no handle to hold and nothing to call in `onUnmounted`:
+
+```tsx
+const Search = component(() => {
+    const query = signal('');
+
+    // Stopped automatically when <Search /> unmounts.
+    watch(() => query.value, (q) => runSearch(q));
+
+    return () => <input onInput={(e) => (query.value = e.target.value)} />;
+});
+```
+
+**Only the setup body is scoped.** A reaction created inside `onMounted`, `onCreated`, a `setTimeout`, or any async callback runs after setup has finished collecting, so it is *not* captured — dispose those yourself:
+
+```tsx
+const Feed = component(() => {
+    onMounted(() => {
+        const runner = effect(() => console.log(count.value));
+        onUnmounted(() => runner.stop());   // ← still your job
+    });
+
+    return () => <div />;
+});
+```
+
+`computed()` is lazy and holds no subscription of its own, so it never needs disposal.
+
+### Outside a component: stop it yourself
+
+With no component setup to attach to — module scope, a plugin's `install()`, an event handler — the returned `EffectRunner` is the only thing that can stop the effect:
 
 ```tsx
 const runner = effect(() => {
@@ -150,6 +182,8 @@ scope.run(() => {
 // Dispose all effects at once
 scope.stop();
 ```
+
+A scope created in a component's setup body is itself scoped to that component, so it stops on unmount along with everything inside it. Pass `effectScope(true)` to detach it — a detached scope opts out of that capture and is yours to stop.
 
 ## When to Use Effects
 

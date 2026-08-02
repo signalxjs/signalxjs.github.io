@@ -376,6 +376,37 @@ await auth.refresh();
 app.runWithContext(() => { useMessageStore().receive(msg); });
 ```
 
+#### Tailoring the warning from a library
+
+The warning above is written for the person who called `runWithContext`. That is the wrong reader when a **library** makes the call on someone else's behalf — a router running your navigation guard, a scheduler running your handler. Its users see a warning about an API they never called, naming a fix they can't apply.
+
+`runWithContext` takes a second argument for that case:
+
+```ts
+interface RunWithContextOptions {
+    asyncAdvice?: string | false;
+}
+```
+
+Pass a string to replace the warning's **remediation sentence** — the sync-only diagnosis stays, so the reader still learns what went wrong, but the advice now points at the API they actually used:
+
+```ts
+// inside the router
+app.runWithContext(() => guard(to, from), {
+    asyncAdvice: 'Make the navigation guard synchronous, or resolve services before returning a promise.',
+});
+```
+
+Pass `false` to suppress the warning for a call that is deliberately synchronous-only, or that re-enters the context itself per continuation:
+
+```ts
+app.runWithContext(() => useConfig().baseUrl, { asyncAdvice: false });
+```
+
+A suppressed call does not consume the once-per-app warning slot, so the next genuine offender still gets reported.
+
+Both forms are dev-only and stripped from production builds. Older cores ignore the extra argument, so passing it is safe.
+
 ## Lifecycle Hooks
 
 Register global hooks to observe all components in your application:
