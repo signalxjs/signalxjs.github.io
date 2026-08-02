@@ -712,7 +712,7 @@ interface ShikiConfig {
 }
 ```
 
-Shiki highlighting options. `transformers` (from `shiki`) are applied to every highlighted block, with the raw fence meta exposed as `options.meta.__raw`; `skipLanguages` leaves listed fences untouched for a downstream rehype plugin/island (e.g. `['mermaid', 'math']`); `defaultPackageManager` (default `'pnpm'`) chooses the first variant on package-manager fences; `triggerLabel` is the live-code "Try Live" button label.
+Shiki highlighting options. `transformers` (from `shiki`) are applied to every highlighted block, with the raw fence meta exposed as `options.meta.__raw`; `skipLanguages` leaves listed fences untouched for a downstream rehype plugin/island (e.g. `['mermaid', 'math']` — see [`@sigx/mermaid`](/mermaid/docs/ssg)); `defaultPackageManager` (default `'pnpm'`) chooses the first variant on package-manager fences; `triggerLabel` is the live-code "Try Live" button label.
 
 ### TOCConfig
 

@@ -1,0 +1,114 @@
+---
+title: Translating
+description: "useTranslation, the <T> component, namespaces, plurals and rich text"
+layout: docs
+category: Guides
+order: 30
+---
+
+# Translating
+
+<p class="lede">Read a message with <code>useTranslation</code>, or place one declaratively with <code>&lt;T&gt;</code>. Both are reactive — switch the locale and everything re-renders.</p>
+
+## `useTranslation`
+
+```tsx
+import { component } from 'sigx';
+import { useTranslation } from '@sigx/i18n';
+
+const Cart = component(() => {
+    const t = useTranslation('cart');
+
+    return () => (
+        <div>
+            <h1>{t('title')}</h1>
+            <p>{t('items', { count: items.value.length })}</p>
+        </div>
+    );
+});
+```
+
+The namespace is checked against the generated schema, and so are the keys. Call it without one and you get `defaultNamespace` (`'translation'` unless you changed it).
+
+Pin a call to a locale that is not the active one — a preview pane, a row that carries its own locale — with the `locale` option:
+
+```tsx
+const tSv = useTranslation('cart', { locale: 'sv' });
+```
+
+## `<T>`
+
+The declarative form, for placing a message in markup:
+
+```tsx
+<T k="cart.items" params={{ count }} />
+<T ns="content" k={block.labelKey} default={block.label} />
+<T k="cart.title" locale={row.locale} />
+```
+
+It is renderer-agnostic — on lynx it goes inside a `<text>` element exactly as any other string would:
+
+```tsx
+<text><T k="cart.title" /></text>
+```
+
+## Rich text
+
+A message that needs markup in the middle of a sentence cannot be split without breaking translation — word order differs per language. Pass `components` and the tags in the message are mapped to nodes:
+
+```tsx
+<T k="legal.terms" components={{ a: (c) => <a href="/terms">{c}</a> }} />
+```
+
+```json
+{ "legal": { "terms": "Please read our <a>terms of service</a> before continuing." } }
+```
+
+The splitting is non-nested, and an unknown tag stays literal. **You supply the nodes**, which is what keeps this renderer-agnostic — the library only positions them, so a lynx app passes lynx elements and the same message works.
+
+`renderRich(text, components)` is the underlying function if you need it directly.
+
+## Namespaces
+
+A namespace is a **unit of loading**. List the ones your first paint needs:
+
+```ts
+createI18n({
+    fallbackLocale: 'en',
+    namespaces: ['common', 'nav'],     // loaded up front
+    load: (target, locale, ns) => import(`./locales/${target}/${locale}/${ns}.json`),
+});
+```
+
+Leave section-specific namespaces out and they load on first use, so a settings page's catalog does not sit in the initial payload.
+
+## Fallback
+
+`fallbackLocale` is the **master** locale — the source of truth for which keys exist. A key missing from the active locale falls through to it; `onMissing` decides what happens when it is missing from both.
+
+Resolution walks a chain: BCP-47 truncation (`sv-FI` → `sv` → the fallback), plus any explicit `localeFallbacks` you declare.
+
+A message is always formatted **in the locale it was found in**. That matters for plurals: a Swedish string found in the Swedish catalog selects its plural form by Swedish rules, even if the request asked for `sv-FI`.
+
+## Layers
+
+`layers` turns on per-**key** layering, for the case where a tenant or a brand overrides a handful of messages and everything else should keep falling through:
+
+```ts
+createI18n({
+    fallbackLocale: 'en',
+    layers: ['base', 'tenant'],        // lowest priority first
+    loaders: { base: loadBase, tenant: loadTenant },
+});
+```
+
+An override layer supplies a few keys; every other key falls through to the layer below, **including keys the base gains in a later version** — so a tenant override does not freeze that tenant's catalog at the version it forked from.
+
+Layers compose *within* one locale and the locale chain is walked after. A `base` message in the requested locale therefore beats a `tenant` override that exists only in a fallback locale — which keeps the message formatted in the locale it was found in.
+
+Omit `layers` entirely for single-source behaviour: nothing is composed and nothing is allocated.
+
+## Next steps
+
+- [Locales](/i18n/docs/locales) — detection, switching and persistence.
+- [Runtime catalogs](/i18n/docs/runtime-catalogs) — keys that are not known at build time.
