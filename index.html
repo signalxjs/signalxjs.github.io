@@ -20,6 +20,50 @@
             }
         })();
     </script>
+    <!--
+      Site-wide structured data. This block is static and shared by every
+      route, so it describes the SITE and the PROJECT only — per-page schema
+      (TechArticle, BreadcrumbList) belongs in the page head, not here.
+
+      No WebSite.potentialAction/SearchAction: there is no on-site search
+      endpoint yet, and claiming one Google cannot use is worse than omitting it.
+    -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "Organization",
+                "@id": "https://sigx.dev/#organization",
+                "name": "SignalX",
+                "url": "https://sigx.dev",
+                "logo": "https://sigx.dev/sigx.png",
+                "sameAs": ["https://github.com/signalxjs"]
+            },
+            {
+                "@type": "WebSite",
+                "@id": "https://sigx.dev/#website",
+                "name": "SignalX",
+                "url": "https://sigx.dev",
+                "description": "A lightweight reactive component framework",
+                "publisher": { "@id": "https://sigx.dev/#organization" },
+                "inLanguage": "en"
+            },
+            {
+                "@type": "SoftwareSourceCode",
+                "@id": "https://sigx.dev/#software",
+                "name": "SignalX",
+                "description": "Fine-grained reactivity with signals and effects, plus a tiny TSX component runtime — one framework for web, native and terminal.",
+                "url": "https://sigx.dev",
+                "codeRepository": "https://github.com/signalxjs/core",
+                "programmingLanguage": "TypeScript",
+                "runtimePlatform": ["Node.js", "Browser"],
+                "license": "https://opensource.org/licenses/MIT",
+                "author": { "@id": "https://sigx.dev/#organization" }
+            }
+        ]
+    }
+    </script>
     <!--head-tags-->
 </head>
 <body>

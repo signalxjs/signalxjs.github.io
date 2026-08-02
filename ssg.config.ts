@@ -4,6 +4,7 @@ import { defineSSGConfig } from '@sigx/ssg';
 // (scripts/generate-module-docs.mjs imports the registry directly and still
 // needs Node ≥22.18 — dev-only.)
 import { MODULES, moduleDocsCollection, moduleRoutePrefix, type ModuleParent } from './src/lib/modules.ts';
+import { qualifiedTitle, decodeTitleEntities, escapeTitle } from './src/lib/seo-title.ts';
 
 /**
  * Sub-package docs collections, generated from the module registry —
@@ -191,6 +192,42 @@ export default defineSSGConfig({
         },
         // Sub-package collections (32 lynx modules + core repo packages)
         ...moduleCollections,
+    },
+
+    // Qualify repeated page titles with the package they belong to, so the ~500
+    // pages named "Overview" / "Installation" / "API reference" stop looking
+    // like duplicates of each other. Done here rather than in 500 frontmatter
+    // blocks, so a page added later gets it for free. See src/lib/seo-title.ts.
+    hooks: {
+        transformHtml(html, page) {
+            const current = html.match(/<title>([^<]*)<\/title>/)?.[1];
+            if (!current) return html;
+            const next = qualifiedTitle(decodeTitleEntities(current), page.path);
+            if (!next) return html;
+            return html.replace(
+                /<title>[^<]*<\/title>/,
+                `<title>${escapeTitle(next)}</title>`,
+            );
+        },
+    },
+
+    // Sitemap. `lastmod: 'git'` dates each URL from its source file's last
+    // commit — one repo-wide `git log` walk, not a process per page (there are
+    // ~700 of them). It NEEDS full history: the deploy workflow checks out with
+    // `fetch-depth: 0` for this reason, and under a shallow clone files absent
+    // from the log simply get no `<lastmod>` rather than a wrong one.
+    //
+    // Redirect shells are excluded: each is a meta-refresh page that already
+    // carries `noindex` and a canonical pointing elsewhere, so listing it in the
+    // sitemap invites a crawl of a URL we are asking not to be indexed.
+    sitemap: {
+        lastmod: 'git',
+        exclude: [
+            '/server/docs',
+            '/server/docs/**',
+            '/lynx/modules/device-info',
+            '/lynx/modules/device-info/**',
+        ],
     },
 
     // Redirects for routes that have moved. `@sigx/lynx-device-info` folded into
