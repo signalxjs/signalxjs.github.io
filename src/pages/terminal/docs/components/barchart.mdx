@@ -1,0 +1,54 @@
+---
+title: "BarChart"
+description: "Labelled horizontal bars, all measured against one shared scale"
+layout: docs
+category: ["Components", "Data"]
+order: 156
+---
+
+# BarChart
+
+<p class="lede">Labelled horizontal bars, all measured against <strong>one</strong> scale.</p>
+
+## Import
+
+```tsx
+import { BarChart, commonScale } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+const items = [
+    { label: 'p50', value: p50 },
+    { label: 'p90', value: p90 },
+    { label: 'p99', value: p99 },
+];
+
+<BarChart items={items} scale={commonScale(items.map((i) => i.value))} width={40} />
+```
+
+## `scale` is required, and that is the point
+
+Sizing each bar to its own value is not a chart — it is a list of full bars. A 12µs queue wait and a 47ms turn would draw identically, and the comparison you opened the panel for is exactly what you would lose.
+
+Derive it once with `commonScale(values)`. For data with a long tail, `commonScale(values, { clip: 0.99 })` ignores the top percentile so a single pathological outlier cannot flatten every other bar to nothing.
+
+Percentile rows are three items; so is anything else you want compared side by side.
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `items` | `BarChartItem[]` | **required** — `{ label, value, tone?, text? }`; `value: null` is "no reading", drawn as such rather than as zero |
+| `scale` | `number` | **required** — the shared maximum |
+| `width` | `number` | bar area in cells |
+| `labelWidth` | `number` | label column width |
+| `format` | `(value: number) => string` | trailing text per bar |
+| `color` | `string` | theme token |
+| `thresholds` | `Threshold[]` | colour by magnitude |
+| `emptyText` | `string` | shown when `items` is empty |
+
+## See also
+
+- [Meter](/terminal/docs/components/meter) — one ratio rather than a comparison.

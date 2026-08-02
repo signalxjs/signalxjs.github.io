@@ -43,6 +43,8 @@ writeStatic('✔ Built in 1.2s');   // permanent line, above the live frame
 
 Use fullscreen for dashboards, editors and long-running TUIs that own the screen; use inline for wizards, build runners and anything that should read as part of the command's output.
 
+A fullscreen frame taller than the terminal is **clamped to the viewport**, the same as an inline one. Overflowing content is dropped from the bottom rather than shearing the screen, so a body that emits more rows than it was given degrades to a missing footer instead of a corrupted display. Size content to the space you have — see [`fitLines`](/terminal/docs/api#fitlines) and [`Shell`](/terminal/docs/components/shell).
+
 > `fullscreen: true` is accepted as an alias for `mode: 'fullscreen'`.
 
 ## Non-TTY fallback
@@ -58,7 +60,6 @@ The renderer detects terminal color support and honours `FORCE_COLOR` / `NO_COLO
 The renderer listens for `SIGWINCH` and exposes the current dimensions as a **reactive** read:
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, getTerminalSize } from '@sigx/terminal';
 
 const App = component(() => {

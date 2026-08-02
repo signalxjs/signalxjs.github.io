@@ -31,7 +31,6 @@ The package is ESM-only (`"type": "module"`) and runs under Node. It is a librar
 Terminal intrinsics (`box`, `text`, `br`) compile against the terminal JSX runtime. Add the pragma to the top of each `.tsx` file:
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 ```
 
 Or set it once in `tsconfig.json` so you don't need the per-file pragma:
@@ -81,7 +80,6 @@ This mirrors how `@sigx/terminal` itself is built: a Node-platform library that 
 Create a file (for example `app.tsx`) and run it through your TSX-capable runner:
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp } from '@sigx/terminal';
 
 const App = component(() => {

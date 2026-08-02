@@ -96,6 +96,7 @@ export interface ShellHandle {
     say: (text?: string) => void;            // print a permanent transcript line
     store: ShellLogStore;                    // streaming log store (feeds a Logs tab)
     setStatus: (items: StatusItem[]) => void;
+    readonly activeTab: string;              // id of the tab currently on screen
     switchTab: (id: string) => void;
     pushView: (id: string) => void;          // push a focused sub-view
     popView: () => void;                     // pop it (also via Esc)
@@ -103,6 +104,8 @@ export interface ShellHandle {
     exit: (code?: number) => void;
 }
 ```
+
+`activeTab` is the id of the tab on screen — `''` when there are no tabs, and in the non-TTY fallback. Read it rather than tracking your own copy: the shell's built-in <kbd>1</kbd>–<kbd>9</kbd> keys switch tabs without going through `switchTab`, so a plugin-held copy silently drifts. It is what a shortcut that acts on "the visible tab" should branch on.
 
 `onExit` subscribers run *after* the host's `ShellConfig.onExit`, most-recently-registered first; each returns an unsubscribe. Register servers, watchers, and locks here so they tear down on every exit path. In the non-TTY fallback `isInteractive` is `false`, `say` writes plain lines, the store streams through, and the navigation methods are no-ops.
 
@@ -127,10 +130,17 @@ The host's command passes `ctx.plugins` to `runShell({ plugins })`; the runtime 
 ### Tabs, slash commands, shortcuts, status
 
 ```ts
+/** The area a tab's body has to render into — the terminal minus the
+ *  shell's own chrome. A budget, not a reservation: fit content to it. */
+export interface ShellPane {
+    width: number;
+    height: number;
+}
+
 export interface ShellTab {
     id: string;
     label: string;
-    render: () => ShellNode;   // a @sigx/terminal component (JSX via @jsxImportSource @sigx/terminal)
+    render: (pane: ShellPane) => ShellNode;   // a @sigx/terminal component
 }
 
 export interface SlashCommand {
@@ -152,7 +162,19 @@ export interface StatusItem {
 }
 ```
 
-Tab `render()` returns a `ShellNode` — an opaque renderable you author with `@sigx/terminal` JSX (`@jsxImportSource @sigx/terminal`). The runtime passes it straight to the renderer.
+Tab `render(pane)` returns a `ShellNode` — an opaque renderable you author with `@sigx/terminal` JSX (set `"jsxImportSource": "@sigx/terminal"` in your `tsconfig.json`). The runtime passes it straight to the renderer.
+
+`pane` is the area left after the shell drew its own chrome — the terminal size minus the title bar, tab strip and status line. It exists because those are the shell's private layout details: without it a tab has to guess (`rows - 12`), and the guess breaks the moment the chrome changes.
+
+It is a **budget, not a reservation.** The renderer's layout is content-driven, so the shell cannot hold the box on a tab's behalf. A body that emits more rows pushes the status line off the bottom. Fit content to it — [`fitLines(lines, pane)`](/terminal/docs/api#fitlines) from `@sigx/terminal-zero` does exactly that in one call:
+
+```tsx
+render: (pane) => (
+    <DataTable width={pane.width} height={pane.height} columns={COLS} rows={rows} />
+)
+```
+
+Ignoring the argument is fine for a tab whose content is naturally small.
 
 ## Helpers
 

@@ -30,10 +30,20 @@ The umbrella brings the reactive engine (`@sigx/reactivity`, `@sigx/runtime-core
 
 ## A minimal app
 
-Every `.tsx` file that uses terminal intrinsics needs the JSX pragma at the top so TSX compiles against the terminal runtime:
+Set `jsxImportSource` **once** in your `tsconfig.json` and every `.tsx` file in the project compiles against the terminal runtime:
+
+```json
+{
+    "compilerOptions": {
+        "jsx": "react-jsx",
+        "jsxImportSource": "@sigx/terminal"
+    }
+}
+```
+
+Then write plain TSX, with no per-file pragma:
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, signal } from '@sigx/terminal';
 
 const App = component(() => {
@@ -59,7 +69,6 @@ defineApp(<App />).mount({ clearConsole: true });
 The runtime ships focusable components with two-way model binding. Tab and Shift+Tab move focus between them:
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, signal } from '@sigx/terminal';
 import { Input, Button } from '@sigx/terminal';
 
@@ -85,7 +94,6 @@ defineApp(<App />).mount({ clearConsole: true });
 Terminal apps are full SignalX clients, so the value-first async primitives work here too. `@sigx/terminal` re-exports [`useData`](/core/docs/data-loading) (along with `useStream`, `useAction` and `all`): call it during setup with a key and a fetcher, then render every state through `.match()`. No `window` is required — the terminal runtime declares itself a live client, so keyed reads actually fetch instead of parking at `pending`.
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, useData } from '@sigx/terminal';
 
 const App = component(() => {

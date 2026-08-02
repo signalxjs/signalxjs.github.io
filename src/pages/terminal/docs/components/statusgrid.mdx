@@ -1,0 +1,44 @@
+---
+title: "StatusGrid"
+description: "A dense grid of status cells — many things at a glance"
+layout: docs
+category: ["Components", "Data"]
+order: 158
+---
+
+# StatusGrid
+
+<p class="lede">A dense grid of status cells, for seeing many things at once.</p>
+
+## Import
+
+```tsx
+import { StatusGrid } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+<StatusGrid
+    cells={partitions.value.map((p) => ({ label: p.id, tone: p.healthy ? 'success' : 'danger' }))}
+    perRow={16}
+    legend="● healthy  ● degraded"
+/>
+```
+
+Use it when the count is high enough that one row per item would not fit — partitions, shards, replicas, checks. When you need the numbers rather than the shape, reach for [`DataTable`](/terminal/docs/components/datatable) instead.
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `cells` | `StatusCell[]` | **required** |
+| `perRow` | `number` | cells per row |
+| `labelWidth` | `number` | label column width when labels are shown |
+| `showLabels` | `boolean` | label each cell |
+| `legend` | `string` | a line explaining the tones |
+| `emptyText` | `string` | shown when `cells` is empty |
+
+## See also
+
+- [DataTable](/terminal/docs/components/datatable) — when you need the figures, not the shape.

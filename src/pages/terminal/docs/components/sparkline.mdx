@@ -1,0 +1,55 @@
+---
+title: "Sparkline"
+description: "A time series in one line — the 'is this going up?' glyph"
+layout: docs
+category: ["Components", "Data"]
+order: 153
+---
+
+# Sparkline
+
+<p class="lede">A time series in one line, or a few — the "is this going up?" glyph a dashboard needs and a <code>ProgressBar</code> cannot give, since that is a single ratio.</p>
+
+## Import
+
+```tsx
+import { Sparkline } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+<Sparkline label="req/s" values={rps.value} value={`${last}`} width={40} />
+```
+
+## Three things it deliberately does not do
+
+Each of these is a way a sparkline can lie, so each is refused by default:
+
+- **It does not anchor the scale to the series minimum.** A flat line at 1000 req/s would otherwise draw as a mountain range. Pass `baseline="min"` if you genuinely want that framing.
+- **It does not let a tiny non-zero value round away to the baseline.** "Almost nothing" and "nothing" are different readings.
+- **It does not draw a gap as a zero.** `null` renders as `·`, because a counter reset and an idle period are different facts.
+
+## Density
+
+`variant="braille"` packs two samples per cell, doubling horizontal density. `height` buys proportionally more vertical levels.
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `values` | `(number \| null)[]` | **required** — `null` is a gap, not a zero |
+| `width` / `height` | `number` | cells; `height` adds vertical levels |
+| `max` | `number` | fix the top of the scale |
+| `baseline` | `number \| 'min'` | the bottom of the scale |
+| `variant` | `SparkVariant` | `'braille'` doubles horizontal density |
+| `label` / `labelWidth` | `string` / `number` | leading label, fitted to a column |
+| `value` | `string` | trailing readout |
+| `color` | `string` | theme token |
+| `thresholds` | `Threshold[]` | colour by magnitude |
+| `pad` | `boolean` | pad to `width` |
+
+## See also
+
+- [Meter](/terminal/docs/components/meter) — a single ratio rather than a series.
+- [BarChart](/terminal/docs/components/barchart) — labelled bars on one shared scale.

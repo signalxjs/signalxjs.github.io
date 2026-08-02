@@ -1,0 +1,87 @@
+---
+title: "DataTable"
+description: "A table with a cursor, a viewport and a sort — the shape a dashboard needs"
+layout: docs
+category: ["Components", "Data"]
+order: 152
+---
+
+# DataTable
+
+<p class="lede">A table with a cursor, a scrolling viewport and a sort. Columns are typed accessors, so the data stays your own objects and the table never has to be re-flattened to re-sort it.</p>
+
+## Import
+
+```tsx
+import { DataTable } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+import { component, defineApp, DataTable } from '@sigx/terminal';
+
+const COLUMNS = [
+    { key: 'host', label: 'Host', get: (r) => r.host },
+    { key: 'turns', label: 'Turns', get: (r) => String(r.turns), align: 'right' },
+    { key: 'p99', label: 'p99', get: (r) => `${r.p99}ms`, align: 'right' },
+];
+
+const App = component(() => {
+    return () => (
+        <DataTable
+            title="Silos"
+            columns={COLUMNS}
+            rows={hosts.value}
+            identity={(r) => r.host}
+            sortable
+            height={20}
+        />
+    );
+});
+```
+
+Prefer [`Table`](/terminal/docs/components/table) when you have a static grid of strings and want none of this.
+
+## Three behaviours worth knowing
+
+**Shrinking takes space from the rightmost columns.** The left column is nearly always the identity, and a table whose identities are truncated to make room for a latency figure is unusable. Truncation is always marked with `…`, never silent.
+
+**Sorting breaks ties on identity.** A dashboard re-sorts every poll, and rows with equal values would otherwise swap places each time — motion that reads as activity when nothing changed. Pass `identity` for a stable key; the row index is the fallback.
+
+**The cursor clamps and the window moves by one.** Holding <kbd>↓</kbd> stops at the bottom rather than wrapping, and stepping past the edge scrolls one row, not a screenful.
+
+## Keys
+
+While focused:
+
+| Key | Action |
+| --- | --- |
+| <kbd>↑</kbd> / <kbd>k</kbd>, <kbd>↓</kbd> / <kbd>j</kbd> | Move the cursor |
+| <kbd>PgUp</kbd> / <kbd>PgDn</kbd> | Page |
+| <kbd>Home</kbd> / <kbd>End</kbd> | Jump to the ends |
+| <kbd>Enter</kbd> | Submit |
+| <kbd>←</kbd> / <kbd>→</kbd> | Pick the sort column (with `sortable`) |
+| <kbd>r</kbd> | Reverse the sort (with `sortable`) |
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `columns` | `TableColumn<T>[]` | **required** — typed accessors (`key`, `label`, `get`, `align`, width hints) |
+| `rows` | `T[]` | the data, as your own objects |
+| `width` / `height` | `number` | the area to fill; pair with a [`Shell`](/terminal/docs/components/shell) pane |
+| `identity` | `(row: T) => string` | stable key for tie-breaking the sort |
+| `sortable` | `boolean` | enable the sort keys |
+| `sortKey` / `sortDir` | `string` / `'asc' \| 'desc'` | controlled sort state |
+| `tone` | `(row: T) => string \| undefined` | per-row theme token |
+| `variant` | `'boxed' \| 'plain' \| 'ruled'` | frame style |
+| `title` | `string` | panel title |
+| `emptyText` | `string` | shown when `rows` is empty |
+| `showFooter` | `boolean` | show the position/count footer |
+| `gap` | `number` | column gap |
+
+## See also
+
+- [Table](/terminal/docs/components/table) — the static string grid.
+- [Shell](/terminal/docs/components/shell) — the dashboard frame that supplies `width`/`height`.

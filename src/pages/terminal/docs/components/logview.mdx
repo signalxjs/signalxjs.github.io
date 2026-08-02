@@ -20,7 +20,6 @@ import type { LogStore } from '@sigx/terminal';
 ## Usage
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, onMounted, LogView, createLogStore } from '@sigx/terminal';
 
 const App = component(() => {
@@ -50,6 +49,10 @@ defineApp(<App />).mount({ clearConsole: true });
 | `width` | `number` | wrap width |
 | `title` | `string` | caption |
 | `autofocus` | `boolean` | grab focus on mount (for scrolling) |
+
+**A line too wide for the viewport is marked, not silently cut.** The truncation carries a `…`, so a message that ends mid-word reads as clipped rather than as a message that genuinely ended there — which matters most for the stack traces and JSON payloads a log view exists to show. Widen the view, or scroll.
+
+`LogView` and [`LogPanel`](/terminal/docs/components/logpanel) derive their own box chrome via [`boxChrome`](/terminal/docs/api#boxchrome) rather than hardcoding it, so their viewport arithmetic stays correct if the frame changes shape.
 
 ## LogStore
 

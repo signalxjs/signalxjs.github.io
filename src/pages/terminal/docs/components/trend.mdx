@@ -1,0 +1,50 @@
+---
+title: "Trend"
+description: "A value with its direction of travel — and whether that direction is good news"
+layout: docs
+category: ["Components", "Data"]
+order: 155
+---
+
+# Trend
+
+<p class="lede">A value with its direction of travel against the previous reading: <code>▲</code>, <code>▼</code> or <code>·</code>.</p>
+
+## Import
+
+```tsx
+import { Trend } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+<Trend current={p99} previous={prevP99} value={`${p99}ms`} />
+<Trend current={rps} previous={prevRps} value={`${rps}/s`} polarity="higher-is-better" />
+```
+
+## `polarity` is not decoration
+
+Whether "up" is good news depends entirely on the metric. Rising latency is a problem; rising throughput is not. A component that hardcoded `▲ = warning` would be lying about half the numbers on a dashboard — so the metric has to say which it is:
+
+| `polarity` | Up | Down | For |
+| --- | --- | --- | --- |
+| `higher-is-worse` *(default)* | `warn` | `success` | latency, error rate, queue depth, memory |
+| `higher-is-better` | `success` | `warn` | throughput, hit rate, healthy replicas |
+| `neutral` | — | — | direction only, no judgement |
+
+**A `null` on either side is a gap, not a direction.** Comparing across a counter reset would report a crash that never happened.
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `current` | `number \| null` | **required** — `null` is a gap |
+| `previous` | `number \| null` | the reading to compare against |
+| `value` | `string` | the text shown; defaults to the number |
+| `polarity` | `'higher-is-worse' \| 'higher-is-better' \| 'neutral'` | default `'higher-is-worse'` |
+| `color` | `string` | override the polarity tone |
+
+## See also
+
+- [Sparkline](/terminal/docs/components/sparkline) — the whole series behind the direction.
