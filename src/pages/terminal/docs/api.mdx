@@ -212,9 +212,46 @@ function registerTheme(id: string, theme: Theme): void   // first registered bec
 
 The built-in themes (`obsidian` default, `nord`, `gum`, `classic`, `paper`) are also exported as the `THEMES` record. `applyThemeCanvas()` / `disableThemeCanvas()` bind or clear the renderer's themed screen canvas.
 
+## Frame arithmetic
+
+The renderer's layout is single-pass and content-driven: a `<box>` sizes itself to its widest line, there is no `width`/`height` prop, and nothing clips. So a component that wants to fill a known area has to know what its own chrome costs and pad its content to the remainder.
+
+These two are that calculation, done once. Before them, every component that needed it hardcoded the answer — `- 4` for "rounded border (2) + padX (2)", `rows - 12` — and each copy silently went wrong when the box it described changed shape.
+
+### boxChrome
+
+```ts
+function boxChrome(opts?: BoxChromeOptions): { rows: number; cols: number }
+
+interface BoxChromeOptions {
+    border?: boolean | 'single' | 'double' | 'rounded' | 'thick' | 'none';
+    padX?: number;
+    dropShadow?: boolean;
+}
+```
+
+The rows and columns a `<box>` spends on chrome, so a caller can subtract them from the space it has. It mirrors `drawBox` exactly: a border adds one row top and bottom and one column each side; `padX` widens every content line symmetrically; a drop shadow appends one column to every row below the top border and pushes one extra row underneath.
+
+```ts
+const chrome = boxChrome({ border: true, padX: 1, dropShadow: true });
+const inner = getTerminalSize().columns - chrome.cols;   // 5 columns of chrome
+```
+
+**A borderless box costs nothing** — `padX` and `dropShadow` included. `drawBox` runs only when a border is drawn, so on a bare `<box>` (what `Col` and friends render) those two props are silently inert. `border="none"` is the same case, which is why the border term takes the prop itself rather than a boolean you have to derive.
+
+### fitLines
+
+```ts
+function fitLines(lines: string[], box: { width: number; height: number }, align?: CellAlign): string[]
+```
+
+Fit `lines` to exactly `box.height` lines of exactly `box.width` display cells — the convention that makes a component occupy the area it was given rather than hugging its content.
+
+Both axes are enforced: each line is truncated (marked with `…`) or padded to `width`, and the list is padded with blank lines or clipped to `height`. **Clipping keeps the first `height` lines**, so a component that wants a different window — a log tailing the end — slices before calling.
+
 ## Components
 
-The themed component library (`@sigx/terminal-ui`) is documented page-by-page under [Components](/terminal/docs/components): forms (`Input`, `TextArea`, `Checkbox`, `Confirm`, `Select`, `Radio`, `MultiSelect`), feedback (`ProgressBar`, `Spinner`, `Badge`), navigation (`Tabs`, `StatusBar`, `KeyHints`, `SuggestionList`), layout (`Card` plus the `Box` / `Row` / `Col` / `Spacer` / `Divider` primitives), data (`Table`, `QRCode`), effects (`Gradient`, `Shimmer`, `Banner`, `PixelArt`) and tasks (`TaskList`, `LogView`, `LogPanel`). Typography (`Text`, `Heading`) is covered in [Typography](/terminal/docs/typography); the imperative prompt functions in [Prompts](/terminal/docs/prompts).
+The themed component library (`@sigx/terminal-ui`) is documented page-by-page under [Components](/terminal/docs/components): forms (`Input`, `TextArea`, `Checkbox`, `Confirm`, `Select`, `Radio`, `MultiSelect`), feedback (`ProgressBar`, `Spinner`, `Badge`), navigation (`Tabs`, `StatusBar`, `KeyHints`, `SuggestionList`), layout (`Card`, `Shell`, plus the `Box` / `Row` / `Col` / `Spacer` / `Divider` primitives), data (`Table`, `DataTable`, `Sparkline`, `BarChart`, `Meter`, `Trend`, `DetailList`, `StatusGrid`, `QRCode`), effects (`Gradient`, `Shimmer`, `Banner`, `PixelArt`) and tasks (`TaskList`, `LogView`, `LogPanel`). Typography (`Text`, `Heading`) is covered in [Typography](/terminal/docs/typography); the imperative prompt functions in [Prompts](/terminal/docs/prompts).
 
 ## Types & interfaces
 

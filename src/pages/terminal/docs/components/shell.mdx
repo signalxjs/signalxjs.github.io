@@ -1,0 +1,87 @@
+---
+title: "Shell"
+description: "A dashboard frame that owns the chrome and tells the body what is left"
+layout: docs
+category: ["Components", "Layout"]
+order: 122
+---
+
+# Shell
+
+<p class="lede">A dashboard frame with exactly one job: own the chrome, and tell the body what is left.</p>
+
+## Import
+
+```tsx
+import { Shell } from '@sigx/terminal';
+```
+
+## Usage
+
+The body is a **scoped slot** receiving `{ width, height }` — the content box inside the frame:
+
+```tsx
+import { component, defineApp, Shell, DataTable } from '@sigx/terminal';
+
+const App = component(() => {
+    return () => (
+        <Shell
+            title="sigx actors"
+            version="0.1.0"
+            tabs={TABS}
+            activeTab={tab.value}
+            status={STATUS}
+        >
+            {(pane) => (
+                <DataTable width={pane.width} height={pane.height} columns={COLS} rows={rows.value} />
+            )}
+        </Shell>
+    );
+});
+```
+
+That slot is the whole point of the component. `getTerminalSize()` reports the *terminal*; what a body needs is that minus whatever chrome the frame drew — which is a private detail of the frame's own layout. Without it, every caller hardcodes a guess (`rows - 12`, `rows - 13`, `- 4`) that goes wrong the moment the frame changes shape.
+
+## A budget, not a reservation
+
+`pane` is the **maximum** a body may emit, not an enforced box.
+
+The renderer's layout is content-driven end to end — there is no clipping primitive and no way to measure an opaque child — so `<Shell>` cannot hold the box on the body's behalf. A body that emits fewer rows leaves the frame short; one that emits more pushes the footer off the bottom. (The renderer clamps a fullscreen frame to the viewport, so the damage stops there rather than shearing the screen.)
+
+Comply by fitting content to the pane, which [`fitLines`](/terminal/docs/api#fitlines) does in one call:
+
+```tsx
+{(pane) => <text>{fitLines(visible, pane).join('\n')}</text>}
+```
+
+## What it deliberately does not do
+
+No state, no key handling, no lifecycle. Tab switching, a command palette, a view stack, single-key shortcuts, exit ordering and the non-TTY fallback are each a few lines in the app, and every app wants to vary them — bundling them is what turns a frame into a cage.
+
+`activeTab` is a plain value rather than a `Model` for the same reason: nothing here ever writes it. It marks the current chip; the app owns the signal and switches the body itself.
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `title` | `string` | frame title |
+| `version` | `string` | shown beside the title |
+| `subtitle` | `string` | secondary line |
+| `header` | `'boxed' \| 'gradient' \| 'plain'` | header style |
+| `tabs` | `TabOption<string>[]` | the tab strip |
+| `activeTab` | `string` | which chip is marked current — read-only to the frame |
+| `body` | `'boxed' \| 'plain'` | body frame style |
+| `bodyTitle` | `string` | title on the body frame |
+| `status` | `StatusItem[]` | the status line |
+| `hints` | `KeyHint[]` | the key-hint footer |
+
+### Slot
+
+| Slot | Scope | Notes |
+| --- | --- | --- |
+| `default` | `ShellPane` — `{ width, height }` | the content box inside the frame |
+
+## See also
+
+- [DataTable](/terminal/docs/components/datatable) — takes `width`/`height` directly.
+- [Card](/terminal/docs/components/card) — a titled panel, without the frame arithmetic.

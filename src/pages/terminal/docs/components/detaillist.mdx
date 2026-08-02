@@ -1,0 +1,44 @@
+---
+title: "DetailList"
+description: "Aligned label/value pairs — the detail pane beside a table"
+layout: docs
+category: ["Components", "Data"]
+order: 157
+---
+
+# DetailList
+
+<p class="lede">Aligned label/value pairs — the detail pane beside a table, or the header block of a status screen.</p>
+
+## Import
+
+```tsx
+import { DetailList } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+<DetailList
+    rows={[
+        { label: 'Host', value: silo.host },
+        { label: 'Activations', value: String(silo.activations) },
+        { label: 'p99', value: `${silo.p99}ms`, tone: silo.p99 > 500 ? 'danger' : undefined },
+    ]}
+/>
+```
+
+Labels are fitted to one width so the values form a column. **That alignment is the only reason to reach for this over hand-written text** — and it is measured in *display cells*, so a label containing wide glyphs still lines up.
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `rows` | `DetailRow[]` | **required** — `{ label, value, tone? }`; `tone` is a theme token, e.g. `danger` for a figure out of range |
+| `labelWidth` | `number` | fix the label column instead of measuring |
+| `align` | `CellAlign` | value alignment |
+| `gap` | `number` | space between the columns |
+
+## See also
+
+- [DataTable](/terminal/docs/components/datatable) — the table this often sits beside.

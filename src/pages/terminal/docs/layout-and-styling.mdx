@@ -19,7 +19,6 @@ The terminal renderer walks your component tree into an array of ANSI-styled lin
 - **`br`** — a hard line break that starts a new line.
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp } from '@sigx/terminal';
 
 const App = component(() => {
@@ -66,7 +65,6 @@ For real horizontal and vertical layout, the foundation ships components that co
 - **`Divider`** — a horizontal rule with an optional centered `label` and `color`.
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, Box, Row, Col, Divider } from '@sigx/terminal';
 
 const App = component(() => {
@@ -102,7 +100,9 @@ The `border` prop accepts `single`, `double`, `rounded` or `thick`. To draw **no
 <box>...</box>                     {/* no border */}
 ```
 
-> The renderer only draws a border when the `border` prop is truthy, and any unrecognized value falls back to the single-line style. So `border="none"` currently still renders a single border — leave the prop off to get no border at all.
+> The renderer draws a border only when `border` is truthy, and `"none"` counts as falsy — so `border="none"` and leaving the prop off are the same thing. Any *other* unrecognized value falls back to the single-line style.
+>
+> A borderless box also costs nothing: `padX` and `dropShadow` are drawn by the border pass, so on a bare `<box>` they are silently inert. [`boxChrome`](/terminal/docs/api#boxchrome) takes the `border` prop directly for exactly this reason.
 
 Set `borderColor` to color the border with a named color, and `label` to render a centered caption in the top border, like a fieldset legend:
 
@@ -145,7 +145,6 @@ Colors use a fixed named palette mapped to ANSI codes:
 ## Putting it together
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, signal } from '@sigx/terminal';
 
 const App = component(() => {

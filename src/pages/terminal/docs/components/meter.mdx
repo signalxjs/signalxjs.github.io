@@ -1,0 +1,47 @@
+---
+title: "Meter"
+description: "A bare gauge for a single ratio, sized to sit in a table cell"
+layout: docs
+category: ["Components", "Data"]
+order: 154
+---
+
+# Meter
+
+<p class="lede">A bare gauge — <code>████████░░░░</code> for a single ratio, with an optional label and trailing text.</p>
+
+## Import
+
+```tsx
+import { Meter } from '@sigx/terminal';
+```
+
+## Usage
+
+```tsx
+<Meter label="heap" value={used} max={total} text={`${pct}%`} width={16} />
+```
+
+[`ProgressBar`](/terminal/docs/components/progressbar) covers determinate progress and owns the percentage readout and the gradient variants. This is the compact shape — no chrome, sized to sit in a table cell or a row of stats.
+
+**A non-zero ratio always shows at least one cell.** Rounding a real 2% down to an empty bar reads as "nothing", which is a different fact.
+
+`thresholds` colour the bar by how far along it is, so a gauge can go amber at 80% and red at 95% without the app re-deriving that every frame.
+
+## Props
+
+| Prop | Type | Notes |
+| --- | --- | --- |
+| `value` | `number` | **required** |
+| `max` | `number` | denominator |
+| `width` | `number` | bar width in cells |
+| `label` / `labelWidth` | `string` / `number` | leading label, fitted to a column |
+| `text` | `string` | trailing readout |
+| `smooth` | `boolean` | sub-cell resolution |
+| `color` | `string` | theme token |
+| `thresholds` | `Threshold[]` | colour by fill |
+
+## See also
+
+- [ProgressBar](/terminal/docs/components/progressbar) — determinate progress with chrome.
+- [Sparkline](/terminal/docs/components/sparkline) — a series rather than one ratio.

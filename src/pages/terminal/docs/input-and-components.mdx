@@ -15,7 +15,6 @@ This guide covers how keyboard input is dispatched, how focus traversal works, a
 When you mount a terminal app, the runtime puts stdin into raw mode and dispatches every keypress. You can subscribe to raw input with `onKey`:
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, onMounted, onUnmounted } from '@sigx/terminal';
 import { onKey, exitTerminal } from '@sigx/terminal';
 
@@ -105,7 +104,6 @@ The examples below cover the core focusable widgets. The full themed library —
 A focusable single-line text field with two-way model binding. It renders as a bordered box (green border when focused). Backspace deletes, Enter emits `submit`, and printable characters emit `input`.
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, signal } from '@sigx/terminal';
 import { Input } from '@sigx/terminal';
 
@@ -136,7 +134,6 @@ defineApp(<App />).mount({ clearConsole: true });
 A focusable button. Enter or Space triggers a brief press visual and emits `click`. It shows a green border with a blue background when focused.
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, signal } from '@sigx/terminal';
 import { Button } from '@sigx/terminal';
 
@@ -162,7 +159,6 @@ defineApp(<App />).mount({ clearConsole: true });
 A focusable toggle with two-way model binding. Enter or Space toggles it. It renders as `> [x] Label` when focused and checked.
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, signal } from '@sigx/terminal';
 import { Checkbox } from '@sigx/terminal';
 
@@ -191,7 +187,6 @@ defineApp(<App />).mount({ clearConsole: true });
 A focusable option list with keyboard navigation. Up/`k` and Down/`j` move the selection (wrapping), updating the model and emitting `change`; Enter emits `submit`. The selected option is marked with `❯`. The `options` prop is required and takes `SelectOption[]`.
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, signal } from '@sigx/terminal';
 import { Select } from '@sigx/terminal';
 import type { SelectOption } from '@sigx/terminal';
@@ -230,7 +225,6 @@ defineApp(<App />).mount({ clearConsole: true });
 A read-only progress indicator. It renders filled and empty characters plus a percentage label. It is not focusable and emits no events.
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp, signal, onMounted } from '@sigx/terminal';
 import { ProgressBar } from '@sigx/terminal';
 
@@ -259,7 +253,6 @@ defineApp(<App />).mount({ clearConsole: true });
 For a clean programmatic exit, pair `mountTerminal()` with `exitTerminal()`:
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { component, defineApp } from '@sigx/terminal';
 import { mountTerminal, exitTerminal, onKey, onMounted, onUnmounted } from '@sigx/terminal';
 

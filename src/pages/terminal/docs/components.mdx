@@ -13,7 +13,6 @@ The themed component library (`@sigx/terminal-ui`, re-exported from `@sigx/termi
 Import any component from the umbrella:
 
 ```tsx
-/** @jsxImportSource @sigx/terminal */
 import { Input, Select, Spinner, Table, Gradient } from '@sigx/terminal';
 ```
 
@@ -53,12 +52,20 @@ Switchers, footers and popups.
 Structural containers (the neutral primitives `Box`, `Row`, `Col`, `Spacer`, `Divider` are covered in [Layout & Styling](/terminal/docs/layout-and-styling)).
 
 - [Card](/terminal/docs/components/card) — a titled panel.
+- [Shell](/terminal/docs/components/shell) — a dashboard frame that hands its body the content box it has to fill.
 
 ## Data
 
 Structured data display.
 
-- [Table](/terminal/docs/components/table) — columns and rows.
+- [Table](/terminal/docs/components/table) — columns and rows of text.
+- [DataTable](/terminal/docs/components/datatable) — a table with a cursor, a viewport and a sort.
+- [Sparkline](/terminal/docs/components/sparkline) — a time series in one line.
+- [BarChart](/terminal/docs/components/barchart) — labelled bars on one shared scale.
+- [Meter](/terminal/docs/components/meter) — a bare gauge for a single ratio.
+- [Trend](/terminal/docs/components/trend) — a value and its direction of travel.
+- [DetailList](/terminal/docs/components/detaillist) — aligned label/value pairs.
+- [StatusGrid](/terminal/docs/components/statusgrid) — a dense grid of status cells.
 - [QRCode](/terminal/docs/components/qrcode) — a scannable QR block.
 
 ## Effects
