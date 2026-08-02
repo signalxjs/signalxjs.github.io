@@ -1,0 +1,65 @@
+---
+title: "PinchRotate"
+description: "PinchRotate — native two-finger pinch-zoom and twist-rotate, transformed on the platform UI thread"
+layout: module-docs
+category: ["Components", "Multi-touch"]
+order: 107
+---
+
+# PinchRotate
+
+<p class="lede">Two-finger pinch-zoom and twist-rotate, backed by the native <code>&lt;sigx-pinch&gt;</code> element — UIKit's <code>UIPinchGestureRecognizer</code>/<code>UIRotationGestureRecognizer</code> on iOS, <code>ScaleGestureDetector</code> plus a rotation tracker on Android.</p>
+
+## Import
+
+```tsx
+import { PinchRotate } from '@sigx/lynx-gestures';
+```
+
+## Usage
+
+```tsx
+<PinchRotate maxScale={5} onChange={(e) => (scale.value = e.scale)}>
+  <image src="photo.jpg" style={{ width: '240px', height: '240px' }} />
+</PinchRotate>
+```
+
+**The transform is applied natively**, on the platform UI thread. The slotted content zooms and rotates with no JS or cross-thread round trip, so it stays glued to the fingers.
+
+You do **not** apply the transform yourself. The `start` / `change` / `end` events report the live scale and rotation for app logic — a zoom readout, persisting the last zoom, firing haptics at a detent — not for driving the visual.
+
+## Props
+
+| Prop | Type | Notes |
+|---|---|---|
+| `minScale` | `number` | Lower bound on the zoom. |
+| `maxScale` | `number` | Upper bound on the zoom. |
+| `enableRotation` | `boolean` | Whether the twist gesture rotates the content. |
+| `enabled` | `boolean` | Turn the whole gesture off. |
+| `scale` | `number` | Controlled scale — drive it from a signal or a slider. |
+| `rotation` | `number` | Controlled rotation, in **radians**. |
+| `class` / `style` | | Passthrough to the host element. |
+
+## Events
+
+| Event | Detail | Fires |
+|---|---|---|
+| `start` | `PinchGestureStartDetail` | The two-finger gesture began; the detail is the focal point. |
+| `change` | `PinchGestureChangeDetail` | Live scale/rotation update. Rotation is in radians. |
+| `end` | `PinchGestureEndDetail` | The gesture finished; the detail carries the resting scale and rotation. |
+
+## Slots
+
+| Slot | Notes |
+|---|---|
+| `default` | The content to zoom and rotate. |
+
+## Requirements
+
+`<sigx-pinch>` is a **native** element, so this component needs `sigx prebuild` — see [Prebuilding native projects](/lynx/modules/cli/usage#prebuilding-native-projects). On a host that does not deliver multi-touch the content simply stays put; there is no JS fallback.
+
+## Compared with usePinch / useRotation
+
+The [`usePinch`](/lynx/modules/gestures/api) and `useRotation` hooks parse `bindtouch*` events on the background thread and pair fingers by proximity. That works, but it is a JS reconstruction of something the OS already does properly: multi-touch tracking is approximate, and every frame crosses a thread boundary.
+
+`<PinchRotate>` uses the platform's first-class recognizers instead, so finger tracking is reliable and the transform never leaves the UI thread. Prefer it whenever you can prebuild; keep the hooks for surfaces that must run without a native build.
