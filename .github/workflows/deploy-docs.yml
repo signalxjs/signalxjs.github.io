@@ -23,7 +23,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Full history: the sitemap dates each URL from its source file's last
+      # commit (`sitemap.lastmod: 'git'`). A shallow clone has no such log, and
+      # the build would silently emit no <lastmod> at all.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v6
 

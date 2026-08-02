@@ -450,12 +450,18 @@ export const TERMINAL_FEATURED = ['terminal-ui', 'terminal-zero', 'terminal-dev'
  * expose the same ~61-component surface).
  */
 export const COMPONENT_CATALOGS: Record<string, { cat: string; items: string[] }[]> = {
+    // The catalog is what `@sigx/daisyui` ACTUALLY exports — an entry with no
+    // page renders as a greyed "soon" chip, so listing a component the package
+    // does not have promises something that will never arrive. `Collapse`,
+    // `List`, `Dock`, `Calendar`, `Filter` and `Validator` are upstream daisyUI
+    // CSS components with no sigx component, and `Tab` / `Text input` were
+    // duplicates of `Tabs` / `Input`; all eight are out until they ship.
     daisyui: [
         { cat: 'Actions', items: ['Button', 'Dropdown', 'Modal', 'Swap', 'Theme Controller'] },
-        { cat: 'Data display', items: ['Accordion', 'Avatar', 'Badge', 'Card', 'Carousel', 'Chat bubble', 'Collapse', 'Countdown', 'Diff', 'Kbd', 'List', 'Stat', 'Status', 'Table', 'Timeline'] },
-        { cat: 'Navigation', items: ['Breadcrumbs', 'Dock', 'Link', 'Menu', 'Navbar', 'Pagination', 'Steps', 'Tab'] },
+        { cat: 'Data display', items: ['Accordion', 'Avatar', 'Badge', 'Card', 'Carousel', 'Chat bubble', 'Countdown', 'Diff', 'Kbd', 'Stat', 'Status', 'Table', 'Timeline'] },
+        { cat: 'Navigation', items: ['Breadcrumbs', 'Link', 'Menu', 'Navbar', 'Pagination', 'Steps', 'Tabs'] },
         { cat: 'Feedback', items: ['Alert', 'Loading', 'Progress', 'Radial progress', 'Skeleton', 'Toast', 'Tooltip'] },
-        { cat: 'Data input', items: ['Calendar', 'Checkbox', 'Fieldset', 'File input', 'Filter', 'Label', 'Radio', 'Range', 'Rating', 'Select', 'Text input', 'Textarea', 'Toggle', 'Validator'] },
+        { cat: 'Data input', items: ['Checkbox', 'Fieldset', 'File input', 'Input', 'Label', 'Radio', 'Range', 'Rating', 'Select', 'Textarea', 'Toggle'] },
         { cat: 'Layout', items: ['Divider', 'Drawer', 'Footer', 'Hero', 'Indicator', 'Join', 'Mask', 'Stack'] },
         { cat: 'Mockup', items: ['Browser', 'Code', 'Phone', 'Window'] },
     ],
