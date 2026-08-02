@@ -424,6 +424,95 @@ Bypass the HTTP cache for a single call with
 Long argument lists are the one operational limit — a GET's encoded query string
 is capped at `maxUrlBytes` (default 8 KiB) and answered with a `414` past it.
 
+## Zero-JS form actions
+
+`form: true` marks a function a **form target**. A `<form>` whose submit handler
+calls it gets a real `action` and `method="post"` stamped in at build time, so the
+form works before — and without — JavaScript. With JS, the same function runs as
+ordinary RPC. One function, one validator, two transports.
+
+```ts
+export const submitFeedback = serverFn({
+  form: true,                 // must be the literal `true`
+  input: z.object({
+    email: z.string().email(),
+    rating: z.coerce.number().int().min(1).max(5),
+    message: z.string().min(1),
+  }),
+  unguarded: true,
+  handler: async (rq, feedback) => db.feedback.add(feedback),
+});
+```
+
+`input` is **required** — a form target without one is a definition-time error.
+Form fields are attacker-typable strings, and the validator is the only thing
+between them and your handler.
+
+### FormData becomes your input
+
+The body is normalized into the function's single input as a **flat object**:
+
+| In the form | In your input |
+|---|---|
+| One field named `email` | `email: string` |
+| Repeated fields named `tag` | `tag: string[]` |
+| `<input type="file">` | the `File`, passed through |
+| Anything else | still a **string** |
+
+Values stay strings because that is what the platform gives you — Standard Schema
+coercion is the mapping tool, which is why `z.coerce.number()` appears above and a
+bare `z.number()` would reject every submission. Prototype-polluting field names
+are dropped, the same posture the JSON reviver takes.
+
+### The round trip
+
+A successful no-JS submit answers **303 See Other**, so a reload doesn't resubmit.
+The redirect target is, in order:
+
+1. a `Location` your handler set on `rq.responseHeaders`;
+2. the request's `Referer` — **only if same-origin**, and only its path and query;
+3. `/`.
+
+An attacker-controlled `Referer` must never become an open redirect, which is why
+step 2 is same-origin-only. A handler that sets its own status via `rq.status()`
+is honoured verbatim, with no default `Location` added.
+
+A validation failure without JS renders a minimal HTML page — in production a
+plain "please go back and correct it", in development the actual issues. It is a
+backstop, not a UX: native HTML validation (`required`, `type="email"`,
+`pattern=`) is the first line, because it never round-trips at all.
+
+### Security: what you are giving up
+
+A declared form target **deliberately drops the JSON content-type CSRF layer** —
+it has to, because a native form cannot send `application/json`. Everything else
+stays at full strength:
+
+- The **Origin check stays on**. An Origin-less form POST is `403` under every
+  policy short of `origin: false` — including `'verify-when-present'`, which
+  relaxes the check for JSON callers but not for forms.
+- `input` is mandatory, so the validator always runs.
+- Combining `form: true` with `origin: 'verify-when-present'` or `origin: false`
+  **reopens classic CSRF** on that function. Don't, unless it is genuinely public.
+
+`form` is mutually exclusive with `cache` — a form target is a mutation.
+
+### When stamping happens
+
+The `action` is stamped by the [resume](/server/packages/resume/usage) extractor,
+so it reaches only files matching `sigxResume()`'s `include` and only components
+that extract in **resume** mode. The rules and their edges:
+
+- Exactly **one** form-marked capture per `<form>`.
+- An `action`/`method` you wrote by hand **wins** — stamping never overwrites it.
+- `role: 'client'` builds and hydrate-mode components never stamp.
+- A form-target import via a bare specifier does not stamp.
+
+A `<form>` outside those rules still submits through the server function as RPC
+once its component is running. It just has no native fallback before then — and
+the build warns when a `form: true` form will never be stamped, so this is
+visible rather than silent.
+
 ## Per-call options
 
 Every wrapped function carries a `.with(options)` channel that returns the same
