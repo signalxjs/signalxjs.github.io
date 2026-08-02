@@ -147,6 +147,59 @@ For selective hydration where each island owns its own lazy chunk, the islands
 plugin handles this for you — see
 [`@sigx/ssr-islands`](/server/packages/ssr-islands/registry-and-code-splitting).
 
+## The scheduler / core split
+
+Selective hydration is deliberately in two halves, so a page pays for triggers
+before it pays for a renderer.
+
+| Half | Entry | What it costs |
+|---|---|---|
+| **Eager scheduler** | `@sigx/server-renderer/client/scheduler` | ~2 kB. Reads `__SIGX_BOUNDARIES__` and wires each boundary's trigger. Value-imports nothing from the sigx family, so no framework code executes at load. |
+| **Hydration core** | loaded via `loadHydrationCore()` | The renderer, `hydrateComponent`, and the mount/hydrate primitives. Dynamically imported on the **first strategy that actually fires**. |
+
+A page whose strategies never fire — everything below the fold, everything
+`hydrate: 'never'` — never executes any framework JavaScript at all.
+
+```ts
+import { scheduleTableBoundaries } from '@sigx/server-renderer/client/scheduler';
+
+scheduleTableBoundaries();   // triggers only; the executor arrives when one fires
+```
+
+The entry also exports the pieces a strategy pack builds on without pulling the
+core in: `scheduleByStrategy`, `getBoundaryTable` / `getBoundaryRecord`,
+`findBoundaryMarker` / `hydrateTableBoundary`, the component registry
+(`registerComponent`, `resolveComponent`, `registerComponentChunk`),
+`loadBoundaryComponent` / `prefetchBoundaryChunks`, and
+`seedBoundaryState` / `consumeBoundaryState`.
+
+`loadHydrationCore()` caches its promise, and a failed load clears the cache so
+the next trigger retries.
+
+The one behavioural consequence: a `hydrate: 'load'` boundary now hydrates after
+one dynamic-import round trip rather than synchronously. That import is
+preloadable — a pack keeps it off the critical path with the
+[`assets` hook](#the-plugin-spi).
+
+### Lazy client plugins
+
+Because the core loads late, a pack's client hooks can ride in the same chunk.
+`registerClientPlugin` takes either a resolved plugin or a **lazy source**:
+
+```ts
+import { registerClientPlugin } from '@sigx/server-renderer/client/scheduler';
+
+registerClientPlugin({
+    name: 'my-strategy',
+    load: () => import('./my-strategy-client'),   // resolved with the hydration core
+});
+```
+
+`resolveClientPlugins()` imports every lazy source once, before the first
+component hydrates, so the synchronous client hooks always see a resolved plugin.
+Registrations dedupe by `name`, first wins — registering the same name again in
+either form is a no-op.
+
 ## The plugin SPI
 
 The core renderer and hydrator are strategy-agnostic. Every advanced hydration
