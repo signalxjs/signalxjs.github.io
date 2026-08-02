@@ -53,7 +53,7 @@ The lowest resolved detent is the **floor**, and it decides which of the two mod
 
 ### Surface drag and scroll arbitration
 
-`'surface'` is the iOS-style behaviour: dragging **collapses the sheet** until it is at its maximum, and only then does the content scroll — with a one-way handoff back. `<BottomSheet>` provides the ScrollDragHost, and an inner `@sigx/lynx` `<ScrollView>` adopts it automatically.
+`'surface'` is the iOS-style behaviour: a drag moves **the sheet** until it reaches its maximum detent, and only past that point does the **content** scroll — with a one-way handoff back. `<BottomSheet>` provides the ScrollDragHost, and an inner `@sigx/lynx` `<ScrollView>` adopts it automatically.
 
 The arbitration itself is `decideDragOwner`, exported for custom surfaces.
 
