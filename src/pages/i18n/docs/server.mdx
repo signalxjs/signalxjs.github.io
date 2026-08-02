@@ -1,0 +1,101 @@
+---
+title: Server & SSR
+description: "Resolving the request locale, translating outside a component, and rendering into a locale other than the active one"
+layout: docs
+category: Guides
+order: 60
+---
+
+# Server & SSR
+
+<p class="lede">Translating on the server is a different shape from translating in a component: there is no active locale to read, because a server process handles every locale at once.</p>
+
+So a locale is **bound**, not ambient.
+
+## Per request
+
+`createRequestT` builds once and binds per request — the shape a server function wants:
+
+```ts
+import { createRequestT } from '@sigx/i18n/server';
+import catalogs from 'virtual:sigx-i18n/server-catalogs';
+
+const requestT = createRequestT({ catalogs, fallbackLocale: 'en', supported: ['en', 'sv'] });
+
+export const greet = serverFn({
+    unguarded: true,
+    handler: async (rq) => requestT(rq.request).forNamespace('mail').greeting({ name: 'Ada' }),
+});
+```
+
+It runs the detection chain against the request and hands back a translator bound to the negotiated locale.
+
+`@sigx/server` is deliberately **not** imported here. You pass `rq.request`, so the same function works from a plain fetch handler in a platform entry, with no dependency in either direction.
+
+## Standing catalogs
+
+`createServerT` is the lower-level form, over an in-memory catalog tree:
+
+```ts
+import { createServerT } from '@sigx/i18n/server';
+
+const t = createServerT({ catalogs, fallbackLocale: 'en', defaultNamespace: 'mail' });
+
+const m = t.forLocale('sv').forNamespace('mail');
+m.subject();                  // typed against the generated Schema
+m.welcome({ name: 'Åsa' });
+```
+
+`t.t(key, params, { locale })` and `t.exists(key, { locale })` are the one-off forms; `forLocale(locale)` binds and everything else hangs off the result.
+
+## Translating into a locale that isn't the active one
+
+On the **client**, the active locale is ambient — that is the whole point of `useTranslation`. But some things are not "the current user's language":
+
+- a preview pane showing how a page reads in another locale
+- a list whose rows each carry their own locale
+- an email or notification rendered for a *recipient's* stored preference
+
+For those, pass the locale explicitly. It is available on every reader:
+
+```tsx
+const tSv = useTranslation('cart', { locale: 'sv' });      // pinned translator
+const content = useDynamicTranslation('content', { locale: row.locale });
+
+<T k="cart.title" locale={row.locale} />                    // per-element
+```
+
+The bound locale still walks its **own** fallback chain, so a message missing from `sv-FI` resolves through `sv` and then the master locale exactly as the active locale would.
+
+The primitive underneath is `store.translateKey(key, params, { locale })`, and `store.forLocale(locale)` is the client-side mirror of the server's binder.
+
+> **`locale` is typed `string`, not `KnownLocale`, on purpose.** The narrowed spellings are the ones you write as a literal next to `setLocale('sv')`. This one also carries *data* locales — a ticket's `row.locale`, a recipient's stored preference — which are `string` at the type level however carefully they were produced. Narrowing here would put a cast on the per-row case that is half the reason the option exists.
+
+## SSR state transfer
+
+The store is created lazily on the first `useTranslation()` **during render**, so under SSR it is constructed inside the request render and its state registration attaches to the correct per-request context. The catalogs the server resolved transfer to the client automatically — no second fetch on hydration.
+
+The idiomatic preload is `initialMessages`: load the request's catalogs, pass them in, and the render stays synchronous while the state still transfers.
+
+```ts
+createI18n({
+    fallbackLocale: 'en',
+    initialMessages: await loadForRequest(locale),   // messages[locale][namespace]
+});
+```
+
+`installPersistSSR` wires the persistence half for a server-rendered app.
+
+## Resolving the locale from a request
+
+```ts
+import { resolveRequestLocale, localeCookie, localeSwitchUrl } from '@sigx/i18n';
+
+const locale = resolveRequestLocale(request, { supported: ['en', 'sv'] });
+```
+
+`detectionContextFromRequest`, `parseAcceptLanguage` and `parseCookie` are the pieces if you need to assemble it yourself. `localeCookie` and `localeSwitchUrl` build the response side of a locale switch.
+
+## Next steps
+
+- [API reference](/i18n/docs/api) — every export.

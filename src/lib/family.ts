@@ -77,6 +77,10 @@ const RAW_PACKAGES: SigxPackage[] = [
       hue: 175, glyph: '⎔', status: 'beta', version: '0.4.0',
       tag: 'Reactive composables built on signals',
       blurb: 'Tree-shakable composables built on signals — sensors, storage, timing and more, SSR-safe across every target.' },
+    { id: 'i18n', npm: '@sigx/i18n', title: 'i18n', cat: 'core', target: 'foundation',
+      hue: 200, glyph: '⌘', status: 'beta', version: '0.3.1',
+      tag: 'Reactive localization',
+      blurb: 'Namespaces, a master locale with automatic fallback, locale detection and SSR-safe state transfer — renderer-neutral, so it runs on web, lynx and terminal alike.' },
 
     // ---- Web: rendering ----
     { id: 'ssg', npm: '@sigx/ssg', title: 'SSG', cat: 'render', target: 'web',
@@ -107,6 +111,10 @@ const RAW_PACKAGES: SigxPackage[] = [
       hue: 46, glyph: '⌗', status: 'beta', version: '0.6.0',
       tag: 'Editor + live-code playground',
       blurb: 'A pluggable Monaco wrapper powering the live, runnable code samples in these docs.' },
+    { id: 'mermaid', npm: '@sigx/mermaid', title: 'Mermaid', cat: 'ui', target: 'web',
+      hue: 96, glyph: '◈', status: 'beta', version: '0.1.0',
+      tag: 'Diagrams for sigx and SSG',
+      blurb: 'A <Mermaid> component for any sigx app, plus drop-in ```mermaid fence support for @sigx/ssg — loaded lazily, only on pages that have a diagram.' },
 
     // ---- Tooling (foundation unless target-specific) ----
     { id: 'cli', npm: '@sigx/cli', title: 'CLI', cat: 'tooling', target: 'foundation',

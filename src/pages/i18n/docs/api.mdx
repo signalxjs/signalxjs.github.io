@@ -1,0 +1,102 @@
+---
+title: API reference
+description: "Every export of @sigx/i18n, grouped by entry point"
+layout: docs
+category: Reference
+order: 70
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/i18n` <PkgVersion npm="@sigx/i18n" />, grouped by entry point.</p>
+
+## `@sigx/i18n`
+
+### Setup
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `createI18n(options)` | plugin | `app.use(createI18n({ … }))`. The store is created lazily on first use during render. |
+| `provideI18nConfig(options)` | function | Client-only config for the no-app case (`@sigx/resume` boundaries). A no-op on the server. |
+| `I18nOptions` | type | The resolved runtime config. |
+
+Key `I18nOptions` fields:
+
+| Field | Notes |
+|---|---|
+| `fallbackLocale` | **Required.** The master locale — the source of truth for which keys exist. |
+| `initialLocale` | Locale to start on before detection. Defaults to `fallbackLocale`. |
+| `supported` | Negotiation target set; empty accepts any locale. |
+| `localeFallbacks` | Explicit fallbacks layered on BCP-47 truncation. |
+| `namespaces` | Loaded up front. Leave section-specific ones out so they load on use. |
+| `defaultNamespace` | Used when `useTranslation()` is called without one. Default `'translation'`. |
+| `load` | The catalog loader. Without it, catalogs come from `addMessages`. |
+| `layers` / `defaultLayer` / `loaders` / `layerMessages` | Per-key override layering — see [Layers](/i18n/docs/usage#layers). |
+| `initialMessages` | Catalogs seeded synchronously at creation, marked loaded. The idiomatic SSR preload. |
+| `formatter` | Defaults to `lightweightFormatter`. |
+| `onMissing` | Missing-key handler. |
+| `onLoadError` | Replaces the default console logging for a failed catalog load. |
+
+### Reading
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `useTranslation(ns?, options?)` | hook | The typed translator. Namespace **and** keys checked. |
+| `useDynamicTranslation(ns?, options?)` | hook | Namespace checked, keys open — for [runtime catalogs](/i18n/docs/runtime-catalogs). |
+| `useLocale()` | hook | `{ locale, locales, setLocale, error, retry, whenReady }`. |
+| `useI18n()` / `useI18nConfig()` | hook | The store itself, and the resolved config. |
+| `T` | component | Declarative translation — `k`, `params`, `ns`, `locale`, `default`, `components`. |
+| `renderRich(text, components)` | function | The tag-splitting behind `<T components>`. |
+
+Both readers take `{ locale }` to pin a call to a locale other than the active one — see [Translating into a locale that isn't the active one](/i18n/docs/server#translating-into-a-locale-that-isnt-the-active-one).
+
+### Store actions
+
+`useI18n()` returns the store. Beyond the reactive `locale` / `locales` / `messages` signals:
+
+| Action | Purpose |
+|---|---|
+| `setLocale(locale)` | Switch; resolves once catalogs have loaded. |
+| `loadNamespace(locale, ns)` | Load one namespace explicitly. |
+| `addMessages(locale, ns, catalog, { layer? })` | Seed a catalog directly. |
+| `setLayer(layer, tree)` | Replace a whole override layer. |
+| `invalidate(locale?, ns?, layer?)` | Drop and reload. Narrows from the left; omit an argument to cover every value of it. |
+| `forLocale(locale)` | A translator bound to one locale. |
+| `translateKey(key, params?, { locale? })` | The primitive under the readers. |
+
+### Detection
+
+`detectLocale`, `createDetectors`, `findSupported`, `parseAcceptLanguage`, `parseCookie`, `settingsDetector`, `browserDetector`, `cookieDetector`, `urlDetector`, `detectionContextFromRequest`, `resolveRequestLocale`, `localeCookie`, `localeSwitchUrl`, `LOCALE_COOKIE`.
+
+`Detector.detect` is **synchronous** — an async native locale goes through `initialLocale` or `await setLocale()`.
+
+### Lower-level
+
+`translate`, `translateWith`, `lookup`, `getMessage`, `localeChain`, `matchLocale`, `lightweightFormatter`, `isPluralForms`, `composeCatalogs`, `composeAt`, `layerFor`, `flatten`, `createTranslator`, `createDynamicTranslator`, `bindLocale`, `installPersistSSR`.
+
+## `@sigx/i18n/server`
+
+| Export | Purpose |
+|---|---|
+| `createRequestT(options)` | Build once, bind per request. Returns `(request) => LocaleTranslator`. |
+| `createServerT(options)` | A translator over an in-memory catalog tree; `forLocale(locale)` binds. |
+| `LocaleTranslator` | `forNamespace(ns)`, `withLayers(trees)`, and the bound translation calls. |
+
+`@sigx/i18n/server/node` is the Node flavour of the same surface.
+
+## `@sigx/i18n/vite`
+
+| Export | Purpose |
+|---|---|
+| `i18n(options)` | The build plugin — scans catalogs, generates types, runs the consistency check. |
+| `runI18nCheck` / `checkCatalogs` / `formatReport` | The check, for wiring into CI without a build. |
+| `writeI18nTypes` / `generateDts` | Type generation on its own. |
+| `buildManifest` / `scanDir` | The catalog scan. |
+
+`runtimeNamespaces` declares namespaces whose keys are not knowable at build time — see [Runtime catalogs](/i18n/docs/runtime-catalogs).
+
+## `@sigx/i18n/virtual`
+
+Types for the generated virtual module (`virtual:sigx-i18n/server-catalogs` and friends).
