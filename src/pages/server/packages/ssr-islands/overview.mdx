@@ -38,7 +38,7 @@ component:
 
 ## The three pieces
 
-Using islands always involves the same trio (from the package's own quick-start):
+Using islands always involves the same pair (from the package's own quick-start):
 
 ```tsx
 // 1. Server — install the pack on your app
@@ -59,10 +59,12 @@ registerComponent('Counter', Counter);
 hydrateIslands();
 ```
 
-```tsx
-// 3. JSX types — enable the client:* attributes
-import '@sigx/ssr-islands/jsx';
+The `client:*` attributes type-check with no extra import — importing
+`@sigx/ssr-islands` on the server or `@sigx/ssr-islands/client` on the client (which
+the two entries above already do) augments every JSX component program-wide, the same
+way core's `use:*` directives do:
 
+```tsx
 <Counter client:visible />
 <Widget client:idle />
 ```

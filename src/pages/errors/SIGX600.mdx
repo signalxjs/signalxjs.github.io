@@ -1,0 +1,56 @@
+---
+title: SIGX600 · Hydration container not found
+description: SIGX600 — app.hydrate() was given a container that isn't in the document
+layout: docs
+category: Server rendering
+order: 1
+---
+
+# SIGX600 · Hydration container not found
+
+**Dev message**
+
+```
+[ssrClientPlugin] Cannot find container: #app. Make sure the element exists in the DOM before calling hydrate().
+```
+
+## What happened
+
+`app.hydrate(container)` was called with a selector or element that does not resolve to a node in the document.
+
+Hydration is not mounting. `mount()` creates DOM; `hydrate()` *adopts* the DOM the server already sent, attaching event handlers and wiring reactivity to nodes that are supposed to be there. With no container there is nothing to adopt, and silently falling back to a fresh mount would throw away the server's HTML and double-render the page — so the plugin throws.
+
+The usual causes:
+
+- The selector doesn't match the server template's outlet wrapper (`#app` on the client, `#root` in the HTML).
+- The script runs before the element parses — a `<script>` in `<head>` without `type="module"` or `defer`.
+- The container is rendered by another framework, or injected later by a script that hasn't run yet.
+
+## Fix it
+
+Point `hydrate()` at the element the server actually rendered into, and make sure the script runs after it exists:
+
+```html
+<body>
+    <div id="app"><!--ssr-outlet--></div>
+    <script type="module" src="/src/entry.client.ts"></script>
+</body>
+```
+
+```tsx
+import { defineApp } from 'sigx';
+import { ssrClientPlugin } from '@sigx/server-renderer/client';
+
+const app = defineApp(<App />);
+app.use(ssrClientPlugin).hydrate!('#app');
+```
+
+`type="module"` scripts are deferred by default, so the body has parsed by the time the entry runs. A classic `<script>` in `<head>` needs `defer`.
+
+If you pass an element rather than a selector, check it isn't `null` first — `document.getElementById('app')!` asserts away exactly the failure this code reports.
+
+## Related
+
+- [Hydration & head](/server/packages/server-renderer/hydration) — the client half of SSR
+- [SIGX601](/errors/SIGX601/) — no root component on the app
+- [SIGX602](/errors/SIGX602/) — the document template has no outlet marker

@@ -1,0 +1,49 @@
+---
+title: SIGX601 · No root component to hydrate
+description: SIGX601 — app.hydrate() was called on an app created without a root component
+layout: docs
+category: Server rendering
+order: 2
+---
+
+# SIGX601 · No root component to hydrate
+
+**Dev message**
+
+```
+[ssrClientPlugin] No root component found on app. Make sure you created the app with defineApp(<Component />).
+```
+
+## What happened
+
+`app.hydrate(container)` found its container, but the app has no root component to hydrate into it.
+
+`defineApp()` records the element it is given as the app's root. Hydration walks that root against the server's DOM, node for node. An app created without one has nothing to walk — there is no tree to reconcile against the markup — so the plugin throws rather than leaving a page of inert HTML.
+
+In practice this means `defineApp()` was called with nothing:
+
+```tsx
+const app = defineApp();                      // no root
+app.use(ssrClientPlugin).hydrate!('#app');    // SIGX601
+```
+
+## Fix it
+
+Pass the root element to `defineApp()`:
+
+```tsx
+import { defineApp } from 'sigx';
+import { ssrClientPlugin } from '@sigx/server-renderer/client';
+import { App } from './App';
+
+const app = defineApp(<App />);
+app.use(ssrClientPlugin).hydrate!('#app');
+```
+
+The client's root must be the same component the server rendered. If the server entry renders `<App />` and the client hydrates `<Root />`, hydration mismatches even when this error doesn't fire — keep both entries importing the same root.
+
+## Related
+
+- [Hydration & head](/server/packages/server-renderer/hydration) — the client half of SSR
+- [Building a full SSR app](/server/packages/server-renderer/full-app) — matching server and client entries
+- [SIGX600](/errors/SIGX600/) — the hydration container was not found

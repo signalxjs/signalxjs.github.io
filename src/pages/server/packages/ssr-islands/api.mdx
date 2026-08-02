@@ -246,7 +246,8 @@ type HydrationStrategy = 'load' | 'idle' | 'visible' | 'media' | 'interaction' |
 
 ### ClientDirectives
 
-The JSX attributes (also available type-only via `@sigx/ssr-islands/jsx`).
+The JSX attributes. They register program-wide when the pack is imported — there is
+no directive-specific import.
 
 ```ts
 interface ClientDirectives {
@@ -270,13 +271,12 @@ captured `signalMap`, `islandInfo`); `HydrationOptions` carries `recover` and an
 For convenience the package re-exports the `SSRHelper` type from
 `@sigx/server-renderer`.
 
-## JSX subpath
+## JSX types
 
-`@sigx/ssr-islands/jsx` is a **types-only** entry. Importing it augments JSX so the
-`client:*` attributes type-check:
+The `client:*` attributes type-check with no import of their own. Importing
+`@sigx/ssr-islands` (server) or `@sigx/ssr-islands/client` (client) — which your
+entries already do — augments every JSX component in the program:
 
 ```tsx
-import '@sigx/ssr-islands/jsx';
-
 <Counter client:visible />;
 ```

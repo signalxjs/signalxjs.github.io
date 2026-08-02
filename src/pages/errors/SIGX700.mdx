@@ -1,0 +1,70 @@
+---
+title: SIGX700 · Revalidation trigger threw while subscribing
+description: SIGX700 — the @sigx/cache revalidateTrigger threw when the store tried to install it
+layout: docs
+category: Cache
+order: 1
+---
+
+# SIGX700 · Revalidation trigger threw while subscribing
+
+**Dev message**
+
+```
+[sigx-cache] revalidateTrigger threw while subscribing:
+```
+
+The thrown error is logged as a second argument, so the original stack is in the console next to the code.
+
+## What happened
+
+`@sigx/cache` tried to install its attention-revalidation trigger and the trigger function threw.
+
+The store subscribes one "revalidate now" callback per app, lazily — on the first read that opts in with `revalidateOnFocus`. The trigger is the platform's: DOM `focus` + `visibilitychange` by default, or whatever `cachePlugin({ revalidateTrigger })` supplied for a non-DOM runtime.
+
+**This is logged, not thrown.** A cache that cannot hear about window focus is degraded, not broken — so the store marks the trigger uninstalled, logs, and carries on. Everything else keeps working: reads still fetch, `staleTime` still applies, `invalidate()` still works. What you lose is revalidation on focus; `revalidateOnInterval` and manual invalidation are unaffected.
+
+Because it never throws, this one shows up in logs rather than in a stack trace, and it is easy to miss.
+
+## Fix it
+
+Almost always the trigger touched a global its runtime doesn't have. The default trigger installs only when a DOM is present, so this normally means a **custom** trigger reaching for one:
+
+```ts
+// ✗ throws under lynx, terminal, or a Node/edge SSR pass
+cachePlugin({
+    revalidateTrigger: (revalidate) => {
+        window.addEventListener('focus', revalidate);
+        return () => window.removeEventListener('focus', revalidate);
+    },
+});
+```
+
+Subscribe to the event source the runtime actually has, and return its unsubscribe — whatever that runtime calls it:
+
+```ts
+cachePlugin({
+    revalidateTrigger: (revalidate) => {
+        const subscription = appState.on('resume', revalidate);
+        return () => subscription.remove();
+    },
+});
+```
+
+If the trigger has to run on more than one target, guard the capability rather than the platform name, and return nothing when there is no source to subscribe to — returning `undefined` is valid and simply means "nothing to unsubscribe":
+
+```ts
+cachePlugin({
+    revalidateTrigger: (revalidate) => {
+        if (typeof document === 'undefined') return;
+        document.addEventListener('visibilitychange', revalidate);
+        return () => document.removeEventListener('visibilitychange', revalidate);
+    },
+});
+```
+
+## Related
+
+- [Cache overview](/core/packages/cache/overview) — the cache-policy pack
+- [Cache API](/core/packages/cache/api) — `cachePlugin`, `revalidateTrigger`, `revalidateOnFocus`
+- [Data loading](/core/docs/data-loading) — `useData` and the async state model

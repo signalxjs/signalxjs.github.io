@@ -54,6 +54,17 @@ try {
 
 `code` is the only field worth branching on. Treat `message` and `suggestion` as diagnostics for humans, not as a contract.
 
+### Two codes that aren't SigxErrors
+
+Most coded failures are thrown `SigxError`s. Two are not, because the packages that raise them sit outside that class:
+
+| Code | Shape |
+|---|---|
+| [SIGX500](/errors/SIGX500/) | A plain `Error` — `@sigx/reactivity` sits below `SigxError` and takes no dependency on it. No `error.code`. |
+| [SIGX700](/errors/SIGX700/) | Not thrown at all — `@sigx/cache` logs it with `console.error` and degrades. Nothing to catch. |
+
+Both still print the same `SIGX### — see …` line in production, so the code is how you find them; you just can't `instanceof`-narrow to them.
+
 ## Every code
 
 Codes are grouped into ranges by subsystem, so the number alone tells you roughly where to look.
@@ -94,6 +105,26 @@ Codes are grouped into ranges by subsystem, so the number alone tells you roughl
 |---|---|
 | [SIGX400](/errors/SIGX400/) | Subscribed to a destroyed topic |
 | [SIGX401](/errors/SIGX401/) | Created a topic on a destroyed group |
+
+### Reactivity · 500–599
+
+| Code | Meaning |
+|---|---|
+| [SIGX500](/errors/SIGX500/) | `toSignal` wrote to a read-only property |
+
+### Server rendering · 600–699
+
+| Code | Meaning |
+|---|---|
+| [SIGX600](/errors/SIGX600/) | `hydrate()` could not find its container |
+| [SIGX601](/errors/SIGX601/) | `hydrate()` found no root component on the app |
+| [SIGX602](/errors/SIGX602/) | `renderDocument` found no outlet marker in the template |
+
+### Cache · 700–799
+
+| Code | Meaning |
+|---|---|
+| [SIGX700](/errors/SIGX700/) | The `@sigx/cache` revalidation trigger threw while subscribing |
 
 ## Related
 
