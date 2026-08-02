@@ -135,13 +135,11 @@ The group container. Its props apply to the wrapper; `color` and `size` are read
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `value` | `string` | - | Currently selected value for the group |
 | `color` | `RadioColor` | - | Default color for items in the group |
 | `size` | `RadioSize` | - | Default size for items in the group |
 | `class` | `string` | - | Additional CSS classes on the group wrapper |
-| `onChange` | `(value: string) => void` | - | Change event for the group's selected value |
 
-The default slot holds the `Radio.Item` children.
+The default slot holds the `Radio.Item` children. The group carries **no selection state** — it lays items out and supplies their defaults. Selection lives on each item, via `model` or `checked` + `onSelect`.
 
 ## `Radio.Item` props
 
@@ -156,7 +154,10 @@ One selectable option. Renders the radio circle, an optional label, and is press
 | `color` | `RadioColor` | - | Color of the radio when checked; overrides the group color |
 | `size` | `RadioSize` | - | Size of the radio; overrides the group size |
 | `class` | `string` | - | Additional CSS classes on the radio circle |
-| `onSelect` | `(value: string) => void` | - | Fired with this item's `value` when pressed (skipped when `disabled`) |
+| `model` | `Model<string>` | - | Two-way binding — the canonical state path, written first |
+| `onSelect` | `(value: string) => void` | - | Called with this item's `value` when selected. Never while `disabled` |
+
+`onSelect` is a **plain function prop, not an emitted event**. It has to be: a prop named `value` shadows `@sigx/runtime-core`'s emit-handler lookup, so events never fire on this component. Use it for controlled, non-`model` groups — or alongside `model`, which is still written first.
 
 ### Types
 

@@ -92,7 +92,7 @@ const Radio: Compound<Component<RadioGroupProps>, {
 }>;
 ```
 
-Radio group container, compound with `Radio.Item`. The group lays out children and exposes `value`/`color`/`size` plus a `change` event; items are controlled via `checked` and emit `select(value)` on press. Note: the container only lays out children — wiring item selection to the group's `change` is the caller's responsibility. Platform: iOS and Android.
+Radio group container, compound with `Radio.Item`. The group lays out its items and supplies their default `color`/`size`; selection lives on the items, through `model` or `checked` + `onSelect`. Platform: iOS and Android.
 
 ### Textarea
 
@@ -696,15 +696,13 @@ type SelectColor = Exclude<ColorVariant, 'neutral'>;
 
 ```ts
 type RadioGroupProps =
-    & Define.Prop<'value', string, false>
     & Define.Prop<'color', RadioColor, false>
     & Define.Prop<'size', RadioSize, false>
     & Define.Prop<'class', string, false>
-    & Define.Slot<'default'>
-    & Define.Event<'change', string>;
+    & Define.Slot<'default'>;
 ```
 
-Radio group props. The container only lays out children; wiring item selection to the group's `change` event is the caller's responsibility.
+Radio group props — the container lays out its items and supplies their default `color` and `size`. Selection state lives on the items: bind `model` on each `Radio.Item`, or drive `checked` + `onSelect` yourself.
 
 ### RadioItemProps
 
@@ -717,10 +715,13 @@ type RadioItemProps =
     & Define.Prop<'color', RadioColor, false>
     & Define.Prop<'size', RadioSize, false>
     & Define.Prop<'class', string, false>
-    & Define.Event<'select', string>;
+    & Define.Model<string>
+    & Define.Prop<'onSelect', (value: string) => void, false>;
 ```
 
-`Radio.Item` props; controlled via `checked`, emits `select(value)` on press.
+`Radio.Item` props. `model` is the canonical state path; `onSelect` fires with this item's `value` when it is selected, and is written **after** `model`. Never fires while `disabled`.
+
+`onSelect` is a **plain function prop, not an emitted event** — and it has to be. A prop named `value` shadows `@sigx/runtime-core`'s emit-handler lookup, so events never fire on this component at all. Use `onSelect` for controlled, non-`model` groups, or alongside `model`.
 
 ### RadioColor
 
