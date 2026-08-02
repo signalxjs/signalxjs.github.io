@@ -1,0 +1,210 @@
+---
+title: Native clients
+description: "Pointing a lynx, terminal or native app's server-function stubs at a remote backend — configureServerFn, role: 'client', stable routes and the live-client guard"
+layout: module-docs
+category: "Guides"
+order: 35
+---
+
+# Native clients
+
+<p class="lede">A web app and its server functions ship together, so the stubs can bake in a relative path and forget about it. A <strong>native</strong> app — lynx, terminal, or anything installed on a device — is built separately from the backend it calls, updates on its own schedule, and has no same-origin to fall back on. This page is the four things that changes.</p>
+
+## 1. Build the app as a client
+
+In a web build, `sigxServer()` swaps `*.server.ts` modules for fetch stubs in the
+**client** environment only; the SSR environment keeps the real module, because
+there is a server in the build. A native app has no server in the build at all.
+
+Set `role: 'client'` and every environment gets stubs:
+
+```ts
+// vite.config.ts
+import { sigxServer } from '@sigx/vite/server';
+
+export default {
+  plugins: [
+    sigxServer({
+      role: 'client',
+      endpoint: 'https://api.example.com/_sigx/fn',
+    }),
+  ],
+};
+```
+
+| `role` | Behaviour |
+|---|---|
+| `'auto'` (default) | Stub swap in the Vite `client` environment only — the web posture |
+| `'client'` | Every environment gets stubs, baked with **stable** symbols; no registry chunk is emitted |
+
+The registry chunk maps symbols back to real modules for a server to execute. A
+client build has nothing to execute, so none is produced.
+
+### Server modules outside the app
+
+A native client usually imports its server functions from a shared workspace
+package, which sits outside the Vite root and is therefore invisible to the
+plugin's file scan. Point `scan` at it:
+
+```ts
+sigxServer({
+  role: 'client',
+  scan: ['../../packages/api/src'],
+  endpoint: 'https://api.example.com/_sigx/fn',
+});
+```
+
+## 2. Point the stubs at a backend
+
+`endpoint` above bakes a default fetch target into the build. That is enough when
+the backend URL is known at build time and never changes — which, for an app that
+has to work against dev, staging and production, it usually is not.
+
+`configureServerFn` sets the transport that every stub resolves **at call time**,
+so one build serves every environment:
+
+```ts
+import { configureServerFn } from '@sigx/server/client';
+
+configureServerFn({
+  endpoint: await resolveBackendUrl(),
+  headers: () => ({ authorization: `Bearer ${session.accessToken}` }),
+});
+```
+
+```ts
+interface ServerFnTransport {
+  /** Absolute URL or path prefix; wins over the build-time endpoint. */
+  endpoint?: string;
+  /** Extra request headers — a static map, or a (possibly async) factory. */
+  headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
+  /** Fetch implementation; defaults to the global fetch. */
+  fetch?: typeof globalThis.fetch;
+}
+```
+
+Because `headers` may be a **factory**, and it is called per request, a rotating
+credential works without rebuilding or re-configuring:
+
+```ts
+configureServerFn({
+  headers: async () => ({ authorization: `Bearer ${await auth.freshToken()}` }),
+});
+```
+
+Pass `null` to clear the transport.
+
+Precedence, highest first: `configureServerFn`'s `endpoint` → `sigxServer({ endpoint })`
+→ `sigxServer({ base })`.
+
+### From a plugin instead
+
+If you would rather configure this with the rest of your app, `serverPlugin`
+carries the same transport:
+
+```ts
+import { serverPlugin } from '@sigx/server/plugin';
+
+app.use(serverPlugin({
+  transport: { endpoint: 'https://api.example.com/_sigx/fn' },
+}));
+```
+
+Pick one or the other — mixing `serverPlugin({ transport })` with direct
+`configureServerFn` calls is unsupported. The transport is a module-level seam
+(stubs are dependency-free and cannot read app DI), so with several apps on one
+page the last install wins, and `app.unmount()` clears it only if it is still the
+active one.
+
+## 3. Pin the routes
+
+A web deploy ships the client and the server together, so a route that changes
+shape between builds is invisible. An installed app is the opposite case: it was
+built months ago, it is still calling, and the backend has been redeployed since.
+
+By default a function's transport symbol is **content-hashed** — change the body
+and the symbol changes, which is exactly what you want for version-skew
+detection on the web, and exactly what you do not want for an installed client.
+
+The registry dual-registers a hash-free **stable** symbol (`<stableId>#<name>`)
+alongside the hashed one, and `role: 'client'` builds bake the stable form. Pin
+the id explicitly for anything a long-lived client calls:
+
+```ts
+export const getCart = serverFn({
+  id: 'cart',                 // route is now /cart/getCart, across file moves
+  input: CartKey,
+  use: [requireUser],
+  handler: async (rq, key) => db.cart.load(key),
+});
+```
+
+`id` must be a **string literal** — it is read statically by the build, and
+anything else (a variable, a template, an empty string) is warned about and falls
+back to the file-derived id.
+
+Without it, the stable id is derived from the file path, so moving or renaming
+the module changes the route and breaks installed clients.
+
+## 4. The live-client guard
+
+Getting the build wrong here fails in a specific and dangerous way: the stub swap
+does not happen, the app bundles the **real** server module, and the handler body
+runs on the device — with whatever database client and secrets that module
+imported.
+
+So a declared live client refuses to execute a server body at all:
+
+```
+[sigx server] server function "getCart" reached a live client unextracted —
+this app must call its backend over stubs (set role: 'client' in sigxServer(),
+or fix the bundler integration).
+```
+
+Non-web platform packages (lynx, terminal) call `declareLiveClient()` once on
+import, which stamps a global; `@sigx/server` reads it at **call** time, so the
+check is robust to declaration ordering. It is not `__DEV__`-gated — this is the
+same posture as the browser export condition, and it holds in production.
+
+If you see this, the build is misconfigured, not the call. Check `role: 'client'`
+and, for shared packages, `scan`.
+
+> `@sigx/runtime-dom/platform` deliberately does **not** declare — the `sigx`
+> umbrella is evaluated server-side too, where executing server bodies is the
+> whole point.
+
+## Origin policy for programmatic clients
+
+The endpoint's default `origin: 'same-origin'` requires a matching `Origin`
+header. Browsers always send one on POST; native apps, CLIs and server-to-server
+callers never do, so a native client is rejected under the default.
+
+`'verify-when-present'` admits Origin-less requests while still verifying the
+header when it *is* sent:
+
+```ts
+handleServerFnRequest(request, {
+  resolve,
+  origin: 'verify-when-present',
+});
+```
+
+Browser CSRF stays blocked by the non-safelisted JSON content type, and the
+endpoint never emits CORS approval. Two things to know before choosing it:
+
+- **Never deploy an Origin-stripping proxy** in front of a cookie-authenticated
+  app under this policy — stripping the header turns every cross-site POST into
+  an admitted one.
+- It does **not** admit Origin-less *form* posts. A `form: true` target
+  deliberately gives up the JSON content-type gate, so the combination would
+  reopen classic CSRF; those are `403` under every policy short of
+  `origin: false`.
+
+Prefer bearer tokens over cookies for native clients — then the ambient-authority
+problem CSRF exploits does not exist in the first place.
+
+## Next steps
+
+- [Deployment & security](/server/packages/server/deployment) — the endpoint's options in full
+- [Authoring](/server/packages/server/usage) — `serverFn`, guards and `.with()`
+- [API reference](/server/packages/server/api) — `configureServerFn`, `ServerFnTransport`

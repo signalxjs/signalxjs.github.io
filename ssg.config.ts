@@ -184,6 +184,9 @@ export default defineSSGConfig({
                 'Dependency injection',
                 'Hooks & async',
                 'Messaging',
+                'Reactivity',
+                'Server rendering',
+                'Cache',
             ],
         },
         // Sub-package collections (32 lynx modules + core repo packages)

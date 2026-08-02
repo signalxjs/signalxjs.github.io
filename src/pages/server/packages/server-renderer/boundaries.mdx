@@ -70,7 +70,9 @@ const myBoundaryPlugin: SSRPlugin = {
 };
 ```
 
-The returned object is a `ResolvedBoundary` — a partial of the `flush` / `hydrate` / `media` / `fallback` / `chunk` / `props` fields. Anything omitted falls back to the app's defaults.
+The returned object is a `ResolvedBoundary` — a partial of the `flush` / `hydrate` / `media` / `fallback` / `chunk` / `props` / `component` fields. Anything omitted falls back to the app's defaults.
+
+`component` is the record's **registry name** — how the client resolves the component, trying the eager registry, then the lazy registry, then the `chunk` URL, in that order. Core derives it from `__islandId || __name`, which is right for packs that use core's stamp; a pack with its own naming vocabulary sets it here instead. An anonymous record — no `component` and no `chunk` — is refused by the client loader rather than silently skipped.
 
 Because the hook runs before setup, a `flush: 'skip'` decision means setup never runs on the server: the renderer emits a `<div data-boundary="ID" style="display:contents">` wrapper around the optional `fallback` and the client mounts into it fresh. For `stream` and `inline`, setup runs normally and the boundary's HTML is produced server-side.
 

@@ -147,6 +147,59 @@ For selective hydration where each island owns its own lazy chunk, the islands
 plugin handles this for you — see
 [`@sigx/ssr-islands`](/server/packages/ssr-islands/registry-and-code-splitting).
 
+## The scheduler / core split
+
+Selective hydration is deliberately in two halves, so a page pays for triggers
+before it pays for a renderer.
+
+| Half | Entry | What it costs |
+|---|---|---|
+| **Eager scheduler** | `@sigx/server-renderer/client/scheduler` | ~2 kB. Reads `__SIGX_BOUNDARIES__` and wires each boundary's trigger. Value-imports nothing from the sigx family, so no framework code executes at load. |
+| **Hydration core** | loaded via `loadHydrationCore()` | The renderer, `hydrateComponent`, and the mount/hydrate primitives. Dynamically imported on the **first strategy that actually fires**. |
+
+A page whose strategies never fire — everything below the fold, everything
+`hydrate: 'never'` — never executes any framework JavaScript at all.
+
+```ts
+import { scheduleTableBoundaries } from '@sigx/server-renderer/client/scheduler';
+
+scheduleTableBoundaries();   // triggers only; the executor arrives when one fires
+```
+
+The entry also exports the pieces a strategy pack builds on without pulling the
+core in: `scheduleByStrategy`, `getBoundaryTable` / `getBoundaryRecord`,
+`findBoundaryMarker` / `hydrateTableBoundary`, the component registry
+(`registerComponent`, `resolveComponent`, `registerComponentChunk`),
+`loadBoundaryComponent` / `prefetchBoundaryChunks`, and
+`seedBoundaryState` / `consumeBoundaryState`.
+
+`loadHydrationCore()` caches its promise, and a failed load clears the cache so
+the next trigger retries.
+
+The one behavioural consequence: a `hydrate: 'load'` boundary now hydrates after
+one dynamic-import round trip rather than synchronously. That import is
+preloadable — a pack keeps it off the critical path with the
+[`assets` hook](#the-plugin-spi).
+
+### Lazy client plugins
+
+Because the core loads late, a pack's client hooks can ride in the same chunk.
+`registerClientPlugin` takes either a resolved plugin or a **lazy source**:
+
+```ts
+import { registerClientPlugin } from '@sigx/server-renderer/client/scheduler';
+
+registerClientPlugin({
+    name: 'my-strategy',
+    load: () => import('./my-strategy-client'),   // resolved with the hydration core
+});
+```
+
+`resolveClientPlugins()` imports every lazy source once, before the first
+component hydrates, so the synchronous client hooks always see a resolved plugin.
+Registrations dedupe by `name`, first wins — registering the same name again in
+either form is a no-op.
+
 ## The plugin SPI
 
 The core renderer and hydrator are strategy-agnostic. Every advanced hydration
@@ -162,17 +215,21 @@ import { createSSR, type SSRPlugin } from '@sigx/server-renderer';
 const myPlugin: SSRPlugin = {
     name: 'my-strategy',
     server: {
+        // decide how this component flushes and hydrates — the per-component seam
+        resolveBoundary(vnode, ctx) {
+            return; // no opinion; the next plugin (or the default) decides
+        },
         // mutate/replace a component's context after it's built, before setup()
         transformComponentContext(ctx, vnode, componentCtx) {
             return; // accept as-is
         },
-        // skip a component's setup/render and emit a placeholder string
-        suppressComponentRender(id, vnode, ctx) {
-            return; // render normally
+        // append-only: capture per-boundary state, emit markup after a component
+        afterRenderComponent(id, vnode, html, ctx) {
+            return; // append nothing
         },
-        // choose block | stream | skip for async components, inject HTML, etc.
-        handleAsyncSetup(id, ssrLoads, renderFn, ctx) {
-            return { mode: 'stream' };
+        // contribute modulepreload hints for chunks core won't schedule itself
+        assets(ctx) {
+            return; // nothing to preload
         },
     },
     client: {
@@ -185,7 +242,7 @@ const myPlugin: SSRPlugin = {
             return; // accept as-is
         },
         // return a Node to "claim" a component during the hydration walk
-        hydrateComponent(vnode, dom, parent) {
+        hydrateComponent(vnode, dom, parent, regionEnd) {
             return undefined; // let core hydrate it
         },
     },
@@ -202,18 +259,25 @@ Key hook semantics:
   its **hydration-time mirror** (same timing, no `SSRContext` argument), so a
   strategy can swap `ctx.signal` for a state-*restoring* variant. The pair keeps
   render and hydration symmetric while core stays strategy-agnostic.
-- `server.suppressComponentRender` runs after `transformComponentContext` and
-  **before `setup()`**; returning an object skips the component's setup/render and
-  emits the (optional) `placeholder` string in its place. This is how islands make
-  `client:only` ship no server HTML — an empty `<div data-island>` placeholder.
-  Works in both string and streaming modes.
+- `server.resolveBoundary` runs **before** the context is built and before
+  `setup()`, once per component, and the first plugin to return an object wins.
+  Its `flush` axis decides whether the component renders on the server at all —
+  `flush: 'skip'` suppresses setup entirely and emits the
+  `<div data-boundary="ID" style="display:contents;">` wrapper around an optional
+  `fallback` — and its `hydrate` axis is recorded in the boundary table for the
+  client. This is how islands make `client:only` ship no server HTML. See
+  [The boundary model](/server/packages/server-renderer/boundaries).
 - `client.beforeHydrate` returning `false` **skips** the default DOM walk — the
   basis for resumable SSR.
 - `client.hydrateComponent` returning a `Node` **claims** that component — the hook
-  islands use to intercept `client:*` props and schedule deferred hydration.
-- `server.handleAsyncSetup` chooses `block`, `stream`, or `skip` per async
-  component; `getInjectedHTML` and `getStreamingChunks` let a plugin emit extra
-  markup or streamed chunks.
+  islands use to intercept `client:*` props and schedule deferred hydration. Its
+  fourth argument, `regionEnd`, is the exclusive end of the sibling range the
+  component may own; a pack that locates trailing markers itself **must** bound the
+  search by it, or a component followed by sibling content latches a *child's*
+  marker and duplicates server-rendered content after a bail.
+- `server.afterRenderComponent` is append-only (the `html` argument is always
+  `''`), `server.assets` contributes modulepreload hints, and `getInjectedHTML` /
+  `getStreamingChunks` emit extra markup or streamed chunks.
 
 > **You usually don't write this by hand.** The islands strategy — `client:*`
 > directives, deferred hydration, signal-state transfer and per-island code

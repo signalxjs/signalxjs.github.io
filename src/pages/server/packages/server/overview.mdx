@@ -38,7 +38,12 @@ export const addToCart = serverFn(async (rq, productId: string, qty: number) => 
 import { useAction } from 'sigx';
 import { addToCart } from './cart.server';
 
-const add = useAction(addToCart, { cache: { invalidates: [['cart']] } });
+// useAction's fetcher takes ONE argument, so a multi-parameter server
+// function is wrapped: the tuple is what you hand to run().
+const add = useAction(
+  ([sku, qty]: [string, number]) => addToCart(sku, qty),
+  { cache: { invalidates: [['cart']] } },
+);
 // add.run(['sku-1', 1]) → POSTs to the server, runs the body, returns the row
 ```
 
@@ -89,5 +94,7 @@ constraint is what makes the boundary safe and the types honest.
 
 - [Authoring server functions](/server/packages/server/usage) — the two forms,
   validation, the request context, errors and streaming.
+- [Native clients](/server/packages/server/native-clients) — a lynx, terminal or
+  installed app calling a remote backend over stubs.
 - [Deployment & security](/server/packages/server/deployment) — dev, Node and edge wiring,
   plus the security defaults and how to relax them deliberately.

@@ -37,7 +37,7 @@ function defineApp(options?: AppOptions): App;
 | `mount(component, container)` | `(comp, el) => void` | Mount root component |
 | `unmount()` | `() => void` | Unmount the application |
 | `provide(token, value)` | `(token, value) => App` | Provide app-level value |
-| `runWithContext(fn)` | `<T>(fn: () => T) => T` | Run `fn` with the app's DI context current |
+| `runWithContext(fn, options?)` | `<T>(fn: () => T, options?: RunWithContextOptions) => T` | Run `fn` with the app's DI context current |
 
 ### `runWithContext`
 
@@ -53,6 +53,32 @@ router.beforeEach((to) =>
     })
 );
 ```
+
+#### RunWithContextOptions
+
+```ts
+interface RunWithContextOptions {
+    /** Dev-only. Replace the async-callback warning's advice, or suppress it. */
+    asyncAdvice?: string | false;
+}
+```
+
+In development, `runWithContext` warns once per app when its callback returns a promise — the context covers only the synchronous portion. `asyncAdvice` is for **libraries** that call `runWithContext` on a user's behalf, where the default advice names an API the reader never called:
+
+| Value | Effect |
+|---|---|
+| `string` | Replaces the warning's remediation sentence; the sync-only diagnosis stays |
+| `false` | Suppresses the warning for this call, without consuming the once-per-app slot |
+
+```ts
+app.runWithContext(() => guard(to, from), {
+    asyncAdvice: 'Make the navigation guard synchronous, or resolve services before returning a promise.',
+});
+```
+
+Dev-only and stripped from production builds. Cores older than 0.11 ignore the argument.
+
+See [Resolving DI outside component setup](/core/docs/app-plugins#resolving-di-outside-component-setup) for the full picture.
 
 ### Examples
 
@@ -274,7 +300,7 @@ interface App {
     mount(component: ComponentFactory, container: Element): void;
     unmount(): void;
     provide<T>(token: any, value: T): App;
-    runWithContext<T>(fn: () => T): T;
+    runWithContext<T>(fn: () => T, options?: RunWithContextOptions): T;
     provides: Map<any, any>;
 }
 ```

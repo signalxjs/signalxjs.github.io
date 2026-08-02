@@ -924,6 +924,55 @@ type PlatformElement = PlatformTypes extends { element: infer E } ? E : any;
 interface ComponentAttributeExtensions {} // augmented by SSR to add 'client:load', etc.
 ```
 
+### Host namespaces (RendererOptions)
+
+`createRenderer(nodeOps)` takes a `RendererOptions` object — the host operations a
+platform implements. Three of them are optional and concern **namespaces**.
+
+Core is namespace-agnostic: it knows nothing about SVG. It threads an **opaque
+boolean flag** through the tree walk, caches it on each vnode, and hands it back to
+`createElement` and `patchProp` as the `ns` parameter. What that flag *means* is the
+host's business — in `@sigx/runtime-dom` it means "in the SVG namespace".
+
+```ts
+interface RendererOptions<HostNode = any, HostElement = any> {
+  createElement(type: string, ns?: boolean, isCustomizedBuiltIn?: string): HostElement;
+  patchProp(el: HostElement, key: string, prev: any, next: any, ns?: boolean, appContext?: AppContext | null): void;
+  // …
+
+  /** The flag for an element, given its parent's. `undefined` parentNS means the
+   *  surrounding context is unknown (a hydrated subtree patched from the top) —
+   *  hosts typically fall back to a tag-name heuristic there. */
+  getElementNamespace?(tag: string, parentNS: boolean | undefined): boolean;
+
+  /** The flag children inherit, given the element's own. Lets a host RESET the
+   *  context at a boundary element (in the DOM, `foreignObject`). */
+  getChildNamespace?(tag: string, ns: boolean): boolean;
+
+  /** The flag of an element's CONTAINER, given its tag and cached flag. Used when
+   *  replacing a node whose surrounding context is unknown. */
+  getContainerNamespace?(tag: string, ns: boolean): boolean;
+}
+```
+
+Defaults when a hook is **absent**:
+
+| Hook | Absent behaviour |
+|---|---|
+| `getElementNamespace` | Every element resolves to the default namespace (`false`) |
+| `getChildNamespace` | Children inherit the element's flag unchanged |
+| `getContainerNamespace` | The container resolves to the default namespace (`false`) |
+
+**For renderer authors:** a DOM-like custom renderer must implement these to keep
+SVG working — core no longer detects SVG tags itself, so omitting them resolves
+everything to the default namespace. `@sigx/runtime-dom`'s
+[`nodeOps`](/core/packages/runtime-dom/api#nodeops) is the reference
+implementation. Renderers with no namespace concept (terminal, lynx) simply omit
+all three.
+
+The `ns` parameter of `createElement`/`patchProp` was previously named `isSVG`;
+positions are unchanged, so only the name differs.
+
 ### Directive types
 
 Directive lifecycle hook types. `DirectiveDefinitionExtensions` is an augmentation point (e.g. SSR `getSSRProps`).

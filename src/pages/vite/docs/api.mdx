@@ -118,7 +118,8 @@ reactivity.
 It builds ES output only (file name `${entryName}.js`), sets `sourcemap` (default
 `true`), minifies in place via Oxc (`minify: 'oxc'`, or `false`), an optional
 `output.banner`, a node target (`node18`) when `platform === 'node'`, and Oxc
-automatic JSX with import source `sigx` when `jsx` is `true`. The result is a
+automatic JSX with import source `importSource` (default `sigx`) when `jsx` is
+`true`. The result is a
 config **function** (wrapped in Vite's `defineConfig`) that branches on
 `--mode prod-dist`:
 
@@ -229,6 +230,8 @@ export interface LibBuildOptions {
     banner?: string;
     /** Enable JSX transform for sigx @default false */
     jsx?: boolean;
+    /** The module the automatic JSX runtime imports from. Read only when `jsx` is enabled. @default 'sigx' */
+    importSource?: string;
     /** Platform target @default 'browser' */
     platform?: 'browser' | 'node' | 'neutral';
     /** The directory containing package.json (used to resolve aliases). Pass import.meta.url from your vite.config.ts */

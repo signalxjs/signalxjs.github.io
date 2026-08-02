@@ -165,6 +165,8 @@ const w = watch(
 w.stop();   // also: w.pause(), w.resume()
 ```
 
+Created **directly in a component's setup body**, both stop automatically on unmount — no handle to keep. Reactions created inside `onMounted` or an async callback are not captured; stop those in `onUnmounted`. `computed` never needs disposal.
+
 Dependencies are tracked automatically — there are no dependency arrays.
 
 ## Components

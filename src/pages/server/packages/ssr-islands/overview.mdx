@@ -36,9 +36,9 @@ component:
 - A `client:idle` widget waits for the browser to be idle.
 - The surrounding article ships zero client JS.
 
-## The three pieces
+## The two pieces
 
-Using islands always involves the same trio (from the package's own quick-start):
+Using islands always involves the same pair (from the package's own quick-start):
 
 ```tsx
 // 1. Server — install the pack on your app
@@ -59,10 +59,12 @@ registerComponent('Counter', Counter);
 hydrateIslands();
 ```
 
-```tsx
-// 3. JSX types — enable the client:* attributes
-import '@sigx/ssr-islands/jsx';
+The `client:*` attributes type-check with no extra import — importing
+`@sigx/ssr-islands` on the server or `@sigx/ssr-islands/client` on the client (which
+the two entries above already do) augments every JSX component program-wide, the same
+way core's `use:*` directives do:
 
+```tsx
 <Counter client:visible />
 <Widget client:idle />
 ```
@@ -73,6 +75,44 @@ component's signal state, and injects the `window.__SIGX_BOUNDARIES__` hydration
 table. On the client, `hydrateIslands()` reads that table and schedules each island
 according to its strategy.
 
+`hydrateIslands()` is the **whole** client bootstrap. The state-restoration hooks
+register themselves as a lazy plugin source, loaded with the hydration core and
+resolved before the first component hydrates, so there is nothing else to wire.
+(Apps that already call `registerClientPlugin(islandsPlugin())` keep working —
+registration dedupes by name, first wins.)
+
+## The runtime loads late
+
+An islands page ships **~2 kB eager** and executes **no framework JavaScript at
+load**. The trigger wiring is all that runs up front; the renderer and hydration
+machinery arrive by dynamic import on the first `client:*` strategy that actually
+fires. A page whose islands are all below the fold executes nothing until the
+reader scrolls — and a page of `client:never` boundaries never loads it at all.
+
+The cost is one import round trip before a `client:load` island hydrates. To keep
+that off the critical path, pass the build's manifest:
+
+```ts
+import { islandsManifest } from 'virtual:sigx-manifests';
+
+const app = defineApp(<App />).use(islandsPlugin({ manifest: islandsManifest }));
+```
+
+Manifest v2 carries `runtimePreload` — the chunk holding the lazily-imported
+executor plus its transitive imports — and the plugin emits
+`<link rel="modulepreload">` for it whenever a request records schedulable
+islands. A page with no islands pays nothing.
+
+```ts
+interface IslandsManifestV2 {
+    version: 2;
+    islands: Record<string, { chunkUrl: string; exportName: string }>;
+    runtimePreload?: string[];
+}
+```
+
+The legacy flat name → entry map is still accepted.
+
 ## Hydration strategies
 
 | Directive | Hydrates… |
@@ -81,6 +121,7 @@ according to its strategy.
 | `client:idle` | during browser idle time (`requestIdleCallback`) |
 | `client:visible` | when the element scrolls into view (`IntersectionObserver`) |
 | `client:media` | when a media query matches (`client:media="(min-width: 768px)"`) |
+| `client:interaction` | on the first pointerdown / keydown / touchstart / focusin |
 | `client:only` | skip SSR entirely — empty placeholder on the server, mount fresh on the client |
 
 See [Client directives](/server/packages/ssr-islands/client-directives) for the
@@ -88,8 +129,8 @@ details of each.
 
 ## Next steps
 
-- [Installation](/server/packages/ssr-islands/installation) — install, dependency, and the four subpaths.
-- [Client directives](/server/packages/ssr-islands/client-directives) — the five `client:*` strategies.
+- [Installation](/server/packages/ssr-islands/installation) — install, dependency, and the three subpaths.
+- [Client directives](/server/packages/ssr-islands/client-directives) — the six `client:*` strategies.
 - [Registry & code splitting](/server/packages/ssr-islands/registry-and-code-splitting) — register components eagerly or lazily for per-island chunks.
 - [Plugin setup](/server/packages/ssr-islands/plugin-setup) — `islandsPlugin()` options, manifests, and signal-state transfer.
 - [API reference](/server/packages/ssr-islands/api) — every export with signatures.

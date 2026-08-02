@@ -71,8 +71,23 @@ interface DocumentOptions extends SSRContextOptions {
   outlet?: string;                                    // default: '<!--ssr-outlet-->'
   mode?: 'stream' | 'blocking';                       // default: 'blocking' (string) / 'stream' (streams)
   signal?: AbortSignal;                               // abort: stream ends early, string render rejects
-  onError?: (error: Error, phase: 'shell' | 'stream') => void;
   serializeState?: boolean;                           // default: true
+}
+
+// inherited from SSRContextOptions
+interface SSRContextOptions {
+  streaming?: boolean;
+  nonce?: string;                                     // CSP nonce for renderer-emitted scripts
+  onError?: (error: Error, info: SSRErrorInfo) => void;
+  renderError?: (error: Error, info: SSRErrorInfo) => string;
+  appContext?: AppContext;
+}
+
+interface SSRErrorInfo {
+  phase: 'shell' | 'stream';                          // 'shell' = before the first byte flushed
+  componentId?: number;                               // the `<!--$c:ID-->` id
+  componentName?: string;                             // `__name`, or 'Anonymous'
+  boundaryId?: number;                                // present for a recorded boundary
 }
 ```
 
@@ -80,9 +95,15 @@ interface DocumentOptions extends SSRContextOptions {
   `</head>`; the tail splits at `</body>` so entry scripts flush with the shell.
 - **mode** — `'blocking'` resolves all keyed async inline; `'stream'` flushes the
   shell then swaps in async chunks out of order.
-- **onError** — `'shell'` fires before any byte is produced (you can still send a
-  500); `'stream'` fires mid-stream. Per-component errors stream their own
-  fallbacks and do **not** reach this.
+- **onError** — one seam for every failure. It receives **per-component** render
+  errors on both the synchronous and streamed paths (with `componentId` /
+  `componentName` / `boundaryId`), plus request-level shell and stream failures
+  (phase only). `phase: 'shell'` fires before any byte is produced, so you can
+  still send a 500; `'stream'` fires mid-stream.
+- **renderError** — the HTML rendered in place of a failed component. Default: the
+  stable `<!--ssr-error:ID-->` comment, plus a visible diagnostic box in
+  development.
+- **nonce** — see [Content Security Policy](#content-security-policy).
 - **serializeState** — serialize resolved `useData`/`useStream` values for
   hydration pickup. Set `false` to opt out.
 
@@ -251,10 +272,37 @@ HTML, plugin data, streaming mode, and pending async components.
 function createSSRContext(options?: SSRContextOptions): SSRContext
 ```
 
-- **options** — `streaming`, `onComponentError`, and `appContext` (seed the
-  context from an existing `AppContext` so `inject()` resolves during render).
+- **options** — `streaming`, `onError`, `renderError`, `nonce`, and `appContext`
+  (seed the context from an existing `AppContext` so `inject()` resolves during
+  render).
 - **Returns** — a new `SSRContext`.
 - Exported from the main entry and `/server`.
+
+#### Content Security Policy
+
+The renderer emits `<script>` tags of its own — the boundary table, state blobs,
+the streaming protocol and its replacement scripts, and the completion script. A
+strict CSP blocks all of them, which breaks hydration on a page that otherwise
+rendered fine.
+
+Pass your per-request nonce and every one of them carries it:
+
+```ts
+const nonce = crypto.randomUUID();
+
+const html = await renderDocument(app, { template, nonce });
+
+return new Response(html, {
+  headers: {
+    'content-security-policy': `script-src 'nonce-${nonce}' 'strict-dynamic'`,
+  },
+});
+```
+
+`nonce` is available anywhere `SSRContextOptions` is — `createSSRContext`,
+`renderDocument*`, `createRequestHandler` and `createFetchHandler` — because
+`DocumentOptions` extends it. Generate a fresh value per request; a reused nonce
+is no better than `'unsafe-inline'`.
 
 ### SSRContext state & pack authoring (0.13)
 
@@ -454,24 +502,60 @@ attaches events/props/directives/refs, skips SSR comment markers
 fragments/components/elements.
 
 ```ts
-function hydrateNode(vnode: VNode, dom: Node | null, parent: Node): Node | null
+function hydrateNode(vnode: VNode, dom: Node | null, parent: Node, regionEnd?: Node | null): Node | null
 ```
 
-- Exported from `/client`.
+- Exported from `/client`. See [Bounding a marker search](#bounding-a-marker-search) for `regionEnd`.
 
 ### hydrateComponent
 
 Hydrate a single component: locates its trailing `<!--$c:N-->` marker, builds
 reactive props/slots, creates the `ComponentSetupContext` (with the client `ssr`
-flags and any `serverState` to restore keyed `useData`/`useStream` values), runs
-setup, and creates the reactive effect that hydrates-on-first-run then patches.
-Used by SSR strategy plugins for selective/island hydration.
+flags), runs setup, and creates the reactive effect that hydrates-on-first-run
+then patches. Used by SSR strategy plugins for selective/island hydration.
 
 ```ts
-function hydrateComponent(vnode: VNode, dom: Node | null, parent: Node, serverState?: Record<string, any>, trailingMarker?: Comment | null): Node | null
+function hydrateComponent(vnode: VNode, dom: Node | null, parent: Node, trailingMarker?: Comment | null, regionEnd?: Node | null): Node | null
 ```
 
 - Exported from `/client`.
+- Server state is no longer a parameter: stage it with `stageBoundaryState` immediately before the call, and the pack's context hook consumes it.
+
+### Bounding a marker search
+
+`hydrateNode`, `hydrateComponent`, `findComponentBoundaries` and
+`scheduleWalkedBoundary` each take an optional trailing **`regionEnd`** — the
+exclusive end of the sibling range the component may own. It is the enclosing
+component's trailing `<!--$c:ID-->` marker, or `null` at the top of a DOM parent.
+
+```ts
+function findComponentBoundaries(dom: Node | null, regionEnd?: Node | null): {
+  contentStart: Node | null;
+  trailingMarker: Comment | null;
+}
+
+function scheduleWalkedBoundary(vnode: VNode, dom: Node | null, parent: Node, record: SSRBoundaryRecord, regionEnd?: Node | null): Node | null
+```
+
+It is optional and additive — existing packs compile and behave as before. But a
+strategy pack that locates a component's trailing marker **itself** must bound
+that search by `regionEnd`. Without it, a component whose content is followed by
+sibling content in the same parent latches a **child's** marker, which shows up
+as duplicated server-rendered content after a hydration bail.
+
+### findBoundaryMarker / hydrateTableBoundary
+
+One-shot boundary hydration, for packs that own their own wake-up scheduling
+rather than using the strategy scheduler:
+
+```ts
+function findBoundaryMarker(id: number): Comment | null
+function hydrateTableBoundary(id: number): Promise<boolean>
+```
+
+`hydrateTableBoundary` loads the boundary's component and hydrates it in place,
+right now; it resolves `false` when the id is not in the table or its component
+cannot be resolved. Both are exported from `/client`.
 
 ### registerClientPlugin
 
@@ -571,18 +655,18 @@ interface SSRPlugin {
   name: string;
   server?: {
     setup?(ctx: SSRContext): void;
+    resolveBoundary?(vnode: VNode, ctx: SSRContext): ResolvedBoundary | undefined | void;
     transformComponentContext?(ctx: SSRContext, vnode: VNode, componentCtx: ComponentSetupContext): ComponentSetupContext | void;
-    suppressComponentRender?(id: number, vnode: VNode, ctx: SSRContext): { placeholder?: string } | void;
     afterRenderComponent?(id: number, vnode: VNode, html: string, ctx: SSRContext): string | void;
-    handleAsyncSetup?(id: number, ssrLoads: Promise<void>[], renderFn: () => any, ctx: SSRContext): { mode: 'block' | 'stream' | 'skip'; placeholder?: string } | void;
     onAsyncComponentResolved?(id: number, html: string, ctx: SSRContext): { html?: string; script?: string; preScript?: string } | void;
+    assets?(ctx: SSRContext): { modulepreload?: string[] } | void;
     getInjectedHTML?(ctx: SSRContext): string | Promise<string>;
     getStreamingChunks?(ctx: SSRContext): AsyncGenerator<string> | void;
   };
   client?: {
     beforeHydrate?(container: Element): boolean | void;
     transformComponentContext?(vnode: VNode, componentCtx: ComponentSetupContext): ComponentSetupContext | void;
-    hydrateComponent?(vnode: VNode, dom: Node | null, parent: Node): Node | null | undefined;
+    hydrateComponent?(vnode: VNode, dom: Node | null, parent: Node, regionEnd?: Node | null): Node | null | undefined;
     afterHydrate?(container: Element): void;
   };
 }
@@ -590,20 +674,36 @@ interface SSRPlugin {
 
 Server hooks, in lifecycle order around each component:
 
+- `server.setup` runs once before rendering starts — initialize plugin data via
+  `ctx.setPluginData()`.
+- `server.resolveBoundary` is **the** per-component seam. It runs after the
+  component's id is allocated but **before** the setup context is built and
+  before setup runs, and the first plugin to return an object wins. Its
+  `flush` / `hydrate` / `media` / `chunk` / `props` / `component` axes decide
+  whether the component renders on the server at all and how the client
+  hydrates it — see [The boundary model](/server/packages/server-renderer/boundaries).
+  Islands maps `client:only` to `{ flush: 'skip', hydrate: 'load' }` and
+  `client:visible` to `{ hydrate: 'visible' }`.
 - `server.transformComponentContext` runs after the `ComponentSetupContext` is
   built but **before `setup()`** — mutate or replace it (swap `ctx.signal`,
   adjust the `ssr` helper, transform props). Return a new context, or void to
-  accept as-is.
-- `server.suppressComponentRender` runs after `transformComponentContext` (id
-  assigned), still **before `setup()`** — return an object to **skip** the
-  component's setup/render entirely and emit its (optional) `placeholder` string
-  followed by the `<!--$c:id-->` hydration marker; return void to render normally.
-  First plugin to return an object wins. This is how islands make `client:only`
-  ship no server HTML, and it works in both string and streaming modes.
-- `server.afterRenderComponent` receives the rendered HTML and can transform it.
-- `server.handleAsyncSetup` chooses `block`/`stream`/`skip` per async component;
-  `onAsyncComponentResolved` can rewrite the streamed replacement (with `script` /
-  `preScript`); `getInjectedHTML` and `getStreamingChunks` emit extra markup.
+  accept as-is. Not called for a `flush: 'skip'` boundary, whose setup never runs.
+- `server.afterRenderComponent` is **append-only**. Output accumulates in one
+  shared buffer — that is what makes streaming cheap — so there is no per-component
+  HTML to intercept: the `html` argument is always `''`, and a returned string is
+  appended between the component's content and its trailing `<!--$c:ID-->` marker.
+  Use it to capture per-boundary state into `ctx.getBoundary(id)`. To influence
+  what a component *renders*, use `transformComponentContext`; rewriting emitted
+  markup is deliberately unsupported.
+- `server.onAsyncComponentResolved` can rewrite a streamed replacement, with
+  `script` (runs after the `$SIGX_REPLACE` call) or `preScript` (runs before it —
+  for state that must land before `sigx:async-ready` dispatches).
+- `server.assets` contributes `modulepreload` URLs to the document shell, deduped
+  against the caller's assets and core's per-boundary chunk preloads. Core only
+  warms chunks *it* will schedule, so a pack whose runtime loads lazily uses this
+  to keep that fetch off the critical path.
+- `server.getInjectedHTML` and `server.getStreamingChunks` emit extra markup after
+  the render.
 
 Client hooks (during hydration):
 
@@ -615,7 +715,10 @@ Client hooks (during hydration):
   variant that restores each signal from server-captured state — keeping render
   and hydration symmetric.
 - `client.hydrateComponent` returning a `Node` claims a component (islands
-  intercept `client:*` props).
+  intercept `client:*` props). Its fourth argument, `regionEnd`, bounds the
+  sibling range the component may own — a pack that finds markers itself must
+  respect it, or it will latch a child's marker. See
+  [Bounding a marker search](#bounding-a-marker-search).
 - Exported as a type from the main entry.
 
 ### SSRContext

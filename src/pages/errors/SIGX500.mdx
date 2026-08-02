@@ -1,0 +1,64 @@
+---
+title: SIGX500 · Write to a read-only property signal
+description: SIGX500 — toSignal cannot write back to a property whose source object rejects the assignment
+layout: docs
+category: Reactivity
+order: 1
+---
+
+# SIGX500 · Write to a read-only property signal
+
+**Dev message**
+
+```
+[sigx] toSignal: cannot write to read-only property "count".
+```
+
+## What happened
+
+A [`toSignal`](/core/api/reactivity#tosignal) view was assigned to, and the underlying object refused the write.
+
+`toSignal(source, key)` is a two-way *view* onto one property, not a copy of it. Reading `view.value` reads `source[key]`; assigning `view.value` assigns `source[key]`. When that assignment cannot land, the write is a silent data loss — the signal would report a value the object never took — so SignalX throws instead.
+
+The property rejects the write when it is:
+
+- **non-writable** — defined with `writable: false` via `Object.defineProperty`
+- **getter-only** — an accessor with a `get` but no `set`
+- **frozen or sealed** — the whole object went through `Object.freeze()`
+- **a Proxy trap that returns `false`** from its `set` handler
+
+```ts
+const state = Object.freeze({ count: 0 });
+const count = toSignal(state, 'count');
+
+count.value;       // 0 — reading is fine
+count.value = 1;   // SIGX500
+```
+
+## Fix it
+
+**If the value is meant to change**, make the source writable — usually by building it with [`signal()`](/core/api/reactivity#signal) rather than freezing a plain object:
+
+```ts
+const state = signal({ count: 0 });
+const count = toSignal(state, 'count');
+
+count.value = 1;   // fine — and `state.count` is now 1
+```
+
+For a getter-only property, give it a setter, or point `toSignal` at the backing field the getter reads.
+
+**If the value is genuinely read-only**, don't route writes through it. Derive with [`computed()`](/core/api/reactivity#computed) instead — a computed has no setter to misuse:
+
+```ts
+const total = computed(() => config.items.length);
+```
+
+## Not a SigxError
+
+This one throws a plain `Error`, not a [`SigxError`](/errors/) — `@sigx/reactivity` sits below the error class and does not depend on it. There is no `error.code` to branch on here; match on the message, or better, fix the write.
+
+## Related
+
+- [Reactivity API](/core/api/reactivity/) — `toSignal`, `toSignals` and `computed`
+- [Signals](/core/docs/signals) — the reactive primitives

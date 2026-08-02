@@ -124,6 +124,33 @@ export default defineLibConfig({
 });
 ```
 
+### Targeting a non-web runtime
+
+`sigx` is the **web** umbrella — it carries `@sigx/runtime-dom`, and with it the
+DOM `JSX.IntrinsicElements`. A component library for another target (terminal,
+lynx, or a custom renderer) must compile against that target's runtime instead,
+or every JSX element in the consuming app is typed against the DOM.
+
+`importSource` is that dial:
+
+```ts
+import { defineLibConfig } from '@sigx/vite/lib';
+
+export default defineLibConfig({
+    entry: 'src/index.ts',
+    jsx: true,
+    importSource: '@sigx/runtime-core',   // default: 'sigx'
+});
+```
+
+It is read only when `jsx` is enabled, and it defaults to `'sigx'` — existing
+library builds are unaffected.
+
+> **This replaces per-file pragmas.** Before `importSource`, the only way to
+> retarget the JSX runtime was a `/** @jsxImportSource … */` comment at the top
+> of every `.tsx` source, because oxc honours a pragma over config. One config
+> line now does what a pragma per file used to.
+
 ## Node and CLI Builds
 
 For a Node-targeted build, set `platform: 'node'` (targets `node18`). For a CLI
@@ -185,6 +212,7 @@ consumers building for production pick up the stripped-down runtime automaticall
 | `external` | `[/@sigx\/.*/]` | Runtime tier is always added on top. |
 | `minify` | `true` | Minify output in place via Oxc (or `false`). |
 | `jsx` | `false` | Automatic JSX with import source `sigx` when `true`. |
+| `importSource` | `'sigx'` | The module the automatic JSX runtime imports from. Read only when `jsx` is `true`. |
 | `platform` | `'browser'` | `'node'` targets `node18`; `'neutral'` is also accepted. |
 
 ## Next Steps

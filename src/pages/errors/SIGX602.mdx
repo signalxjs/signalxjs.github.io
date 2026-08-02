@@ -1,0 +1,57 @@
+---
+title: SIGX602 · Outlet marker not found in template
+description: SIGX602 — renderDocument could not find the outlet marker it replaces with the app HTML
+layout: docs
+category: Server rendering
+order: 3
+---
+
+# SIGX602 · Outlet marker not found in template
+
+**Dev message**
+
+```
+renderDocument: outlet marker "<!--ssr-outlet-->" not found in template
+```
+
+## What happened
+
+`renderDocument()` was given an HTML template that does not contain its outlet marker.
+
+The marker is where the rendered app goes. `renderDocument` splits the template on it and streams the head, then the shell, then the tail — so a template without one has no insertion point. Rather than emit a document with the app missing (a blank page that looks like a rendering bug), the renderer throws at the split.
+
+The default marker is `<!--ssr-outlet-->`. Common causes:
+
+- The template is `index.html` straight from a client-only setup, which never had a marker.
+- An HTML minifier stripped the comment. Most minifiers remove comments by default.
+- The marker is spelled differently — `<!-- ssr-outlet -->` with spaces does not match.
+- A custom `outlet` option was configured, but the template still carries the default.
+
+## Fix it
+
+Put the marker in the template, inside the element you hydrate:
+
+```html
+<!doctype html>
+<html>
+    <head><title>My app</title></head>
+    <body>
+        <div id="app"><!--ssr-outlet--></div>
+        <script type="module" src="/src/entry.client.ts"></script>
+    </body>
+</html>
+```
+
+If your build minifies HTML, tell it to preserve this comment — or set an outlet it won't touch:
+
+```ts
+await renderDocument(app, { template, outlet: '<div id="ssr-outlet"></div>' });
+```
+
+Whatever you choose, the string must appear in the template **verbatim** — the match is exact, not a pattern.
+
+## Related
+
+- [Rendering & streaming](/server/packages/server-renderer/rendering) — `renderDocument` and the shell
+- [The request lifecycle](/server/packages/server-renderer/request-lifecycle) — where the template is assembled
+- [SIGX600](/errors/SIGX600/) — the client half, when hydration can't find its container
