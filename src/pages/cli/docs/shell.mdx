@@ -166,7 +166,7 @@ Tab `render(pane)` returns a `ShellNode` — an opaque renderable you author wit
 
 `pane` is the area left after the shell drew its own chrome — the terminal size minus the title bar, tab strip and status line. It exists because those are the shell's private layout details: without it a tab has to guess (`rows - 12`), and the guess breaks the moment the chrome changes.
 
-It is a **budget, not a reservation.** The renderer's layout is content-driven, so the shell cannot hold the box on a tab's behalf. A body that emits more rows pushes the status line off the bottom. Fit content to it — [`fitLines(lines, pane)`](/terminal/docs/api#fitlines) from `@sigx/terminal-zero` does exactly that in one call:
+It is a **budget, not a reservation.** The renderer's layout is content-driven, so the shell cannot hold the box on a tab's behalf. A body that emits more rows pushes the status line off the bottom. Fit content to it — [`fitLines(lines, pane)`](/terminal/docs/api#fitlines) does exactly that in one call:
 
 ```tsx
 render: (pane) => (

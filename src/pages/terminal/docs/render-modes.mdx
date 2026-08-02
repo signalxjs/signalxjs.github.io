@@ -43,7 +43,13 @@ writeStatic('✔ Built in 1.2s');   // permanent line, above the live frame
 
 Use fullscreen for dashboards, editors and long-running TUIs that own the screen; use inline for wizards, build runners and anything that should read as part of the command's output.
 
-A fullscreen frame taller than the terminal is **clamped to the viewport**, the same as an inline one. Overflowing content is dropped from the bottom rather than shearing the screen, so a body that emits more rows than it was given degrades to a missing footer instead of a corrupted display. Size content to the space you have — see [`fitLines`](/terminal/docs/api#fitlines) and [`Shell`](/terminal/docs/components/shell).
+A fullscreen frame taller than the terminal is **clamped to the viewport** — but it keeps the opposite end from inline. Inline keeps the **bottom** rows, the live end of a transcript. Fullscreen keeps the **top**, because a dashboard's title bar and tab strip are up there, and dropping them to preserve a footer saves the wrong half.
+
+So an over-tall body degrades to a missing footer rather than a missing header. Short frames are still padded out to the full height, so an app that owns the screen still fills it.
+
+Without the clamp the alt buffer scrolls, the next frame's cursor-home no longer lands on the frame's first row, and every row after it is off by the overflow — the dashboard shears and stays sheared. That failure reads as a renderer bug rather than "the body emitted three rows too many", which is why it is clamped rather than reported.
+
+Size content to the space you have — see [`fitLines`](/terminal/docs/api#fitlines) and [`Shell`](/terminal/docs/components/shell).
 
 > `fullscreen: true` is accepted as an alias for `mode: 'fullscreen'`.
 

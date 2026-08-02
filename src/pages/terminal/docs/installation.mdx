@@ -28,12 +28,7 @@ The package is ESM-only (`"type": "module"`) and runs under Node. It is a librar
 
 ## TSX setup
 
-Terminal intrinsics (`box`, `text`, `br`) compile against the terminal JSX runtime. Add the pragma to the top of each `.tsx` file:
-
-```tsx
-```
-
-Or set it once in `tsconfig.json` so you don't need the per-file pragma:
+Terminal intrinsics (`box`, `text`, `br`) compile against the terminal JSX runtime. Point TypeScript at it **once**, in `tsconfig.json`:
 
 ```json
 {
@@ -43,6 +38,10 @@ Or set it once in `tsconfig.json` so you don't need the per-file pragma:
     }
 }
 ```
+
+Every `.tsx` file in the project then compiles against it, with no per-file pragma.
+
+If a single file needs a *different* runtime — a shared module that also builds for the DOM — a `/** @jsxImportSource … */` comment at its top still overrides the config for that file. Library authors targeting a non-web runtime should reach for [`defineLibConfig({ importSource })`](/vite/docs/library-builds#targeting-a-non-web-runtime) instead of pragmas.
 
 The package exposes both `./jsx-runtime` and `./jsx-dev-runtime` conditions, so both production and dev JSX transforms resolve correctly.
 
