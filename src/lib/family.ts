@@ -90,7 +90,7 @@ const RAW_PACKAGES: SigxPackage[] = [
     { id: 'server', npm: '@sigx/server-renderer', title: 'Server', cat: 'render', target: 'web', kind: 'collection', umbrella: false,
       hue: 210, glyph: '⊟', status: 'stable', version: '0.14.0',
       tag: 'SSR, server functions, resume & serialize',
-      blurb: 'The full-stack server layer for SignalX — type-safe RPC you call like a function, resumable SSR that ships almost no JS, streaming render with islands, and a codec that carries your own types across the wire.' },
+      blurb: 'Type-safe RPC you call like a function, resumable SSR that ships almost no JS, streaming render with islands, and a codec that carries your own types across the wire. Reach for Actors when a call needs identity and memory as well.' },
 
     // ---- Web: server & state ----
     // `actors` is a collection like `server`, but with a real umbrella package.

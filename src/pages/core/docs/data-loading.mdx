@@ -200,6 +200,12 @@ Every mounted `useData` read whose key matches is refetched — a read needs no
 `cache` option to be reachable, and no cache pack has to be installed. A pattern
 that matches nothing warns in development rather than failing silently.
 
+> Reading and writing an **actor** works the same way, with its own pair of
+> composables — `useActorState` and `useActorAction` from
+> [`@sigx/actors`](/actors/) — built on these primitives, so a write
+> invalidates the reads it staled without a manual `refresh()`. See
+> [Reads & writes in components](/actors/docs/in-components).
+
 Invalidation also drops matching keys from the `__SIGX_ASYNC__` transfer blob.
 Keys transferred from SSR live for the page's lifetime and a fresh mount restores
 from them as `ready` without fetching, so clearing them is what makes leaving a

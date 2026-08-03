@@ -40,7 +40,7 @@ export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy' | 
  * On publish day: flip to `true` and strip `draft: true` from
  * src/pages/actors/**. The `server` category move follows automatically.
  */
-export const ACTORS_RELEASED = false;
+export const ACTORS_RELEASED = true;
 
 export interface SigxModule {
     /** Stable id — also the route segment and collection infix. */
