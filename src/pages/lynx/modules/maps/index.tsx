@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Maps",
-    description: "Maps — module overview",
+    description: "Native map view — the Maps module for SignalX Lynx (@sigx/lynx-maps).",
     layout: 'default',
     sidebar: false,
 };

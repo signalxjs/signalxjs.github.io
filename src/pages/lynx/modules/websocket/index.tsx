@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "WebSocket",
-    description: "WebSocket — module overview",
+    description: "WebSocket global — the WebSocket module for SignalX Lynx (@sigx/lynx-websocket).",
     layout: 'default',
     sidebar: false,
 };

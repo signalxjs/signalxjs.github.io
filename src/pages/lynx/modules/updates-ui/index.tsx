@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "OTA Update UI",
-    description: "OTA Update UI — module overview",
+    description: "Prebuilt OTA update UI — the OTA Update UI module for SignalX Lynx (@sigx/lynx-updates-ui).",
     layout: 'default',
     sidebar: false,
 };

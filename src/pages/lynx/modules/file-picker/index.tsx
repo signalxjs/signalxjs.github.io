@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "File Picker",
-    description: "File Picker — module overview",
+    description: "Document picker — the File Picker module for SignalX Lynx (@sigx/lynx-file-picker).",
     layout: 'default',
     sidebar: false,
 };

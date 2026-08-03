@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Biometric",
-    description: "Biometric — module overview",
+    description: "Face ID / Touch ID auth — the Biometric module for SignalX Lynx (@sigx/lynx-biometric).",
     layout: 'default',
     sidebar: false,
 };

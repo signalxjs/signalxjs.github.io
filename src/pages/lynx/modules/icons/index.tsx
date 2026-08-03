@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Icons",
-    description: "Icons — module overview",
+    description: "Icon component + registry — the Icons module for SignalX Lynx (@sigx/lynx-icons).",
     layout: 'default',
     sidebar: false,
 };

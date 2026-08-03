@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Args",
-    description: "Args — module overview",
+    description: "Fluent, type-aware argument parser — the Args package for SignalX Terminal (@sigx/args).",
     layout: 'default',
     sidebar: false,
 };

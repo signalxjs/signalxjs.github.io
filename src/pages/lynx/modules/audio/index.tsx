@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Audio",
-    description: "Audio — module overview",
+    description: "Recording & playback — the Audio module for SignalX Lynx (@sigx/lynx-audio).",
     layout: 'default',
     sidebar: false,
 };

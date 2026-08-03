@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Lucide Icons",
-    description: "Lucide Icons — module overview",
+    description: "Lucide adapter — the Lucide Icons module for SignalX Lynx (@sigx/lynx-icons-lucide).",
     layout: 'default',
     sidebar: false,
 };

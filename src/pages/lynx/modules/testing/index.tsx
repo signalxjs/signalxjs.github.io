@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Testing",
-    description: "Testing — module overview",
+    description: "Component testing — the Testing module for SignalX Lynx (@sigx/lynx-testing).",
     layout: 'default',
     sidebar: false,
 };

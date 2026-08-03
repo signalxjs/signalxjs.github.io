@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Gestures",
-    description: "Gestures — module overview",
+    description: "Frame-locked touch handling — the Gestures module for SignalX Lynx (@sigx/lynx-gestures).",
     layout: 'default',
     sidebar: false,
 };

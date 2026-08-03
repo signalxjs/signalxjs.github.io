@@ -32,6 +32,36 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)
 const catalogFor = (m) =>
     m.parent === 'lynx' ? COMPONENT_CATALOGS[`lynx-${m.id}`] : undefined;
 
+/** "SignalX Lynx" / "SignalX Terminal" / … — plain "SignalX" for core. */
+export const familyName = (parent) =>
+    parent === 'lynx' ? 'SignalX Lynx'
+        : parent === 'server' ? 'SignalX Server'
+        : parent === 'terminal' ? 'SignalX Terminal'
+        : 'SignalX';
+
+/**
+ * Per-page-type meta descriptions (#516). One shared description across a
+ * module's four pages made 4× duplicate-description clusters in search
+ * results — each page type gets its own unique, keyword-bearing line.
+ */
+export const pageDescription = (m, file) => {
+    const family = familyName(m.parent);
+    const noun = m.parent === 'lynx' ? 'module' : m.parent === 'deploy' ? 'adapter' : 'package';
+    const tagLower = m.tag.charAt(0).toLowerCase() + m.tag.slice(1);
+    switch (file) {
+        case 'overview.mdx':
+            return `${m.tag} — the ${m.name} ${noun} for ${family} (${m.npm}): what it does, setup and API.`;
+        case 'installation.mdx':
+            return `Install and configure ${m.npm}, the ${m.name} ${noun} for ${family}.`;
+        case 'usage.mdx':
+            return `Using ${m.name} in a ${family} app — ${tagLower} patterns and examples with ${m.npm}.`;
+        case 'api.mdx':
+            return `API reference for ${m.npm} — every export of the ${family} ${m.name} ${noun}.`;
+        default:
+            return `${m.tag} — the ${m.name} ${noun} for ${family} (${m.npm}).`;
+    }
+};
+
 const pageSet = (m) => {
     const parentTitle =
         m.parent === 'lynx' ? 'Lynx'
@@ -175,7 +205,7 @@ export default Page;
 
 export const meta = {
     title: ${yaml(m.name)},
-    description: ${yaml(`${m.name} — module overview`)},
+    description: ${yaml(pageDescription(m, 'index.tsx'))},
     layout: 'default',
     sidebar: false,
 };
@@ -189,7 +219,7 @@ export const meta = {
         const frontmatter = [
             '---',
             `title: ${yaml(page.title)}`,
-            `description: ${yaml(`${m.name} — ${m.tag}`)}`,
+            `description: ${yaml(pageDescription(m, page.file))}`,
             'layout: module-docs',
             `category: ${yaml(page.category)}`,
             `order: ${page.order}`,
@@ -239,7 +269,7 @@ export const meta = {
                 const fm = [
                     '---',
                     `title: ${yaml(name)}`,
-                    `description: ${yaml(`${name} — ${m.npm} component`)}`,
+                    `description: ${yaml(`${name} component for ${familyName(m.parent)} — usage, props and import (${m.npm}).`)}`,
                     'layout: module-docs',
                     `category: [${yaml('Components')}, ${yaml(group.cat)}]`,
                     `order: ${100 + n}`,

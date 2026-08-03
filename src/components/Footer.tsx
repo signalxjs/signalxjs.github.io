@@ -21,7 +21,7 @@ export const Footer = component(() => {
                             </span>
                         </div>
                         <p class="text-sm text-base-content/60 max-w-xs">
-                            A lightweight reactive component framework for building modern applications.
+                            A fine-grained reactive TypeScript framework — one core for web, native and terminal apps.
                         </p>
                     </div>
                     

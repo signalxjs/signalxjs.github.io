@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Cloudflare",
-    description: "Cloudflare — module overview",
+    description: "Bundled workerd worker + wrangler scaffold — the Cloudflare adapter for SignalX (@sigx/cloudflare).",
     layout: 'default',
     sidebar: false,
 };

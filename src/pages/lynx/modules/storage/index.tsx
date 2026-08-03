@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Storage",
-    description: "Storage — module overview",
+    description: "Persistent KV store — the Storage module for SignalX Lynx (@sigx/lynx-storage).",
     layout: 'default',
     sidebar: false,
 };

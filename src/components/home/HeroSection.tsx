@@ -27,6 +27,10 @@ export const HeroSection = component(() => {
             />
             <h1>
                 Signal<span class="paren">(</span><span class="xx">X</span><span class="paren">)</span>
+                {/* Visually hidden: gives the wordmark-only h1 real words for
+                    screen readers (the split glyphs read as "Signal ( X )")
+                    and for search engines (#516). */}
+                <span class="sr-only"> — SignalX, a fine-grained reactive TypeScript framework</span>
             </h1>
             <p class="hh-sub">
                 A fine-grained reactive framework with one core and a package for every surface —

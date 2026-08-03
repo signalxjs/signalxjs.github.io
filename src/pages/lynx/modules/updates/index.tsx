@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "OTA Updates",
-    description: "OTA Updates — module overview",
+    description: "OTA bundle updates — the OTA Updates module for SignalX Lynx (@sigx/lynx-updates).",
     layout: 'default',
     sidebar: false,
 };

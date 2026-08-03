@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Linking",
-    description: "Linking — module overview",
+    description: "Deep links & URL schemes — the Linking module for SignalX Lynx (@sigx/lynx-linking).",
     layout: 'default',
     sidebar: false,
 };

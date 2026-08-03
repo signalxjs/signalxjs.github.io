@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Navigation",
-    description: "Navigation — module overview",
+    description: "Type-first native navigator — the Navigation module for SignalX Lynx (@sigx/lynx-navigation).",
     layout: 'default',
     sidebar: false,
 };
