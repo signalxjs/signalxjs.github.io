@@ -13,7 +13,7 @@
 import { component, onMounted, onUnmounted, type Define } from 'sigx';
 import { useRouter } from '@sigx/router';
 import {
-    CATEGORIES, CAT_SHORT, STATUS, TARGETS, byId, inTarget,
+    CATEGORIES, CAT_SHORT, PUBLIC_PACKAGES, STATUS, TARGETS, byId, inTarget,
     type SigxPackage, type TargetId,
 } from '@/lib/family';
 import { LYNX_FEATURED, MODULES, TERMINAL_FEATURED, moduleById, type SigxModule } from '@/lib/modules';
@@ -96,7 +96,7 @@ export const FamilyMenu = component<FamilyMenuProps>(({ props, emit }) => {
                         <div class="mh-title">The SignalX family</div>
                         <div class="mh-sub">One reactive core, one toolchain — pick a target and ship the same components to it.</div>
                     </div>
-                    <div class="mh-sub mono">{TARGETS.length} TARGETS · {Object.keys(byId).length} PACKAGES</div>
+                    <div class="mh-sub mono">{TARGETS.length} TARGETS · {PUBLIC_PACKAGES.length} PACKAGES</div>
                 </div>
                 <div class="mega-body mega-body-targets">
                     {TARGETS.map((tgt) => (

@@ -1,0 +1,26 @@
+---
+title: "Installation"
+description: "Postgres — Membership, directory, storage & reminders on Postgres"
+layout: module-docs
+category: "Getting Started"
+order: 20
+draft: true
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/actors-pg` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/actors-pg
+```
+
+## Verify
+
+```tsx
+import * as Postgres from '@sigx/actors-pg';
+
+console.log(Object.keys(Postgres));
+```

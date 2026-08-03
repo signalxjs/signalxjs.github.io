@@ -1,0 +1,21 @@
+---
+title: "SignalX Actors - addressable, single-threaded server state"
+description: "Virtual actors for SignalX — one activation per key, turn-based concurrency with no locks, persistent state with optimistic concurrency, and clustering when one process stops being enough."
+layout: package
+draft: true
+---
+
+{/*
+  Actors collection landing. All content is data-driven from src/lib/family.ts
+  via <PackageLanding>.
+
+  MDX rather than .tsx (which every other landing uses) because @sigx/ssg only
+  honours `draft` on statically-parsed MDX frontmatter — a `draft: true` in a
+  .tsx `export const meta` is ignored and the page ships. Convert this to
+  index.tsx when the actors packages are published and the draft comes off.
+  See ACTORS_RELEASED in src/lib/modules.ts.
+*/}
+
+import { PackageLanding } from '@/components/PackageLanding';
+
+<PackageLanding id="actors" />

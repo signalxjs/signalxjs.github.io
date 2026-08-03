@@ -1,0 +1,30 @@
+---
+title: "Overview"
+description: "Redis — Membership, directory & storage on Redis"
+layout: module-docs
+category: "Getting Started"
+order: 10
+draft: true
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Redis
+
+<p class="lede">The usual first step out of one process — host membership, the distributed actor directory and etag-CAS actor storage, all on one ioredis client. Requires Redis 7 for SET NX GET.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/actors-redis" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/actors-redis
+```
+
+## About
+
+`@sigx/actors-redis` is a Actors package — membership, directory & storage on Redis. It is versioned in lockstep with the rest of the actors repo, so any combination of backends, transports and tools just works together.
+
+## Next steps
+
+Continue with [Installation](/actors/packages/actors-redis/installation) for project setup, or jump to the [API reference](/actors/packages/actors-redis/api).

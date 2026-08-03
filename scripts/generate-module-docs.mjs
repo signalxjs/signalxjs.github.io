@@ -15,7 +15,16 @@
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MODULES, moduleDocsCollection, moduleRoutePrefix, COMPONENT_CATALOGS } from '../src/lib/modules.ts';
+import { ACTORS_RELEASED, MODULES, moduleDocsCollection, moduleRoutePrefix, COMPONENT_CATALOGS } from '../src/lib/modules.ts';
+
+/**
+ * Scaffold an unreleased area's pages as drafts — the SSG drops `draft: true`
+ * routes from the build entirely, so the files live in the repo and render
+ * under `sigx build --drafts` without ever reaching the live site.
+ * Stripped by a codemod on release; this stays as the gate for anything
+ * scaffolded later.
+ */
+const isDraft = (m) => m.parent === 'actors' && !ACTORS_RELEASED;
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -38,8 +47,11 @@ const pageSet = (m) => {
             : m.parent === 'server' ? 'Server'
             : m.parent === 'terminal' ? 'Terminal'
             : m.parent === 'deploy' ? 'Deploy'
+            : m.parent === 'actors' ? 'Actors'
             : 'Core';
     const noun = m.parent === 'lynx' ? 'module' : m.parent === 'deploy' ? 'adapter' : 'package';
+    // "an Actors package", "a Lynx module" — parentTitle is the deciding word.
+    const article = /^[AEIOU]/.test(parentTitle) ? 'an' : 'a';
     // Lynx, core & terminal ship lockstep from one repo; the server packages do not.
     const lockstep = m.parent === 'lynx'
         ? ' It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.'
@@ -49,6 +61,8 @@ const pageSet = (m) => {
             ? ' It is versioned in lockstep with the rest of the terminal repo, so any combination of packages just works together.'
         : m.parent === 'deploy'
             ? ' It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.'
+        : m.parent === 'actors'
+            ? ' It is versioned in lockstep with the rest of the actors repo, so any combination of backends, transports and tools just works together.'
             : '';
     // Deploy adapters are build-time tooling — install as devDependencies.
     const installCmd = m.parent === 'deploy' ? `pnpm add -D ${m.npm}` : `pnpm add ${m.npm}`;
@@ -72,7 +86,7 @@ ${installCmd}${m.parent === 'lynx' && m.category === 'native' ? '\nsigx prebuild
 
 ## About
 
-\`${m.npm}\` is a ${parentTitle} ${noun} — ${mdx(m.tag.charAt(0).toLowerCase() + m.tag.slice(1))}.${lockstep}
+\`${m.npm}\` is ${article} ${parentTitle} ${noun} — ${mdx(m.tag.charAt(0).toLowerCase() + m.tag.slice(1))}.${lockstep}
 
 ## Next steps
 
@@ -148,6 +162,7 @@ See the package source for the complete typed surface.
     // hand-authored "Deploying" guide), not the generic "Usage" stub — skip
     // it so re-runs stay idempotent.
     return m.parent === 'server' || m.parent === 'terminal' || m.parent === 'deploy'
+        || m.parent === 'actors'
         ? pages.filter((p) => p.file !== 'usage.mdx')
         : pages;
 };
@@ -164,8 +179,15 @@ for (const m of MODULES) {
     // Module root redirect: the bare `/lynx/modules/<id>/` (or `/core/packages/<id>/`)
     // has no doc page of its own and would 404 — emit an index page that redirects to
     // the module's first doc page (overview). Idempotent; kept out of the sidebar.
+    //
+    // Skipped for drafted modules: @sigx/ssg only honours `draft` on
+    // statically-parsed MDX frontmatter, so a `draft: true` in a .tsx
+    // `export const meta` is ignored and the shell would ship — a live URL
+    // redirecting to a page production never built. There is nothing to
+    // protect anyway while the module's doc pages are themselves drafts.
+    // Re-running gen:modules after the release flip creates them.
     const indexPath = join(dir, 'index.tsx');
-    if (existsSync(indexPath)) { skipped++; } else {
+    if (isDraft(m)) { skipped++; } else if (existsSync(indexPath)) { skipped++; } else {
         writeFileSync(indexPath, `import { component } from 'sigx';
 import { ModuleIndexRedirect } from '@/components/ModuleIndexRedirect';
 
@@ -177,7 +199,7 @@ export const meta = {
     title: ${yaml(m.name)},
     description: ${yaml(`${m.name} — module overview`)},
     layout: 'default',
-    sidebar: false,
+    sidebar: false,${isDraft(m) ? '\n    draft: true,' : ''}
 };
 `, 'utf8');
         created++;
@@ -193,6 +215,7 @@ export const meta = {
             'layout: module-docs',
             `category: ${yaml(page.category)}`,
             `order: ${page.order}`,
+            ...(isDraft(m) ? ['draft: true'] : []),
             '---',
         ].join('\n');
         writeFileSync(path, `${frontmatter}\n\n${page.body}`, 'utf8');

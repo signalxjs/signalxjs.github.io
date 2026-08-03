@@ -1,0 +1,26 @@
+---
+title: "Installation"
+description: "OpenTelemetry — Prometheus exposition & OTel traces"
+layout: module-docs
+category: "Getting Started"
+order: 20
+draft: true
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/actors-otel` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/actors-otel
+```
+
+## Verify
+
+```tsx
+import * as OpenTelemetry from '@sigx/actors-otel';
+
+console.log(Object.keys(OpenTelemetry));
+```

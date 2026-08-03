@@ -1,0 +1,30 @@
+---
+title: "Overview"
+description: "TCP — Framed, multiplexed host-to-host TCP"
+layout: module-docs
+category: "Getting Started"
+order: 10
+draft: true
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# TCP
+
+<p class="lede">One connection per peer instead of one per in-flight request. Node-only by design, so the cluster core stays WinterCG-clean — reach for it when socket count is the pain, not when you want raw speed.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/actors-tcp" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/actors-tcp
+```
+
+## About
+
+`@sigx/actors-tcp` is a Actors package — framed, multiplexed host-to-host TCP. It is versioned in lockstep with the rest of the actors repo, so any combination of backends, transports and tools just works together.
+
+## Next steps
+
+Continue with [Installation](/actors/packages/actors-tcp/installation) for project setup, or jump to the [API reference](/actors/packages/actors-tcp/api).

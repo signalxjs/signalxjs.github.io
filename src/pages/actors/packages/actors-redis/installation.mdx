@@ -1,0 +1,26 @@
+---
+title: "Installation"
+description: "Redis — Membership, directory & storage on Redis"
+layout: module-docs
+category: "Getting Started"
+order: 20
+draft: true
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/actors-redis` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/actors-redis
+```
+
+## Verify
+
+```tsx
+import * as Redis from '@sigx/actors-redis';
+
+console.log(Object.keys(Redis));
+```

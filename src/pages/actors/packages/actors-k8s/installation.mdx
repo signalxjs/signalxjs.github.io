@@ -1,0 +1,26 @@
+---
+title: "Installation"
+description: "Kubernetes — Host liveness on coordination.k8s.io Leases"
+layout: module-docs
+category: "Getting Started"
+order: 20
+draft: true
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/actors-k8s` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/actors-k8s
+```
+
+## Verify
+
+```tsx
+import * as Kubernetes from '@sigx/actors-k8s';
+
+console.log(Object.keys(Kubernetes));
+```

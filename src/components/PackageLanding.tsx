@@ -13,7 +13,7 @@
 import { component, type Define } from 'sigx';
 import { useRouter } from '@sigx/router';
 import { SxLink } from '@/components/ui/SxLink';
-import { byId, PACKAGES, type SigxPackage } from '@/lib/family';
+import { byId, PUBLIC_PACKAGES, type SigxPackage } from '@/lib/family';
 import { modulesByParent, type ModuleParent, type SigxModule } from '@/lib/modules';
 import { featuresFor } from '@/lib/landing-features';
 import { docsHref, apiHref, moduleHref } from '@/lib/packageLinks';
@@ -43,7 +43,7 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
         const pkg: SigxPackage = byId[props.id] ?? byId.core;
         const docs = docsHref(pkg.id);
         const api = apiHref(pkg.id);
-        const others = PACKAGES.filter((p) => p.id !== pkg.id).slice(0, 4);
+        const others = PUBLIC_PACKAGES.filter((p) => p.id !== pkg.id).slice(0, 4);
         // A collection with no umbrella package (server) badges/installs as a
         // collection of N packages rather than pinning to one member.
         const noUmbrella = pkg.kind === 'collection' && pkg.umbrella === false;
@@ -88,6 +88,11 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         {pkg.id === 'deploy' && (
                             <SxLink to="/deploy/packages" class={`sx-btn ${docs ? 'sx-btn-outline' : 'sx-btn-primary'}`}>
                                 <Icon name="cube" size={15} /> Browse adapters
+                            </SxLink>
+                        )}
+                        {pkg.id === 'actors' && (
+                            <SxLink to="/actors/packages" class={`sx-btn ${docs ? 'sx-btn-outline' : 'sx-btn-primary'}`}>
+                                <Icon name="cube" size={15} /> Browse packages
                             </SxLink>
                         )}
                         {api && (
@@ -191,6 +196,18 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         </div>
                         <div class="lynx-mod-row">
                             {modulesByParent('deploy').map(moduleCard)}
+                        </div>
+                    </>
+                )}
+                {pkg.id === 'actors' && (
+                    <>
+                        <div class="section-label">
+                            <span class="sl-text">Backends, transports & tooling</span>
+                            <span class="sl-line" />
+                            <span class="sl-note">every one of these is optional — @sigx/actors runs on its own</span>
+                        </div>
+                        <div class="lynx-mod-row">
+                            {modulesByParent('actors').filter((m) => !m.aliasFor).map(moduleCard)}
                         </div>
                     </>
                 )}

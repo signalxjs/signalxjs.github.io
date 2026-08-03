@@ -3,7 +3,7 @@ import { defineSSGConfig } from '@sigx/ssg';
 // esbuild, so the relative .ts registry import works on every supported Node.
 // (scripts/generate-module-docs.mjs imports the registry directly and still
 // needs Node ≥22.18 — dev-only.)
-import { MODULES, moduleDocsCollection, moduleRoutePrefix, type ModuleParent } from './src/lib/modules.ts';
+import { ACTORS_RELEASED, MODULES, moduleDocsCollection, moduleRoutePrefix, type ModuleParent } from './src/lib/modules.ts';
 import { qualifiedTitle, decodeTitleEntities, escapeTitle } from './src/lib/seo-title.ts';
 
 /**
@@ -169,6 +169,26 @@ export default defineSSGConfig({
             path: '/deploy/docs',
             showDrafts: 'dev',
         },
+        // `actors` is a collection — its satellite packages (redis, pg, k8s,
+        // tcp, ws, cloudflare, cli, otel) are documented via the `actors-pkg-*`
+        // collections injected by `...moduleCollections` below. This collection
+        // holds everything about `@sigx/actors` itself, which is the bulk of the
+        // area: the model, the API, clustering, jobs and operations.
+        'actors-docs': {
+            path: '/actors/docs',
+            showDrafts: 'dev',
+            sectionOrder: [
+                'Getting Started',
+                'Core concepts',
+                'Calling actors',
+                'Actor features',
+                'Running a host',
+                'Clustering',
+                'Operations',
+                'Deploying',
+                'Reference',
+            ],
+        },
         'cli-docs': {
             path: '/cli/docs',
             showDrafts: 'dev',
@@ -325,6 +345,14 @@ export default defineSSGConfig({
             { title: 'Vite Plugin', collections: ['vite-docs'] },
             { title: 'Deploying (Node, Cloudflare, Deno, Bun, Vercel, Netlify)', collections: ['deploy-docs'] },
             { title: 'Deploy Adapters', links: moduleLlmsLinks('deploy') },
+            // Gated: the actors pages are `draft: true` until the packages ship,
+            // so listing them here would publish links the build never emitted.
+            ...(ACTORS_RELEASED
+                ? [
+                    { title: 'Actors (virtual actors, jobs & clustering)', collections: ['actors-docs'] },
+                    { title: 'Actor Backends & Transports', links: moduleLlmsLinks('actors') },
+                ]
+                : []),
             { title: 'CLI', collections: ['cli-docs'] },
             { title: 'Terminal UIs', collections: ['terminal-docs'] },
             { title: 'Terminal Packages', links: moduleLlmsLinks('terminal') },
