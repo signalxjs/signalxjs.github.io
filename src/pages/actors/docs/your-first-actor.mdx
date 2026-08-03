@@ -57,12 +57,6 @@ export const Counter = defineActor({
             return { count: ctx.state.count, lastVisit: ctx.state.lastVisit };
         },
     }),
-    streams: (ctx) => ({
-        /** Push the current snapshot, then one after every change. */
-        async *watch() {
-            yield* ctx.changes({ initial: true });
-        },
-    }),
 });
 ```
 
@@ -70,44 +64,64 @@ Four things are already true of this object, and none of them are things you wro
 
 - Two browsers clicking at once cannot lose an increment — `increment` runs one turn at a
   time, so `ctx.state.count += by` needs no lock.
-- `?counter=a` and `?counter=b` are different actors with separate state, created on demand.
+- Two different `name` props are two different actors with separate state, created on demand.
 - `lastVisit` is a real `Date` in the browser, not a string — the
   [serialize codec](/server/packages/serialize/overview) carries it across.
 - The actor deactivates when idle and reloads its state on the next call.
 
-## 3. Call it from the browser
+## 3. Read and write it from a component
 
-`counter.actor.ts` is build-swapped, so the import below resolves to a typed client ref and
-each call becomes a `POST` to `/_sigx/actor` — the same expression that dispatches in-process
-on the server.
+Register the plugin once, so components can reach the actor:
 
 ```ts
-// src/main.ts
-import { actor } from '@sigx/actors';
-import { Counter } from './counter.actor';
+// src/main.tsx
+import { actorsPlugin } from '@sigx/actors/app';
 
-const name = new URLSearchParams(location.search).get('counter') ?? 'demo';
-const client = actor(Counter, name);
-
-document.querySelector('#inc')!.addEventListener('click', () => {
-    void client.increment(1);
-});
-
-// Live view: the watch stream re-renders on every actor state change —
-// open the page twice and watch both update.
-void (async () => {
-    for await (const state of client.watch()) {
-        render(state as { count: number; lastVisit: Date | null });
-    }
-})();
+app.use(actorsPlugin());
 ```
 
-`client.increment` is typed from the definition. Rename the method or change its signature and
-this file fails to compile — there is no second interface to keep in sync.
+Then the actor is just data and an action:
 
-In a SignalX component you would normally reach for
-[`useActorState` and `useActorAction`](/actors/docs/in-components) instead of driving the
-stream by hand.
+```tsx
+// src/Counter.tsx
+import { component } from 'sigx';
+import { useActorAction, useActorState } from '@sigx/actors/app';
+import { Counter } from './counter.actor';
+
+export const CounterView = component<{ name: string }>(({ props }) => {
+    // Re-runs after every turn that changes this actor's state — in any tab.
+    const state = useActorState(Counter, props.name, 'current', { live: true });
+    const increment = useActorAction(Counter, props.name, 'increment');
+
+    return () => (
+        <>
+            {state.match({
+                pending: () => <p>…</p>,
+                ready: (s) => (
+                    <p>
+                        {s.count} — last visit {s.lastVisit?.toLocaleTimeString() ?? '–'}
+                    </p>
+                ),
+            })}
+            <button disabled={increment.loading} onClick={() => increment.run([1])}>
+                +1
+            </button>
+        </>
+    );
+});
+```
+
+Four things happened there without you asking:
+
+- **`counter.actor.ts` was build-swapped**, so `Counter` is a typed client ref and
+  `increment.run([1])` is a `POST` to `/_sigx/actor`. Rename the method and this file fails to
+  compile — there is no second interface to keep in sync.
+- **`current` was read on the server during SSR** and serialized into the page, so first paint
+  has the count already and hydration costs no request.
+- **`{ live: true }`** means the actor pushes a new result after every turn that changed its
+  state, from any tab — see [Live reads](/actors/docs/live-reads).
+- **The write refreshed the read.** `increment.run()` invalidates this counter's reads by default,
+  so nothing calls `refresh()` by hand.
 
 ## 4. Run it
 
@@ -125,8 +139,8 @@ export default {
 pnpm dev
 ```
 
-Open the page twice. Click in one tab; both update, because both are consuming the same
-`watch` stream and the actor pushed a new snapshot after the turn that mutated it.
+Open the page twice. Click in one tab and **both** update — the actor re-ran `current` after
+the turn that changed its state and pushed the result to every live reader.
 
 Stop the dev server and start it again — the count is still there, in `.actors/`.
 

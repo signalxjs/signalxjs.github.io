@@ -20,9 +20,21 @@ streams: (ctx) => ({
 })
 ```
 
-```ts
-// client
-for await (const s of actor(CartActor, id).watch()) render(s);
+A stream arrives as an `AsyncIterable`, so a component consumes it with an ordinary
+`for await`:
+
+```tsx
+import { component, onMounted, signal } from 'sigx';
+
+const CartView = component<{ id: string }>(({ props }) => {
+    const cart = signal<CartState | null>(null);
+
+    onMounted(async () => {
+        for await (const next of actor(CartActor, props.id).watch()) cart.value = next;
+    });
+
+    return () => <p>{cart.value?.items.length ?? 0} items</p>;
+});
 ```
 
 ## Bodies are observers, not turns
