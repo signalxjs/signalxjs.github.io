@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#000000" />
+    <!-- Page meta first by design — rationale in ssg.config.ts. -->
+    <!--head-tags-->
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/png" href="/sigx.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -23,16 +25,7 @@
             }
         })();
     </script>
-    <!--
-      Site-wide structured data. This block is static and shared by every
-      route, so it describes the SITE and the PROJECT only — per-page schema
-      (TechArticle, BreadcrumbList) is emitted per page by the SSG's
-      autoJsonLd (ssg.config.ts, needs @sigx/ssg 0.20); the homepage opts out
-      since this graph already describes it.
-
-      No WebSite.potentialAction/SearchAction: there is no on-site search
-      endpoint yet, and claiming one Google cannot use is worse than omitting it.
-    -->
+    <!-- SITE-wide JSON-LD only — before editing, see the note in ssg.config.ts. -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
@@ -70,7 +63,6 @@
         ]
     }
     </script>
-    <!--head-tags-->
 </head>
 <body>
     <div id="app"><!--app-html--></div>
