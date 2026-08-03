@@ -80,10 +80,10 @@ export default defineSSGConfig({
         // Shiki syntax highlighting
         // Using dracula for vibrant colors on dark background
         //
-        // NOTE: this block only feeds the runtime. The build-time markdown
-        // pipeline — `skipLanguages` and the `rehypeMermaid` plugin that
-        // renders ```mermaid fences — is configured on ssgPlugin() in
-        // vite.config.ts. Adding either here has no effect.
+        // NOTE: this block only feeds the runtime. The markdown pipeline —
+        // including the `remarkMermaid` plugin that renders ```mermaid fences —
+        // is configured on ssgPlugin() in vite.config.ts, whose `markdown` arg
+        // REPLACES this whole block. Adding a plugin here has no effect.
         shiki: {
             light: 'github-light',
             dark: 'github-dark',

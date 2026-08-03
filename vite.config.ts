@@ -1,7 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import { sigxPlugin } from '@sigx/vite';
 import { ssgPlugin } from '@sigx/ssg/vite';
-import { rehypeMermaid } from '@sigx/mermaid/ssg';
+import { remarkMermaid } from '@sigx/mermaid/ssg';
 import { monacoPrebundledPlugin } from '@sigx/monaco-editor/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'path';
@@ -92,26 +92,15 @@ export default defineConfig(({ command }) => ({
         // ssg.config.ts's markdown.shiki, which only feeds the runtime).
         // triggerLabel sets the live-code "Try Live" button to the v2 "⚡ Run".
         //
-        // Mermaid rides the same seam and for the same reason: `skipLanguages`
-        // leaves ```mermaid fences un-highlighted so `rehypeMermaid` can claim
-        // them and emit the <figure>. Put either in ssg.config.ts instead and
-        // the fences silently render as ordinary code blocks.
-        //
-        // BUILD ONLY, deliberately. Under the dev server `rehypeMermaid`
-        // (@sigx/mermaid 0.1.0) breaks MDX rendering site-wide — every page,
-        // not just ones with a diagram, fails with `slots.default is not a
-        // function` from the layout. Verified by toggling this one line: with
-        // it, /core/docs/signals/ throws; without it, nothing does. Production
-        // builds are unaffected and render diagrams correctly.
-        //
-        // The cost is that a ```mermaid fence shows as its source in `pnpm dev`
-        // and only becomes a diagram in a build — preview with
-        // `pnpm build && pnpm preview`. Remove the condition once the upstream
-        // fix lands.
+        // `remarkMermaid` claims the ```mermaid fence at the mdast stage, before
+        // the highlighter sees the tree — so it needs no `skipLanguages` and no
+        // build-only guard, and diagrams render in dev as well as in a build.
+        // (@sigx/mermaid 0.2.0; the 0.1.0 rehype plugin ran after highlighting
+        // and broke MDX site-wide in dev — signalxjs/mermaid#14.)
         ssgPlugin({
             markdown: {
-                shiki: { triggerLabel: '⚡ Run', skipLanguages: ['mermaid'] },
-                rehypePlugins: command === 'build' ? [rehypeMermaid] : [],
+                shiki: { triggerLabel: '⚡ Run' },
+                remarkPlugins: [remarkMermaid],
             },
         }),
         monacoPrebundledPlugin({
@@ -149,13 +138,13 @@ export default defineConfig(({ command }) => ({
         // condition points at a UMD build with no ESM `default`, so serving it
         // unbundled throws before any page renders. Forcing it through
         // prebundling converts it to real ESM.
-        // `@sigx/mermaid` lazy-loads `mermaid`, which imports `dayjs` — another
-        // UMD build with no ESM `default`. Same failure, same fix: Vite's
-        // scanner never reaches a lazily-imported dep, so name it explicitly
-        // and let prebundling convert it. Both are dev-only; a production build
-        // bundles these correctly either way.
+        // `mermaid` is lazy-loaded, so Vite's scanner never reaches it, and its
+        // `dayjs` dependency resolves to a UMD build with no ESM `default`.
+        // Naming it here lets prebundling convert it. Dev-only; a production
+        // build bundles it correctly either way.
         //
-        // pnpm does not hoist, so the nested "parent > child" form is required.
-        include: ['@sigx/live-code > sucrase', '@sigx/mermaid > mermaid'],
+        // pnpm does not hoist, so `sucrase` — reached only through
+        // `@sigx/live-code` — needs the nested "parent > child" form.
+        include: ['@sigx/live-code > sucrase', 'mermaid'],
     },
 }));
