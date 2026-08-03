@@ -21,7 +21,7 @@ ctx.timer('poll', async () => {
 }, { due: 1_000, period: 5_000 });
 ```
 
-Ticks run as ordinary mailbox turns, so they serialize with your methods and cannot race your
+Ticks run as ordinary [turns](/actors/docs/turns), so they serialize with your methods and cannot race your
 state. Under load they **coalesce** rather than pile up.
 
 A timer **does not keep the actor alive**. If the actor goes idle it deactivates, and the

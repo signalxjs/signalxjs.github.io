@@ -44,7 +44,7 @@ Everything else in these docs follows from these five.
    decide when one is created or destroyed.
 2. **Single-threaded.** One turn — one method call — at a time per activation. Plain mutation
    on `ctx.state` is race-free. No locks, ever.
-3. **`await` holds the mailbox.** A turn ends when the method's promise settles, so an awaited
+3. **`await` keeps the turn open.** A turn ends when the method's promise settles, so an awaited
    `fetch` inside a method blocks every queued call to that actor until it resolves. This is
    the model's central trade: state safety over intra-actor concurrency. Dev builds warn when
    a turn exceeds `slowTurnMs`.
@@ -68,7 +68,7 @@ double-spend, a version column so a stale write doesn't clobber a fresh one, a c
 re-reading, an invalidation story for the cache, a queue for work that must not run twice.
 
 An actor collapses that into one object that happens to be the only writer of its own state.
-Ordering is the mailbox. Consistency is single-threading. Durability is `ctx.save()`.
+Ordering is the [turn sequence](/actors/docs/turns). Consistency is single-threading. Durability is `ctx.save()`.
 
 It is not a general answer. Most endpoints have no identity to be serial about, and for those
 a [server function](/actors/docs/actors-or-server-functions) is simpler and faster.

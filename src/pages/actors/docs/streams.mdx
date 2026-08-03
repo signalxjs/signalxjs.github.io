@@ -27,8 +27,8 @@ for await (const s of actor(CartActor, id).watch()) render(s);
 
 ## Bodies are observers, not turns
 
-Stream bodies run **detached from the mailbox**. A stream that waited on its own actor's next
-turn while holding the mailbox would deadlock against itself.
+Stream bodies run **[outside the turn sequence](/actors/docs/turns)**. A stream that waited on
+its own actor's next turn while occupying it would deadlock against itself.
 
 The consequence is a rule: read `ctx.snapshot()` or `ctx.changes()`, and **never mutate live
 state** from a stream body. Dev builds warn when a body reads live `ctx.state`.

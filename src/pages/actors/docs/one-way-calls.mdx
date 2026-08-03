@@ -1,6 +1,6 @@
 ---
 title: One-way calls
-description: "with({ oneWay: true }) — resolve at mailbox acceptance instead of turn completion, and where the failure line falls"
+description: "with({ oneWay: true }) — resolve when the target accepts the call instead of when the turn completes, and where the failure line falls"
 layout: docs
 category: Calling actors
 order: 250
@@ -10,7 +10,7 @@ draft: true
 # One-way calls
 
 <p class="lede">A one-way call resolves as `Promise<void>` when it is **accepted into the
-target's mailbox** — never when the turn completes. Fire-and-forget with backpressure and
+target activation** — never when the turn completes. Fire-and-forget with backpressure and
 error accounting, instead of a floating promise that has neither.</p>
 
 ```ts
@@ -41,7 +41,7 @@ completion some other way, such as a [topic](/actors/docs/topics).
 ## What follows from "the caller is gone"
 
 **Ordering holds.** The call was enqueued before the promise resolved, so an awaited call
-issued afterwards runs after it — the same mailbox FIFO as always.
+issued afterwards runs after it — the same [turn ordering](/actors/docs/turns) as always.
 
 **A one-way self-call cannot deadlock.** Awaited, `A → A` on a non-reentrant actor is a
 detected [`ActorDeadlockError`](/actors/docs/errors). One-way, it is "schedule more work for

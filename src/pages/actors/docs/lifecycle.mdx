@@ -50,7 +50,7 @@ lost is anything kept *outside* `ctx.state`.
 | Reason | Means |
 |---|---|
 | `idle` | no calls for `idleAfterMs` — the ordinary case |
-| `shutdown` | the host is stopping; the mailbox has drained |
+| `shutdown` | the host is stopping; in-flight turns have drained |
 | `capacity` | a `maxActivations` cap shed it (least-recently-used) |
 | `migrated` | a [cluster](/actors/docs/clustering) moved it to another host |
 

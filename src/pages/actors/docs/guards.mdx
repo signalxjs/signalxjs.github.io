@@ -1,6 +1,6 @@
 ---
 title: Guards
-description: "use:, methodUse: and unguarded — the serverFn guard contract applied to actor methods, run outside the mailbox on every transport"
+description: "use:, methodUse: and unguarded — the serverFn guard contract applied to actor methods, run outside the turn sequence on every transport"
 layout: docs
 category: Core concepts
 order: 140
@@ -51,8 +51,9 @@ Three properties are worth stating outright:
 **They run on every transport.** The wire endpoint and in-process `actor()` calls both run the
 chain. You cannot bypass a guard by calling from the server.
 
-**They run outside the mailbox.** A slow auth check never occupies the actor's turn, so a
-burst of unauthenticated calls cannot queue behind each other or block legitimate ones.
+**They run [outside the turn sequence](/actors/docs/turns).** A slow auth check never occupies
+the actor, so a burst of unauthenticated calls cannot queue behind each other or block
+legitimate ones.
 
 **Actor-to-actor calls do not re-run them.** `ctx.actor(Other, key).method()` is intra-system:
 the guard already ran at the edge where the request entered. Treat an actor method as trusted

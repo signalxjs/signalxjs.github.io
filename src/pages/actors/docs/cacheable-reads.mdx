@@ -38,8 +38,9 @@ changes.**
 
 ## What you are trading
 
-> **A cached read bypasses the mailbox ordering guarantee.** For `maxAge` seconds the response
-> an intermediary serves may be older than the actor's state, and nothing on the server can
+> **A cached read bypasses the [turn ordering guarantee](/actors/docs/turns).** For `maxAge`
+> seconds the response an intermediary serves may be older than the actor's state, and nothing
+> on the server can
 > pull it back — not `ctx.save()`, not `useActorAction`, not `cells.invalidate()`, which
 > refresh this page's cells and never a CDN's copy.
 

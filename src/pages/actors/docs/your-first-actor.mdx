@@ -135,7 +135,7 @@ Stop the dev server and start it again — the count is still there, in `.actors
 - **Remove `await ctx.save()`** and restart. The count resets: persistence is explicit, and
   that is [deliberate](/actors/docs/state-and-persistence).
 - **Add `await new Promise(r => setTimeout(r, 3000))`** inside `increment`, then click twice
-  quickly. The second click waits — that is guarantee 3, `await` holding the mailbox.
+  quickly. The second click waits — that is guarantee 3, [`await` keeping the turn open](/actors/docs/turns).
 - **Replace `unguarded: true`** with a real [guard chain](/actors/docs/guards).
 
 ## Next steps

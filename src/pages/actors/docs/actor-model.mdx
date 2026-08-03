@@ -1,6 +1,6 @@
 ---
 title: The actor model
-description: "Activation, turns, identity and the mailbox — what the runtime guarantees and what it costs"
+description: "Activation, turns, identity and deactivation — what the runtime guarantees about an actor and what it costs"
 layout: docs
 category: Core concepts
 order: 100
@@ -65,48 +65,13 @@ sequenceDiagram
 
 ## Turns
 
-A **turn** is one method call. One turn runs at a time per activation, and a turn ends when
-the method's promise settles.
+A **turn** is one method call, and a turn ends when the method's promise *settles* — so an
+awaited `fetch` inside a method keeps that actor busy for its whole duration. By default one
+turn runs at a time, which is what makes `ctx.state.items.push(item)` safe with no lock.
 
-That second half is the part to internalise:
-
-```ts
-async checkout() {
-    const quote = await fetch('https://slow.example/quote');  // ← the mailbox is held
-    ctx.state.total = await quote.json();
-    await ctx.save();
-}
-```
-
-Every queued call to *this* cart waits for that `fetch`. Nothing else is affected — other
-carts are other actors — but this one is blocked for the duration. Dev builds warn when a turn
-exceeds `slowTurnMs` (default 5s).
-
-```mermaid title="await holds the mailbox"
-sequenceDiagram
-    participant A as Caller A
-    participant B as Caller B
-    participant C as Cart/user-42
-    A->>C: checkout()
-    activate C
-    Note over C: turn 1 — awaiting a slow fetch
-    B->>C: addItem()
-    Note right of B: queued, not running
-    C-->>A: done
-    deactivate C
-    activate C
-    Note over C: turn 2 starts only now
-    C-->>B: done
-    deactivate C
-```
-
-The upside is that between two `await`s nothing can touch your state, which is why
-`ctx.state.items.push(item)` needs no lock. The cost is that slow I/O inside a turn is a queue
-for that actor. The usual fixes:
-
-- Move the I/O outside the turn — do the `fetch` in the caller and pass the result in.
-- Move it to a [task](/actors/docs/tasks), which runs detached and re-enters via `ctx.turn()`.
-- Let unrelated calls interleave with [reentrancy](/actors/docs/reentrancy).
+That mechanism is the single idea the rest of this model rests on, and it has its own page:
+**[Turns & concurrency](/actors/docs/turns)** — the two lanes an activation runs turns in, why
+an `await` blocks the serial one, and what runs outside the turn sequence entirely.
 
 ## Deactivation
 

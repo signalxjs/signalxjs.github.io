@@ -63,7 +63,8 @@ same six lines.
 
 - **Identity.** The work is about one cart, one room, one device, one game — and two calls
   about the same one must not interleave.
-- **Ordering.** Later calls must observe earlier ones. A mailbox gives you that for free.
+- **Ordering.** Later calls must observe earlier ones. [Serial turns](/actors/docs/turns)
+  give you that for free.
 - **Memory between calls.** Keeping state hot avoids re-reading it on every request, and lets
   you hold things that do not belong in a row — an in-flight batch, a connection, a timer.
 - **Timers and reminders.** [`ctx.timer`](/actors/docs/timers-and-reminders) and durable
@@ -74,7 +75,7 @@ same six lines.
 ## What pushes you toward a server function
 
 - **No identity.** A list, a search, a report.
-- **Read-heavy and cacheable.** A `serverFn` can be cached at the edge without the mailbox in
+- **Read-heavy and cacheable.** A `serverFn` can be cached at the edge without turn ordering in
   the way. Actors have [cacheable reads](/actors/docs/cacheable-reads) too, but the trade is
   sharper.
 - **Fan-out over many rows.** An actor is one object; a query is better at touching thousands.

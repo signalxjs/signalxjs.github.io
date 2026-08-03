@@ -41,6 +41,18 @@ function mdxFilesIn(dir: string): string[] {
  */
 const DEAD_VOCABULARY = /\b(silos?|grains?|orleans)\b/i;
 
+/**
+ * `mailbox` describes something the runtime does not have — turns chain onto a
+ * promise, so there is no queue to inspect, reorder or bound, and some turns
+ * bypass the chain entirely (see andtii/actors#284). The source README still
+ * uses the word throughout, so it is easy to copy back in.
+ *
+ * `turns.mdx` is exempt because its whole job is to say the mailbox does not
+ * exist, which requires naming it.
+ */
+const NO_MAILBOX = /\bmailbox(es)?\b/i;
+const MAILBOX_EXEMPT = new Set(['turns.mdx']);
+
 describe('actors docs vocabulary', () => {
     const files = mdxFilesIn(ACTORS_PAGES);
 
@@ -48,19 +60,38 @@ describe('actors docs vocabulary', () => {
         expect(files.length).toBeGreaterThan(0);
     });
 
+    /** Lines matching `pattern`, as `  <line>: <text>` for the failure message. */
+    const offendingLines = (file: string, pattern: RegExp): string =>
+        readFileSync(file, 'utf8')
+            .split('\n')
+            .map((line, i) => [i + 1, line] as const)
+            .filter(([, line]) => pattern.test(line))
+            .map(([n, line]) => `  ${n}: ${line.trim()}`)
+            .join('\n');
+
     it.each(files.map((f) => [relative(ACTORS_PAGES, f), f]))(
         '%s uses host/actor, and does not lean on Orleans',
         (_label, file) => {
-            const offenders = readFileSync(file, 'utf8')
-                .split('\n')
-                .map((line, i) => [i + 1, line] as const)
-                .filter(([, line]) => DEAD_VOCABULARY.test(line));
-
             expect(
-                offenders.map(([n, line]) => `  ${n}: ${line.trim()}`).join('\n'),
+                offendingLines(file, DEAD_VOCABULARY),
                 'silo/grain is pre-release vocabulary that no longer exists in @sigx/actors — '
-                    + 'use host/actor. Write from the source, not the docs-issue bodies. And state design decisions directly rather than by reference to Orleans.',
+                    + 'use host/actor. Write from the source, not the docs-issue bodies. And '
+                    + 'state design decisions directly rather than by reference to Orleans.',
             ).toBe('');
         },
     );
+
+    it.each(
+        files
+            .map((f) => [relative(ACTORS_PAGES, f), f] as const)
+            .filter(([label]) => !MAILBOX_EXEMPT.has(label.split(/[\\/]/).pop()!)),
+    )('%s does not say "mailbox"', (_label, file) => {
+        expect(
+            offendingLines(file, NO_MAILBOX),
+            'the runtime has no mailbox — turns chain onto a promise, there is nothing to '
+                + 'inspect or reorder, and some turns bypass the chain. Say what is actually '
+                + 'happening: "blocks other turns", "outside the turn sequence", "accepted by '
+                + 'the target activation". See /actors/docs/turns.',
+        ).toBe('');
+    });
 });

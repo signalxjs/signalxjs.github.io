@@ -1,6 +1,6 @@
 ---
 title: Tasks
-description: "The tasks: factory — long-running work detached from the mailbox, ctx.turn() for safe state writes, and built-in crash resume"
+description: "The tasks: factory — long-running work that runs outside the turn sequence, ctx.turn() for safe state writes, and built-in crash resume"
 layout: docs
 category: Actor features
 order: 330
@@ -9,7 +9,7 @@ draft: true
 
 # Tasks
 
-<p class="lede">A method call holds the mailbox until it settles — fine for milliseconds, wrong
+<p class="lede">A method call occupies the actor until it settles — fine for milliseconds, wrong
 for a sync job or an AI workflow run. A task runs detached, so ordinary reads, streams and
 watches keep answering while it works.</p>
 
@@ -40,15 +40,15 @@ const Sync = defineActor({
 ## The rules
 
 **State only through `ctx.turn(fn)`.** A task body is detached, so it gets no `state` or
-`save()`. `turn()` enqueues `fn` as one ordinary serialized mailbox turn with the full
+`save()`. `turn()` enqueues `fn` as one ordinary serialized turn with the full
 context, so every mutation stays race-free and everything downstream — change feeds, watches,
 write-behind — works unmodified. Reads in the body use `ctx.snapshot()` or `ctx.changes()`.
 
 **`ctx.abortSignal` in a task is the *run's* signal.** It fires on `ctx.tasks.cancel(name)`
 with reason `'cancelled'`, and on deactivation for any reason with the `DeactivationReason` —
-*before* the mailbox drain. Deactivation then gives signalled tasks a bounded grace
-(`taskGraceMs`, default 10s) with the mailbox still open, so a winding-down task can run one
-final `turn()` checkpoint.
+*before* in-flight turns drain. Deactivation then gives signalled tasks a bounded grace
+(`taskGraceMs`, default 10s) with the actor still accepting turns, so a winding-down task can
+run one final `turn()` checkpoint.
 
 **`cancel` is a request, not a join.** It aborts and returns; the run leaves
 `ctx.tasks.list()` when its body settles. Awaiting settlement from a method turn would
