@@ -1,0 +1,160 @@
+---
+title: Your first actor
+description: "Build a persistent, live-updating counter end to end — the actor, the app module, the browser call and the dev server"
+layout: docs
+category: Getting Started
+order: 40
+---
+
+# Your first actor
+
+<p class="lede">A counter that survives restarts, never loses an increment, and pushes changes
+to every open tab. Four files, no database.</p>
+
+This is `examples/counter` from the actors repo, which runs this exact shape in dev and in
+production.
+
+## 1. The app module
+
+One source of truth for storage, defaults and plugins — loaded by the dev server, the
+production entry and your actor modules alike.
+
+```ts
+// src/actors.app.ts
+import { defineActorApp } from '@sigx/actors/host';
+import { fileStorage } from '@sigx/actors/node';
+
+export const app = defineActorApp({
+    // Keeps dev state across actor-file edits and restarts.
+    storage: fileStorage({ dir: '.actors' }),
+});
+
+/** Bound to this app's plugin set — actor modules import this. */
+export const { defineActor } = app;
+```
+
+## 2. The actor
+
+```ts
+// src/counter.actor.ts
+import { defineActor } from './actors.app.ts';
+
+export const Counter = defineActor({
+    type: 'Counter',
+    // This demo counter is deliberately public. Real actors declare a
+    // `use: [...]` chain — the build gate insists you pick one.
+    unguarded: true,
+    state: () => ({ count: 0, lastVisit: null as Date | null }),
+    methods: (ctx) => ({
+        async increment(by: number) {
+            ctx.state.count += by;
+            ctx.state.lastVisit = new Date();
+            await ctx.save(); // persistence is explicit — state saves only when asked
+            return ctx.state.count;
+        },
+        async current() {
+            return { count: ctx.state.count, lastVisit: ctx.state.lastVisit };
+        },
+    }),
+});
+```
+
+Four things are already true of this object, and none of them are things you wrote:
+
+- Two browsers clicking at once cannot lose an increment — `increment` runs one turn at a
+  time, so `ctx.state.count += by` needs no lock.
+- Two different `name` props are two different actors with separate state, created on demand.
+- `lastVisit` is a real `Date` in the browser, not a string — the
+  [serialize codec](/server/packages/serialize/overview) carries it across.
+- The actor deactivates when idle and reloads its state on the next call.
+
+## 3. Read and write it from a component
+
+Register the plugin once, so components can reach the actor:
+
+```ts
+// src/main.tsx
+import { actorsPlugin } from '@sigx/actors/app';
+
+app.use(actorsPlugin());
+```
+
+Then the actor is just data and an action:
+
+```tsx
+// src/Counter.tsx
+import { component } from 'sigx';
+import { useActorAction, useActorState } from '@sigx/actors/app';
+import { Counter } from './counter.actor';
+
+export const CounterView = component<{ name: string }>(({ props }) => {
+    // Re-runs after every turn that changes this actor's state — in any tab.
+    const state = useActorState(Counter, props.name, 'current', { live: true });
+    const increment = useActorAction(Counter, props.name, 'increment');
+
+    return () => (
+        <>
+            {state.match({
+                pending: () => <p>…</p>,
+                ready: (s) => (
+                    <p>
+                        {s.count} — last visit {s.lastVisit?.toLocaleTimeString() ?? '–'}
+                    </p>
+                ),
+            })}
+            <button disabled={increment.loading} onClick={() => increment.run([1])}>
+                +1
+            </button>
+        </>
+    );
+});
+```
+
+Four things happened there without you asking:
+
+- **`counter.actor.ts` was build-swapped**, so `Counter` is a typed client ref and
+  `increment.run([1])` is a `POST` to `/_sigx/actor`. Rename the method and this file fails to
+  compile — there is no second interface to keep in sync.
+- **`current` was read on the server during SSR** and serialized into the page, so first paint
+  has the count already and hydration costs no request.
+- **`{ live: true }`** means the actor pushes a new result after every turn that changed its
+  state, from any tab — see [Live reads](/actors/docs/live-reads).
+- **The write refreshed the read.** `increment.run()` invalidates this counter's reads by default,
+  so nothing calls `refresh()` by hand.
+
+## 4. Run it
+
+```ts
+// vite.config.ts
+import { sigxActors } from '@sigx/actors/vite';
+
+export default {
+    plugins: [sigxActors({ app: '/src/actors.app.ts' })],
+    server: { watch: { ignored: ['**/.actors/**'] } },
+};
+```
+
+```bash
+pnpm dev
+```
+
+Open the page twice. Click in one tab and **both** update — the actor re-ran `current` after
+the turn that changed its state and pushed the result to every live reader.
+
+Stop the dev server and start it again — the count is still there, in `.actors/`.
+
+## What to try next
+
+- **Remove `await ctx.save()`** and restart. The count resets: persistence is explicit, and
+  that is [deliberate](/actors/docs/state-and-persistence).
+- **Add `await new Promise(r => setTimeout(r, 3000))`** inside `increment`, then click twice
+  quickly. The second click waits — that is guarantee 3, [`await` keeping the turn open](/actors/docs/turns).
+- **Replace `unguarded: true`** with a real [guard chain](/actors/docs/guards).
+
+## Next steps
+
+- [The app](/actors/docs/the-app) — plugins, context extensions and lifecycle.
+- [The actor model](/actors/docs/actor-model) — activation, turns and identity in depth.
+- [State & persistence](/actors/docs/state-and-persistence) — `ctx.save()`, write-behind and
+  migrations.
+- [Running a host on Node](/actors/docs/node) — the production entry and graceful shutdown.

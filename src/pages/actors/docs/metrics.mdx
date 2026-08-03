@@ -1,0 +1,135 @@
+---
+title: Metrics
+description: "The metrics() plugin, the queueMs vs turnMs split that tells you which problem you have, the runtime toggle and what it costs"
+layout: docs
+category: Operations
+order: 600
+---
+
+# Metrics
+
+<p class="lede">Pull-based counters and latency distributions for an actor host. No exporter,
+no push pipeline, no metrics-library dependency.</p>
+
+```ts
+import { metrics } from '@sigx/actors/host';
+
+const m = metrics();
+export const app = defineActorApp({ actors, storage }).use(m);
+
+m.snapshot();   // ActorMetricsSnapshot
+m.reset();
+```
+
+What it collects: calls, failures, stream opens, activation churn by deactivation reason,
+storage loads/saves/clears/conflicts, latency distributions, and live gauges from
+`host.stats()`.
+
+## `queueMs` vs `turnMs` — read this first
+
+This split is the reason the plugin exists, and it is the thing that tells you *which* problem
+you have.
+
+| Symptom | Means | Fix |
+|---|---|---|
+| high **`turnMs`** | the method itself is slow | move I/O out of the turn, split the method, use a [task](/actors/docs/tasks) |
+| high **`queueMs`** | the actor is a **hotspot** — callers are waiting in line | shard the key, reduce traffic, or [let reads interleave](/actors/docs/reentrancy) |
+
+A dispatch middleware only ever sees the **sum**. That is precisely why `observeTurns` is a
+separate seam rather than something you could have written yourself with `useDispatch`.
+
+## Options
+
+```ts
+metrics({ enabled: false, histograms: true, maxTypes: 64, maxMethods: 32 });
+```
+
+`maxTypes` (default 64) folds overflow into `'(other)'` rather than growing unbounded.
+`maxMethods: 0` drops the per-method breakdown.
+
+## The runtime toggle
+
+Collection switches at runtime, and switching it off genuinely stops paying for it:
+
+```ts
+const m = metrics({ enabled: false });   // wired in, collecting nothing
+m.enable();                              // …investigate…
+m.disable();                             // back to ~free; counters keep their values
+m.enabled;                               // boolean
+```
+
+`disable()` **drops the turn subscription** rather than returning early inside it. That
+distinction is the whole point: the runtime only takes per-turn timestamps while an observer is
+attached, so an inert-but-attached observer would keep paying the larger half of the cost.
+Counters freeze at their current values — `reset()` clears them.
+
+> The intended shape is to leave `metrics({ enabled: false })` wired into production and switch
+> it on when you need to look.
+
+## What it costs
+
+Measured on a `noop` dispatch — the cheapest call there is, ~0.5µs — each configuration in its
+own process, median of 9 runs:
+
+| | Throughput | vs no plugin |
+|---|---:|---|
+| no plugin | 2.05 M ops/s | — |
+| an inert plugin (the control) | 2.08 M ops/s | ~0 |
+| `metrics({ enabled: false })` | 2.05 M ops/s | **~0** |
+| `metrics({ histograms: false })` | 1.88 M ops/s | −8% |
+| `metrics()` | 1.43 M ops/s | −30% |
+
+Three things to read off that. **Disabled is indistinguishable from not having the plugin at
+all.** **Not attaching it is free** — with no observer the dispatch path is unchanged.
+And **plugins themselves cost nothing**, which is what makes the other rows attributable to
+metrics rather than to the plugin machinery.
+
+Read the −30% in absolute terms before it alarms you: full metrics adds **~200ns per call**.
+It looks like a third of throughput only because the measured call does nothing at all — for
+an actor whose turn takes 100µs it is under **0.25%**.
+
+Durations use `performance.now()` rather than the wall clock: one extra read per observed
+turn, buying immunity to NTP or a VM host stepping the clock backwards mid-turn.
+
+The per-method breakdown is ~3.5% of that per dispatch; `maxMethods: 0` gets the old cost
+back. What it buys is per-method call counts, failure counts and the queue/turn split, which
+is usually the trade you want.
+
+## Conflicts deserve an alert, not a graph
+
+Every `storage.conflicts` is an etag mismatch that discarded an activation. A steady trickle
+means something in your cluster is wrong — a partition, a directory hiccup, a placement bug —
+and the number is far more useful as a threshold alert than as a line on a dashboard.
+
+## Scope of `observeTurns`
+
+The seam behind the split, available to any plugin:
+
+```ts
+registry.observeTurns((ref, method, queuedMs, elapsedMs, failed, call) => { /* … */ });
+```
+
+It covers **dispatched turns only**, including reminder delivery. Deliberately excluded:
+volatile `ctx.timer` ticks, write-behind flushes, and reentrant `ctx.actor` inline calls.
+
+A throwing observer is swallowed and dev-logged; it never fails a turn. Both
+`Host.observeTurns` and `PluginRegistry.observeTurns` return an unsubscribe, and when the last
+observer leaves, the runtime stops timing turns entirely.
+
+> If you write dispatch middleware, **forward `dispatchStream`** — see
+> [The app](/actors/docs/the-app).
+
+## Cross-host calls are split, not double-counted
+
+A common worry, and the answer is reassuring: an inbound hop goes through the **raw local
+dispatcher** and never touches `useDispatch`. So `calls.total` and `latencyMs` are recorded on
+the *originating* host, and `queueMs`/`turnMs` on the *executing* host.
+
+That is a split, not a duplicate — summing `calls.total` across hosts gives the true
+cluster-wide number.
+
+## Next steps
+
+- [The ops endpoint](/actors/docs/ops-endpoint) — reading this over the wire.
+- [Cluster stats](/actors/docs/cluster-stats) — merging it across the fleet.
+- [Observability](/actors/docs/observability) — Prometheus and OpenTelemetry.

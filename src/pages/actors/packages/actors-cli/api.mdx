@@ -1,0 +1,58 @@
+---
+title: "API reference"
+description: "The plugin export and @sigx/actors-cli/source — the renderer-free data layer for building another front end"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/actors-cli` <PkgVersion npm="@sigx/actors-cli" />.</p>
+
+## The plugin
+
+The default export is a `definePlugin({ name: 'actors', detect, commands, tui })`. You do not
+import it — `@sigx/cli` discovers it through the `sigx-cli` manifest field:
+
+```json
+"sigx-cli": { "plugin": "./dist/plugin.js", "requires": ">=0.9.0" }
+```
+
+`detect(cwd: string): boolean` is also exported; it is what decides whether the `actors`
+commands appear, by checking that the project depends on `@sigx/actors`.
+
+## `@sigx/actors-cli/source`
+
+The renderer-free data layer, for anyone building another front end over the same data.
+
+| Export | Role |
+|---|---|
+| `httpSource(options)` | poll a running host's ops endpoint |
+| `embeddedSource(options)` | load an app module in-process |
+| `hostViewFromReport(report)` | a `HostReport` → `HostView` |
+| `rateBetween(a, b)` | derive a rate from two samples |
+| `RateTracker` | stateful rate tracking |
+| `* as format` | the display formatters the dashboard uses |
+
+Types: `MonitorSource`, `MonitorSnapshot`, `HostView`, `ClusterView`, `HttpSourceOptions`,
+`EmbeddedSourceOptions`, `Series`, `Rate`, `RateSample`. Errors: `OpsRequestError`,
+`EmbeddedSourceError`.
+
+## The counter-reset rule
+
+> **A counter going backwards is a reset, and must yield a gap rather than a rate.**
+
+[`metrics().reset()`](/actors/docs/metrics) exists, and a host restart re-zeros everything.
+Computing `(now - then) / dt` across that boundary produces a large negative or wildly wrong
+rate, which on a graph looks like an incident that did not happen.
+
+`rateBetween` returns nothing for a decreasing pair. If you build your own, do the same.
+
+## Next steps
+
+- [Overview](/actors/packages/actors-cli/overview) — the two modes.
+- [Installation](/actors/packages/actors-cli/installation) — flags and exit codes.
+- [Observability](/actors/docs/observability) — Prometheus and OTel instead.

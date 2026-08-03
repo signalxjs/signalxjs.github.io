@@ -1,0 +1,95 @@
+---
+title: Timers & reminders
+description: "ctx.timer for volatile ticks and ctx.reminders for durable wake-ups that re-activate an idle or restarted actor"
+layout: docs
+category: Actor features
+order: 310
+---
+
+# Timers & reminders
+
+<p class="lede">Two mechanisms, and the difference is the whole point: a timer dies with the
+activation, a reminder survives a restart and brings the actor back.</p>
+
+## Timers — volatile
+
+```ts
+ctx.timer('poll', async () => {
+    ctx.state.checkedAt = new Date();
+    await ctx.save();
+}, { due: 1_000, period: 5_000 });
+```
+
+Ticks run as ordinary [turns](/actors/docs/turns), so they serialize with your methods and cannot race your
+state. Under load they **coalesce** rather than pile up.
+
+A timer **does not keep the actor alive**. If the actor goes idle it deactivates, and the
+timer goes with it. That is deliberate: a volatile timer is a convenience, not a reason to pin
+an object in memory. Pass `keepAlive: true` when you really do want the actor held open.
+
+Use a timer for something that only matters while the actor is already active — refreshing a
+cached value, expiring an in-memory lease, driving an animation of state you are streaming.
+
+## Reminders — durable
+
+```ts
+await ctx.reminders.set('daily-digest', { due: 60_000, period: 86_400_000 });
+```
+
+```ts
+defineActor({
+    type: 'Digest',
+    async onReminder(ctx, name) {
+        if (name === 'daily-digest') await sendDigest(ctx.state);
+    },
+    // …
+});
+```
+
+Reminders are stored through [`ActorStorage`](/actors/docs/storage), fired by the host's
+scheduler, and they **re-activate an idle or restarted actor**. That is the capability a
+stateless function has nowhere to put.
+
+The contract, stated precisely:
+
+- **Minimum period 60 seconds.** Reminders are not a scheduler for sub-minute work; use a
+  timer or a [task](/actors/docs/tasks).
+- **Coarse resolution** — "at or after `nextDue`", checked every `reminderTickMs` (default
+  30s). Not a cron guarantee.
+- **At-most-once per tick.** A reminder is a wake-up, not a queue. If the work must not be
+  lost, make it idempotent or record progress in state.
+
+## Choosing
+
+| Want | Use |
+|---|---|
+| A tick while the actor is busy anyway | `ctx.timer` |
+| To wake up in an hour, even after a deploy | `ctx.reminders` |
+| Sub-second precision | neither — drive it from the caller |
+| Something that must run exactly once | a [job](/actors/docs/jobs) |
+
+## Pluggable backends
+
+`ActorReminders` is a seam. The default rides your storage through `shardedReminders()`, and
+providers replace it:
+
+- [`pgReminders()`](/actors/packages/actors-pg/overview) — a due-time-indexed table claimed
+  with `SKIP LOCKED`, at-most-once, no catch-up bursts.
+- [`durableObjectReminders()`](/actors/packages/actors-cloudflare/overview) — the Durable
+  Object alarm. Semantics differ visibly here: an alarm fires **at** the due time, where
+  `shardedReminders()` promises only "at or after".
+
+The clock itself is a seam too — `ActorScheduler`, with `timerScheduler()` in production and
+`manualScheduler()` for tests, so you can advance time deterministically instead of sleeping.
+
+## Cron-shaped work
+
+There is no cron API, deliberately. The pattern is an actor per schedule that re-arms a
+one-shot reminder from inside `onReminder` — written up in `docs/job-recipes.md` in the actors
+repo, along with a singleton queue-worker and the Cloudflare caveats.
+
+## Next steps
+
+- [Lifecycle](/actors/docs/lifecycle) — what keeps an actor alive.
+- [Tasks](/actors/docs/tasks) — long-running work inside an activation.
+- [Jobs](/actors/docs/jobs) — durable, resumable, observable work.

@@ -1,0 +1,78 @@
+---
+title: Errors
+description: "The actor error kinds — deadlock, activation, state conflict, wrong host, unreachable, timeout — and what each one means you should do"
+layout: docs
+category: Core concepts
+order: 150
+---
+
+# Errors
+
+<p class="lede">Actor errors are branded and narrow on a `kind`, so you can tell "the caller
+did something wrong" from "the cluster is having a moment" without string matching.</p>
+
+```ts
+import { isActorError } from '@sigx/actors';
+
+try {
+    await actor(CartActor, id).checkout();
+} catch (err) {
+    if (isActorError(err) && err.kind === 'state-conflict') {
+        // retry — another activation won a race and this one is stale
+    }
+}
+```
+
+## The kinds
+
+| Error | `kind` | What it means | What to do |
+|---|---|---|---|
+| `ActorDeadlockError` | `deadlock` | A call cycle re-entered a non-reentrant actor. Carries the full chain. | Fix the cycle, or widen with [`reentrant`](/actors/docs/reentrancy). Not retryable. |
+| `ActorActivationError` | `activation` | `onActivate` or [`migrateState`](/actors/docs/state-and-persistence) threw. | A bug or corrupt state. The stored record is untouched. |
+| `ActorStateConflictError` | `state-conflict` | An etag CAS lost — another activation wrote first. | The stale activation is faulted; the next call reloads. Usually retry once. |
+| `ActorMethodNotFoundError` | `method-not-found` | No such **own key** in `methods:`/`streams:`. | Check the callable surface — a class instance is the usual cause. |
+| `ActorCallTimeoutError` | `call-timeout` | The call exceeded `callTimeoutMs`. | See the precision note below. |
+| `ActorWrongHostError` | `wrong-host` | The actor is placed on another host. | Normally handled for you by proxy or redirect. See [Locality routing](/actors/docs/locality-routing). |
+| `ActorUnreachableError` | `unreachable` | The owning host could not be reached. | Transient — a peer is down, restarting or partitioned. Retryable. |
+| `ActorStorageConflict` | — | Raised by an `ActorStorage` implementation on an etag mismatch. | Surfaces as `state-conflict`. `isStorageConflict()` narrows it. |
+| `HostShutdownError` | `host-shutdown` | The host is draining. | Retry against the cluster, or let the client follow. |
+
+`isActorError(err)` narrows to `ActorError`; `err.kind` is `ActorErrorKind`. On a
+`wrong-host`, the error carries an `ActorOwnerHint`.
+
+## Deadlocks are immediate, on purpose
+
+```
+ActorDeadlockError: Cart/user-42 → Pricing/eu → Cart/user-42
+```
+
+Every call carries its chain, so the cycle is detected at the moment it would block rather
+than surfacing as a timeout later. The alternative — a hang that resolves into
+`ActorCallTimeoutError` thirty seconds on — tells you almost nothing about the cause.
+
+## Call deadlines fire coarsely
+
+Deadlines **10 seconds or more** away, which includes the 30-second default, share a
+one-second registry tick and may fire up to about **two seconds late**. They never fire early.
+Short budgets keep exact per-call timers.
+
+If you are setting a deadline to bound user-visible latency, this is the contract to design
+against: a 30-second budget is "about 30 seconds", not a hard fence. Set `callTimeoutMs: 0` to
+disable deadlines entirely.
+
+## Errors on the wire
+
+An actor endpoint is a synthesized server function, so error handling is core's: an
+`ActorError` crossing the wire carries its `kind` and status, and production masking applies
+exactly as it does for `ServerFnError`. A guard rejection answers with the status the guard
+threw.
+
+For [live subscriptions](/actors/docs/live-reads), failure is **per subscription** — a guard
+rejecting one widget produces an error frame at that index and the rest of the feed keeps
+streaming.
+
+## Next steps
+
+- [The actor model](/actors/docs/actor-model) — where deadlock detection comes from.
+- [State & persistence](/actors/docs/state-and-persistence) — conflicts in context.
+- [Metrics](/actors/docs/metrics) — `errors.byKind`, and why conflicts deserve an alert.

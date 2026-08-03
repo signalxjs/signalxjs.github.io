@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import { sigxPlugin } from '@sigx/vite';
 import { ssgPlugin } from '@sigx/ssg/vite';
+import { remarkMermaid } from '@sigx/mermaid/ssg';
 import { monacoPrebundledPlugin } from '@sigx/monaco-editor/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'path';
@@ -62,8 +63,20 @@ const daisyuiDevTailwindSource = (): Plugin | null =>
           }
         : null;
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
     base: BASE_PATH,
+    /**
+     * Unreleased docs areas (currently `/actors/`) are navigable in `pnpm dev`
+     * and absent from anything built. `command` is the reliable signal:
+     * 'serve' for the dev server, 'build' for every build.
+     *
+     * `import.meta.env.DEV` is NOT usable here — it is true during the SSG's
+     * prerender step, so gating on it renders the area into the static HTML
+     * that ships. See SHOW_ACTORS in src/lib/family.ts.
+     */
+    define: {
+        __SIGX_SHOW_UNRELEASED__: JSON.stringify(command === 'serve'),
+    },
     build: {
         // LightningCSS (the default CSS minifier) doesn't support @scope yet
         // and silently DROPS the whole rule — which would strip the prose
@@ -78,7 +91,18 @@ export default defineConfig({
         // The Shiki transformer's options come from ssgPlugin() args (not
         // ssg.config.ts's markdown.shiki, which only feeds the runtime).
         // triggerLabel sets the live-code "Try Live" button to the v2 "⚡ Run".
-        ssgPlugin({ markdown: { shiki: { triggerLabel: '⚡ Run' } } }),
+        //
+        // `remarkMermaid` claims the ```mermaid fence at the mdast stage, before
+        // the highlighter sees the tree — so it needs no `skipLanguages` and no
+        // build-only guard, and diagrams render in dev as well as in a build.
+        // (@sigx/mermaid 0.2.0; the 0.1.0 rehype plugin ran after highlighting
+        // and broke MDX site-wide in dev — signalxjs/mermaid#14.)
+        ssgPlugin({
+            markdown: {
+                shiki: { triggerLabel: '⚡ Run' },
+                remarkPlugins: [remarkMermaid],
+            },
+        }),
         monacoPrebundledPlugin({
             strategy: MONACO_STRATEGY,
             publicPath: `${BASE_PATH}monaco-bundle`,
@@ -108,5 +132,19 @@ export default defineConfig({
     // watch them directly and fire HMR instead of serving a cached optimized dep.
     optimizeDeps: {
         exclude: daisyuiSrc ? ['@sigx/daisyui'] : [],
+        // `@sigx/live-code/client` is in ssg.config.ts `clientImports`, so it
+        // loads on every page, and it pulls sucrase → @jridgewell/gen-mapping
+        // → trace-mapping → resolve-uri. resolve-uri's "browser" export
+        // condition points at a UMD build with no ESM `default`, so serving it
+        // unbundled throws before any page renders. Forcing it through
+        // prebundling converts it to real ESM.
+        // `mermaid` is lazy-loaded, so Vite's scanner never reaches it, and its
+        // `dayjs` dependency resolves to a UMD build with no ESM `default`.
+        // Naming it here lets prebundling convert it. Dev-only; a production
+        // build bundles it correctly either way.
+        //
+        // pnpm does not hoist, so `sucrase` — reached only through
+        // `@sigx/live-code` — needs the nested "parent > child" form.
+        include: ['@sigx/live-code > sucrase', 'mermaid'],
     },
-});
+}));

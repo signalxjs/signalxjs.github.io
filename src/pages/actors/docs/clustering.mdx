@@ -1,0 +1,127 @@
+---
+title: Clustering
+description: "The cluster() plugin — membership, the actor directory, and the shutdown sequence that keeps a rolling restart from resetting connections"
+layout: docs
+category: Clustering
+order: 500
+---
+
+# Clustering
+
+<p class="lede">Many hosts, one actor system. The single-activation guarantee still holds
+across the fleet — that is what the directory is for.</p>
+
+```ts
+import { defineActorApp } from '@sigx/actors/host';
+import { cluster } from '@sigx/actors/cluster';
+import { redisCluster } from '@sigx/actors-redis';
+
+export const app = defineActorApp({ actors, storage }).use(
+    cluster({
+        providers: redisCluster({ url: process.env.REDIS_URL }), // membership + directory
+        advertise: 'http://10.0.4.7:7311',   // this host's peer-reachable origin
+        secret: process.env.HOST_SECRET,     // declared ONCE
+    }),
+);
+```
+
+## The two providers
+
+**Membership** answers "which hosts are alive?" — a heartbeat plus a view of peers. Fencing
+falls out of it: a host that cannot renew its heartbeat past `ttlMs` refuses every activation.
+
+**The directory** answers "which host owns this actor?" — the claim that makes single
+activation true cluster-wide.
+
+They are independent choices. [Redis](/actors/packages/actors-redis/overview) and
+[Postgres](/actors/packages/actors-pg/overview) provide both;
+[Kubernetes](/actors/packages/actors-k8s/overview) provides membership only, on Leases you are
+already running, and pairs with either directory:
+
+```ts
+cluster({
+    providers: { membership: k8sMembership(), directory: redisDirectory(client) },
+    advertise,
+});
+```
+
+## One handler, both mounts
+
+The plugin contributes the internal host-to-host mount as a **route**, so `secret` and
+`internalBase` are stated once instead of repeated at the endpoint, and any adapter that
+mounts `app.routes` picks up host-to-host traffic automatically.
+
+```ts
+const handler = createAppHandler(app);   // public endpoint AND internal route
+
+let stopping = false;
+const server = createServer((req, res) => {
+    if (stopping) res.setHeader('connection', 'close');
+    handler(req, res);
+});
+
+// Listen BEFORE starting: app.start() joins membership, and from that moment
+// peers may place actors here and call them. Bind first and there is no
+// window where this host is routable but nothing is listening.
+await new Promise<void>((resolve) => server.listen(7311, resolve));
+const host = await app.start();
+
+attachSignalHandlers(host, { server, onStopBegin: () => (stopping = true) });
+```
+
+## Shutdown: pass the server, not just the host
+
+Stopping the actors is only half a graceful shutdown. An orchestrator's preStop sleep and
+readiness-503 steer *new* connections away, but connections already established survive
+endpoint removal — conntrack — and ride into the exiting pod, where they are reset when the
+process exits.
+
+On a real cluster that measured as **122 lost calls out of ~1.7M** on a rolling restart. All
+connection-level, none of them visible from the actor layer, which reported a clean hand-off.
+
+The sequence is deliberately not the obvious one:
+
+1. **`onStopBegin()`** — start answering `connection: close`. This is what actually drains the
+   pools, one response at a time, interrupting nothing.
+2. **`host.stop()`** — the actor drain. Pooled connections keep flowing; peers whose dials are
+   refused see `unreachable`, which is retryable by design.
+3. **`server.close()` + `closeAllConnections()`** — **last**.
+
+> Closing the listener first looks more decisive and is worse. On Node ≥ 19, `close()` also
+> destroys idle connections, and "idle" from the server's side includes a socket the client is
+> at that instant writing its next request onto — producing exactly the reset the sequence
+> exists to prevent.
+
+## Options
+
+| Option | Default | Notes |
+|---|---|---|
+| `providers` | — | membership + directory |
+| `advertise` | — | this host's **internal** peer-reachable origin |
+| `publicAddress` | — | where *clients* reach this host; never guessed — see [Locality routing](/actors/docs/locality-routing) |
+| `secret` | — | HMAC for the host-to-host mount |
+| `internalBase` | `/_sigx/host` | where that mount lives |
+| `transport` | `httpTransport()` | see [Transports](/actors/docs/transports) |
+| `policy` / `typePolicies` | random | see [Placement policies](/actors/docs/placement-policies) |
+| `rebalance` | off | see [Rebalancing](/actors/docs/rebalancing) |
+| `retries` / `retryBackoffMs` | 3 / 100ms | |
+
+`fetch` and `endpoint` remain as sugar for exactly those two `httpTransport()` options, and
+passing either *alongside* an explicit `transport` throws.
+
+## What clustering does not change
+
+Your actor code. Nothing in a definition knows whether it is running on one host or fifty —
+placement, the directory and the transport are all host concerns.
+
+Two things are worth knowing anyway: a
+[live subscription](/actors/docs/live-reads) is never routed or redirected, so it keeps paying
+the cross-host hop; and [stateless workers](/actors/docs/stateless-workers) are always local
+and invisible to the directory entirely.
+
+## Next steps
+
+- [Placement policies](/actors/docs/placement-policies) — where new activations go.
+- [Transports](/actors/docs/transports) — how hosts talk, and which to pick.
+- [Locality routing](/actors/docs/locality-routing) — getting the edge to help.
+- [Rebalancing](/actors/docs/rebalancing) — correcting a lumpy fleet.

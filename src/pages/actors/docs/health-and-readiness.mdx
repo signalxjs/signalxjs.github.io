@@ -1,0 +1,104 @@
+---
+title: Health & readiness
+description: "health() — why liveness and readiness are allowed to disagree, the fenced state, and the fatal flag that forces a restart"
+layout: docs
+category: Operations
+order: 610
+---
+
+# Health & readiness
+
+<p class="lede">Two probes, and the important thing about them is that they are **allowed to
+disagree**.</p>
+
+```ts
+import { health } from '@sigx/actors/host';
+
+export const app = defineActorApp({ actors, storage })
+    .use(cluster({ providers, advertise, secret }))
+    .use(health());
+```
+
+| Route | Answers |
+|---|---|
+| `GET /_sigx/health` | liveness — is this process alive? |
+| `GET /_sigx/health/ready` | readiness — should it receive traffic? |
+
+## The three states
+
+| State | Liveness | Readiness | What to do |
+|---|---|---|---|
+| **active** | 200 | 200 | normal |
+| **leaving / draining** | 200 | 503 | drain it; **do not restart** |
+| **fenced** | 503 `{status:'fatal'}` | 503 | restart the pod |
+
+A graceful `host.stop()` announces `leaving` before handoff — it is alive and finishing work,
+so restarting it is exactly wrong.
+
+**The fenced state is the one nothing else catches.** A host that loses its membership
+heartbeat refuses every activation while its *published* status still says `active`. Only
+readiness sees it.
+
+## `fatal` forces a restart
+
+A readiness check can declare the process unrecoverable:
+
+```ts
+registry.reportHealth('membership', () => ({ ready: false, fatal: true, detail: 'fenced' }));
+```
+
+`fatal` implies not-ready, and the **liveness** route then answers `503 {status:'fatal'}` so
+the orchestrator restarts the pod. `cluster()` marks `fenced` fatal for you.
+
+Why fenced must restart rather than recover: host identities are minted per start, and a
+cluster host id is gone once its membership entry is. The fence is permanent for the process.
+
+## The readiness seam
+
+```ts
+registry.reportHealth('db', () => ({ ready: await pingOk(), detail: 'primary' }));
+registry.health();   // the aggregate
+```
+
+Every check must pass. All of them are evaluated, so a failing probe names **every** reason
+rather than the first. A throwing check reads as not-ready rather than a 500 —
+a health endpoint that 500s is a second incident on top of the first.
+
+`cluster()` registers its own, which is why `health()` needs no wiring.
+
+## Before `start()`
+
+The whole mount answers 503, **including liveness**. Kubernetes therefore needs a
+`startupProbe`, or the liveness probe will kill the pod during a slow boot:
+
+```yaml
+startupProbe:
+  httpGet: { path: /_sigx/health, port: 7311 }
+  failureThreshold: 30
+  periodSeconds: 2
+livenessProbe:
+  httpGet: { path: /_sigx/health, port: 7311 }
+readinessProbe:
+  httpGet: { path: /_sigx/health/ready, port: 7311 }
+```
+
+## Probes cannot be authenticated
+
+A kubelet cannot sign the cluster HMAC, so these routes are unauthenticated by necessity —
+which is why they must be **internal-only**, and why they deliberately withhold `perType`
+detail.
+
+```ts
+health({ detail: false });   // reduce the body to the status code
+```
+
+The asymmetry is the design: `health()` answers *may I take traffic?* in a **status code** and
+cannot be authenticated. [`ops()`](/actors/docs/ops-endpoint) answers *what is going on in
+here?* in a **body**, is authenticated, and may therefore carry actor type names and cluster
+topology.
+
+## Next steps
+
+- [The ops endpoint](/actors/docs/ops-endpoint) — the authenticated half.
+- [Kubernetes](/actors/docs/kubernetes) — the full manifest.
+- [Clustering](/actors/docs/clustering) — draining and handoff.

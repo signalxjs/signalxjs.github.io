@@ -74,6 +74,13 @@ export const ModuleCatalog = component<ModuleCatalogProps>(({ props, signal }) =
                             no adapter package at all — see the{' '}
                             <SxLink to="/deploy/docs/overview">Deploying guide</SxLink>.
                         </p>
+                    ) : props.parent === 'actors' ? (
+                        <p>
+                            <code class="inline">@sigx/actors</code> is the whole runtime — everything
+                            below is optional. Add a provider when one process stops being enough, a
+                            transport when connection count starts to hurt, and the tooling when you
+                            need to see inside a running cluster.
+                        </p>
                     ) : props.parent === 'terminal' ? (
                         <p>
                             Everything in the terminal repo — the <code class="inline">@sigx/terminal</code>{' '}

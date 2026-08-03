@@ -20,6 +20,13 @@ fetch wrappers to hand-write, no request/response DTOs to keep in sync.
 > way running components read and write server-side data. They compose, but you
 > can use either on its own.
 
+> **Need identity, ordering or memory between calls?** A server function is
+> stateless by design. [`@sigx/actors`](/actors/) builds on this package —
+> an actor call *is* a synthesized server function, inheriting these guards, this
+> codec and this origin policy — and adds an addressable object that handles one
+> call at a time and keeps its state.
+> [Which to use](/actors/docs/actors-or-server-functions) is a short read.
+
 ```ts
 // src/cart.server.ts — a server-only module
 import { serverFn, ServerFnError } from '@sigx/server';

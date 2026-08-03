@@ -1,0 +1,84 @@
+---
+title: The ops endpoint
+description: "ops() — the authenticated view inside a running host, the reportOps seam, and why the secret is mandatory"
+layout: docs
+category: Operations
+order: 620
+---
+
+# The ops endpoint
+
+<p class="lede">`health()` answers *may I take traffic?* in a status code. `ops()` answers
+*what is going on in here?* in a body — which is why it is authenticated and that one is
+not.</p>
+
+```ts
+import { ops } from '@sigx/actors/host';
+import { clusterStats } from '@sigx/actors/cluster';
+
+export const app = defineActorApp({ actors, storage })
+    .use(metrics())
+    .use(health())
+    .use(ops({
+        secret: process.env.SIGX_OPS_SECRET,
+        cluster: (signal) => clusterStats(placement, { signal }),
+    }));
+```
+
+| Route | Returns |
+|---|---|
+| `GET /_sigx/ops` | `OpsSnapshot` — `{ v, at, uptimeMs, stats, health, ops }` |
+| `GET /_sigx/ops/cluster` | a [`clusterStats()`](/actors/docs/cluster-stats) fan-out; 404 when unwired |
+
+## The secret is mandatory
+
+`ops()` throws at construction without one outside `__DEV__`.
+
+> An ops endpoint that is unauthenticated by omission publishes your deployment, and nothing
+> in the response says so. Actor type names, cluster topology and — if you ask for them —
+> actor keys.
+
+`SIGX_OPS_SECRET` is the conventional way to supply it, and it is what the
+[CLI](/actors/packages/actors-cli/overview) reads.
+
+## Why the cluster fan-out is a thunk
+
+`ops()` lives in `@sigx/actors/host` and `clusterStats` in `@sigx/actors/cluster`. Passing the
+call as a thunk keeps the cluster bundle out of a single-node host that will never use it:
+
+```ts
+ops({ secret, cluster: (signal) => clusterStats(placement, { signal }) });
+```
+
+`ops({ cluster })` also takes an optional second argument — the parsed query — so
+`GET /_sigx/ops/cluster?detail=1&activations=20&host=<id>` reaches through. The one-argument
+form still works.
+
+## Contributing a section
+
+```ts
+registry.reportOps('queue', () => ({ depth: queue.length, oldestMs: queue.oldestAge() }));
+registry.ops();   // the aggregate
+```
+
+Providers run **per read** and must stay **synchronous**. Names must be unique. A throwing
+provider costs only its own section, which comes back as `{ error }` — one broken provider
+never takes down the endpoint.
+
+`reportDigest(name, (options?) => …)` is the mergeable sibling, used by
+[cluster stats](/actors/docs/cluster-stats) to fold metrics across hosts.
+
+## Actor keys are off by default
+
+The activation list is not in the default response, and requested limits are clamped by the
+responder rather than trusted from the query.
+
+> Actor keys can be personal data — a user id, an email, an order number. Turning the list on
+> is a deliberate act, over an authenticated channel, and it is worth knowing what your keys
+> contain before you do.
+
+## Next steps
+
+- [Cluster stats](/actors/docs/cluster-stats) — the fleet-wide view.
+- [The CLI](/actors/packages/actors-cli/overview) — a terminal dashboard over this endpoint.
+- [Observability](/actors/docs/observability) — Prometheus alongside it.

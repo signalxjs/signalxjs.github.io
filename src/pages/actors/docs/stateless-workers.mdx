@@ -1,0 +1,91 @@
+---
+title: Stateless workers
+description: "defineWorker — interchangeable activations for pure compute, always local, with the identity-bound surface structurally removed"
+layout: docs
+category: Actor features
+order: 350
+---
+
+# Stateless workers
+
+<p class="lede">Everything else here assumes an actor *is* somebody — one identity, one
+activation, turns in order. Pure compute has none of that, so serializing it behind one
+<a href="/actors/docs/turns">turn sequence</a> is a bottleneck the semantics never asked for.</p>
+
+```ts
+import { defineWorker } from '@sigx/actors';
+
+export const Resize = defineWorker({
+    type: 'Resize',
+    use: [requireUser],
+    maxLocal: 8,             // pool cap; default: hardwareConcurrency (≤16)
+    methods: () => ({
+        async run(image: Uint8Array, width: number) {
+            return transform(image, width);
+        },
+    }),
+});
+
+await actor(Resize, 'any').run(img, 800);   // callers look exactly the same
+```
+
+## The contract
+
+**Two calls to the same key may run concurrently, on different pool members.** The host keeps
+up to `maxLocal` activations per `(type, key)`, spun up under load, and each dispatch rides the
+member with the fewest queued turns. `ctx.key` is still the key the caller addressed — it just
+no longer names a single runner.
+
+**Always local, zero directory traffic.** A worker activates on whichever host — or Cloudflare
+isolate — received the call. No directory claim, no lookup, no routing, no `421` redirect, and
+nothing for a cluster to fence, migrate or rebalance. Both invariants are gated in CI:
+`directory_ops == 0`, pool ≤ cap.
+
+**No identity, so no identity-bound surface.** `state`, `persistence`, `reminders`, `tasks:`,
+`subscriptions:`, `placement` and `reentrant` do not exist on `WorkerOptions` — passing one is
+a compile error. `ctx.state`, `ctx.save()` and friends are typed away by `WorkerContext` and
+throw if reached through a cast.
+
+## What remains
+
+- **Guards** — `use` / `methodUse` / `unguarded`, the same build gate.
+- **[`reads:`](/actors/docs/cacheable-reads)** — a pure read is the ideal cacheable `GET`.
+- **[`streams:`](/actors/docs/streams)** — pure generators; an open stream pins its member
+  against the sweep.
+- **`onActivate` / `onDeactivate`** for per-member warm-up and teardown. Load a model once per
+  member, close it on the way out.
+- **`ctx.timer`, `ctx.actor`, `ctx.publish`.**
+
+Pool members idle-collect individually after `idleAfterMs`, so a quiet worker shrinks back to
+zero footprint.
+
+## Two sharp edges
+
+**A same-key self-call is a deadlock, deterministically.** `reentrant` does not exist for
+workers, so `ctx.actor(Self, ctx.key)` throws
+[`ActorDeadlockError`](/actors/docs/errors) rather than working only when the pool happens to
+have a free member. A *different* key is a different pool and is fine.
+
+**Watches are refused.** A watch is a state-change feed and a worker has no state.
+
+## Where they live
+
+Workers live in `*.actor.ts` files like every other definition — **not** `*.worker.ts`, which
+belongs to Vite's Web Worker convention. The build swaps them for the same wire client, so a
+browser can call one directly.
+
+In an app, `app.defineWorker` is the plugin-typed twin of `app.defineActor`.
+
+## When to reach for one
+
+Validation, image or document transformation, parsing, embedding generation, fan-out helpers —
+anything where the answer depends only on the arguments.
+
+If two calls about the same key would ever want to see each other's effects, you want an
+[actor](/actors/docs/actor-model), not a worker.
+
+## Next steps
+
+- [The actor model](/actors/docs/actor-model) — the identity a worker gives up.
+- [Cacheable reads](/actors/docs/cacheable-reads) — a natural fit for pure compute.
+- [Clustering](/actors/docs/clustering) — why workers need none of it.

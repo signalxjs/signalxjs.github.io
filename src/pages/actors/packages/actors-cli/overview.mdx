@@ -1,0 +1,73 @@
+---
+title: "Overview"
+description: "sigx actors — a terminal dashboard for hosts, actors, latency, errors and cluster topology"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# CLI
+
+<p class="lede">A <a href="/cli/docs/plugins">sigx CLI</a> plugin for observing actors: hosts,
+latency, errors and cluster topology, from a terminal.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/actors-cli" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add -D @sigx/actors-cli
+```
+
+```sh
+sigx actors                                        # the dashboard
+sigx actors top --url http://host:3000             # …against a running host
+sigx actors stats --json | jq '.cluster.totals'    # a snapshot, for piping
+sigx actors health --url http://host:3000          # exit code by readiness
+```
+
+Requires `@sigx/cli` ≥ 0.9 and `@sigx/terminal` ≥ 0.11. On older versions the plugin's version
+guard warns and the dashboard never learns its pane size.
+
+## Two ways to reach a host
+
+**Embedded** (the default) loads your project's actor app module in-process and reads it
+directly. Zero config, no secret, and it sees strictly more than the wire can — full latency
+histograms, the whole activation list, the cluster placement itself.
+
+> **It also starts a host.** That host is real: it joins membership, claims actors and ticks
+> reminders. Fine pointed at a dev app, **wrong pointed at production**.
+
+**HTTP** (`--url`) polls a running host's [`ops()`](/actors/docs/ops-endpoint) endpoint. It
+loads no user code and holds no host, so it is the mode for anything you did not just start
+yourself. `--url` wins over a local module.
+
+## Why the commands might not be there
+
+The `sigx` binary discovers plugins from the **dependencies of the project you run it in**. It
+reads `./package.json`, looks for a `sigx-cli` field in each dependency's manifest, and calls
+the plugin's `detect(cwd)`. Two things must be true in that directory:
+
+1. `@sigx/actors-cli` is in its `dependencies` or `devDependencies`;
+2. it depends on `@sigx/actors` — that is what `detect` looks for.
+
+```
+$ sigx actors top
+error: Unknown command 'actors'
+```
+
+That is not a broken install. It is the CLI correctly declining to offer actor commands in a
+project that has no actors — `sigx --help` lists what it did find. Run it from the package
+that owns the host, or in a monorepo:
+
+```sh
+pnpm --filter my-app exec sigx actors top
+```
+
+## Next steps
+
+- [Installation](/actors/packages/actors-cli/installation) — flags, exit codes and the app-module convention.
+- [API reference](/actors/packages/actors-cli/api) — the `/source` data layer.
+- [The ops endpoint](/actors/docs/ops-endpoint) — what HTTP mode reads.

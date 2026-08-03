@@ -20,7 +20,27 @@
 import type { PackageStatus } from './family';
 import { VERSIONS } from './versions.generated.ts';
 
-export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy';
+export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy' | 'actors';
+
+/**
+ * Release gate for the actors line. `false` keeps `/actors/` off every PUBLIC
+ * surface while the packages are unpublished; the pages themselves carry
+ * `draft: true`, which makes the SSG drop them from the build entirely.
+ *
+ * Drafts alone are not enough: a registry row still renders tiles in the
+ * mega-menu, home grid and ⌘K palette, linking to pages production never
+ * emitted. So the public enumerations read `PUBLIC_PACKAGES` (lib/family.ts)
+ * and the llms.txt sections are gated on this flag (ssg.config.ts).
+ *
+ * Dev ignores this flag — see SHOW_ACTORS in lib/family.ts. Writing an
+ * unreleased area should feel like writing any other, and dev should show the
+ * layout as it will ship, including `server` sitting beside `actors` in the
+ * backend group. Only production hides it.
+ *
+ * On publish day: flip to `true` and strip `draft: true` from
+ * src/pages/actors/**. The `server` category move follows automatically.
+ */
+export const ACTORS_RELEASED = true;
 
 export interface SigxModule {
     /** Stable id — also the route segment and collection infix. */
@@ -77,6 +97,13 @@ export const MODULE_CATEGORIES: Record<ModuleParent, { id: string; label: string
     ],
     deploy: [
         { id: 'adapters', label: 'Platform adapters' },
+    ],
+    actors: [
+        { id: 'runtime', label: 'Runtime' },
+        { id: 'providers', label: 'Storage & membership' },
+        { id: 'transports', label: 'Host transports' },
+        { id: 'platforms', label: 'Platform backends' },
+        { id: 'tooling', label: 'Tooling & observability' },
     ],
 };
 
@@ -432,6 +459,48 @@ const RAW_MODULES: SigxModule[] = [
       hue: 180, glyph: '⟡', status: 'stable', version: '0.14.0', role: 'Functions',
       tag: 'Frameworks API function generation',
       blurb: 'Emits the .netlify/v1/functions/sigx-ssr catch-all function with preferStatic routing — CDN files win, the raw outlet template stays off "/", and netlify.toml stays yours. Deploy with netlify deploy --prod.' },
+
+    // ============ Actors (@sigx/actors*) — lockstep-versioned ============
+    // actors is a collection like terminal: signalxjs/actors publishes all nine
+    // in lockstep, and `@sigx/actors` is a real umbrella you install. The eight
+    // satellites are all OPTIONAL — each one peer-depends on `@sigx/actors` and
+    // adds a backend, a transport or a tool. A single-node app needs none of them.
+    { id: 'actors', parent: 'actors', npm: '@sigx/actors', name: 'Actors', category: 'runtime',
+      hue: 116, glyph: '⬡', status: 'experimental', version: '0.1.0', role: 'Umbrella', aliasFor: 'actors',
+      tag: 'The actor runtime',
+      blurb: 'The package you install — actor definitions, the host, the client proxy, the Vite plugin, jobs and clustering under one @sigx/actors entry with eleven subpath exports.' },
+    { id: 'actors-redis', parent: 'actors', npm: '@sigx/actors-redis', name: 'Redis', category: 'providers',
+      hue: 25, glyph: '◆', status: 'experimental', version: '0.1.0', role: 'Redis',
+      tag: 'Membership, directory & storage on Redis',
+      blurb: 'The usual first step out of one process — host membership, the distributed actor directory and etag-CAS actor storage, all on one ioredis client. Requires Redis 7 for SET NX GET.' },
+    { id: 'actors-pg', parent: 'actors', npm: '@sigx/actors-pg', name: 'Postgres', category: 'providers',
+      hue: 230, glyph: '⬢', status: 'experimental', version: '0.1.0', role: 'Postgres',
+      tag: 'Membership, directory, storage & reminders on Postgres',
+      blurb: 'The whole cluster on the database you already run — jsonb storage with etag compare-and-set, database-clock membership, the directory, and durable reminders claimed with SKIP LOCKED. Ships its DDL; never issues it for you.' },
+    { id: 'actors-k8s', parent: 'actors', npm: '@sigx/actors-k8s', name: 'Kubernetes', category: 'providers',
+      hue: 255, glyph: '⎈', status: 'experimental', version: '0.1.0', role: 'Kubernetes',
+      tag: 'Host liveness on coordination.k8s.io Leases',
+      blurb: 'Membership with no extra store — one Lease per host, renewed as a heartbeat and watched by label selector, so the cluster you are already running is the membership provider. Pairs with a Redis or Postgres directory.' },
+    { id: 'actors-tcp', parent: 'actors', npm: '@sigx/actors-tcp', name: 'TCP', category: 'transports',
+      hue: 180, glyph: '⇄', status: 'experimental', version: '0.1.0', role: 'TCP',
+      tag: 'Framed, multiplexed host-to-host TCP',
+      blurb: 'One connection per peer instead of one per in-flight request. Node-only by design, so the cluster core stays WinterCG-clean — reach for it when socket count is the pain, not when you want raw speed.' },
+    { id: 'actors-ws', parent: 'actors', npm: '@sigx/actors-ws', name: 'WebSocket', category: 'transports',
+      hue: 200, glyph: '⇌', status: 'experimental', version: '0.1.0', role: 'WebSocket',
+      tag: 'Host-to-host frames over the HTTP port',
+      blurb: 'The same frame codec as TCP, over one port your proxy already forwards. Attaches to your existing HTTP server as an upgrade handler — the one thing a contributed route cannot express.' },
+    { id: 'actors-cloudflare', parent: 'actors', npm: '@sigx/actors-cloudflare', name: 'Cloudflare', category: 'platforms',
+      hue: 55, glyph: '⊛', status: 'experimental', version: '0.1.0', role: 'Durable Objects',
+      tag: 'One Durable Object per actor',
+      blurb: 'Cloudflare already guarantees one instance of a Durable Object globally and serializes its requests — which is the virtual-actor contract. So there is no membership, no directory and no authenticated host mount: the platform is the cluster.' },
+    { id: 'actors-cli', parent: 'actors', npm: '@sigx/actors-cli', name: 'CLI', category: 'tooling',
+      hue: 264, glyph: '›', status: 'experimental', version: '0.1.0', role: 'Dashboard',
+      tag: 'sigx actors — a terminal dashboard',
+      blurb: 'A @sigx/cli plugin: sigx actors top, stats and health. Reads a running host over its ops endpoint, or loads your app module in-process for zero-config local use.' },
+    { id: 'actors-otel', parent: 'actors', npm: '@sigx/actors-otel', name: 'OpenTelemetry', category: 'tooling',
+      hue: 300, glyph: '⌁', status: 'experimental', version: '0.1.0', role: 'Exporters',
+      tag: 'Prometheus exposition & OTel traces',
+      blurb: 'Scrape-ready Prometheus text on an OTel-free entry, plus spans that join across hosts through the propagated traceparent. Labels are type and method — never actor keys.' },
 ];
 
 /** Registry with live npm versions overlaid (falls back to the literal). */
@@ -543,6 +612,7 @@ export const moduleRoutePrefix = (m: SigxModule): string =>
         : m.parent === 'server' ? `/server/packages/${m.id}`
         : m.parent === 'terminal' ? `/terminal/packages/${m.id}`
         : m.parent === 'deploy' ? `/deploy/packages/${m.id}`
+        : m.parent === 'actors' ? `/actors/packages/${m.id}`
         : `/core/packages/${m.id}`;
 
 /**
@@ -558,4 +628,5 @@ export const moduleDocsCollection = (m: SigxModule): string | undefined =>
         : m.parent === 'server' ? `server-pkg-${m.id}-docs`
         : m.parent === 'terminal' ? `terminal-pkg-${m.id}-docs`
         : m.parent === 'deploy' ? `deploy-pkg-${m.id}-docs`
+        : m.parent === 'actors' ? `actors-pkg-${m.id}-docs`
         : `core-pkg-${m.id}-docs`;

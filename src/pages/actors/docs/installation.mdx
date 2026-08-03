@@ -1,0 +1,125 @@
+---
+title: Installation
+description: "Install @sigx/actors, add the Vite plugin, and write the app module that dev and production both load"
+layout: docs
+category: Getting Started
+order: 30
+---
+
+# Installation
+
+<p class="lede">One package, one Vite plugin, one app module. The plugin runs a dev host for
+you and mounts the endpoint; the app module is the single config that every runtime loads.</p>
+
+## Install
+
+```bash
+pnpm add @sigx/actors
+```
+
+That is the whole runtime. Backends, transports and tooling are
+[separate packages](/actors/packages) you add only when you need them.
+
+`@sigx/actors` peer-depends on sigx core **0.14 or later** — `@sigx/reactivity`,
+`@sigx/serialize` and [`@sigx/server`](/server/packages/server/overview), plus `@sigx/vite`
+and `@sigx/runtime-core` if you use them. It declares no runtime dependencies of its own.
+
+## Add the Vite plugin
+
+```ts
+// vite.config.ts
+import { sigxActors } from '@sigx/actors/vite';
+
+export default {
+    plugins: [sigxActors({ app: '/src/actors.app.ts' })],
+};
+```
+
+Actors live in **`*.actor.ts`** modules. The build swaps them wholesale for typed client
+stubs, so implementations never reach the browser — values are swapped, types are not, which
+is why the client proxy stays fully typed with no duplicate interface to maintain.
+
+`sigxActors({ app })` points dev at the same app module your production entry imports, so
+storage, placement, codec handlers, defaults and every plugin are identical in both. Before
+this existed, dev could not receive any of them.
+
+Add the virtual module's types once, next to your other Vite types:
+
+```ts
+// src/env.d.ts
+/// <reference types="@sigx/actors/vite-client" />
+```
+
+## Write the app module
+
+```ts
+// src/actors.app.ts — no `actors`, no virtual import
+import { defineActorApp } from '@sigx/actors/host';
+import { fileStorage } from '@sigx/actors/node';
+
+export const app = defineActorApp({
+    storage: fileStorage({ dir: '.actors' }),
+    defaults: { idleAfterMs: 60_000 },
+});
+
+/** Bound to this app's plugin set — import it from your actor modules. */
+export const { defineActor } = app;
+```
+
+Two things about this file are deliberate:
+
+**It leaves out its registry.** Because it imports nothing Vite-specific, it loads under any
+runtime — which is what lets a plain-Node entry share it, and what makes it safe for your
+actor modules to import the bound `defineActor` from it. Under Vite the plugin supplies the
+registry it already builds; anywhere else you name the actors yourself:
+
+```ts
+// server.mjs — the SAME app module
+const host = await app.withActors([Counter]).start();
+```
+
+`withActors` throws if the app already declared `actors`, so a host can never silently replace
+what the author configured.
+
+**You export `defineActor` from it, not from the package.** That is what carries your plugins'
+context extensions into `ctx` with types attached. See [The app](/actors/docs/the-app).
+
+> **Watch out under Vite:** if your storage `dir` sits inside the project root, add it to
+> `server.watch.ignored`. Saves are temp-file-then-rename, and the HMR file watcher races
+> them — you get an `ENOENT … .tmp` error overlay. Actor state is not source; it should
+> reload nothing.
+>
+> ```ts
+> server: { watch: { ignored: ['**/.actors/**'] } }
+> ```
+
+## Guards are required by default
+
+Core 0.14 turned on `requireGuards` for server functions, and an actor endpoint **is** a
+server function — so the rule applies here too. Every actor must either declare a `use:`
+chain, derive from a preset, or opt out explicitly:
+
+```ts
+defineActor({ type: 'Counter', unguarded: true, /* … */ });
+```
+
+The Vite plugin enforces this at build time (`requireGuards: true` by default, `'warn'` to
+soften it while migrating). It cannot see inside `node_modules`, so
+[actors shipped in a package](/actors/docs/shipping-actors-in-packages) are the author's
+responsibility. See [Guards](/actors/docs/guards).
+
+## Verify
+
+```bash
+pnpm dev
+```
+
+The plugin starts a dev host and mounts the endpoint at `/_sigx/actor`. Add an actor, call it
+from a component, and edit the actor file — HMR keeps working, because the plugin's loaders go
+through the module runner.
+
+## Next steps
+
+- [Your first actor](/actors/docs/your-first-actor) — a counter, end to end.
+- [The app](/actors/docs/the-app) — plugins, context extensions and lifecycle.
+- [Running a host on Node](/actors/docs/node) — the production entry.

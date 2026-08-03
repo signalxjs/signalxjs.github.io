@@ -30,7 +30,7 @@ const COLUMNS = [
 const App = component(() => {
     return () => (
         <DataTable
-            title="Silos"
+            title="Hosts"
             columns={COLUMNS}
             rows={hosts.value}
             identity={(r) => r.host}

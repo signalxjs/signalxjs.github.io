@@ -1,0 +1,65 @@
+---
+title: "API reference"
+description: "Exports of @sigx/actors-ws — wsTransport, attachHostUpgrade, the path and name constants and the shared frame codec"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/actors-ws` <PkgVersion npm="@sigx/actors-ws" />.</p>
+
+## `wsTransport(options)`
+
+Returns a `WsTransportHandle` — a callable `HostTransportFactory` that also carries `attach`.
+
+```ts
+interface WsTransportOptions {
+    advertiseUrl: () => string | Promise<string>;   // required
+    path?: string;             // '/_sigx/host-ws'
+    maxFrameBytes?: number;
+    credit?: number;
+    keepAliveMs?: number;
+    connect?: (url: string) => MinimalWebSocket;
+}
+```
+
+```ts
+// attach(server: Server, options?: { wss?: WebSocketServerLike }): Promise<() => void>
+
+const stop = await ws.attach(server);                       // usual case
+const stop = await ws.attach(server, { wss: myWsServer });   // reuse your own
+```
+
+## `attachHostUpgrade(server, { transport, wss? })`
+
+The standalone form, for when you already hold a transport instance rather than letting
+`cluster()` build one.
+
+## Constants
+
+| Export | Value |
+|---|---|
+| `WS_TRANSPORT_NAME` | `'ws'` — the key under `HostDescriptor.addresses` |
+| `DEFAULT_WS_PATH` | `/_sigx/host-ws` |
+
+## Types
+
+`WsHostTransport`, `UpgradeOptions`, `WebSocketServerLike`, `MinimalWebSocket`.
+
+`webSocketLink` is exported for transport authors wiring the client half by hand.
+
+## Re-exported frame codec
+
+`DEFAULT_CREDIT`, `DEFAULT_MAX_FRAME_BYTES` — shared with
+[`@sigx/actors-tcp`](/actors/packages/actors-tcp/overview), and also available from
+`@sigx/actors/cluster/frames`.
+
+## Next steps
+
+- [Overview](/actors/packages/actors-ws/overview) — why this over TCP.
+- [Installation](/actors/packages/actors-ws/installation) — mounting and `advertiseUrl`.
+- [Host transports](/actors/docs/transports) — the comparison.

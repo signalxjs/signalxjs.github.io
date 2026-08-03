@@ -1,0 +1,101 @@
+---
+title: Observability
+description: "Prometheus exposition and OpenTelemetry traces via @sigx/actors-otel — the cardinality rule and the reset caveat"
+layout: docs
+category: Operations
+order: 640
+---
+
+# Observability
+
+<p class="lede">[`@sigx/actors-otel`](/actors/packages/actors-otel/overview) turns the host's
+own metrics into something your monitoring stack already speaks — without making OpenTelemetry
+a dependency of anything that does not want it.</p>
+
+```bash
+pnpm add @sigx/actors-otel
+```
+
+## Prometheus
+
+The `/prometheus` entry imports **no OpenTelemetry at all**:
+
+```ts
+import { prometheusOps } from '@sigx/actors-otel/prometheus';
+
+app.use(metrics()).use(prometheusOps({ secret: process.env.SIGX_OPS_SECRET }));
+```
+
+Mounts `GET /_sigx/metrics` beside [`ops()`](/actors/docs/ops-endpoint), with the same bearer
+posture — **the secret is mandatory outside dev**.
+
+```yaml
+scrape_configs:
+  - job_name: sigx-actors
+    metrics_path: /_sigx/metrics
+    authorization: { credentials_file: /etc/prometheus/sigx-ops-secret }
+    static_configs: [{ targets: ['actors-host:7311'] }]
+```
+
+Options: `path` (default `/_sigx/metrics`), `secret`, `prefix` (default `sigx_actors_`), and
+`bucketsSeconds` — a per-octave grid from 1µs to ~134s, about 28 bounds.
+
+`renderPrometheus(digest, stats, options)` is the pure function underneath, if you would
+rather serve it yourself.
+
+> **The cardinality rule: labels are `type` and `method` — never actor keys.** An actor key is
+> unbounded by construction, and a key-labelled metric will take your Prometheus down. This is
+> enforced, not advisory.
+
+> **`metrics().reset()` breaks monotonicity.** Prometheus counters are expected only ever to
+> increase; a `reset()` looks like a counter restart. That is survivable — `rate()` handles
+> restarts — but do not wire `reset()` to anything periodic.
+
+## OpenTelemetry traces
+
+```ts
+import { otelTraces } from '@sigx/actors-otel';
+
+app.use(otelTraces({ turnSpans: true }));
+```
+
+One **CLIENT** span per dispatch and one **SERVER** span per turn, joined across hosts by the
+W3C `traceparent` the runtime propagates: captured from the public endpoint header and carried
+on the cluster envelope.
+
+Span attributes use a **key hash**, not the key, for the same reason the
+[routing token](/actors/docs/locality-routing) does — and with the same caveat that a hash is
+log hygiene, not privacy.
+
+`@opentelemetry/api` is an **optional** peer dependency. With no tracer provider registered
+the plugin is inert and costs nothing.
+
+## The metrics bridge
+
+```ts
+import { otelMetricsBridge } from '@sigx/actors-otel';
+
+app.use(otelMetricsBridge({ percentileGauges: true }));
+```
+
+Feeds the host's counters and histograms into whatever OTel meter provider you have
+configured, for stacks that collect metrics over OTLP rather than by scraping.
+
+## Choosing
+
+| You have | Use |
+|---|---|
+| Prometheus / VictoriaMetrics / Grafana Agent | `prometheusOps()` — no OTel dependency |
+| An OTLP collector | `otelMetricsBridge()` + `otelTraces()` |
+| Neither, and a terminal | the [CLI dashboard](/actors/packages/actors-cli/overview) |
+| A custom stack | read [`ops()`](/actors/docs/ops-endpoint) directly |
+
+Core plumbing this rides on: `ActorCallContext.traceparent`, the trailing `call` parameter on
+`ActorTurnObserver`, and `bucketUpperBoundsUs()` / `timingSafeEquals` from
+`@sigx/actors/host`.
+
+## Next steps
+
+- [`@sigx/actors-otel`](/actors/packages/actors-otel/overview) — the package reference.
+- [Metrics](/actors/docs/metrics) — what is being exported.
+- [Cluster stats](/actors/docs/cluster-stats) — the fleet-wide view.

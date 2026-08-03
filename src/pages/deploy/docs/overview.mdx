@@ -101,3 +101,9 @@ keeps its POST-only JSON, CSRF and origin gates on every platform; see
   [Netlify](/deploy/packages/netlify/overview/) — the adapter packages
 - [Deploy adapters in @sigx/vite](/vite/docs/deploy-adapters) — the
   `SigxAdapter` contract behind all of them
+
+Running [actors](/actors/) as well? A host is stateful and long-lived, so it has
+requirements this page does not cover — readiness that distinguishes draining
+from dead, a shutdown order that drains connections, and a backend for state.
+See [Kubernetes](/actors/docs/kubernetes) and
+[Cloudflare Workers](/actors/docs/cloudflare-workers).

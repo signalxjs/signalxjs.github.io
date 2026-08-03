@@ -133,7 +133,9 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 |---|---|---|
 | `core/` (`api`, `docs`, `packages`), `vite/` | [`signalxjs/core`](https://github.com/signalxjs/core) | **Yes** — `parent: 'core'` rows in `src/lib/modules.ts` (`sigx`, `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`, `@sigx/vite`) |
 | `lynx/` (`docs`, `modules`) | [`signalxjs/lynx`](https://github.com/signalxjs/lynx) | **Yes** — `parent: 'lynx'` rows (`@sigx/lynx`, `@sigx/lynx-*`) |
-| `server/` (`packages`) — a collection spanning two repos | [`signalxjs/core`](https://github.com/signalxjs/core) (`@sigx/server-renderer`) + [`signalxjs/ssr-islands`](https://github.com/signalxjs/ssr-islands) (`@sigx/ssr-islands`) | **Yes** — `parent: 'server'` rows (`server-renderer`, `ssr-islands`); the two packages are versioned independently |
+| `server/` (`packages`) — a collection spanning two repos | [`signalxjs/core`](https://github.com/signalxjs/core) (`@sigx/server-renderer`, `@sigx/server`, `@sigx/resume`, `@sigx/serialize`) + [`signalxjs/ssr-islands`](https://github.com/signalxjs/ssr-islands) (`@sigx/ssr-islands`) | **Yes** — `parent: 'server'` rows (`server-renderer`, `ssr-islands`, `server`, `resume`, `serialize`); `ssr-islands` is versioned independently of the core four |
+| `deploy/` (`docs`, `packages`) | [`signalxjs/core`](https://github.com/signalxjs/core) | **Yes** — `parent: 'deploy'` rows (`@sigx/cloudflare`, `@sigx/vercel`, `@sigx/netlify`); all three ship in lockstep with the core release |
+| `actors/` (`docs`, `packages`) | [`signalxjs/actors`](https://github.com/signalxjs/actors) | **Yes** — `parent: 'actors'` rows (`@sigx/actors` + `-redis`, `-pg`, `-k8s`, `-tcp`, `-ws`, `-cloudflare`, `-cli`, `-otel`); all nine publish in lockstep, anchored on `@sigx/actors` in `scripts/fetch-versions.mjs`. **Pre-release** — see the note below |
 | `store/` | [`signalxjs/store`](https://github.com/signalxjs/store) | No — hand-written guide/API pages |
 | `router/` (`api`, `docs`) | [`signalxjs/router`](https://github.com/signalxjs/router) | No |
 | `ssg/` | [`signalxjs/ssg`](https://github.com/signalxjs/ssg) | No |
@@ -151,9 +153,43 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 `@sigx/server-renderer`, `@sigx/vite`; `signalxjs/lynx` publishes all
 `@sigx/lynx*`; and `signalxjs/terminal` publishes `@sigx/terminal`,
 `@sigx/runtime-terminal`, `@sigx/terminal-zero`, `@sigx/terminal-ui`,
-`@sigx/terminal-dev` and `@sigx/args`. The authoritative package lists are
-`src/lib/modules.ts` (core + lynx + server + terminal) and the `@sigx/*` entries in
-`package.json` (what the site builds against).
+`@sigx/terminal-dev` and `@sigx/args`; and `signalxjs/actors` publishes
+`@sigx/actors` plus its eight satellites. The authoritative package lists are
+`src/lib/modules.ts` (core + lynx + server + terminal + deploy + actors) and the
+`@sigx/*` entries in `package.json` (what the site builds against).
+
+> **`/actors/` is pre-release and gated.** Nothing in `signalxjs/actors` is on npm
+> yet, so the whole section is invisible on sigx.dev and stays that way until the
+> packages ship. Two mechanisms, because one is not enough:
+>
+> - Every page under `src/pages/actors/` carries `draft: true`, which makes the
+>   SSG drop it from the build entirely. **`pnpm build` therefore cannot catch
+>   broken actors MDX — use `pnpm exec sigx build --drafts` when editing there.**
+> - `ACTORS_RELEASED` in `src/lib/modules.ts` gates the registry, because a
+>   registry row renders tiles in the mega-menu, home grid and ⌘K palette
+>   regardless of drafts. Public enumerations read `PUBLIC_PACKAGES`
+>   (`src/lib/family.ts`); the llms.txt sections are gated in `ssg.config.ts`.
+>
+> Two SSG constraints shaped this and will bite anyone extending it: `draft` is
+> only honoured on statically-parsed **MDX** frontmatter — a `draft: true` in a
+> `.tsx` `export const meta` is ignored and the page ships — which is why the
+> actors landing and catalog are `.mdx`, and why `gen:modules` skips the
+> `ModuleIndexRedirect` shell for drafted modules.
+>
+> The release steps are listed in issue #510.
+
+> **Write actors docs from the source, not from the docs-issue bodies.** The queue
+> predates the current API and describes it with names that are not in it — check
+> every symbol against `packages/actors/src` before you write it down. Several
+> issues also carry **comments that supersede their own bodies** (notably #401's
+> cost table, #404's undici figures, #497 on `defineJob`), so read the comments
+> too.
+>
+> **Nothing has shipped, so nothing is old.** Write every page as if the reader is
+> meeting the API for the first time — which they are. No "this replaced X", no
+> "X is now gone", no explaining what something is *not*, and no justifying a
+> design by reference to another framework. State what is true and move on.
+> Anything that reads as history is a leak from our own working notes.
 
 ### Refresh playbook — after a source repo releases
 

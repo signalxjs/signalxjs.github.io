@@ -1,0 +1,91 @@
+---
+title: Shipping actors in a package
+description: "The dual-package client swap an npm package must do itself, and the four things that become the author's responsibility"
+layout: docs
+category: Running a host
+order: 430
+---
+
+# Shipping actors in a package
+
+<p class="lede">An app registers actors from anywhere — `withActors([Greeter, Presence])`. The
+build is the part that needs care: `sigxActors()` only transforms first-party source, so a
+package must do its own client swap.</p>
+
+## Why it is required, not optional
+
+The [Vite plugin](/actors/docs/vite-plugin) excludes `node_modules`. A packaged actor is
+therefore **never transformed** by the consuming app's build — so without the package's own
+swap, its implementation reaches the browser: your database client, your secrets, your server
+code.
+
+## The exports map
+
+```json
+{
+    "exports": {
+        ".": {
+            "types": "./dist/server.d.ts",
+            "browser": "./dist/client.js",
+            "import": "./dist/server.js"
+        }
+    }
+}
+```
+
+```ts
+// client.ts — the browser half
+import { __actorRef } from '@sigx/actors/client';
+import type { Greeter as GreeterDef } from './server';
+
+// Types come from the real definition; the value is a ref. The `import type`
+// is erased, so no implementation reaches the browser.
+export const Greeter = __actorRef(
+    'acme/greeter',
+    '/_sigx/actor',
+    ['watch'],        // stream names
+    ['summary'],      // cacheable read names
+) as typeof GreeterDef;
+```
+
+That is the same swap the Vite plugin performs for `*.actor.ts`, done by **static resolution**
+instead — so it works with any bundler, not just Vite.
+
+## Four things become yours
+
+The consuming app's build never sees your source, so it cannot check any of this.
+
+**Guards.** `requireGuards` cannot inspect a package, so declare `use` or `unguarded`
+yourself. The host dev-warns for a registered actor that declares neither. See
+[Guards](/actors/docs/guards).
+
+**Stream names** in the ref must match the definition — they drive wire routing.
+
+**Cacheable read names** likewise, as the ref's fourth argument. They are what make the client
+issue `GET`, and a name present in one place but not the other means either a `405` or a read
+that quietly never caches. See [Cacheable reads](/actors/docs/cacheable-reads).
+
+**`type` is public API.** It is the wire, directory *and* storage key, so renaming it breaks
+deployed state. Two different actors claiming one type is refused at startup.
+
+> Namespace the type after your package — `acme/greeter` — but **not** with the npm scope
+> form. A `type` starting with `@` or `$` is refused: those heads belong to the runtime's own
+> data keys (`@actor`) and mounts (`$live`).
+
+## Consuming one
+
+```ts
+import { Greeter } from '@acme/greeter';
+
+const host = await app.withActors([Greeter, Presence]).start();
+```
+
+Nothing else changes — a packaged actor is called exactly like a local one, and
+`withActors` throws if the app already declared `actors`, so a host can never silently replace
+what the author configured.
+
+## Next steps
+
+- [The Vite plugin](/actors/docs/vite-plugin) — the swap it does for first-party code.
+- [Guards](/actors/docs/guards) — the gate that cannot see your package.
+- [The client](/actors/docs/client) — what `__actorRef` produces.

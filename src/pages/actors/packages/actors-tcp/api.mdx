@@ -1,0 +1,59 @@
+---
+title: "API reference"
+description: "Exports of @sigx/actors-tcp — tcpTransport, the transport name constant and the re-exported frame codec"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/actors-tcp` <PkgVersion npm="@sigx/actors-tcp" />.</p>
+
+## `tcpTransport(options?)`
+
+Returns a `HostTransportFactory` for `cluster({ transport })`.
+
+```ts
+interface TcpTransportOptions {
+    port?: number;
+    host?: string;
+    advertiseHost?: string;   // what peers dial — see Installation
+    maxFrameBytes?: number;
+    credit?: number;
+    keepAliveMs?: number;     // 15000
+}
+```
+
+## Constants
+
+| Export | Value |
+|---|---|
+| `TCP_TRANSPORT_NAME` | `'tcp'` — the key under `HostDescriptor.addresses` |
+
+## Re-exported frame codec
+
+Shared with [`@sigx/actors-ws`](/actors/packages/actors-ws/overview), and re-exported here for
+transport authors:
+
+`DEFAULT_CREDIT`, `DEFAULT_MAX_FRAME_BYTES`, `encodeFrame`, `FrameType`.
+
+The same codec is available from `@sigx/actors/cluster/frames`.
+
+## Writing your own transport
+
+`transportConformance` holds the cases a transport must pass and is the definition of correct
+behaviour. It is currently **contributor-facing only** — reachable inside the actors workspace
+as `@sigx/actors/cluster/testing` through a tsconfig and vitest alias, but not in the published
+`exports` map.
+
+The rule it enforces throughout: *assert on the error `kind`, never on an HTTP status*. That
+is what makes the contract expressible off HTTP at all.
+
+## Next steps
+
+- [Overview](/actors/packages/actors-tcp/overview) — the measured case for it.
+- [Installation](/actors/packages/actors-tcp/installation) — options and `advertiseHost`.
+- [Host transports](/actors/docs/transports) — the comparison and rollout.

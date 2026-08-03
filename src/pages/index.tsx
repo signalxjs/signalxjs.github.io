@@ -10,7 +10,7 @@
 import { component } from 'sigx';
 import { HeroSection } from '@/components/home/HeroSection';
 import { FamilyGrid } from '@/components/home/FamilyGrid';
-import { PACKAGES } from '@/lib/family';
+import { PUBLIC_PACKAGES } from '@/lib/family';
 
 /**
  * Homepage content - layout handles navigation and footer
@@ -21,7 +21,7 @@ const HomePage = component(() => {
             <HeroSection />
 
             <div class="home-band">
-                <div class="hb-stat"><span class="hb-num">{PACKAGES.length}</span><span>packages</span></div>
+                <div class="hb-stat"><span class="hb-num">{PUBLIC_PACKAGES.length}</span><span>packages</span></div>
                 <span class="hb-sep" />
                 <div class="hb-stat"><span class="hb-num">~7kb</span><span>core runtime</span></div>
                 <span class="hb-sep" />

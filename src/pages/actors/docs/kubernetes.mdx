@@ -1,0 +1,104 @@
+---
+title: Kubernetes
+description: "Deploying an actor cluster on Kubernetes — probes, the preStop and shutdown ordering, and Lease-based membership"
+layout: docs
+category: Deploying
+order: 700
+---
+
+# Kubernetes
+
+<p class="lede">An actor host is an ordinary HTTP service with two unusual requirements: it
+needs a startup probe, and its shutdown order matters more than most.</p>
+
+## Membership without an extra store
+
+[`@sigx/actors-k8s`](/actors/packages/actors-k8s/overview) implements membership on
+`coordination.k8s.io` Leases — one Lease per host, `renewTime` as the heartbeat, peers
+discovered by a label-selected Lease watch, and self-fencing when renewal fails past `ttlMs`.
+
+```ts
+cluster({
+    providers: { membership: k8sMembership(), directory: redisDirectory(client) },
+    advertise: `http://${process.env.POD_IP}:7311`,
+    secret: process.env.HOST_SECRET,
+});
+```
+
+You still need a directory — Leases answer *which hosts are alive*, not *which host owns this
+actor*. Redis or Postgres provides it.
+
+RBAC needs `get`/`list`/`watch`/`create`/`update` on `leases` in the namespace. No kubeconfig
+is parsed; in-cluster service-account credentials are used, and `kubectl proxy` covers local
+development.
+
+## Probes
+
+```yaml
+startupProbe:
+  httpGet: { path: /_sigx/health, port: 7311 }
+  failureThreshold: 30
+  periodSeconds: 2
+livenessProbe:
+  httpGet: { path: /_sigx/health, port: 7311 }
+readinessProbe:
+  httpGet: { path: /_sigx/health/ready, port: 7311 }
+```
+
+> **The `startupProbe` is not optional.** Before `app.start()` the whole mount answers 503,
+> *including liveness* — so without it a slow boot gets the pod killed in a loop.
+
+The two probes are [allowed to disagree](/actors/docs/health-and-readiness), and the states
+they distinguish map onto exactly what you want Kubernetes to do: a draining host stays live
+and goes not-ready; a **fenced** host answers `503 {status:'fatal'}` on liveness so the pod
+restarts.
+
+## Shutdown
+
+```yaml
+terminationGracePeriodSeconds: 45
+lifecycle:
+  preStop:
+    exec: { command: ["sleep", "10"] }
+```
+
+The `preStop` sleep gives endpoint removal time to propagate before the process starts
+draining. It is necessary but **not sufficient** — connections already established survive
+endpoint removal via conntrack and ride into the exiting pod.
+
+That is why the entry must answer `connection: close` from the moment shutdown begins, and
+why the [ordering](/actors/docs/clustering#shutdown-pass-the-server-not-just-the-host) is
+`onStopBegin` → `host.stop()` → `server.close()`. Skipping it measured as 122 lost calls out
+of ~1.7M on a rolling restart.
+
+Set `terminationGracePeriodSeconds` above your preStop sleep plus the actor drain plus
+`taskGraceMs`.
+
+## Scaling
+
+An HPA works normally. Two things to know:
+
+- **New pods start cold** and attract work only as new activations are created — unless you
+  run [`activationCountPolicy()`](/actors/docs/placement-policies), which reads a host with no
+  known load as cold and steers to it immediately.
+- **Scaling down does not move actors back.** After a scale event the fleet can stay lumpy
+  indefinitely; [rebalancing](/actors/docs/rebalancing) is the correction, and it is off
+  unless configured.
+
+## What to expose
+
+The public actor endpoint goes behind your ingress. `/_sigx/host`, `/_sigx/ops` and
+`/_sigx/health*` are **internal only** — probes cannot be authenticated, and
+[`ops()`](/actors/docs/ops-endpoint) is authenticated but still not something to publish.
+
+If you configure [locality routing](/actors/docs/locality-routing), the ingress is where the
+routing token gets hashed.
+
+A worked example — Helm chart with deployment, HPA, PDB, service, RBAC, Redis and a load
+generator, plus a runbook — is `examples/aks-cluster` in the actors repo.
+
+## Next steps
+
+- [`@sigx/actors-k8s`](/actors/packages/actors-k8s/overview) — options and Lease anatomy.
+- [Health & readiness](/actors/docs/health-and-readiness) — the three states.
+- [Clustering](/actors/docs/clustering) — the shutdown sequence in full.

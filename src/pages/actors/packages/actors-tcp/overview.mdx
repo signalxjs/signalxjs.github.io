@@ -1,0 +1,86 @@
+---
+title: "Overview"
+description: "Framed TCP transport for @sigx/actors — one multiplexed connection per peer instead of one per in-flight request"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# TCP
+
+<p class="lede">One multiplexed, framed connection per peer instead of one HTTP connection per
+in-flight request. On Node, this is the recommended host-to-host transport.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/actors-tcp" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/actors-tcp
+```
+
+```ts
+import { cluster, httpTransport } from '@sigx/actors/cluster';
+import { tcpTransport } from '@sigx/actors-tcp';
+
+cluster({
+    providers,
+    advertise: 'http://10.0.4.7:7311',
+    secret: process.env.HOST_SECRET,
+    // A CHAIN: TCP wherever the peer advertises it, HTTP everywhere else.
+    // That is what makes a rolling deploy of this transport possible.
+    transport: [tcpTransport({ port: 11111 }), httpTransport()],
+});
+```
+
+## Why you would use it
+
+Measured against a **tuned** HTTP baseline — pool bounded to the concurrency — at concurrency
+64:
+
+| | Connections per peer | ops/s | p99 |
+|---|---:|---:|---:|
+| tuned HTTP | 64 | 14,287 | 9.6 ms |
+| **TCP** | **1** | **69,768** | **1.58 ms** |
+
+Two separate wins, worth different amounts.
+
+**Socket count — real at any network.** HTTP's pool sizes to `concurrency × peers`, measured
+at *two* connections per in-flight request: roughly 12,600 per host at concurrency 64 across
+99 peers. That is file descriptors, kernel buffers, conntrack entries and a connection burst
+on every peer restart. One connection per peer does not change with RTT.
+
+**Throughput — real, but mostly a loopback effect.** The 4.9× is a *software* ratio: ~70µs per
+call versus ~14µs. On a LAN with a 200–1000µs round trip that difference is worth roughly
+**1.1×, not 4.9×**.
+
+> Take the socket property as the reason to choose this; treat the throughput as a bonus that
+> shrinks the further apart your hosts are.
+
+## HTTP remains the default
+
+And must: `@sigx/actors/cluster` stays zero-dependency and WinterCG-clean so Cloudflare
+Workers keep working, and HTTP is the only transport that runs everywhere. With
+[a bounded pool](/actors/docs/transports#bounding-the-http-pool) it is a perfectly reasonable
+choice.
+
+This package is **Node-only** by design — it uses `node:net`.
+
+## Deploying it
+
+`HostDescriptor.addresses` carries a `tcp` entry per host, so a mixed cluster is expressible
+and the rollout is safe:
+
+1. Deploy with `transport: [tcpTransport(), httpTransport()]` everywhere.
+2. Hosts on the new build advertise `tcp` and use it with each other; hosts that do not are
+   still reached over HTTP.
+3. Once every host advertises `tcp`, drop `httpTransport()` from the chain if you want the
+   internal HTTP mount gone entirely.
+
+## Next steps
+
+- [Installation](/actors/packages/actors-tcp/installation) — options and `advertiseHost`.
+- [API reference](/actors/packages/actors-tcp/api) — exports.
+- [Host transports](/actors/docs/transports) — the full comparison.

@@ -1,0 +1,85 @@
+---
+title: "Installation"
+description: "Mounting the upgrade handler, why advertiseUrl is a function, and attach() versus attachHostUpgrade()"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Two things to get right: where the upgrade attaches, and when the advertised
+URL is known.</p>
+
+## Install
+
+```bash
+pnpm add @sigx/actors-ws ws
+```
+
+`ws` ≥ 8 is a peer dependency — this package does not hand-roll RFC 6455.
+
+## Mount it
+
+```ts
+const ws = wsTransport({ advertiseUrl: () => `ws://${process.env.POD_IP}:7311/_sigx/host-ws` });
+
+const app = defineActorApp({ actors, storage })
+    .use(cluster({ providers, advertise, secret, transport: [ws, httpTransport()] }));
+
+const server = createServer(createAppHandler(app));
+await ws.attach(server);
+await new Promise<void>((r) => server.listen(7311, r));
+await app.start();
+```
+
+Order matters: attach and listen **before** `app.start()`, because starting joins membership
+and from that moment peers may dial you.
+
+## `advertiseUrl` is a function
+
+Deliberately. The port is often unknown until the HTTP listener binds — `server.listen(0)`, a
+container-assigned port — and the address must exist before the membership join.
+
+A function defers the question to the moment the answer exists.
+
+## Options
+
+| Option | Default | Meaning |
+|---|---|---|
+| `advertiseUrl` | — | **required**; a function returning the peer-dialable URL |
+| `path` | `/_sigx/host-ws` | upgrade path |
+| `maxFrameBytes` | — | frame size cap |
+| `credit` | — | flow-control window |
+| `keepAliveMs` | — | keep-alive cadence |
+| `connect` | — | override how the client half dials |
+
+## `attach()` versus `attachHostUpgrade()`
+
+Use **`ws.attach(server)`** in the normal case. `cluster()` builds the transport internally, so
+`attach()` resolves that instance for you.
+
+Use **`attachHostUpgrade(server, { transport })`** when you already hold a transport instance
+and want to wire the upgrade yourself.
+
+```ts
+const stop = await ws.attach(server);   // returns a teardown
+```
+
+## Through a proxy
+
+The point of this transport. Anything that forwards WebSocket works — nginx with
+`proxy_set_header Upgrade`, an ingress with WebSocket enabled, a service mesh. Make sure the
+proxy's idle timeout exceeds `keepAliveMs`.
+
+## Security
+
+Frames are authenticated per request with the cluster HMAC, exactly as over HTTP.
+**Transport encryption is out of scope** — terminate TLS at your proxy (`wss://`) or run a
+private network.
+
+## Next steps
+
+- [API reference](/actors/packages/actors-ws/api) — exports.
+- [TCP transport](/actors/packages/actors-tcp/overview) — when you control the network.
+- [Host transports](/actors/docs/transports) — the comparison and rollout.

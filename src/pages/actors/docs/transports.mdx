@@ -1,0 +1,119 @@
+---
+title: Host transports
+description: "Which host-to-host transport to use — the measured table, why HTTP stays the default, and the two caveats to carry"
+layout: docs
+category: Clustering
+order: 520
+---
+
+# Host transports
+
+<p class="lede">How hosts talk to each other is a seam. HTTP is the default and the only
+portable option; TCP and WebSocket collapse connection count on Node.</p>
+
+```ts
+cluster({ providers, advertise, secret, transport: httpTransport({ fetch: tuned }) });
+```
+
+## The measured comparison
+
+| | Portable? | Connections per peer | Relative throughput |
+|---|---|---:|---:|
+| `httpTransport()` **(default)**, unbounded pool | **everywhere, incl. Workers** | 2 × concurrency | 0.9× |
+| `httpTransport()` with a bounded pool | **everywhere, incl. Workers** | concurrency | 1.0× (baseline) |
+| [`tcpTransport()`](/actors/packages/actors-tcp/overview) | Node only | **1** | 4.9× |
+| [`wsTransport()`](/actors/packages/actors-ws/overview) | Node server, any WinterCG client | **1** | 4.4× |
+
+Throughput is relative to **bounded** HTTP, because that is the fair baseline — the shipped
+default is the first row, and bounding it is a free improvement.
+
+**On Node, prefer TCP** — or WebSocket when one port, proxy traversal or a WinterCG client
+matters.
+
+**HTTP stays the default, and must.** `@sigx/actors/cluster` is zero-dependency and
+WinterCG-clean so Cloudflare Workers keep working, and HTTP is the only transport that runs
+everywhere.
+
+## Two caveats worth carrying
+
+> **The throughput ratio is a loopback *software* number.** TCP is ~70µs/call against ~14µs —
+> a 56µs difference that a real LAN round trip of 200–1000µs largely absorbs. On a real
+> network that is about **1.1×, not 4.9×**. Do not publish "4.9× faster" unqualified.
+
+The **connection-count** win is the one that survives a real network, and it is usually the
+reason to move: at concurrency 64 across 99 peers, HTTP wants roughly 12,600 sockets per host.
+TCP wants 99.
+
+## Bounding the HTTP pool
+
+Node's global `fetch` uses an unbounded undici pool. Bounding it is the cheapest improvement
+available:
+
+```ts
+import { Agent, fetch as undiciFetch } from 'undici';
+
+const agent = new Agent({ connections: 64 });   // match per-peer concurrency
+
+cluster({
+    providers, advertise, secret,
+    transport: httpTransport({
+        fetch: (url, init) => undiciFetch(url, { ...init, dispatcher: agent }),
+    }),
+});
+```
+
+**Match `connections` to your per-peer concurrency.** Measured against undici 7.x — what
+current Node bundles — at concurrency 64: the unbounded default opens 128 sockets;
+`connections: 64` opens 64 and runs **6% faster**; `connections: 8` costs about 3× throughput;
+`connections: 1` costs ~57%.
+
+So halving the sockets is free, and going below your concurrency trades throughput steeply —
+worth it only when file descriptors are the real constraint.
+
+> These numbers are **undici-major-specific**. Figures measured on undici 8.x do not hold.
+> HTTP/2 does not currently help either: `allowH2` measures identical to plain keep-alive
+> because `createAppHandler` serves over `node:http`, which is HTTP/1.1 only, so the client
+> falls back.
+
+`undici` is a **recipe, not an API** — it is not a dependency of `@sigx/actors`.
+
+## Fallback chains make adoption safe
+
+```ts
+transport: [tcpTransport({ port: 11111 }), httpTransport()];
+```
+
+A transport publishes its peer-reachable address under `addresses[name]` in the host
+descriptor, and a list is tried in order. Mid-deploy, hosts advertising the new transport use
+it and the rest are reached over HTTP — no window of unreachability.
+
+A descriptor without `addresses` reads as HTTP-only. A **single** transport is strict: a peer
+advertising no address for it is unreachable, loudly. That is deliberate — a silent fallback
+means you deploy a transport, benchmark it, and measure the old one without knowing.
+
+Fallbacks that do occur are counted (`counters().transportFallbacks`), reported in the host
+report, and dev-warned once per peer.
+
+> **A socket-only cluster has no internal HTTP endpoint at all.** `/_sigx/host` is just a
+> route a transport declares, so dropping `httpTransport()` from the chain removes it —
+> smaller attack surface, nothing to `curl`. Ops runbooks that poke that path are assuming the
+> HTTP transport.
+
+The public actor wire is unaffected by any of this.
+
+## Writing one
+
+`transportConformance` holds the cases a transport must pass — supply a harness that builds an
+N-host cluster over your wire and every case runs against it. The rule it enforces throughout
+is *assert on the error `kind`, never on an HTTP status*, which is what makes the contract
+expressible off HTTP at all.
+
+It is currently **contributor-facing only**: reachable inside the actors workspace as
+`@sigx/actors/cluster/testing` through a tsconfig and vitest alias, but not in the published
+`exports` map, so an out-of-repo package cannot import it yet.
+
+## Next steps
+
+- [TCP transport](/actors/packages/actors-tcp/overview) — the Node default choice.
+- [WebSocket transport](/actors/packages/actors-ws/overview) — one port, proxy-friendly.
+- [Clustering](/actors/docs/clustering) — where the transport plugs in.

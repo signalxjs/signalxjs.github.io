@@ -1,0 +1,96 @@
+---
+title: Actors
+description: "Virtual actors for SignalX — addressable, single-threaded, persistent server objects that ride the serverFn wire"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Actors
+
+<p class="lede">An actor is a server-side object with a name. You call it like a function, it
+handles one call at a time, and its state outlives the call. `@sigx/actors` gives you that
+without a queue, a lock or a lifetime to manage.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/actors" /> <span class="mmr-dot" /> MIT</p>
+
+```ts
+export const CartActor = defineActor({
+    type: 'Cart',
+    use: [requireUser],
+    state: () => ({ items: [] as Item[] }),
+    methods: (ctx) => ({
+        async addItem(item: Item) {
+            ctx.state.items.push(item); // single-threaded — no races
+            await ctx.save();           // persisted via ActorStorage
+            return ctx.state.items.length;
+        },
+    }),
+});
+
+// browser, server function, or SSR — the same expression:
+await actor(CartActor, cartId).addItem(item);
+```
+
+## The model, in five guarantees
+
+Everything else in these docs follows from these five.
+
+1. **Addressable.** An actor is `(type, key)`. `actor(CartActor, 'user-42')` always reaches
+   *the* `user-42` cart — one activation per key. You never hold a reference, and you never
+   decide when one is created or destroyed.
+2. **Single-threaded.** One turn — one method call — at a time per activation. Plain mutation
+   on `ctx.state` is race-free. No locks, ever.
+3. **`await` keeps the turn open.** A turn ends when the method's promise settles, so an awaited
+   `fetch` inside a method blocks every queued call to that actor until it resolves. This is
+   the model's central trade: state safety over intra-actor concurrency. Dev builds warn when
+   a turn exceeds `slowTurnMs`.
+4. **Persistent.** `ctx.save()` writes state through the pluggable `ActorStorage` with etag
+   optimistic concurrency; activation loads it back. A conflicting writer faults the stale
+   activation rather than silently losing a write.
+5. **Deadlock-detected.** Every call carries its chain, so `A → B → A` into a non-reentrant
+   actor throws [`ActorDeadlockError`](/actors/docs/errors) immediately with the full path —
+   instead of hanging until a timeout.
+
+Guarantees 2 and 3 are the ones worth sitting with. They are why you can write
+`ctx.state.items.push(item)` and be finished, and they are also why a slow HTTP call inside a
+method is a problem you will feel. [Reentrancy & interleaving](/actors/docs/reentrancy)
+covers the opt-outs when you need them.
+
+## Why this exists
+
+Stateful server work usually gets built out of stateless request handlers plus a database,
+and the coordination has to be reinvented every time: a row lock so two requests don't
+double-spend, a version column so a stale write doesn't clobber a fresh one, a cache to avoid
+re-reading, an invalidation story for the cache, a queue for work that must not run twice.
+
+An actor collapses that into one object that happens to be the only writer of its own state.
+Ordering is the [turn sequence](/actors/docs/turns). Consistency is single-threading. Durability is `ctx.save()`.
+
+It is not a general answer. Most endpoints have no identity to be serial about, and for those
+a [server function](/actors/docs/actors-or-server-functions) is simpler and faster.
+
+## Where it runs
+
+The runtime is one package with [eleven entry points](/actors/docs/entry-points). A
+single-node app needs nothing else — `@sigx/actors` alone gives you a host, storage on disk
+or in memory, timers, reminders, streams and the client proxy.
+
+When one process stops being enough, the pieces you add are separate packages so you only pay
+for what you use: [Redis](/actors/packages/actors-redis/overview),
+[Postgres](/actors/packages/actors-pg/overview) or
+[Kubernetes](/actors/packages/actors-k8s/overview) for membership and the actor directory;
+[TCP](/actors/packages/actors-tcp/overview) or
+[WebSocket](/actors/packages/actors-ws/overview) for host-to-host frames;
+[Cloudflare Durable Objects](/actors/packages/actors-cloudflare/overview) if the platform is
+your cluster. Your actor code does not change.
+
+## Next steps
+
+- [Actors or server functions?](/actors/docs/actors-or-server-functions) — read this before
+  you write one.
+- [Installation](/actors/docs/installation) — the plugin, the app module and the dev host.
+- [Your first actor](/actors/docs/your-first-actor) — a counter, end to end.
+- [The actor model](/actors/docs/actor-model) — activation, turns and identity in depth.

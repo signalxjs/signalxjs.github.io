@@ -37,7 +37,7 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props, sig
         const collection = detectCollection(route.path);
         const mod = moduleForCollection(collection);
         const parentHref = `/${mod?.parent}`;
-        const parentLabel = mod?.parent === 'core' ? 'Core' : mod?.parent === 'server' ? 'Server' : mod?.parent === 'terminal' ? 'Terminal' : mod?.parent === 'deploy' ? 'Deploy' : 'Lynx';
+        const parentLabel = mod?.parent === 'core' ? 'Core' : mod?.parent === 'server' ? 'Server' : mod?.parent === 'terminal' ? 'Terminal' : mod?.parent === 'deploy' ? 'Deploy' : mod?.parent === 'actors' ? 'Actors' : 'Lynx';
         const groupHref = mod?.parent === 'lynx' ? '/lynx/modules' : `/${mod?.parent}/packages`;
         const groupLabel = mod?.parent === 'lynx' ? 'Modules' : mod?.parent === 'deploy' ? 'Adapters' : 'Packages';
         const pageTitle = (props.meta?.title as string | undefined) ?? '';

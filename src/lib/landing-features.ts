@@ -42,6 +42,14 @@ const FEATURES: Record<string, LandingFeature[]> = {
         { icon: 'book', title: 'Your types on the wire', body: 'Date, Map, Set, bigint, URL and your own classes round-trip across every boundary through the serialize codec — not just JSON.' },
         { icon: 'terminal', title: 'One plugin wires it all', body: 'The Vite plugin sets up SSR and wires in server functions and resume when you add them — manifests and endpoints included, zero config in dev.' },
     ],
+    actors: [
+        { icon: 'bolt', title: 'One activation per key', body: 'An actor is (type, key). actor(CartActor, \'user-42\') always reaches the user-42 cart — the runtime finds it or activates it, and you never hold a reference or manage a lifetime.' },
+        { icon: 'layers', title: 'Single-threaded, so no locks', body: 'One turn at a time per activation. Plain mutation on ctx.state is race-free by construction — no mutexes, no transactions, no compare-and-set loops in your code.' },
+        { icon: 'book', title: 'Persistent by default', body: 'ctx.save() writes through a pluggable ActorStorage with etag optimistic concurrency. A conflicting writer faults the stale activation instead of silently overwriting; the next call loads the winner.' },
+        { icon: 'sparkle', title: 'Deadlocks throw, not hang', body: 'Every call carries its chain, so A → B → A raises ActorDeadlockError immediately with the full path — rather than blocking until some timeout fires in production at 3am.' },
+        { icon: 'cube', title: 'Just a function call', body: 'Call an actor from a component, a server function or another actor with the same expression. The Vite plugin swaps actor modules for typed client stubs, so the browser gets a proxy and never the implementation.' },
+        { icon: 'terminal', title: 'One node until it isn\'t', body: 'Start with zero infrastructure. Add Redis, Postgres or Kubernetes membership when one process stops being enough — the actor code does not change, only the providers you hand the app.' },
+    ],
     deploy: [
         { icon: 'bolt', title: 'One fetch handler', body: 'createFetchHandler is the whole runtime story — a WinterCG Request → Response handler that runs unchanged on Node, workerd, Deno, Bun and the edge runtimes.' },
         { icon: 'book', title: 'You own the entry', body: 'src/entry.<platform>.ts is scaffolded once and never overwritten — the static → server functions → document composition stays a readable file in your repo.' },

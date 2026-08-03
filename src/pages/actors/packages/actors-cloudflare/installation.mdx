@@ -1,0 +1,100 @@
+---
+title: "Installation"
+description: "wrangler.jsonc bindings and migrations, the __DEV__ define, and the three settings that are easy to get wrong"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">One binding, one migration line, and one <code>define</code> — each of which
+fails in a way that is hard to diagnose if you miss it.</p>
+
+## Install
+
+```bash
+pnpm add @sigx/actors-cloudflare
+pnpm add -D wrangler
+```
+
+## `wrangler.jsonc`
+
+```jsonc
+{
+    "main": "src/worker.ts",
+    // Pinned, never floating: a compatibility date is how Workers versions
+    // runtime behaviour, so bumping it is a deliberate change to test.
+    "compatibility_date": "2026-07-01",
+    "compatibility_flags": ["nodejs_compat"],
+
+    "durable_objects": {
+        "bindings": [{ "name": "ACTORS", "class_name": "ActorHost" }]
+    },
+
+    "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ActorHost"] }],
+
+    "define": { "__DEV__": "false" },
+
+    "observability": { "enabled": true }
+}
+```
+
+## The three that bite
+
+> **`new_sqlite_classes`, not `new_classes` — a one-way door.** `new_classes` creates the
+> legacy key-value backed storage, which **cannot be migrated to SQLite in place**; the class
+> is stuck with it forever, and it carries a far smaller per-value limit. This is the single
+> most consequential irreversible line in the file.
+
+> **`__DEV__` must be defined by your bundler.** The published package ships both a dev and a
+> production dist and expects the flag to be defined. Without it the host throws
+> `__DEV__ is not defined` on the first request. `pnpm dev` should override it to `true` for
+> local warnings.
+
+> **`nodejs_compat` is required.** [Interleaving](/actors/docs/reentrancy) needs
+> `AsyncLocalStorage`.
+
+## The entry
+
+```ts
+export class ActorHost extends createHostDurableObject<Env>({
+    actors, namespace: (env) => env.ACTORS, app: createApp,
+}) {}
+
+export default createWorkerHandler<Env>({
+    actors, namespace: (env) => env.ACTORS, app: createApp,
+    fetch: { origin: false, fallback: servePage },
+});
+```
+
+Pass an app **factory**, not an app — building at module scope binds whichever object
+constructed it first. And set `origin` explicitly: the public mount defaults to refusing a
+request with no `Origin`, and Workers callers send none.
+
+Both are explained in [Cloudflare Workers](/actors/docs/cloudflare-workers).
+
+## Types
+
+`Env` is worth declaring by hand rather than generating with `wrangler types` — one binding is
+not worth a generated file that has to be committed, kept in step with `wrangler.jsonc` and
+excluded from lint.
+
+```ts
+export interface Env { ACTORS: DurableObjectNamespace }
+```
+
+## Verify
+
+```bash
+pnpm wrangler dev
+```
+
+Local `wrangler dev` numbers describe the local harness, not Cloudflare — do not read
+performance conclusions from them.
+
+## Next steps
+
+- [API reference](/actors/packages/actors-cloudflare/api) — exports.
+- [Cloudflare Workers](/actors/docs/cloudflare-workers) — placement, eviction and alarms.
+- [Tasks](/actors/docs/tasks) — the checkpoint posture under eviction.

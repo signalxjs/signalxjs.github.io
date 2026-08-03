@@ -1,0 +1,147 @@
+---
+title: State & persistence
+description: "ctx.save(), write-behind, rich types across storage, and migrateState for records whose shape predates this deploy"
+layout: docs
+category: Core concepts
+order: 110
+---
+
+# State & persistence
+
+<p class="lede">Persistence is explicit by default: only `ctx.save()` writes. A method that
+returns success has persisted what it acknowledged.</p>
+
+## Explicit saves
+
+```ts
+methods: (ctx) => ({
+    async addItem(item: Item) {
+        ctx.state.items.push(item);
+        await ctx.save();            // durable before we ack
+        return ctx.state.items.length;
+    },
+})
+```
+
+`ctx.state` is a deep reactive proxy — mutate it directly, no setter and no immutable update
+needed. `ctx.save()` writes the whole state through the [`ActorStorage`](/actors/docs/storage)
+seam with an **etag**, so a conflicting writer is detected rather than overwritten.
+
+Forget the `await` and you have told the caller a thing is durable when it is not. That is the
+one mistake this API can't stop you making, which is why the default is explicit.
+
+## Write-behind
+
+```ts
+persistence: { mode: 'write-behind', debounceMs: 200 }
+```
+
+Saves automatically after mutating turns, debounced. Pending writes flush on deactivation and
+on shutdown.
+
+> **Acked ≠ persisted under write-behind.** A method can return success for state that is
+> still only in memory. Use it for state you can afford to lose — a presence marker, a
+> scroll position, a hit counter — and not for anything a user believes they have saved.
+
+## Rich types survive
+
+`Date`, `Map`, `Set`, `bigint`, `URL`, `RegExp` and your own registered handlers round-trip
+through storage *and* the wire, because both use the same
+[`@sigx/serialize`](/server/packages/serialize/overview) vocabulary.
+
+```ts
+state: () => ({ lastVisit: null as Date | null, tags: new Set<string>() }),
+```
+
+`lastVisit` is a real `Date` when it comes back out of storage, and a real `Date` in the
+browser. Register your own types with `defineTypeHandler` and add them via the app's `types:`
+option or a plugin's `addTypeHandlers`.
+
+## Conflicts
+
+Every save is compare-and-set on the etag. If another activation wrote first, yours raises
+`ActorStateConflictError` and the stale activation is faulted — the next call activates fresh
+against the winning state.
+
+You do not normally handle this. It means the single-activation invariant was briefly violated
+— a network partition, a directory hiccup, a migration — and the recovery is automatic. What
+it *is* good for is alerting: a steady trickle of conflicts says something in your cluster is
+wrong. See [Metrics](/actors/docs/metrics).
+
+## Migrating state
+
+`migrateState` evolves a record whose shape predates this deploy — the answer to "the `state:`
+shape changed and the stored records didn't."
+
+```ts
+defineActor({
+    type: 'Cart',
+    state: () => ({ v: 2, items: [], coupons: [] }),
+    migrateState: (stored) => {
+        const s = stored as CartV1 | CartV2;
+        if ('v' in s) return s;                              // fast path
+        return { v: 2, items: s.items ?? [], coupons: [] };  // v1 → v2
+    },
+});
+```
+
+**When it runs.** Between the storage read and activation, and only on a load that *found* a
+record — never on the fresh `state(key)` path, never after `ctx.clearState()`. Always before
+`onActivate`, which therefore always sees migrated state.
+
+**What it receives.** The codec-revived state, so `Date` and `Map` are already real objects.
+`unknown` here means unknown *shape*, not raw JSON. A second argument carries `{ raw, key }`
+when the revived view cannot tell two stored versions apart — `raw` is the encoded record as
+storage holds it.
+
+**Returning the input unchanged is the fast path**, and identity is how that is detected. To
+migrate, return a *new* object.
+
+**Write-back is lazy, and that is the contract.** The migrated shape rides the next save the
+actor would have made anyway, so a read-only activation still issues zero writes and a rolling
+deploy costs no extra ones. This holds in both persistence modes — `migrateState` never causes
+a write by itself, so a write-behind actor that is only ever *read* after a migration does not
+persist it.
+
+For a record that would otherwise never be saved at all — and so would be re-migrated on every
+activation forever — opt into one CAS write-back at activation:
+
+```ts
+migrateState: { persist: 'eager', migrate: (stored) => /* … */ },
+```
+
+**Concurrent migration is safe by design.** A fleet mid-deploy can migrate the same record on
+several hosts. The hook is a pure function of the stored value and every write is etag-CAS'd,
+so first save wins and the loser either adopts the winner (eager) or takes
+`ActorStateConflictError` and re-activates against it (lazy).
+
+**Failure is loud.** The hook is synchronous; a throw fails activation with
+`ActorActivationError` and leaves the stored record untouched. Corrupt state is never silently
+reset. Malformed declarations throw at definition time, and an `async` hook is a type error.
+
+**Non-goals.** Version-field bookkeeping is your convention — the runtime neither reads nor
+writes one. And this is not a scheme for versioning an actor's *interface* across a
+mixed-version fleet.
+
+> **`defineJob` does not accept `migrateState`.** A job's stored record is the job envelope —
+> `status`, `progress`, `checkpoint` and so on, with your own state under `extra` — so a hook
+> over it would hand you a runtime shape you do not own. Migrating the `extra` half wants its
+> own option, and is not part of this. See [Jobs](/actors/docs/jobs).
+
+## Providers
+
+| Provider | Use |
+|---|---|
+| `memoryStorage()` | tests and dev |
+| `fileStorage({ dir })` | dev — one cat-able JSON file per actor |
+| [`redisStorage`](/actors/packages/actors-redis/overview) | production, with the cluster providers |
+| [`pgStorage`](/actors/packages/actors-pg/overview) | production, jsonb with etag CAS |
+
+Implement `ActorStorage` — `load` / `save` / `clear` with etags — for anything else. See
+[Storage](/actors/docs/storage).
+
+## Next steps
+
+- [Storage](/actors/docs/storage) — the seam and how to implement it.
+- [Lifecycle](/actors/docs/lifecycle) — when state is loaded and flushed.
+- [Reentrancy](/actors/docs/reentrancy) — how interleaving changes save semantics.

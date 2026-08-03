@@ -1,0 +1,91 @@
+---
+title: Cluster stats
+description: "clusterStats() — a partial-tolerant fan-out across the view, why latency merges rather than averages, and the counters worth watching"
+layout: docs
+category: Operations
+order: 630
+---
+
+# Cluster stats
+
+<p class="lede">One call, every host: activations, queue depths, per-type counts, reminder
+shard ownership, merged metrics and a health tally — plus an honest account of who did not
+answer.</p>
+
+```ts
+import { clusterStats } from '@sigx/actors/cluster';
+
+const report = await clusterStats(placement, { detail: true, activations: 20 });
+```
+
+It rides the internal mount as a reserved symbol, so it needs the cluster `secret` and
+inherits the HMAC.
+
+## Partial results, never an exception
+
+> **It never throws for a sick peer.** Unreachable hosts come back in `unreachable[]` with a
+> classified reason, and `partial: true` is set.
+
+That is the correct behaviour for a diagnostic: the moment you most need cluster stats is the
+moment some host is not answering.
+
+**`totals.metrics.hosts` is the denominator.** A partial-fleet total is a lower bound, and
+reading it as a whole-fleet number during an incident is how you talk yourself into the wrong
+diagnosis. It is `null` when nothing is instrumented.
+
+## Latency merges, it does not average
+
+Percentiles are re-derived from **summed histogram buckets**, not averaged across hosts.
+
+Averaging per-host p99s is simply wrong — it is a mean of order statistics, which is not an
+order statistic of anything. Ten hosts at p99 = 10ms and one at p99 = 900ms do not make
+p99 = 91ms; they make a fleet whose p99 depends entirely on how the traffic was distributed.
+Summing the buckets first and then taking the percentile gives the number you meant.
+
+`HISTOGRAM_LAYOUT`, `mergeHistogramDigests()`, `digestSnapshot()` and
+`createMetricsAccumulator()` are exported from `@sigx/actors/host` if you want to do the same
+folding yourself.
+
+## Reminder shard ownership
+
+The reminder table is split into 16 hash shards, each ticked by exactly one host via
+rendezvous hashing over the membership view. The report tells you who owns what, and two
+readings matter:
+
+- **Two claimants for one shard** — views have diverged. Safe, because the per-shard etag CAS
+  keeps delivery at-most-once, but it means membership is unsettled.
+- **An empty shard** — nothing is ticking those reminders.
+
+## Counters worth watching
+
+`placement.counters()` gives routing, route cache, directory, membership and `authFailures`.
+
+The one to put on a dashboard is **`locateRemote / locates`** — the miss rate your edge is
+producing. If you have configured [locality routing](/actors/docs/locality-routing) and this
+is not near zero, the edge is not hashing the token, or placement is not `preferLocalPolicy()`.
+
+`transportFallbacks` tells you a [transport chain](/actors/docs/transports) is doing real work
+— useful mid-deploy, worrying afterwards. `rebalanceRounds` and `rebalanceMigrations` cover
+[rebalancing](/actors/docs/rebalancing).
+
+## Detail is opt-in and clamped
+
+```
+GET /_sigx/ops/cluster?detail=1&activations=20&host=<id>
+```
+
+Requested limits are **clamped by the responder**, not trusted. The activation list is off by
+default because actor keys can be personal data — see
+[The ops endpoint](/actors/docs/ops-endpoint).
+
+## Reading it
+
+The [CLI dashboard](/actors/packages/actors-cli/overview) renders all of this, and every panel
+states its scope — cluster-wide or one host — because that distinction is easy to lose and
+expensive to get wrong.
+
+## Next steps
+
+- [The ops endpoint](/actors/docs/ops-endpoint) — how this is served.
+- [Metrics](/actors/docs/metrics) — what is being merged.
+- [Rebalancing](/actors/docs/rebalancing) — acting on ownership spread.

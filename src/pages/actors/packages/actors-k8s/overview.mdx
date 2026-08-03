@@ -1,0 +1,86 @@
+---
+title: "Overview"
+description: "Kubernetes membership for @sigx/actors — host liveness on coordination.k8s.io Leases, with no extra store and no client library"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Kubernetes
+
+<p class="lede">Host liveness and peer discovery on <code>coordination.k8s.io</code> Leases —
+the same primitive kubelet uses for node heartbeats. A cluster already running in Kubernetes
+needs no extra store for membership.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/actors-k8s" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/actors-k8s
+```
+
+No Kubernetes client library. The API surface this package touches is seven verbs on one
+resource — `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` — spoken in plain
+HTTPS and JSON. Those are exactly the verbs the
+[RBAC Role](/actors/packages/actors-k8s/installation#rbac) grants.
+
+## Membership only — bring a directory
+
+Membership and the actor **directory** are independent seams, and this package provides only
+the first. Compose it:
+
+```ts
+import { cluster } from '@sigx/actors/cluster';
+import { k8sMembership } from '@sigx/actors-k8s';
+import { redisDirectory } from '@sigx/actors-redis';
+
+app.use(cluster({
+    providers: { membership: k8sMembership(), directory: redisDirectory(redis) },
+    advertise: `http://${process.env.POD_IP}:7311`,
+    secret: process.env.HOST_SECRET,
+}));
+```
+
+Inside a pod everything is discovered: the API server from the service env vars, and namespace,
+token and CA from the ServiceAccount mount — with the bound token re-read on rotation.
+
+> Call `k8sMembership()` once per host.
+
+## Why pick it
+
+You are already on Kubernetes and would rather not make Redis or Postgres responsible for
+knowing which pods are alive — especially when the orchestrator already knows, and its answer
+is the one your probes and endpoints agree with.
+
+Pair it with a [Redis](/actors/packages/actors-redis/overview) or
+[Postgres](/actors/packages/actors-pg/overview) directory and storage.
+
+## The Lease
+
+Each host owns one Lease; nobody else ever writes it.
+
+```json
+{
+    "apiVersion": "coordination.k8s.io/v1",
+    "kind": "Lease",
+    "metadata": {
+        "name": "sigx-s.k3f9a2",
+        "labels": { "sigx.dev/cluster": "default" },
+        "annotations": { "sigx.dev/descriptor": "{\"hostId\":\"s.k3f9a2\",…}" }
+    },
+    "spec": {
+        "holderIdentity": "s.k3f9a2",
+        "leaseDurationSeconds": 15,
+        "renewTime": "2026-07-29T12:04:05.123456Z"
+    }
+}
+```
+
+## Next steps
+
+- [Installation](/actors/packages/actors-k8s/installation) — RBAC, options and local dev.
+- [API reference](/actors/packages/actors-k8s/api) — exports and behaviour.
+- [Kubernetes deployment](/actors/docs/kubernetes) — probes and shutdown ordering.

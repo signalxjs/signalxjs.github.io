@@ -1,0 +1,82 @@
+---
+title: "API reference"
+description: "Exports of @sigx/actors-otel — prometheusOps, renderPrometheus, otelTraces, otelMetricsBridge and the traceparent helpers"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/actors-otel` <PkgVersion npm="@sigx/actors-otel" />.</p>
+
+## `@sigx/actors-otel/prometheus`
+
+Imports no OpenTelemetry.
+
+### `prometheusOps(options?)`
+
+An `ActorPlugin` mounting the scrape endpoint.
+
+```ts
+interface PrometheusOpsOptions extends RenderPrometheusOptions {
+    path?: string;              // '/_sigx/metrics'
+    secret?: string;            // mandatory outside dev
+}
+interface RenderPrometheusOptions {
+    prefix?: string;            // 'sigx_actors_'
+    bucketsSeconds?: number[];  // per-octave grid, 1µs → ~134s
+}
+```
+
+### `renderPrometheus(digest, stats, options)`
+
+The pure function underneath — no plugin, no route. Use it to serve the exposition yourself.
+
+## `@sigx/actors-otel`
+
+### `otelTraces(options?)`
+
+```ts
+interface OtelTracesOptions {
+    tracerProvider?: TracerProvider;
+    turnSpans?: boolean;   // true
+}
+```
+
+One CLIENT span per dispatch, one SERVER span per turn. Cross-host joins ride the runtime's
+W3C `traceparent`.
+
+### `otelMetricsBridge(options?)`
+
+```ts
+interface OtelMetricsBridgeOptions {
+    meterProvider?: MeterProvider;
+    percentileGauges?: boolean;   // true
+}
+```
+
+### `traceparent` helpers
+
+`formatTraceparent(fields)`, `parseTraceparent(header)`, and the `TraceparentFields` type.
+
+## Core plumbing this rides on
+
+Exported from `@sigx/actors` and `@sigx/actors/host` rather than here, but relevant:
+
+- `ActorCallContext.traceparent`
+- the trailing `call` parameter on `ActorTurnObserver`
+- `bucketUpperBoundsUs()` and `timingSafeEquals` from `@sigx/actors/host`
+
+## Labels
+
+`type` and `method` only. **Never actor keys** — enforced, because keys are unbounded and one
+high-cardinality label is enough to take a Prometheus down.
+
+## Next steps
+
+- [Overview](/actors/packages/actors-otel/overview) — the two entries.
+- [Installation](/actors/packages/actors-otel/installation) — scrape config and caveats.
+- [Observability](/actors/docs/observability) — the guide.

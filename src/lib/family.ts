@@ -7,11 +7,11 @@
  * collection packages (core, lynx, server, terminal) live in lib/modules.ts.
  */
 
-import { moduleById, type SigxModule } from '@/lib/modules';
+import { ACTORS_RELEASED, moduleById, type SigxModule } from '@/lib/modules';
 import { VERSIONS } from '@/lib/versions.generated';
 
 export type PackageStatus = 'stable' | 'beta' | 'experimental';
-export type PackageCategory = 'core' | 'render' | 'platform' | 'ui' | 'tooling';
+export type PackageCategory = 'core' | 'render' | 'backend' | 'platform' | 'ui' | 'tooling';
 export type TargetId = 'foundation' | 'web' | 'lynx' | 'terminal';
 /**
  * leaf — a single documented package.
@@ -90,7 +90,17 @@ const RAW_PACKAGES: SigxPackage[] = [
     { id: 'server', npm: '@sigx/server-renderer', title: 'Server', cat: 'render', target: 'web', kind: 'collection', umbrella: false,
       hue: 210, glyph: '⊟', status: 'stable', version: '0.14.0',
       tag: 'SSR, server functions, resume & serialize',
-      blurb: 'The full-stack server layer for SignalX — type-safe RPC you call like a function, resumable SSR that ships almost no JS, streaming render with islands, and a codec that carries your own types across the wire.' },
+      blurb: 'Type-safe RPC you call like a function, resumable SSR that ships almost no JS, streaming render with islands, and a codec that carries your own types across the wire. Reach for Actors when a call needs identity and memory as well.' },
+
+    // ---- Web: server & state ----
+    // `actors` is a collection like `server`, but with a real umbrella package.
+    // It sits in `backend` alongside `server` — the `server` row's category is
+    // switched to match in the PACKAGES mapping below, at the same moment
+    // actors becomes visible, so the live mega-menu changes exactly once.
+    { id: 'actors', npm: '@sigx/actors', title: 'Actors', cat: 'backend', target: 'web', kind: 'collection',
+      hue: 116, glyph: '⬡', status: 'experimental', version: '0.1.0',
+      tag: 'Addressable, single-threaded server state',
+      blurb: 'Virtual actors for SignalX — addressable, persistent server objects that ride the serverFn wire. Lazy activation, turn-based concurrency so a method body never races itself, pluggable storage with optimistic concurrency, durable reminders, and clustering across hosts when one machine stops being enough.' },
 
     // ---- Targets with their own framework package ----
     { id: 'lynx', npm: '@sigx/lynx', title: 'Lynx', cat: 'platform', target: 'lynx', kind: 'collection',
@@ -135,13 +145,63 @@ const RAW_PACKAGES: SigxPackage[] = [
       blurb: 'A browser panel to trace the reactive graph, time-travel effects and inspect components.' },
 ];
 
-/** Registry with live npm versions overlaid (falls back to the literal). */
-export const PACKAGES: SigxPackage[] =
-    RAW_PACKAGES.map((p) => ({ ...p, version: VERSIONS[p.npm] ?? p.version }));
+/**
+ * Injected by vite.config.ts — true only under the dev server (`command ===
+ * 'serve'`). Declared with a `typeof` guard below so any consumer outside the
+ * Vite graph (a plain Node script, a vitest run without the define) still
+ * evaluates it safely rather than throwing on an unresolved global.
+ */
+declare const __SIGX_SHOW_UNRELEASED__: boolean | undefined;
+
+/**
+ * Whether the site shows the actors area at all: once the packages ship, and
+ * in the dev server regardless — matching the `showDrafts: 'dev'` convention
+ * the rest of the site uses. Writing an unreleased area should feel like
+ * writing any other section, and dev shows the layout as it will ship,
+ * including `server` sitting beside `actors` in the backend group.
+ *
+ * Deliberately NOT `import.meta.env.DEV`: that is **true during the SSG's
+ * prerender step**, so gating on it renders the area into the static HTML that
+ * ships. `command === 'serve'` in vite.config.ts is the signal that actually
+ * distinguishes serving from building.
+ */
+const SHOW_ACTORS =
+    ACTORS_RELEASED
+    || (typeof __SIGX_SHOW_UNRELEASED__ !== 'undefined' && __SIGX_SHOW_UNRELEASED__);
+
+/**
+ * Registry with live npm versions overlaid (falls back to the literal).
+ *
+ * `server` moves from the `render` group to `backend` at the same moment
+ * actors becomes visible, so the two sit together as siblings — see the
+ * `actors` row above. Doing it here rather than in the literal keeps the
+ * release a single flag flip instead of two edits that must agree.
+ */
+export const PACKAGES: SigxPackage[] = RAW_PACKAGES.map((p) => ({
+    ...p,
+    version: VERSIONS[p.npm] ?? p.version,
+    cat: p.id === 'server' && SHOW_ACTORS ? 'backend' : p.cat,
+}));
+
+/**
+ * The registry minus anything not yet released — what the site's PUBLIC
+ * surfaces (mega-menu, home grid, ⌘K palette, package counts) enumerate.
+ *
+ * `PACKAGES`/`byId` stay complete on purpose: the docs pages themselves are
+ * gated by `draft: true` (the SSG drops draft routes from the build entirely),
+ * so a `--drafts` build still needs to resolve the landing, catalog and hues.
+ * What drafts do NOT cover is a registry row rendering a tile that links to a
+ * page the production build never emitted — hence this second list.
+ *
+ * See SHOW_ACTORS above, and ACTORS_RELEASED in lib/modules.ts.
+ */
+export const PUBLIC_PACKAGES: SigxPackage[] =
+    PACKAGES.filter((p) => SHOW_ACTORS || p.id !== 'actors');
 
 export const CATEGORIES: { id: PackageCategory; label: string; hint: string }[] = [
     { id: 'core', label: 'Core', hint: 'Reactivity, routing & state' },
     { id: 'render', label: 'Rendering', hint: 'SSG, SSR & islands' },
+    { id: 'backend', label: 'Server & state', hint: 'RPC, actors & persistence' },
     { id: 'platform', label: 'Platforms', hint: 'Native, terminal & beyond' },
     { id: 'ui', label: 'UI', hint: 'Components & editors' },
     { id: 'tooling', label: 'Tooling', hint: 'CLI, bundler & devtools' },
@@ -166,6 +226,7 @@ export const TARGETS: { id: TargetId; label: string; hint: string }[] = [
 export const CAT_SHORT: Record<PackageCategory, string> = {
     core: 'Reactivity & state',
     render: 'Rendering',
+    backend: 'Server & state',
     ui: 'UI',
     tooling: 'Tooling',
     platform: 'Framework',
@@ -175,8 +236,9 @@ export const CAT_SHORT: Record<PackageCategory, string> = {
 export const TARGET_OF: Record<string, TargetId> =
     Object.fromEntries(PACKAGES.map((p) => [p.id, p.target]));
 
+/** Public packages in a target — drives the mega-menu columns and home grid. */
 export const inTarget = (target: TargetId): SigxPackage[] =>
-    PACKAGES.filter((p) => p.target === target);
+    PUBLIC_PACKAGES.filter((p) => p.target === target);
 
 export const STATUS: Record<PackageStatus, { label: string; hue: number }> = {
     stable:       { label: 'Stable',  hue: 150 },
@@ -207,14 +269,15 @@ export function packageForCollection(collection?: string | null): SigxPackage | 
 /**
  * Resolve a sub-package/module from a module collection name
  * (`lynx-mod-<id>-docs` / `core-pkg-<id>-docs` / `server-pkg-<id>-docs` /
- * `terminal-pkg-<id>-docs` / `deploy-pkg-<id>-docs` — see lib/modules.ts).
+ * `terminal-pkg-<id>-docs` / `deploy-pkg-<id>-docs` / `actors-pkg-<id>-docs` —
+ * see lib/modules.ts).
  * The `-mod-`/`-pkg-` infix keeps these unambiguous against top-level
  * collections (`core-api` vs a core sub-package named `api`), while
  * `packageForCollection`'s prefix split still yields the parent package.
  */
 export function moduleForCollection(collection?: string | null): SigxModule | undefined {
     if (!collection) return undefined;
-    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg|terminal-pkg|deploy-pkg)-(.+?)-(?:docs|api)$/);
+    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg|terminal-pkg|deploy-pkg|actors-pkg)-(.+?)-(?:docs|api)$/);
     return m ? moduleById[m[1]] : undefined;
 }
 

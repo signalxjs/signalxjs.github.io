@@ -1,0 +1,90 @@
+---
+title: The Vite plugin
+description: "sigxActors() — the build swap that keeps implementations out of the browser, the dev host, and what HMR does to actor state"
+layout: docs
+category: Running a host
+order: 400
+---
+
+# The Vite plugin
+
+<p class="lede">`sigxActors()` does two jobs: it swaps `*.actor.ts` modules for typed client
+stubs in the browser bundle, and it runs a dev host so calls actually go somewhere.</p>
+
+```ts
+import { sigxActors } from '@sigx/actors/vite';
+
+export default {
+    plugins: [sigxActors({ app: '/src/actors.app.ts' })],
+};
+```
+
+## Options
+
+| Option | Default | What it does |
+|---|---|---|
+| `app` | — | root-relative path to your [app module](/actors/docs/the-app) |
+| `include` | `['**/*.actor.ts', '**/*.actor.tsx']` | which modules are actor modules |
+| `exclude` | `node_modules`, `dist` | never transformed |
+| `base` | `/_sigx/actor` | where the endpoint mounts |
+| `endpoint` | `= base` | what the client ref is stamped with |
+| `requireGuards` | `true` | `'warn'` to soften while migrating |
+| `origin` | — | `'same-origin'`, `'verify-when-present'`, an allowlist, or `false` |
+| `maxBodyBytes` | — | request body cap |
+| `onMiss` | `'proxy'` | what to do when the actor is on another host |
+
+The virtual module is `virtual:sigx-actors`; the production chunk is `sigx-actors.js`.
+
+## The build swap
+
+Actor modules are replaced wholesale in the client bundle. **Values are swapped, types are
+not** — which is why `actor(Counter, id).increment(1)` is fully typed in the browser with no
+second interface to maintain, and why no implementation, no database import and no secret from
+an actor file can reach the browser.
+
+`exclude` covers `node_modules`, so a package shipping actors must
+[do its own swap](/actors/docs/shipping-actors-in-packages).
+
+## One config for dev and production
+
+`sigxActors({ app })` points dev at the same app module your production entry imports, so
+storage, placement, codec handlers, defaults and every plugin are identical in both. There is
+no second place to configure the dev host, and nothing to keep in sync.
+
+The app module gets its registry from `virtual:sigx-actors` under Vite, and from
+`withActors([...])` anywhere else. Add the virtual module's types once:
+
+```ts
+// src/env.d.ts
+/// <reference types="@sigx/actors/vite-client" />
+```
+
+> `virtual:sigx-actors` only resolves under Vite. A non-Vite production entry should take its
+> registry as a parameter rather than importing the virtual module.
+
+## Dev & HMR
+
+The dev host lives in the SSR module runner's graph and is reachable through the
+`__SIGX_ACTOR_HOST__` seam.
+
+Editing a `*.actor.ts` file deactivates that type through storage, so **state survives edits
+if — and only if — your app configures persistent storage.** `sigxActors({ app })` runs your
+real config, so it does. With the bare in-memory default it resets, and the dev log says so
+once.
+
+Mid-edit syntax errors never reach the browser: the last good client stub is served, or a loud
+refusal.
+
+> If your storage `dir` sits inside the project root, add it to `server.watch.ignored`. Saves
+> are temp-file-then-rename and the HMR watcher races them, surfacing as an `ENOENT … .tmp`
+> overlay. Actor state is not source.
+>
+> ```ts
+> server: { watch: { ignored: ['**/.actors/**'] } }
+> ```
+
+## Next steps
+
+- [The app](/actors/docs/the-app) — what the `app` option points at.
+- [Running a host on Node](/actors/docs/node) — the production entry.
+- [Guards](/actors/docs/guards) — the `requireGuards` gate.

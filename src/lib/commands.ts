@@ -9,7 +9,7 @@
 
 import { navigation } from 'virtual:ssg-navigation';
 import type { NavItem, NavSection } from '@sigx/ssg';
-import { PACKAGES, byId, moduleForCollection, packageForCollection } from '@/lib/family';
+import { PUBLIC_PACKAGES, byId, moduleForCollection, packageForCollection } from '@/lib/family';
 import { MODULES, modulesByParent } from '@/lib/modules';
 import { moduleHref } from '@/lib/packageLinks';
 
@@ -71,7 +71,7 @@ export function buildCommands(): Command[] {
     seen.add('/terminal/packages');
 
     // Package landing pages — the most prominent jump targets.
-    for (const pkg of PACKAGES) {
+    for (const pkg of PUBLIC_PACKAGES) {
         add({ label: pkg.title, href: `/${pkg.id}`, pkgId: pkg.id, path: `${pkg.npm} · Overview` });
     }
 

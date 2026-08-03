@@ -6,9 +6,9 @@
  *
  *   pnpm fetch:versions     # run manually, or in CI before `pnpm build`
  *
- * Leverages lockstep versioning: the three monorepos (core, lynx,
- * terminal) are fetched once each through an anchor package and fanned out
- * to every member; the standalone packages — plus `@sigx/vite` and
+ * Leverages lockstep versioning: the four monorepos (core, lynx,
+ * terminal, actors) are fetched once each through an anchor package and fanned
+ * out to every member; the standalone packages — plus `@sigx/vite` and
  * `@sigx/args`, which ship from the core/terminal monorepos but on their own
  * version lines (see anchorFor below) — are fetched individually (~12
  * requests total instead of ~60). Resilient by design — a failed request keeps the
@@ -66,6 +66,7 @@ const anchorFor = (npm) =>
     CORE_MEMBERS.has(npm) ? 'sigx'
         : TERMINAL_MEMBERS.has(npm) ? '@sigx/terminal'
         : npm === '@sigx/lynx' || npm.startsWith('@sigx/lynx-') ? '@sigx/lynx'
+        : npm === '@sigx/actors' || npm.startsWith('@sigx/actors-') ? '@sigx/actors'
             : npm;
 
 // ---- Ensure the manifest exists before importing the registry ----

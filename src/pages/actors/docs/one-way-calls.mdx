@@ -1,0 +1,87 @@
+---
+title: One-way calls
+description: "with({ oneWay: true }) — resolve when the target accepts the call instead of when the turn completes, and where the failure line falls"
+layout: docs
+category: Calling actors
+order: 250
+---
+
+# One-way calls
+
+<p class="lede">A one-way call resolves as `Promise<void>` when it is **accepted into the
+target activation** — never when the turn completes. Fire-and-forget with backpressure and
+error accounting, instead of a floating promise that has neither.</p>
+
+```ts
+await actor(Notifier, userId).with({ oneWay: true }).notify(event);
+```
+
+Locally that is at enqueue; remotely it is when the transport reply comes back from the
+receiving host's enqueue. Awaiting it still tells you the runtime has taken responsibility for
+the call — you just do not pay for the turn.
+
+It works on every proxy — the browser client, the server entry and `ctx.actor(...)` — and the
+type narrows to `Promise<void>` at the call site.
+
+## Where failures fall
+
+The line is **acceptance**.
+
+| Failure | When | The caller sees |
+|---|---|---|
+| guard veto, unknown type, activation failure, wrong host, auth, unreachable peer, host shutting down | before acceptance | a normal rejection |
+| the method throws, a deadline expires mid-turn | after acceptance | **nothing** — dropped, counted as `oneWayFailures` in [`metrics()`](/actors/docs/metrics) on the host that ran the turn, plus a dev-mode console warning |
+
+So a one-way call still fails loudly for everything that would have stopped it from being
+delivered, and silently for everything that happens once it is the runtime's problem. If you
+need to know that the *work* succeeded, do not use `oneWay` — or have the actor report
+completion some other way, such as a [topic](/actors/docs/topics).
+
+## What follows from "the caller is gone"
+
+**Ordering holds.** The call was enqueued before the promise resolved, so an awaited call
+issued afterwards runs after it — the same [turn ordering](/actors/docs/turns) as always.
+
+**A one-way self-call cannot deadlock.** Awaited, `A → A` on a non-reentrant actor is a
+detected [`ActorDeadlockError`](/actors/docs/errors). One-way, it is "schedule more work for
+myself" and simply queues behind the current turn. That makes it a clean way to express
+follow-up work without widening [reentrancy](/actors/docs/reentrancy).
+
+**The caller's deadline race is skipped** — there is no caller left to race. The deadline
+still rides the context and bounds the turn's own nested awaited calls.
+
+**Streams refuse it** — a stream is consumed, not fired and forgotten. A
+[declared read](/actors/docs/cacheable-reads) goes out as a `POST` even under `get: true`,
+because an acknowledgement must never be served from an HTTP cache.
+
+## On the wire
+
+The proxy sends `x-sigx-one-way: 1` and the endpoint answers at acceptance. Host-to-host, the
+flag rides the envelope as an additive `ow` field — no protocol bump.
+
+That header is a custom one, so it triggers a CORS preflight on a cross-origin call. Same
+origin, the usual case, is unaffected.
+
+**Mixed-version clusters degrade gracefully.** An older receiving host ignores the flag and
+answers at turn completion: the call is still delivered exactly once, the sender just waits
+longer, and a post-acceptance failure can reach it as a rejection during the rolling deploy.
+
+**Delivery is at-most-once after the ack**, exactly as for normal calls. A connection lost
+between acceptance and the reply can be retried by the cluster's routing — the same window
+every unary call already has.
+
+## When to use it
+
+Good fits: notifications, analytics, cache warming, kicking off follow-up work on another
+actor, anything where the caller genuinely does not need the result and you would otherwise
+have written `void client.method()`.
+
+Poor fits: anything a user is waiting on, and anything where a dropped post-acceptance failure
+would go unnoticed. For long work that must survive and report progress, use a
+[job](/actors/docs/jobs) instead.
+
+## Next steps
+
+- [Tasks](/actors/docs/tasks) — detached work that still belongs to the actor.
+- [Jobs](/actors/docs/jobs) — durable, resumable, observable work.
+- [Topics](/actors/docs/topics) — actor-to-actor fan-out.

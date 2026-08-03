@@ -1,0 +1,76 @@
+---
+title: Entry points
+description: "The eleven subpath exports of @sigx/actors, what each contains and which runtimes each is safe on"
+layout: docs
+category: Reference
+order: 800
+---
+
+# Entry points
+
+<p class="lede">`@sigx/actors` is one package with eleven subpaths. The split is about what may
+reach a browser and what may reach a Worker — not about tree-shaking.</p>
+
+| Entry | Contents |
+|---|---|
+| `@sigx/actors` | `defineActor`, `defineWorker`, `actor`, `useActor`, `actorKey`, `topic`, errors, types — isomorphic, light |
+| `@sigx/actors/host` | `defineActorApp`, `createHost`, `memoryStorage`, `metrics()`, `health()`, `ops()`, storage/placement/plugin seams — **server-only** |
+| `@sigx/actors/server` | `handleActorRequest`, `matchesActorRequest`, `createActorResolver`, `createFetchHandler` — WinterCG-clean |
+| `@sigx/actors/node` | `createAppHandler` (all mounts), `createActorHandler`, `attachSignalHandlers`, `fileStorage` |
+| `@sigx/actors/client` | `__actorRef`, `configureActors`, `fetchTransport`, the `ActorTransport` and `ActorRouter` seams — the build-swap target |
+| `@sigx/actors/app` | `actorsPlugin()`, `useActorState`, `useActorAction` — the sigx integration, and the only entry that imports `@sigx/runtime-core` |
+| `@sigx/actors/job` | `defineJob` — durable long-running operations |
+| `@sigx/actors/cluster` | `cluster()`, `clusterPlacement`, `clusterStats`, `handleHostRequest`, `memoryClusterHub`, provider seams — WinterCG-clean |
+| `@sigx/actors/cluster/frames` | the shared frame codec, for transport authors |
+| `@sigx/actors/vite` | `sigxActors()`, `extractActors` |
+| `@sigx/actors/vite-client` | ambient types for `virtual:sigx-actors` (types only) |
+
+## What the split protects
+
+**`./client` rides every bundle that touches an actor.** Its size budget is 5 kB, and 2 kB for
+`{ __actorRef, configureActors, fetchTransport }` alone. That is why
+[live reads](/actors/docs/live-reads) are driven from `./app` over the transport's `stream()`
+rather than shipping push logic here.
+
+**`./cluster` is WinterCG-clean and zero-dependency**, so Cloudflare Workers keep working.
+That constraint is why [`httpTransport()` must stay the default](/actors/docs/transports) — a
+default needing `node:net` would break Workers outright.
+
+**`./host` is server-only.** Importing it from a component is a mistake the build swap
+normally prevents; if you have reached for it in shared code, you want `@sigx/actors` instead.
+
+## Size budgets
+
+| Entry | Budget |
+|---|---|
+| `@sigx/actors` | 3.4 kB (`{ actor }` alone ≤ 2 kB) |
+| `./client` | 5 kB |
+| `./app` | 5 kB |
+| `./job` | 3 kB |
+| `./server` | 6 kB |
+| `./cluster` | 12 kB |
+| `./cluster/frames` | 4 kB |
+
+Enforced in CI by `size-limit`.
+
+## Dual dev and production builds
+
+Every non-Vite entry ships `development` and `production` conditions. The production build
+strips dev-only warnings — slow-turn warnings, the class-instance `methods:` warning, the
+dispatch-middleware `dispatchStream` warning — which is why a bundler that does not define
+`__DEV__` throws on first request. See
+[Cloudflare Workers](/actors/docs/cloudflare-workers).
+
+## Peer dependencies
+
+`@sigx/reactivity`, `@sigx/serialize` and [`@sigx/server`](/server/packages/server/overview)
+are required; `@sigx/runtime-core`, `@sigx/vite` and `vite` are optional. There are **no
+runtime dependencies**.
+
+Core 0.14 or later. Every satellite package peer-depends on `@sigx/actors` itself.
+
+## Next steps
+
+- [Design notes](/actors/docs/design-notes) — the deliberate limits.
+- [Installation](/actors/docs/installation) — which entries a normal app touches.
+- [The packages](/actors/packages) — the eight optional satellites.

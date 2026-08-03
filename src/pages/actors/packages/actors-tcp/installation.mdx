@@ -1,0 +1,80 @@
+---
+title: "Installation"
+description: "Options for tcpTransport, why advertiseHost matters on a multi-homed box, and how simultaneous dials are resolved"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">One option matters more than the rest, and it is the one with a bad
+default for real deployments.</p>
+
+## Install
+
+```bash
+pnpm add @sigx/actors-tcp
+```
+
+Node-only — this package uses `node:net`.
+
+## Use it in a chain
+
+```ts
+import { cluster, httpTransport } from '@sigx/actors/cluster';
+import { tcpTransport } from '@sigx/actors-tcp';
+
+cluster({
+    providers, secret,
+    advertise: `http://${process.env.POD_IP}:7311`,
+    transport: [
+        tcpTransport({ port: 11111, advertiseHost: process.env.POD_IP }),
+        httpTransport(),
+    ],
+});
+```
+
+## Options
+
+| Option | Default | Meaning |
+|---|---|---|
+| `port` | — | the port to listen on |
+| `host` | — | bind address |
+| `advertiseHost` | the bind host, else `127.0.0.1` | **what peers dial** |
+| `maxFrameBytes` | — | frame size cap |
+| `credit` | — | flow-control window |
+| `keepAliveMs` | `15000` | keep-alive cadence |
+
+> **`advertiseHost` matters on a multi-homed box.** It defaults to the bind host and, failing
+> that, to `127.0.0.1` — which is wrong for any real deployment, because peers will dial their
+> own loopback and never reach you. Set it to the address peers can actually resolve: a pod
+> IP, a private-network address, a service DNS name.
+
+The advertised address takes the form `tcp://host:port`.
+
+## Simultaneous dials
+
+Two hosts discovering each other at the same moment would otherwise open two connections. The
+tie is broken deterministically: **the lexicographically smaller `hostId` is the designated
+dialer.**
+
+## Failures
+
+A connect failure surfaces as `ActorUnreachableError`, which is retryable by design — see
+[Errors](/actors/docs/errors). In a chain, an unreachable TCP peer falls through to the next
+transport; as a **single** transport it is strict, and a peer advertising no `tcp` address is
+unreachable loudly. That is deliberate, so a silent fallback cannot make you benchmark the
+wrong wire.
+
+## Security
+
+Frames are authenticated per request with the cluster HMAC, exactly as over HTTP.
+**Transport encryption is out of scope** — run mTLS or a private network between hosts. See
+[Design notes](/actors/docs/design-notes).
+
+## Next steps
+
+- [API reference](/actors/packages/actors-tcp/api) — exports.
+- [Host transports](/actors/docs/transports) — choosing, and the conformance suite.
+- [WebSocket transport](/actors/packages/actors-ws/overview) — when one port matters.
