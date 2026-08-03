@@ -22,8 +22,10 @@ needs no extra store for membership.</p>
 pnpm add @sigx/actors-k8s
 ```
 
-No Kubernetes client library. The API surface this package touches is six verbs on one
-resource, spoken in plain HTTPS and JSON.
+No Kubernetes client library. The API surface this package touches is seven verbs on one
+resource — `get`, `list`, `watch`, `create`, `update`, `patch`, `delete` — spoken in plain
+HTTPS and JSON. Those are exactly the verbs the
+[RBAC Role](/actors/packages/actors-k8s/installation#rbac) grants.
 
 ## Membership only — bring a directory
 

@@ -25,8 +25,13 @@ import { PkgVersion } from '@/components/PkgVersion';
 ## Schema helpers
 
 ```ts
-ensurePgSchema(pool, { schema? });   // issues the DDL — dev and tests
-pgSchemaSql(schema?);                // returns it, for your migration tool
+// ensurePgSchema(pool: PgPoolLike, options?: { schema?: string }): Promise<void>
+// pgSchemaSql(schema?: string): string
+
+await ensurePgSchema(pool);                  // issues the DDL — dev and tests
+await ensurePgSchema(pool, { schema: 'app' });
+
+console.log(pgSchemaSql());                  // returns it, for your migration tool
 ```
 
 ## Encoding helpers

@@ -28,7 +28,10 @@ interface WsTransportOptions {
 ```
 
 ```ts
-await ws.attach(server, { wss? });   // → Promise<() => void> teardown
+// attach(server: Server, options?: { wss?: WebSocketServerLike }): Promise<() => void>
+
+const stop = await ws.attach(server);                       // usual case
+const stop = await ws.attach(server, { wss: myWsServer });   // reuse your own
 ```
 
 ## `attachHostUpgrade(server, { transport, wss? })`
