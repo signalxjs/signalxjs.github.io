@@ -26,7 +26,9 @@
     <!--
       Site-wide structured data. This block is static and shared by every
       route, so it describes the SITE and the PROJECT only — per-page schema
-      (TechArticle, BreadcrumbList) belongs in the page head, not here.
+      (TechArticle, BreadcrumbList) is emitted per page by the SSG's
+      autoJsonLd (ssg.config.ts, needs @sigx/ssg 0.20); the homepage opts out
+      since this graph already describes it.
 
       No WebSite.potentialAction/SearchAction: there is no on-site search
       endpoint yet, and claiming one Google cannot use is worse than omitting it.

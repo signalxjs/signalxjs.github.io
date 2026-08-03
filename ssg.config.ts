@@ -71,6 +71,7 @@ export default defineSSGConfig({
         // OG/Twitter support — a real 1200×630 card (#516); the 150×119 logo
         // was invalid for the summary_large_image Twitter card.
         ogImage: 'https://sigx.dev/og-card.png',
+        ogImageAlt: 'SignalX — a fine-grained reactive TypeScript framework for web, native and terminal',
         twitter: 'signalxjs',
     },
     
@@ -245,6 +246,13 @@ export default defineSSGConfig({
             '/lynx/modules/device-info/**',
         ],
     },
+
+    // Per-page structured data (#516, needs @sigx/ssg 0.20): BreadcrumbList +
+    // TechArticle derived from each page's meta — the per-page counterpart to
+    // the site-wide Organization/WebSite/SoftwareSourceCode graph in
+    // index.html. The homepage opts out via meta.autoJsonLd (the site graph
+    // already describes it).
+    autoJsonLd: true,
 
     // Redirects for routes that have moved. `@sigx/lynx-device-info` folded into
     // `@sigx/lynx-core`, so its former module pages now live under the core module —

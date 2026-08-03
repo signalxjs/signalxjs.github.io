@@ -47,4 +47,6 @@ export const meta = {
     title: 'SignalX (sigx) - The Reactive TypeScript Framework',
     description: 'SignalX (sigx) — a fine-grained reactive TypeScript framework with signals, TSX components, typed server functions and actors. One core for web, native (Lynx) and terminal apps.',
     layout: 'home',
+    // The site-wide graph in index.html already describes the homepage.
+    autoJsonLd: false,
 };
