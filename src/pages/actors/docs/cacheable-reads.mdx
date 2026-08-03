@@ -1,0 +1,113 @@
+---
+title: Cacheable reads
+description: "The reads: declaration, GET on the actor endpoint, and the ordering guarantee you give up in exchange for cache hits"
+layout: docs
+category: Calling actors
+order: 240
+draft: true
+---
+
+# Cacheable reads
+
+<p class="lede">Declare a method a cacheable read and the endpoint accepts `GET` for it and
+emits the `Cache-Control` you asked for — so browsers, CDNs and reverse proxies absorb read
+traffic that would otherwise reach an actor.</p>
+
+```ts
+defineActor({
+    type: 'Product',
+    unguarded: true,
+    reads: {
+        summary: { maxAge: 5 },
+        price: { maxAge: 60, public: true, staleWhileRevalidate: 30 },
+    },
+    state: () => ({ cents: 999 }),
+    methods: (ctx) => ({
+        async summary(currency: string) { /* … */ },
+        async price() { return ctx.state.cents; },
+    }),
+});
+```
+
+`GET {base}/r/{token}/Product%23price?args=["p1"]` returns the same envelope a POST returns,
+plus `Cache-Control: public, max-age=60, s-maxage=60, stale-while-revalidate=30`.
+
+The declaration is core's `ServerFnReadCache` vocabulary unchanged, and the build stamps the
+names onto the client ref so the proxy issues `GET` on its own — **nothing at the call site
+changes.**
+
+## What you are trading
+
+> **A cached read bypasses the mailbox ordering guarantee.** For `maxAge` seconds the response
+> an intermediary serves may be older than the actor's state, and nothing on the server can
+> pull it back — not `ctx.save()`, not `useActorAction`, not `cells.invalidate()`, which
+> refresh this page's cells and never a CDN's copy.
+
+Declare a read where staleness is a **product decision**, not where it would be a bug. A price
+that may be five seconds old is usually fine. A cart total on the checkout screen is not.
+
+The declaration is also a promise the runtime cannot verify: a listed method must be
+side-effect-free and idempotent, exactly as with `cache` on a server function. A mutating
+method declared cacheable re-opens CSRF.
+
+## The rules that follow
+
+**`public` is gated.** It puts the response in *shared* caches, where one caller's copy is
+served to the next, so core's contract for it is args-only — never cookies, auth or headers. A
+guard is the one thing here that provably reads the request, and nothing can inspect *what* it
+reads, so `public` on a guarded read is a **definition-time throw**. Without `public` the read
+is still cached, per client, and the endpoint adds `Vary: Cookie`.
+
+**Guards still run**, on `GET` exactly as on `POST`. A rejection answers its own status with
+`Cache-Control: no-store` — a failed read is never cacheable.
+
+**Streams cannot be declared.** Saying so is a definition-time throw rather than a silently
+ignored declaration.
+
+**POST keeps working** for every declared read. The declaration lives on the definition, not
+on the wire, so a hand-built host with no build transform, an older client, or a service
+calling by hand all still work.
+
+**Routing is unchanged** — the [token](/actors/docs/locality-routing) travels in both
+carriers, and an actor another host owns is proxied as usual, with the answering host making
+the caching promise.
+
+**No `content-type` on the GET.** It would describe a body that does not exist, and it is a
+non-safelisted header, so leaving it off is one fewer reason to preflight. That is not a
+promise of no preflight — the routing token header ships by default and triggers one on its
+own. A cross-origin caller who needs a genuinely simple `GET` wants `route: 'none'` and no
+custom headers either. Same-origin, the usual case, never preflights.
+
+**A GET puts the actor key and every argument in the URL**, where a POST body kept them out of
+access logs, proxy traces and referrer headers. That is the same log-hygiene concern the
+[hashed routing token](/actors/docs/locality-routing) exists for, and it now applies to the
+arguments too, in plaintext.
+
+`maxAge` values are the whole non-negative seconds `Cache-Control` actually defines — a
+fractional one is a malformed directive, so it is refused rather than emitted.
+
+## Opting out per call
+
+```ts
+await actor(Product, 'p1').with({ get: false }).summary('EUR');
+```
+
+Sends a declared read as a `POST`: no caching, but no arguments in the URL either, and no
+query-length cap — a long enough query is a `414`. The endpoint accepts both carriers for a
+declared read, so this is purely a client-side choice.
+
+A [one-way call](/actors/docs/one-way-calls) forces `POST` even on a declared read, because an
+acknowledgement must never be served from a cache.
+
+## Reads that should not queue
+
+If the problem is that a read is stuck behind slow writes rather than that it is expensive,
+the answer is not caching — it is
+[`methodReentrancy: { price: 'always' }`](/actors/docs/reentrancy), which lets that one method
+interleave. The two compose well.
+
+## Next steps
+
+- [Live reads](/actors/docs/live-reads) — the opposite trade: always current, pushed.
+- [Locality routing](/actors/docs/locality-routing) — the token in the URL.
+- [Guards](/actors/docs/guards) — why `public` is refused on a guarded read.

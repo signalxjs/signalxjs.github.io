@@ -1,0 +1,113 @@
+---
+title: Lifecycle
+description: "onActivate, onDeactivate and why it ran — idleAfterMs, maxActivations, deactivation reasons and seeing which actors are live"
+layout: docs
+category: Core concepts
+order: 130
+draft: true
+---
+
+# Lifecycle
+
+<p class="lede">Activations come and go without you asking. What you control is how long they
+linger, how many a host will hold, and what happens at each end.</p>
+
+## The hooks
+
+```ts
+defineActor({
+    type: 'Room',
+    state: () => ({ members: [] as string[] }),
+    async onActivate(ctx) {
+        // runs after state is loaded and migrated, before the first turn
+        ctx.index = new Map(ctx.state.members.map((m) => [m, true]));
+    },
+    async onDeactivate(ctx, reason) {
+        // reason: 'idle' | 'shutdown' | 'capacity' | 'migrated' | …
+    },
+});
+```
+
+`onActivate` always observes [migrated](/actors/docs/state-and-persistence) state. A throw
+from it fails activation with `ActorActivationError` and the call that triggered it rejects.
+
+`onDeactivate` receives **why**, which matters because the reasons are not equivalent:
+
+| Reason | Means |
+|---|---|
+| `idle` | no calls for `idleAfterMs` — the ordinary case |
+| `shutdown` | the host is stopping; the mailbox has drained |
+| `capacity` | a `maxActivations` cap shed it (least-recently-used) |
+| `migrated` | a [cluster](/actors/docs/clustering) moved it to another host |
+
+## Idle collection
+
+`idleAfterMs` (default 20 minutes) is how long an activation survives without a call. The
+sweeper runs every `sweepIntervalMs` (default 60s); set either to `0` to disable.
+
+Two things count as activity that people expect not to:
+
+- An open [live watch](/actors/docs/live-reads) keeps the actor alive, deliberately — so idle
+  collection cannot deactivate an actor out from under a subscriber.
+- A running [task](/actors/docs/tasks) holds a keep-alive until it finishes.
+
+A `ctx.timer` tick does **not** keep the actor alive. That is the Orleans posture and it is
+intentional: a volatile timer is a convenience, not a reason to pin an object in memory. If
+you need the actor to wake up later regardless, use a
+[durable reminder](/actors/docs/timers-and-reminders).
+
+## Capping activations
+
+```ts
+defaults: { maxActivations: 50_000 }
+```
+
+A **soft** LRU cap, enforced by the sweeper, with deactivation reason `capacity`. Soft is the
+operative word:
+
+- Busy actors and actors holding a keep-alive are never shed.
+- The live count may therefore exceed the cap.
+- State survives — a shed actor reactivates from storage on its next call.
+
+It is a memory guardrail, not an admission-control mechanism. Watch `byReason.capacity` in
+[metrics](/actors/docs/metrics): a cap that is shedding constantly is either too low or
+hiding a key-cardinality problem.
+
+## Seeing what is live
+
+```ts
+host.activations({ sortBy: 'queued', limit: 20 });
+```
+
+Returns `{ type, key, queued, ageMs, idleMs, keptAlive, tasks }` per activation. `sortBy`
+accepts `'queued'`, `'age'` or `'idle'`, and `type` filters to one actor type.
+
+`queued` is the one to look at first: a persistently non-zero queue depth is a hotspot, and
+the fix is usually to shard the key or move I/O out of the turn — see
+[Metrics](/actors/docs/metrics) for the `queueMs` versus `turnMs` distinction.
+
+The same data is available over the wire through [the ops endpoint](/actors/docs/ops-endpoint)
+and in the [CLI dashboard](/actors/packages/actors-cli/overview).
+
+> Actor keys can be personal data. `host.activations()` returns them, which is why the ops
+> endpoint keeps the activation list **off by default** and requires a secret.
+
+## Shutdown
+
+```ts
+await host.stop({ timeoutMs: 10_000 });
+```
+
+Stops accepting new calls, drains in-flight turns, flushes pending write-behind saves, runs
+`onDeactivate` for every activation and then the app's `onStop` hooks in reverse order.
+
+On Node, wire it to signals with `attachSignalHandlers` — see
+[Running a host on Node](/actors/docs/node). In a cluster, a graceful stop announces `leaving`
+before handing off, which is why liveness and readiness
+[are allowed to disagree](/actors/docs/health-and-readiness).
+
+## Next steps
+
+- [Timers & reminders](/actors/docs/timers-and-reminders) — waking an actor up.
+- [Metrics](/actors/docs/metrics) — activation churn by reason.
+- [Running a host on Node](/actors/docs/node) — graceful shutdown in practice.

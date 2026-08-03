@@ -1,0 +1,114 @@
+---
+title: Wire protocol
+description: "The actor endpoint is the serverFn protocol verbatim — the request shape, the callable surface, reserved symbols and the GET form"
+layout: docs
+category: Calling actors
+order: 200
+draft: true
+---
+
+# Wire protocol
+
+<p class="lede">`handleActorRequest` *is* `handleServerFnRequest` with a host-backed resolver.
+Everything you configured for server functions applies here unchanged.</p>
+
+```
+POST {base}/r/{token}/{Type}%23{method}
+{"args": [key, ...args]}
+
+→ {"data": …}  |  {"error": …}          (NDJSON for streams)
+```
+
+Same origin policy, body caps, prototype-pollution guards, error masking and
+[codec](/server/packages/serialize/overview) — because it is literally the same endpoint
+implementation. See
+[Actors or server functions?](/actors/docs/actors-or-server-functions#they-are-the-same-wire).
+
+The `/r/{token}/` segment is an optional [routing hint](/actors/docs/locality-routing). Under
+`route: 'none'`, and for the reserved symbols below, the URL is plain
+`{base}/{Type}%23{method}` and everything else is unchanged.
+
+`configureActors()` from `@sigx/actors/client` points remote and native clients at another
+base, independently of `configureServerFn`.
+
+## The GET form
+
+A method with a [`reads:` declaration](/actors/docs/cacheable-reads) also answers:
+
+```
+GET {base}/r/{token}/{Type}%23{method}?args=[key,...args]
+```
+
+Same codec, same envelope, plus the `Cache-Control` the declaration asked for.
+
+## The callable surface
+
+**The callable surface is the method table's own keys.** A name that is not an own, callable
+key of `methods:` or `streams:` is a `404 method-not-found`.
+
+That means inherited `Object.prototype` members — `toString`, `constructor`, `valueOf`,
+`__proto__` — are not callable. It also means a `methods:` factory returning a **class
+instance** does not work, because its methods live on a prototype:
+
+```ts
+methods: (ctx) => ({ async addItem(i) { /* … */ } }),   // ✓ own keys
+methods: (ctx) => new CartMethods(ctx),                 // ✗ prototype methods
+```
+
+Dev builds warn on the second form. Declaring a method that *shadows* a prototype name is
+fine — `async toString()` in the literal is an own key and is callable.
+
+## Reserved symbols
+
+Two `$`-prefixed shapes exist, which is why `defineActor` refuses a `type` starting with `$`
+or `@`:
+
+| Symbol | What it is |
+|---|---|
+| `$live#subscribe` | the multiplexed [live-read](/actors/docs/live-reads) mount — the only one a browser talks to |
+| `$watch:{Type}#{method}` | internal host-to-host watch forwarding; not a public endpoint |
+
+`@` is reserved for data keys (`['@actor', …]` — see
+[Reads & writes in components](/actors/docs/in-components)).
+
+## Pluggable transports
+
+The client proxy never speaks HTTP itself — it delegates to an `ActorTransport`, so batching,
+a different auth scheme, or a protocol other than fetch drops in without any call site
+changing:
+
+```ts
+import { configureActors, fetchTransport } from '@sigx/actors/client';
+
+configureActors({ endpoint: '/actors', headers: () => ({ authorization: token() }) });
+// …sugar for fetchTransport(config). Or supply the whole seam:
+configureActors({
+    name: 'batching',
+    call: (symbol, args, init) => /* … */,
+    stream: (symbol, args, init) => /* … */,
+    live: () => /* optional push channel */,
+});
+```
+
+`fetchTransport()` is the default and implements exactly the contract above. `init.endpoint`
+carries the endpoint the build baked into the ref, so `configureActors({ headers })` can
+override headers alone without restating where the server is.
+
+`live()` is the one **optional** member. Leave it out and `@sigx/actors/app` drives the
+`$live` mount over your `stream()` instead — which is how the default transport gets live
+reads without carrying a line of push logic in `./client`, whose bytes ride every bundle that
+touches an actor. Implement it, as a WebSocket transport would, and the app uses yours.
+
+**Server-side, a transport is a plugin.** `PluginRegistry.route()` lets one contribute its own
+mount, which `createAppHandler` and `createFetchHandler` serve in dev and prod alike.
+
+> One current limit: `ActorRoute.handle` returns a `Response`, which cannot express a Node
+> WebSocket upgrade — that needs the raw socket. This applies to the **client-facing**
+> transport. A [host-to-host transport](/actors/docs/transports) is not bound by it, because
+> it may bring its own listener instead of a route.
+
+## Next steps
+
+- [The client](/actors/docs/client) — configuring transports and routers.
+- [Locality routing](/actors/docs/locality-routing) — the token and what it is for.
+- [Cacheable reads](/actors/docs/cacheable-reads) — the GET form in depth.

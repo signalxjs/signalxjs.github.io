@@ -1,0 +1,108 @@
+---
+title: Guards
+description: "use:, methodUse: and unguarded — the serverFn guard contract applied to actor methods, run outside the mailbox on every transport"
+layout: docs
+category: Core concepts
+order: 140
+draft: true
+---
+
+# Guards
+
+<p class="lede">Actor methods are as security-sensitive as server functions, so the build
+requires a decision per actor: a `use:` chain, or a literal `unguarded: true`. There is no
+default.</p>
+
+## Declaring one
+
+```ts
+import { requireUser } from './guards';
+
+export const CartActor = defineActor({
+    type: 'Cart',
+    use: [requireUser],
+    methodUse: {
+        applyDiscount: [requireStaff],   // this method needs more
+    },
+    state: () => ({ items: [] as Item[] }),
+    methods: (ctx) => ({ /* … */ }),
+});
+```
+
+Or opt out, explicitly:
+
+```ts
+defineActor({ type: 'Counter', unguarded: true, /* … */ });
+```
+
+The Vite plugin enforces the choice (`requireGuards: true` by default, `'warn'` while
+migrating). Core 0.14 made the same rule the default for server functions, so this is one
+policy across both — see
+[Actors or server functions?](/actors/docs/actors-or-server-functions).
+
+## They are the serverFn guard shape
+
+A guard is core's `ServerFnGuard`: `(rq, info) => void`, vetoing by throwing. Anything you
+already wrote for your server functions — a preset, a role check, a rate limiter — works on an
+actor unchanged.
+
+Three properties are worth stating outright:
+
+**They run on every transport.** The wire endpoint and in-process `actor()` calls both run the
+chain. You cannot bypass a guard by calling from the server.
+
+**They run outside the mailbox.** A slow auth check never occupies the actor's turn, so a
+burst of unauthenticated calls cannot queue behind each other or block legitimate ones.
+
+**Actor-to-actor calls do not re-run them.** `ctx.actor(Other, key).method()` is intra-system:
+the guard already ran at the edge where the request entered. Treat an actor method as trusted
+once it is executing.
+
+## What a guard can see
+
+A guard receives the request and `{ symbol, name }` — **not** the actor key and not the
+arguments.
+
+That is a real boundary and it shapes the design. "Is this user signed in?" and "does this
+user have the staff role?" are guard questions. "Is this user allowed to post to *this* room?"
+is not — the guard cannot see which room.
+
+For attributed writes, put the identity on the server side of the call:
+
+```ts
+// The serverFn knows the session; it passes the identity to the actor.
+export const postMessage = serverFn(async (rq, { room, text }) => {
+    const user = await sessionFrom(rq.request);
+    if (!user) throw new ServerFnError(401, 'Sign in first');
+    return actor(RoomActor, room).post(user.id, text);
+});
+```
+
+The `examples/chat` app in the actors repo does exactly this, and documents why.
+
+## The endpoint backstop
+
+`handleActorRequest(request, { host, guard })` keeps a wire-only guard, exactly like the
+serverFn endpoint's. It runs for requests arriving over HTTP and not for in-process calls, so
+it is a backstop for the mount rather than a substitute for `use:`.
+
+## Guards and cacheable reads
+
+A [cacheable read](/actors/docs/cacheable-reads) still runs its guards on `GET`, and a
+rejection answers `Cache-Control: no-store`. But `public: true` is **refused at definition
+time on a guarded read** — a shared cache would serve one caller's copy to the next, and
+core's contract for a public cache entry is args-only. Without `public`, a declared read is
+still cached per client with `Vary: Cookie`.
+
+## Packaged actors
+
+`sigxActors()` excludes `node_modules`, so it cannot see inside a
+[packaged actor](/actors/docs/shipping-actors-in-packages) to enforce the rule. Declaring
+`use:` or `unguarded:` is the package author's responsibility; the host dev-warns when a
+packaged actor declares neither.
+
+## Next steps
+
+- [Wire protocol](/actors/docs/wire-protocol) — where guards sit in a request.
+- [Cacheable reads](/actors/docs/cacheable-reads) — the `public` restriction in context.
+- [Server functions](/server/packages/server/overview) — the guard contract itself.

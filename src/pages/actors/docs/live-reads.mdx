@@ -1,0 +1,114 @@
+---
+title: Live reads
+description: "useActorState({ live: true }) — the actor re-runs your read after every mutating turn and pushes the result, over one connection per page"
+layout: docs
+category: Calling actors
+order: 230
+draft: true
+---
+
+# Live reads
+
+<p class="lede">Ordinary reads refresh only the tab that wrote. `{ live: true }` is what makes a
+second browser update without a reload.</p>
+
+```ts
+const messages = useActorState(RoomActor, room, 'recent', 20, { live: true });
+const topic = useActorState(RoomActor, room, 'topic', { live: true });
+```
+
+The actor re-runs **the read you declared** after every turn that mutated its state — whoever
+caused it — and pushes the result.
+
+That is why the feed is per *subscription* rather than a state snapshot: `topic` is a method,
+and only the actor can compute a method's result from its state. The derivation *is* the
+method.
+
+## What it costs and what it guarantees
+
+**One connection for the whole page.** Every live read rides a single held-open NDJSON
+response (`$live#subscribe`), multiplexed by subscription index, pinging every 30 seconds so
+proxies and mobile NATs leave it alone. Twelve live components do not open twelve connections.
+
+**The first paint is unchanged.** The ordinary read still seeds the cell, SSR still serializes
+it, and hydration still costs no request. `live` is purely additive — note that options go
+last in the positional form, after the method arguments.
+
+**A set change reopens the connection.** A `fetch` POST body is not duplex, so a newly mounted
+component cannot be pushed onto an open stream. The channel coalesces set changes (~20 ms),
+aborts, and reopens carrying the new set. Every subscription re-seeds on open, which is why a
+reconnect needs no resume token.
+
+**An unchanged value is dropped, not delivered.** Two things produce one routinely: the
+re-seed above — one widget mounting must not look like the whole page updating — and the fact
+that a mutating turn re-runs *every* subscription on that actor, so changing a room's topic
+re-runs its `recent(20)` watch too and gets an identical list back. These are views of current
+state, not an event log, so a subscriber cannot need to know that a value it already holds was
+recomputed.
+
+**It reconnects by itself.** A long-lived response dies for reasons that are nobody's bug — a
+proxy timeout, a rolling restart, a laptop lid. Backoff doubles 1s → 30s with jitter and
+resets on any healthy frame, and the re-seed doubles as the catch-up read.
+
+**A dead feed degrades to "not live", never to "broken".** One subscription's failure — a
+guard rejection, say — is delivered to that read alone and leaves the rest of the page live. A
+read whose feed cannot be established at all keeps working as a plain read.
+
+**Nothing subscribes during SSR.** The subscription lives in `onMounted`.
+
+**Security is the read's own.** A subscription runs the same guard chain as a unary call, at
+subscribe time, so it exposes nothing a polling client could not already read. There is
+deliberately **no** per-actor `live` opt-in to configure.
+
+## Cross-host works without configuration
+
+Each subscription dispatches through placement, so watching an actor another host owns rides
+the [host-to-host transport](/actors/docs/transports). Nothing to set up.
+
+`$live` is never routed or redirected — one held-open response fans out to many actors, so no
+single actor can claim it. Two consequences worth knowing:
+
+- The [routing token](/actors/docs/locality-routing) does not apply, so a live subscription
+  keeps paying the cross-host hop even in a cluster tuned for ~100% locality.
+- An open watch counts as activity, so [idle collection](/actors/docs/lifecycle) cannot
+  deactivate an actor out from under a subscriber.
+
+## Live reads or streams?
+
+Use **`{ live: true }`** for *current state* — a message list, a topic, a presence count, a
+score. The value is always the latest, and you never see intermediate frames.
+
+Use a [**`streams:` method**](/actors/docs/streams) for a *feed that is not a read* — a log
+tail, a progress sequence, an event history where every item matters and dropping an
+unchanged one would be wrong.
+
+## Tuning
+
+```ts
+actorsPlugin({ live: { debounceMs, retryMs, maxRetryMs, onError } });
+```
+
+A transport that brings its own `live()` channel — a WebSocket transport, say — is used
+instead of the NDJSON one, with no call site changing.
+
+## Under the hood
+
+The mount is a synthesized server function, so it inherits the origin policy, codec,
+`ServerFnError` masking, body caps, `onError` and the request scope. Its shape:
+
+```
+POST {base}/%24live%23subscribe
+{"args":[[ {"t":"Room","k":"lobby","m":"recent","a":[20]}, … ]]}
+→ {"chunk":{"i":0,"v":<encoded>}}
+  {"chunk":{"i":1,"e":{message,status}}}   ← failure is per subscription
+  {"chunk":{"p":1}}                        ← keepalive ping
+  {"done":1}
+```
+
+An error frame carries the status the same call would have received as a unary request.
+
+## Next steps
+
+- [Streams](/actors/docs/streams) — when a feed is not a read.
+- [Reads & writes in components](/actors/docs/in-components) — the non-live half.
+- [Wire protocol](/actors/docs/wire-protocol) — reserved symbols and the endpoint.

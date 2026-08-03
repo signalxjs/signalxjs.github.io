@@ -1,0 +1,147 @@
+---
+title: Your first actor
+description: "Build a persistent, live-updating counter end to end — the actor, the app module, the browser call and the dev server"
+layout: docs
+category: Getting Started
+order: 40
+draft: true
+---
+
+# Your first actor
+
+<p class="lede">A counter that survives restarts, never loses an increment, and pushes changes
+to every open tab. Four files, no database.</p>
+
+This is `examples/counter` from the actors repo, which runs this exact shape in dev and in
+production.
+
+## 1. The app module
+
+One source of truth for storage, defaults and plugins — loaded by the dev server, the
+production entry and your actor modules alike.
+
+```ts
+// src/actors.app.ts
+import { defineActorApp } from '@sigx/actors/host';
+import { fileStorage } from '@sigx/actors/node';
+
+export const app = defineActorApp({
+    // Keeps dev state across actor-file edits and restarts.
+    storage: fileStorage({ dir: '.actors' }),
+});
+
+/** Bound to this app's plugin set — actor modules import this. */
+export const { defineActor } = app;
+```
+
+## 2. The actor
+
+```ts
+// src/counter.actor.ts
+import { defineActor } from './actors.app.ts';
+
+export const Counter = defineActor({
+    type: 'Counter',
+    // This demo counter is deliberately public. Real actors declare a
+    // `use: [...]` chain — the build gate insists you pick one.
+    unguarded: true,
+    state: () => ({ count: 0, lastVisit: null as Date | null }),
+    methods: (ctx) => ({
+        async increment(by: number) {
+            ctx.state.count += by;
+            ctx.state.lastVisit = new Date();
+            await ctx.save(); // persistence is explicit — state saves only when asked
+            return ctx.state.count;
+        },
+        async current() {
+            return { count: ctx.state.count, lastVisit: ctx.state.lastVisit };
+        },
+    }),
+    streams: (ctx) => ({
+        /** Push the current snapshot, then one after every change. */
+        async *watch() {
+            yield* ctx.changes({ initial: true });
+        },
+    }),
+});
+```
+
+Four things are already true of this object, and none of them are things you wrote:
+
+- Two browsers clicking at once cannot lose an increment — `increment` runs one turn at a
+  time, so `ctx.state.count += by` needs no lock.
+- `?counter=a` and `?counter=b` are different actors with separate state, created on demand.
+- `lastVisit` is a real `Date` in the browser, not a string — the
+  [serialize codec](/server/packages/serialize/overview) carries it across.
+- The actor deactivates when idle and reloads its state on the next call.
+
+## 3. Call it from the browser
+
+`counter.actor.ts` is build-swapped, so the import below resolves to a typed client ref and
+each call becomes a `POST` to `/_sigx/actor` — the same expression that dispatches in-process
+on the server.
+
+```ts
+// src/main.ts
+import { actor } from '@sigx/actors';
+import { Counter } from './counter.actor';
+
+const name = new URLSearchParams(location.search).get('counter') ?? 'demo';
+const client = actor(Counter, name);
+
+document.querySelector('#inc')!.addEventListener('click', () => {
+    void client.increment(1);
+});
+
+// Live view: the watch stream re-renders on every actor state change —
+// open the page twice and watch both update.
+void (async () => {
+    for await (const state of client.watch()) {
+        render(state as { count: number; lastVisit: Date | null });
+    }
+})();
+```
+
+`client.increment` is typed from the definition. Rename the method or change its signature and
+this file fails to compile — there is no second interface to keep in sync.
+
+In a SignalX component you would normally reach for
+[`useActorState` and `useActorAction`](/actors/docs/in-components) instead of driving the
+stream by hand.
+
+## 4. Run it
+
+```ts
+// vite.config.ts
+import { sigxActors } from '@sigx/actors/vite';
+
+export default {
+    plugins: [sigxActors({ app: '/src/actors.app.ts' })],
+    server: { watch: { ignored: ['**/.actors/**'] } },
+};
+```
+
+```bash
+pnpm dev
+```
+
+Open the page twice. Click in one tab; both update, because both are consuming the same
+`watch` stream and the actor pushed a new snapshot after the turn that mutated it.
+
+Stop the dev server and start it again — the count is still there, in `.actors/`.
+
+## What to try next
+
+- **Remove `await ctx.save()`** and restart. The count resets: persistence is explicit, and
+  that is [deliberate](/actors/docs/state-and-persistence).
+- **Add `await new Promise(r => setTimeout(r, 3000))`** inside `increment`, then click twice
+  quickly. The second click waits — that is guarantee 3, `await` holding the mailbox.
+- **Replace `unguarded: true`** with a real [guard chain](/actors/docs/guards).
+
+## Next steps
+
+- [The app](/actors/docs/the-app) — plugins, context extensions and lifecycle.
+- [The actor model](/actors/docs/actor-model) — activation, turns and identity in depth.
+- [State & persistence](/actors/docs/state-and-persistence) — `ctx.save()`, write-behind and
+  migrations.
+- [Running a host on Node](/actors/docs/node) — the production entry and graceful shutdown.

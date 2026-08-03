@@ -1,0 +1,111 @@
+---
+title: Jobs
+description: "defineJob — one durable long-running operation per actor, with the state machine, progress, checkpoints and client surface already decided"
+layout: docs
+category: Actor features
+order: 340
+draft: true
+---
+
+# Jobs
+
+<p class="lede">`defineJob` is the packaged experience on top of [tasks](/actors/docs/tasks).
+Start a job from a request handler and return immediately; check on it from anywhere in the
+cluster.</p>
+
+```ts
+import { defineJob } from '@sigx/actors/job';
+
+export const SecuritySync = defineJob({
+    type: 'SecuritySync',
+    use: [adminGuard],
+    maxAttempts: 3,          // crash-resume attempts before 'failed'
+    retainMs: 86_400_000,    // keep the terminal record a day, then forget
+    run: async (job, input: { providerId: string }) => {
+        const users = await loadUsers(input.providerId, { signal: job.signal });
+        const from = (job.resumedFrom as { cursor: number } | undefined)?.cursor ?? 0;
+        for (let i = from; i < users.length; i++) {
+            job.signal.throwIfAborted();
+            await syncOne(users[i]);
+            await job.progress({ done: i + 1, total: users.length });
+            if (i % 100 === 0) await job.checkpoint({ cursor: i + 1 });
+        }
+        return { synced: users.length };
+    },
+});
+```
+
+```ts
+// A request handler — returns immediately, the job runs on the cluster:
+const runId = crypto.randomUUID();
+await actor(SecuritySync, runId).start({ providerId });
+
+// Later, from anywhere:
+await actor(SecuritySync, runId).status();   // JobInfo: status/progress/attempts
+await actor(SecuritySync, runId).cancel();
+await actor(SecuritySync, runId).result();   // the return value, once completed
+for await (const info of actor(SecuritySync, runId).watch()) render(info);
+```
+
+## What the layer decides for you
+
+**The state machine.** `pending → running → (paused ⇄ running) → completed | failed |
+cancelled`. `status()` and `watch()` return `JobInfo` — never the checkpoint, which is
+private, and never the result, which is fetched once via `result()`.
+
+**One actor per run**, keyed by your run id. The directory's single-activation guarantee *is*
+the "exactly one runner" guarantee — there is no separate lock.
+
+**`start` is idempotent under retry.** A non-pending job returns its current info and never
+restarts. Safe to call from a handler that a client may retry.
+
+**Crash-resume counts; pause-resume is free.** A crash-resumed run arrives with `job.attempt`
+bumped and `job.resumedFrom` set to the last checkpoint. Past `maxAttempts` the job is marked
+`failed`. `resume(data)` on a paused job re-runs with `job.resumeData` and costs no attempt.
+
+**`pause` parks durably.** `return job.pause(checkpoint)` writes the checkpoint, marks
+`paused` and releases the task — the actor idles at zero cost until `resume()`. For a timeout,
+arm `job.reminders` before pausing and handle it in `onReminder(control, name)`;
+`control.resume()` and `control.cancel()` are internal, so there is no self-dispatch deadlock.
+
+**Progress rides the change feed, not storage.** `job.progress()` — and `job.update()` for
+your own `state:` extra fields — mutate state in a turn so `watch()` pushes them live, but
+nothing is persisted per tick. After a crash, progress honestly **regresses to the last
+checkpoint** rather than claiming ground the work did not keep.
+
+**`retainMs`** keeps the terminal record around for late `result()` readers, then a one-shot
+reminder clears the state and deactivates. `discard()` does it on demand.
+
+## Checkpoints are the contract
+
+`progress()` is for humans; `checkpoint()` is for the runtime. Only a checkpoint survives a
+crash, so how often you call it is how much work you are willing to redo.
+
+The resume contract is **at-least-once**: the runtime resumes the function, and your code
+resumes the work by reading `job.resumedFrom`. Make the step after a checkpoint idempotent.
+
+## `migrateState` is not supported
+
+> **`defineJob` does not accept `migrateState`.** `JobOptions` has no such option and the
+> underlying `defineActor` config forwards nothing.
+>
+> The reasoning is worth a sentence: a job's stored record **is** the job envelope —
+> `status`, `progress`, `checkpoint` and the rest, with your own state under `extra`. A hook
+> over that would hand you a runtime shape you do not own. Migrating the `extra` half wants
+> its own option, and is not part of this.
+
+See [State & persistence](/actors/docs/state-and-persistence) for migration on ordinary
+actors.
+
+## Recipes, not API
+
+A singleton queue-worker with strict ordering and bounded concurrency, a cron-on-reminders
+scheduler, and the Cloudflare Durable Object posture are all **patterns** rather than
+features. They are written up in `docs/job-recipes.md` in the actors repo, deliberately left
+out of the API so the job layer stays one thing done well.
+
+## Next steps
+
+- [Tasks](/actors/docs/tasks) — the primitive underneath, and the crash-resume machinery.
+- [Timers & reminders](/actors/docs/timers-and-reminders) — pausing with a timeout.
+- [Clustering](/actors/docs/clustering) — where a resumed job comes back.

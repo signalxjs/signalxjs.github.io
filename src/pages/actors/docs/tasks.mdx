@@ -1,0 +1,102 @@
+---
+title: Tasks
+description: "The tasks: factory — long-running work detached from the mailbox, ctx.turn() for safe state writes, and built-in crash resume"
+layout: docs
+category: Actor features
+order: 330
+draft: true
+---
+
+# Tasks
+
+<p class="lede">A method call holds the mailbox until it settles — fine for milliseconds, wrong
+for a sync job or an AI workflow run. A task runs detached, so ordinary reads, streams and
+watches keep answering while it works.</p>
+
+```ts
+const Sync = defineActor({
+    type: 'Sync',
+    unguarded: true,
+    state: () => ({ done: 0, total: 0, phase: 'idle' as string }),
+    methods: (ctx) => ({
+        begin: (total: number) => ctx.tasks.start('run', total),
+        status: () => ctx.snapshot(),
+        stop: () => ctx.tasks.cancel('run'),
+    }),
+    tasks: (ctx) => ({
+        async run(total: number) {
+            await ctx.turn((c) => { c.state.phase = 'running'; c.state.total = total; });
+            for (let i = 0; i < total; i++) {
+                ctx.abortSignal.throwIfAborted();
+                await syncOne(i, { signal: ctx.abortSignal });
+                await ctx.turn((c) => { c.state.done = i + 1; });
+            }
+            await ctx.turn(async (c) => { c.state.phase = 'done'; await c.save(); });
+        },
+    }),
+});
+```
+
+## The rules
+
+**State only through `ctx.turn(fn)`.** A task body is detached, so it gets no `state` or
+`save()`. `turn()` enqueues `fn` as one ordinary serialized mailbox turn with the full
+context, so every mutation stays race-free and everything downstream — change feeds, watches,
+write-behind — works unmodified. Reads in the body use `ctx.snapshot()` or `ctx.changes()`.
+
+**`ctx.abortSignal` in a task is the *run's* signal.** It fires on `ctx.tasks.cancel(name)`
+with reason `'cancelled'`, and on deactivation for any reason with the `DeactivationReason` —
+*before* the mailbox drain. Deactivation then gives signalled tasks a bounded grace
+(`taskGraceMs`, default 10s) with the mailbox still open, so a winding-down task can run one
+final `turn()` checkpoint.
+
+**`cancel` is a request, not a join.** It aborts and returns; the run leaves
+`ctx.tasks.list()` when its body settles. Awaiting settlement from a method turn would
+deadlock against the task's own wind-down `turn()`.
+
+**A running task keeps the actor alive** — the idle sweeper skips it, like an open stream.
+
+**`start` is single-flight per name** and resolves when the body is *launched*, not finished.
+A task that throws is terminal: no automatic retry, because that policy belongs to the layer
+above.
+
+**No wire surface.** Start, cancel and status go through your own methods, so your
+[guard chain](/actors/docs/guards) governs them like any other call.
+
+## Crash resume is built in
+
+`start()` resolves only after the run is durably recorded — a ledger entry in the reserved
+`$sigx:tasks` storage record, plus a liveness reminder armed under the same name.
+
+- A run **interrupted by deactivation** (any reason but cancel) keeps its entry. The next
+  activation restarts it with `TaskInfo.restarts` bumped and the original `input` replayed
+  through the state codec. Completion, a throw and `cancel` all remove the entry — a thrown
+  task is terminal, because a crash is not a throw. An empty ledger disarms the reminder.
+- **The reminder is the crash driver.** When a host dies, its reminder shards are re-owned by
+  surviving hosts, the next tick delivers through placement, and the actor — tasks and all —
+  re-activates wherever the cluster puts it, within roughly 60–90 seconds. No client call
+  needed.
+- **The contract is at-least-once.** The runtime resumes the *function*; your code resumes the
+  *work* from its own checkpointed state — the `ctx.turn()` + `save()` pattern above, reading
+  how far the last checkpoint got. A run that completes in the same instant its host stops may
+  restart once more, so make the last step idempotent or gate it on state.
+
+> **On Cloudflare Durable Objects this degrades gracefully.** The ledger lives in the DO's own
+> storage and the liveness reminder maps onto its alarm, but a fiber does not survive
+> eviction — so a task there is checkpoint-and-resume with short gaps rather than one
+> continuous run. Same at-least-once contract; checkpoint aggressively.
+
+## Tasks or jobs?
+
+Tasks are the primitive. [`defineJob`](/actors/docs/jobs) is the packaged experience on top —
+a state machine, progress, checkpoints, attempts and a client surface already decided.
+
+Reach for a task when the work is an internal detail of an actor that has other
+responsibilities. Reach for a job when the run *is* the thing, and something outside needs to
+ask how it is going.
+
+## Next steps
+
+- [Jobs](/actors/docs/jobs) — the packaged layer.
+- [Timers & reminders](/actors/docs/timers-and-reminders) — the crash driver.
+- [Lifecycle](/actors/docs/lifecycle) — keep-alive and the grace window.

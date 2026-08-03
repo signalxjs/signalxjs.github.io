@@ -1,0 +1,115 @@
+---
+title: The client
+description: "configureActors, transports and routers — calling actors from a browser, a native app or another service"
+layout: docs
+category: Calling actors
+order: 210
+draft: true
+---
+
+# The client
+
+<p class="lede">`actor(Def, key)` is the same expression everywhere. On the server it
+dispatches in-process; in a browser it goes through a transport. `@sigx/actors/client` is
+where you configure the second one.</p>
+
+## The default
+
+Inside a SignalX app, install the plugin and you are done:
+
+```ts
+import { actorsPlugin } from '@sigx/actors/app';
+
+app.use(actorsPlugin());
+```
+
+The build stamps each actor's endpoint onto its client ref, so an ordinary same-origin app
+needs no configuration at all.
+
+## Pointing somewhere else
+
+```ts
+import { configureActors } from '@sigx/actors/client';
+
+configureActors({
+    endpoint: 'https://api.example.com/_sigx/actor',
+    headers: () => ({ authorization: token() }),
+});
+```
+
+This is sugar for `fetchTransport(config)`. `headers` may be a function, so it is re-read per
+call — which is what you want for a token that rotates.
+
+Because `init.endpoint` carries the endpoint the build baked in, `configureActors({ headers })`
+overrides headers alone without restating where the server is.
+
+`configureActors` is independent of `configureServerFn`, so a native or remote client can
+point actors at one origin and server functions at another.
+
+## Supplying a whole transport
+
+```ts
+configureActors({
+    name: 'batching',
+    call: (symbol, args, init) => /* … */,
+    stream: (symbol, args, init) => /* … */,
+    live: () => /* optional push channel */,
+    close: () => /* optional */,
+});
+```
+
+`call` and `stream` are required; `live` and `close` are optional. Omit `live` and
+[live reads](/actors/docs/live-reads) are driven over your `stream()` instead.
+
+## Routing
+
+`ActorTransport` decides *how* a call travels; `ActorRouter` decides *where* it goes. They
+compose:
+
+```ts
+import {
+    configureActors, fetchTransport, learningRouter, routedTransport,
+} from '@sigx/actors/client';
+
+configureActors(routedTransport(fetchTransport({ endpoint }), learningRouter()));
+```
+
+| Router | How it decides | Good for |
+|---|---|---|
+| *(none — the default)* | always the configured endpoint | one origin, browsers |
+| `learningRouter()` | caches what redirects teach it | any caller that can reach hosts directly |
+| `staticRouter(map)` | a fixed key → host mapping | tenancy or sharding you already own |
+| `chainRouters(a, b)` | first answer wins | a static override in front of learning |
+
+A learned endpoint is dropped as soon as it proves wrong — a connection failure or a 5xx — and
+the caller falls back to the configured endpoint.
+
+> **`learningRouter()` is not a browser feature.** It pays off for a service that can reach
+> hosts directly. A browser talking to one public origin should stay on the default and get
+> its locality from [the routing token](/actors/docs/locality-routing) instead.
+
+## Per-call options
+
+```ts
+actor(Cart, id).with({ get: false }).summary();      // force POST on a declared read
+actor(Notifier, id).with({ oneWay: true }).ping();   // resolve at acceptance
+actor(Cart, id).with({ signal }).checkout();         // abort
+```
+
+`with()` also accepts `headers`, `endpoint` and `route` for one call.
+
+## Calling from outside a SignalX app
+
+Nothing about the wire requires a SignalX client. It is the
+[serverFn protocol](/actors/docs/wire-protocol) — a `POST` with a JSON body — so a script, a
+mobile app or another service can call an actor with `fetch` and no SDK.
+
+`@sigx/actors/client` is worth using anyway when you want the typed proxy, since it is
+dependency-free and small: the size budget for `{ __actorRef, configureActors, fetchTransport }`
+is 2 kB.
+
+## Next steps
+
+- [Wire protocol](/actors/docs/wire-protocol) — the contract a transport implements.
+- [Locality routing](/actors/docs/locality-routing) — redirects, `follow`, and the token.
+- [Reads & writes in components](/actors/docs/in-components) — the ergonomic layer above this.

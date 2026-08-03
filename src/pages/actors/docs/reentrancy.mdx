@@ -1,0 +1,104 @@
+---
+title: Reentrancy & interleaving
+description: "reentrant: 'call-chain' and 'always', per-method methodReentrancy, and what interleaving changes about saves and lifecycle"
+layout: docs
+category: Core concepts
+order: 120
+draft: true
+---
+
+# Reentrancy & interleaving
+
+<p class="lede">By default an actor is strictly serial and a call cycle back into it is a
+detected deadlock. `reentrant` widens that in two steps, and `methodReentrancy` does it for one
+method at a time.</p>
+
+```ts
+reentrant: 'call-chain'                  // alias: true
+reentrant: 'always'                      // full interleaving, per actor
+methodReentrancy: { stats: 'always' }    // full interleaving, per method
+```
+
+## The three modes
+
+**Serial (default).** One turn at a time; `A → B → A` throws
+[`ActorDeadlockError`](/actors/docs/errors). State is turn-consistent: between two `await`s
+nothing else touched it.
+
+**`'call-chain'`** (alias `true`). A cycle back into this actor runs **inline** against your
+own up-stack turn instead of deadlocking. Unrelated calls still serialize, so there is no
+foreign interleaving and state stays turn-consistent. This is the conservative widening: it
+only unblocks the call graph you already had.
+
+**`'always'`.** Every call is its own turn, launched immediately — the Orleans `[Reentrant]`
+model. Unrelated calls interleave at every `await`.
+
+> **What `'always'` gives up.** The single-threaded guarantee narrows to what JavaScript
+> itself gives you: no two turns run *between* awaits, but **your state can change across
+> every `await`**. Re-read anything another turn may have moved; do not cache it in a local
+> across an await.
+
+In-chain calls under `'always'` complete as concurrent turns rather than inline, so a
+self-cycle cannot deadlock by construction.
+
+## Per-method interleaving
+
+`methodReentrancy` marks individual methods `'always'` on an otherwise serial (or
+`'call-chain'`) actor:
+
+```ts
+defineActor({
+    type: 'Room',
+    methodReentrancy: { stats: 'always' },
+    methods: (ctx) => ({
+        async post(text: string) { /* slow write */ },
+        async stats() { return { members: ctx.state.members.length }; },
+    }),
+});
+```
+
+The canonical case is a read-only method that must not queue behind a slow write — it pairs
+naturally with [cacheable reads](/actors/docs/cacheable-reads).
+
+The semantics are worth stating precisely: **a mapped method never waits and is never waited
+for.** Unlisted methods keep the actor-level behaviour, including their mutual exclusion with
+each other.
+
+Constraints: keys must name real `methods:` entries; the runtime's own deliveries
+(`$sigx:reminder`, `$sigx:topic`) follow the actor-level setting only; and the option is
+redundant next to `reentrant: 'always'`, so that combination is refused.
+
+## What interleaving changes elsewhere
+
+- **Saves are single-flighted per activation.** Whole-state last-writer-wins;
+  `ctx.save()` resolves once a snapshot at-or-after your mutations is durable.
+- **A write-behind flush may capture mid-logical-turn state.** It is still a
+  synchronously-consistent frame, but it may not be a point you would have chosen.
+- **Deactivation drains all in-flight turns** before `onDeactivate` runs.
+- **Turn observers see overlapping intervals** — `queuedMs` is ~0 and `elapsedMs` is run time.
+  See [Metrics](/actors/docs/metrics).
+
+## Requirements and validation
+
+Interleaving needs `AsyncLocalStorage` for the per-turn call context. That is built into Node,
+Deno and Bun; on Cloudflare Workers it rides the `nodejs_compat` flag the
+[Durable Objects package](/actors/docs/cloudflare-workers) already requires. Serial actors
+never touch it.
+
+Declarations are validated at the type's first activation, loudly, in every build.
+[`defineWorker`](/actors/docs/stateless-workers) accepts neither option — a stateless worker
+has no state to be serial about.
+
+## Choosing
+
+Start serial. Reach for `'call-chain'` when you hit a legitimate cycle in your call graph, and
+for `methodReentrancy` when one read is starving behind writes. Reach for `'always'` only when
+you genuinely want concurrency inside one actor and are prepared to re-read state after every
+`await` — at which point ask whether the thing wants to be
+[several actors](/actors/docs/actor-model) instead.
+
+## Next steps
+
+- [The actor model](/actors/docs/actor-model) — turns and the mailbox.
+- [Cacheable reads](/actors/docs/cacheable-reads) — the other way to keep reads off the queue.
+- [Tasks](/actors/docs/tasks) — for long work that should not hold a turn at all.

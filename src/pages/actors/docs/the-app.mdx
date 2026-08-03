@@ -1,0 +1,160 @@
+---
+title: The app
+description: "defineActorApp — one typed config that every runtime starts, the plugin registry, and how plugins add typed members to ctx"
+layout: docs
+category: Getting Started
+order: 50
+draft: true
+---
+
+# The app
+
+<p class="lede">`defineActorApp` is the composition root. It is an inert description until
+`start()`, which is what lets the same module be started by a Node entry, the Vite dev server
+or a Worker — and it is where plugins fold their contributions together.</p>
+
+## Why it exists
+
+`createHost` is still the low-level primitive, but it takes exactly **one** `placement` and
+**one** `storage`, and `ActorPlacement.bind()` is its only lifecycle-hook shape. So two things
+that both want `beforeActivate` cannot coexist.
+
+`defineActorApp` fixes that by folding every plugin's contributions into the single placement,
+storage and context `createHost` already understands.
+
+```ts
+// src/actors.app.ts — one typed source of truth
+import { defineActorApp } from '@sigx/actors/host';
+import { fileStorage } from '@sigx/actors/node';
+import { metrics } from '@sigx/actors/host';
+
+export const app = defineActorApp({
+    actors,
+    storage: fileStorage({ dir: '.actors' }),
+    defaults: { idleAfterMs: 60_000 },
+}).use(metrics());
+
+/** Bound to this app's plugin set — import it from your actor modules. */
+export const { defineActor } = app;
+```
+
+```ts
+const host = await app.start();   // builds the host, starts it, runs onStart
+await app.stop();                 // drains the host, then onStop in reverse
+```
+
+## A started app is single-use
+
+`start()` is idempotent while running, but after `stop()` the app refuses to restart. That is
+deliberate: a plugin placement mints its identity per run, and a cluster host id is gone once
+its membership entry is. Build a new app instead.
+
+A start that *fails* is the exception — the rejection is not cached, so fixing the cause and
+calling `start()` again really retries.
+
+## Writing a plugin
+
+`setup()` receives a registry. Everything composes across plugins except `setPlacement`, which
+is exclusive by nature — a second claim throws, naming both plugins.
+
+```ts
+import type { ActorPlugin } from '@sigx/actors/host';
+
+interface Logger { info(message: string): void }
+
+export function logging(logger: Logger): ActorPlugin<{ log: Logger }> {
+    return {
+        name: 'logging',
+        setup(registry) {
+            registry.extendContext(() => ({ log: logger }));
+            registry.onBeforeActivate((ref) => logger.info(`activating ${ref.type}/${ref.key}`));
+            registry.useDispatch((next) => ({
+                dispatch: async (ref, method, args, call) => {
+                    logger.info(`${ref.type}#${method}`);
+                    return next.dispatch(ref, method, args, call);
+                },
+                // Forward streaming — `dispatchStream` is optional, so a
+                // middleware that omits it silently breaks every
+                // `streams:` method. Dev-warns if you forget.
+                ...(next.dispatchStream && {
+                    dispatchStream: (ref, method, args, call) =>
+                        next.dispatchStream!(ref, method, args, call),
+                }),
+            }));
+        },
+    };
+}
+```
+
+> **If you write dispatch middleware, forward `dispatchStream`.** It is optional on the
+> interface, so omitting it does not fail to compile — it silently breaks every `streams:`
+> method in the app. Dev builds warn.
+
+## Typed context, per app
+
+The `ActorPlugin<{ log: Logger }>` type argument is what makes `ctx.log` **typed inside every
+actor** that imports the app-bound `defineActor`. There is no global declaration merging, so
+the additions stay scoped to this app:
+
+```ts
+// src/counter.actor.ts
+import { defineActor } from './actors.app';
+
+export const Counter = defineActor({
+    type: 'Counter',
+    unguarded: true,
+    state: () => ({ count: 0 }),
+    methods: (ctx) => ({
+        increment(by: number) {
+            ctx.log.info('increment');   // typed, contributed by .use(logging(...))
+            return (ctx.state.count += by);
+        },
+    }),
+});
+```
+
+This is the reason actor modules import `defineActor` from your app module rather than from
+`@sigx/actors`. Both produce the same object at runtime; only the **type** differs.
+
+## The registry hooks
+
+| Registry hook | Composes? | Notes |
+|---|---|---|
+| `addTypeHandlers` | concatenated | codec handlers for state persistence |
+| `decorateStorage` | chained | last registered is **outermost** |
+| `setPlacement` | **exclusive** | a factory, run once the host exists; a second claim throws, naming both plugins |
+| `onBeforeActivate` | in order | throwing **refuses** the activation |
+| `onAfterDeactivate` | reverse order | errors caught per hook and dev-logged |
+| `useDispatch` | outside-in | first registered is **outermost**; must forward `dispatchStream` |
+| `onStart` / `onStop` | in order / reverse | `onStop` runs *after* the drain |
+| `route` | collected | exposed as `app.routes` for adapters |
+| `extendContext` | merged | never overwrites a built-in `ctx` member |
+| `reportHealth` | collected | see [Health & readiness](/actors/docs/health-and-readiness) |
+| `reportOps` / `reportDigest` | collected | see [The ops endpoint](/actors/docs/ops-endpoint) |
+
+A placement's own hooks **bracket** the plugins'. Its `beforeActivate` — a cluster's directory
+claim — runs first, and its `afterDeactivate` — the release — runs last, so plugin hooks
+always observe an activation the placement already owns.
+
+## The app factory pattern
+
+On a runtime that constructs your app more than once — notably
+[Cloudflare Durable Objects](/actors/docs/cloudflare-workers) — building the app at module
+scope binds whichever instance constructed it first, and every other instance is then served
+from those seams. Export a **factory** instead:
+
+```ts
+export const createApp = (base: ActorAppOptions) => defineActorApp(base).use(metrics());
+
+/** Type-only binding, never started. */
+export const { defineActor } = createApp({});
+```
+
+On Node and under Vite the module-scope form is fine.
+
+## Next steps
+
+- [Running a host on Node](/actors/docs/node) — `createAppHandler` and graceful shutdown.
+- [Storage](/actors/docs/storage) — the `ActorStorage` seam and the shipped providers.
+- [Clustering](/actors/docs/clustering) — the `cluster()` plugin.
+- [Metrics](/actors/docs/metrics) — the first plugin most apps add.

@@ -1,0 +1,105 @@
+---
+title: Reads & writes in components
+description: "useActorState and useActorAction — reading an actor method as component data, writes that refresh what they staled, and free SSR seeding"
+layout: docs
+category: Calling actors
+order: 220
+draft: true
+---
+
+# Reads & writes in components
+
+<p class="lede">`useActorState` reads an actor method as component data; `useActorAction` runs a
+mutation and refreshes the reads it staled. Both come from `@sigx/actors/app`.</p>
+
+```ts
+import { useActorAction, useActorState } from '@sigx/actors/app';
+
+const Cart = component(({ props }) => {
+    const total = useActorState(CartActor, props.id, 'total');
+    const add = useActorAction(CartActor, props.id, 'add');
+    return () => (
+        <button disabled={add.loading} onClick={() => add.run(['apple'])}>
+            {total.match({ ready: (n) => `${n} items`, pending: () => '…' })}
+        </button>
+    );
+});
+```
+
+Method names, argument types and results all come from the definition, so a rename surfaces at
+every call site.
+
+Pass a getter for a reactive key — `useActorState(CartActor, () => [selectedId(), 'total'])` —
+and a falsy return parks the read in `'idle'`.
+
+## Writes refresh what they staled
+
+```ts
+await add.run(['apple']);   // every read of this cart re-runs
+```
+
+No manual `refresh()`. The default invalidation is the whole-actor prefix
+`actorKey(def, key)`, because a write changing what a *different* method returns is the normal
+case, and under-invalidating leaves stale data on screen.
+
+Narrow or widen it with `invalidates` — a pattern list, a function of `(result, key)`, or
+`false`:
+
+```ts
+useActorAction(CartActor, id, 'add', {
+    invalidates: [actorKey(CartActor, id, 'total'), ['@actor', 'Order']],
+});
+```
+
+`actorKey(def, key, method?, ...args)` is that key. It is a **tuple** rather than a string
+because the prefix relation is what invalidation needs: `['@actor','Cart','c1']` addresses
+every read of that cart, `['@actor','Cart']` every cart on the page. It is isomorphic too — a
+definition and a build-swapped client ref produce identical tuples.
+
+## Built on `useData` / `useAction`
+
+These are core's primitives, which is where the behaviour comes from: an `AsyncState` with
+`match()` and `refresh()` that `errorScope` and `all()` already understand, and **in-flight
+dedupe by canonical key** — ten components reading one actor make one dispatch.
+
+The raw recipe still works — `useData(['cart', id], () => actor(CartActor, id).getSummary())`
+— but it does not share keys with `useActorState`, so writes will not invalidate it.
+
+## SSR seeding is free
+
+`actor()` is isomorphic, so during a server render the read dispatches **in-process** through
+the host — guards and all — resolves into the markup, and serializes into the page under its
+canonical actor key. The browser restores it on mount **without refetching**.
+
+There is nothing to configure and no loading flash on first paint.
+
+## A server function's write does not invalidate
+
+This is the one seam worth knowing. Invalidation is local bookkeeping in the page's cell
+registry, and a [server function](/actors/docs/actors-or-server-functions) that writes to an
+actor never went through `useActorAction` — so nothing told the page anything changed.
+
+Declare it by hand:
+
+```ts
+const post = useAction(async (text: string) => {
+    const count = await postMessage({ room, text });   // a serverFn
+    cells.invalidate([actorKey(RoomActor, room)]);     // say what went stale
+    return count;
+});
+```
+
+## Other tabs need live reads
+
+Everything above refreshes only the tab that wrote. No request/response call tells a *second*
+browser that anything happened — that is what [live reads](/actors/docs/live-reads) are for:
+
+```ts
+const messages = useActorState(RoomActor, room, 'recent', 20, { live: true });
+```
+
+## Next steps
+
+- [Live reads](/actors/docs/live-reads) — pushing changes to every open tab.
+- [The client](/actors/docs/client) — calling actors outside a component.
+- [Cacheable reads](/actors/docs/cacheable-reads) — absorbing read traffic at the edge.

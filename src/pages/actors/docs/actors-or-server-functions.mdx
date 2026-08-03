@@ -1,0 +1,130 @@
+---
+title: Actors or server functions?
+description: "When to reach for @sigx/actors and when a plain serverFn is the better answer — and why actors are built on top of server functions, not instead of them"
+layout: docs
+category: Getting Started
+order: 20
+draft: true
+---
+
+# Actors or server functions?
+
+<p class="lede">SignalX gives you two ways to run code on the server from a component, and they
+are not rivals. A server function is the default. An actor is what you reach for when calls
+about the same thing need identity, ordering or memory.</p>
+
+## The rule of thumb
+
+> Use a [server function](/server/packages/server/overview) until you need **identity**,
+> **ordering** or **memory between calls**. Then use an actor.
+
+Most endpoints never need any of the three. Fetching a product, submitting a form, running a
+search — these have no "which one" to be serial about, and a `serverFn` handles them with less
+machinery and no activation to keep warm.
+
+## Side by side
+
+The same feature, both ways. A counter that must never lose an increment:
+
+```ts
+// As a server function — correctness lives in the database
+export const increment = serverFn(async (rq, id: string) => {
+    const row = await db.query(
+        'UPDATE counters SET n = n + 1 WHERE id = $1 RETURNING n', [id]);
+    return row.n;
+});
+```
+
+```ts
+// As an actor — correctness lives in the model
+export const Counter = defineActor({
+    type: 'Counter',
+    state: () => ({ n: 0 }),
+    methods: (ctx) => ({
+        async increment() {
+            ctx.state.n += 1;   // the only writer, one turn at a time
+            await ctx.save();
+            return ctx.state.n;
+        },
+    }),
+});
+```
+
+The server function is correct because the database serialized the update. The actor is
+correct because only one turn runs at a time and the actor is the only writer. The first is
+simpler; the second stops needing the database to arbitrate every read, and keeps working when
+the operation is not expressible as one statement.
+
+Flip the example to *"increment, then call a payment API, then decide"* and the server-function
+version needs a lock, a transaction boundary or an idempotency key. The actor version is the
+same six lines.
+
+## What pushes you toward an actor
+
+- **Identity.** The work is about one cart, one room, one device, one game — and two calls
+  about the same one must not interleave.
+- **Ordering.** Later calls must observe earlier ones. A mailbox gives you that for free.
+- **Memory between calls.** Keeping state hot avoids re-reading it on every request, and lets
+  you hold things that do not belong in a row — an in-flight batch, a connection, a timer.
+- **Timers and reminders.** [`ctx.timer`](/actors/docs/timers-and-reminders) and durable
+  reminders let an object wake itself up. A stateless function has nowhere to put that.
+- **Long-running work.** [Tasks](/actors/docs/tasks) and [jobs](/actors/docs/jobs) survive
+  the request that started them.
+
+## What pushes you toward a server function
+
+- **No identity.** A list, a search, a report.
+- **Read-heavy and cacheable.** A `serverFn` can be cached at the edge without the mailbox in
+  the way. Actors have [cacheable reads](/actors/docs/cacheable-reads) too, but the trade is
+  sharper.
+- **Fan-out over many rows.** An actor is one object; a query is better at touching thousands.
+- **Nothing to keep warm.** An activation has a lifetime and a memory cost. If there is no
+  state worth keeping, that cost buys nothing.
+
+## They are the same wire
+
+This matters more than it looks: **an actor call is a synthesized server function.** The actor
+endpoint speaks the serverFn protocol verbatim, so everything you already configured applies
+unchanged — the origin policy, the [serialize codec](/server/packages/serialize/overview),
+`ServerFnError` masking, body size caps, `onError`, and the per-request scope.
+
+`@sigx/actors` peer-depends on [`@sigx/server`](/server/packages/server/overview) for exactly
+this reason. Actors are a layer **on** server functions, not an alternative stack.
+
+Three practical consequences:
+
+1. **Guards are the same guards.** A `use:` chain on an actor is the serverFn guard contract,
+   so a preset you wrote for your server functions works on an actor unchanged. See
+   [Guards](/actors/docs/guards).
+2. **Your types cross both boundaries identically.** `Date`, `Map`, `Set`, `bigint` and your
+   own registered types round-trip through the same codec.
+3. **Core 0.14's `requireGuards` default applies to both.** If server functions in your app
+   must declare a guard, so must your actors — declare `use:`, derive from a preset, or set
+   `unguarded: true` deliberately.
+
+## Using both together
+
+The common shape in a real app is not a choice at all:
+
+```ts
+// A server function does the query — no identity involved.
+export const listRooms = serverFn(async (rq) => db.rooms.findMany());
+
+// An actor owns the thing that has identity and ordering.
+export const RoomActor = defineActor({ type: 'Room', /* … */ });
+```
+
+A server function may call an actor, and an actor may call another actor. What an actor must
+not do is call back into itself through a server function — that is a cycle, and the
+[deadlock detector](/actors/docs/errors) will say so.
+
+One wrinkle worth knowing when you mix them: a write performed by a *server function* does not
+invalidate an actor read on the page, because nothing told the page it went stale. Declare it
+by hand with `cells.invalidate([actorKey(RoomActor, room)])` — see
+[Reads and writes in components](/actors/docs/in-components).
+
+## Next steps
+
+- [Installation](/actors/docs/installation) — set up the plugin and the app module.
+- [Your first actor](/actors/docs/your-first-actor) — build the counter above for real.
+- [Server functions](/server/packages/server/overview) — the layer underneath.

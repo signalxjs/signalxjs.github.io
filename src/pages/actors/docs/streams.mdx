@@ -1,0 +1,110 @@
+---
+title: Streams
+description: "The streams: factory — server-to-client async generators over NDJSON, why bodies are observers rather than turns, and when to prefer a live read"
+layout: docs
+category: Actor features
+order: 300
+draft: true
+---
+
+# Streams
+
+<p class="lede">Declare server-to-client streams in the `streams:` factory as async generators;
+clients get them as an `AsyncIterable` over NDJSON.</p>
+
+```ts
+streams: (ctx) => ({
+    async *watch() {
+        yield* ctx.changes({ initial: true });
+    },
+})
+```
+
+```ts
+// client
+for await (const s of actor(CartActor, id).watch()) render(s);
+```
+
+## Bodies are observers, not turns
+
+Stream bodies run **detached from the mailbox**. A stream that waited on its own actor's next
+turn while holding the mailbox would deadlock against itself.
+
+The consequence is a rule: read `ctx.snapshot()` or `ctx.changes()`, and **never mutate live
+state** from a stream body. Dev builds warn when a body reads live `ctx.state`.
+
+`ctx.changes()` yields a detached snapshot after every mutating turn, through a bounded
+buffer that drops oldest.
+
+## Seed with `{ initial: true }`
+
+```ts
+async *watch() {
+    yield* ctx.changes({ initial: true });   // ✓
+}
+```
+
+Not this:
+
+```ts
+async *watch() {
+    yield ctx.snapshot();        // ✗ subscribes late
+    yield* ctx.changes();
+}
+```
+
+The prologue subscribes only once the consumer resumes past that first yield, so every
+mutation in between is lost — and the snapshot it yielded is already stale by then.
+`{ initial: true }` queues the current snapshot in the same synchronous call that registers
+the subscription, leaving no gap.
+
+## The factory runs once per subscription
+
+Each subscription gets its own context. That is what lets a disconnect close the feeds a body
+opened: an async generator parked inside `ctx.changes()` is suspended at an internal `await`,
+where the spec *queues* `return()` rather than running it, so the subscription has to be
+closable from outside the body.
+
+Nothing an author writes changes because of this — but it does mean the factory is a **table
+constructor**, not a place for per-activation state. Two rules follow:
+
+- Do not touch `ctx` while *constructing* the table; its method names are read at definition
+  time. Inside generator bodies, anything goes.
+- `computed` and `watch` setup belongs in `methods:`.
+
+Closing the feed unwinds the body through its own `finally`, so cleanup works normally.
+
+## Keep-alive at the byte layer
+
+A stream that yields nothing sends nothing, and every intermediary with an idle timeout —
+ingress at 60s, cloud load balancers at ~4 minutes, mobile NATs — closes it. The client then
+sees a stream that "ended without a done/error terminator".
+
+So the endpoint emits a `{"ping":1}` line after 30 seconds of silence, which the client's
+reader skips.
+
+```ts
+handleActorRequest(request, { host, streamPingMs: 30_000 });   // 0 disables
+```
+
+An open stream also keeps the activation alive, so
+[idle collection](/actors/docs/lifecycle) cannot pull it out from under a consumer.
+
+## Prefer a live read for current state
+
+> **Reading current state? Use
+> [`useActorState(…, { live: true })`](/actors/docs/live-reads)** rather than a hand-written
+> `streams:` body. It pushes the result of the read you already declared, multiplexes every
+> live read on the page onto one connection, and reconnects on its own.
+
+`streams:` is for a feed that is **not** a read of current state: a log tail, a progress
+sequence, an event history where each item matters in its own right.
+
+The `examples/chat` app in the actors repo dropped roughly 45 lines of hand-written stream and
+reconnect code when it moved its current-state reads to `{ live: true }`.
+
+## Next steps
+
+- [Live reads](/actors/docs/live-reads) — the multiplexed alternative.
+- [Tasks](/actors/docs/tasks) — long work that reports progress.
+- [Jobs](/actors/docs/jobs) — durable work with a `watch()` stream built in.
