@@ -108,5 +108,13 @@ export default defineConfig({
     // watch them directly and fire HMR instead of serving a cached optimized dep.
     optimizeDeps: {
         exclude: daisyuiSrc ? ['@sigx/daisyui'] : [],
+        // `@sigx/live-code/client` is in ssg.config.ts `clientImports`, so it
+        // loads on every page, and it pulls sucrase → @jridgewell/gen-mapping
+        // → trace-mapping → resolve-uri. resolve-uri's "browser" export
+        // condition points at a UMD build with no ESM `default`, so serving it
+        // unbundled throws before any page renders. Forcing it through
+        // prebundling converts it to real ESM.
+        // pnpm does not hoist, so the nested "parent > child" form is required.
+        include: ['@sigx/live-code > sucrase'],
     },
 });

@@ -5,13 +5,14 @@ layout: package
 draft: true
 ---
 
+import { ModuleCatalog } from '@/components/ModuleCatalog';
+
 {/*
   Actors package catalog — a chrome page, not a collection. Cards come from the
   module registry; links resolve into each package's own docs collection.
 
-  MDX rather than .tsx for the draft gate — see the note in ../index.mdx.
+  MDX rather than .tsx for the draft gate, and the comment sits below the
+  import — see the note in ../index.mdx for both reasons.
 */}
-
-import { ModuleCatalog } from '@/components/ModuleCatalog';
 
 <ModuleCatalog parent="actors" />

@@ -5,6 +5,8 @@ layout: package
 draft: true
 ---
 
+import { PackageLanding } from '@/components/PackageLanding';
+
 {/*
   Actors collection landing. All content is data-driven from src/lib/family.ts
   via <PackageLanding>.
@@ -14,8 +16,10 @@ draft: true
   .tsx `export const meta` is ignored and the page ships. Convert this to
   index.tsx when the actors packages are published and the draft comes off.
   See ACTORS_RELEASED in src/lib/modules.ts.
-*/}
 
-import { PackageLanding } from '@/components/PackageLanding';
+  Keep this comment BELOW the import: a `{...}` expression before the first
+  import makes the compiled page export something the `package` layout cannot
+  call as `slots.default()`, and the page renders blank with no build error.
+*/}
 
 <PackageLanding id="actors" />
