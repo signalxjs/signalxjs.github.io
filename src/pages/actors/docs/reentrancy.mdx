@@ -30,8 +30,8 @@ own up-stack turn instead of deadlocking. Unrelated calls still serialize, so th
 foreign interleaving and state stays turn-consistent. This is the conservative widening: it
 only unblocks the call graph you already had.
 
-**`'always'`.** Every call is its own turn, launched immediately — the Orleans `[Reentrant]`
-model. Unrelated calls interleave at every `await`.
+**`'always'`.** Every call is its own turn, launched immediately, so unrelated calls interleave
+at every `await`.
 
 > **What `'always'` gives up.** The single-threaded guarantee narrows to what JavaScript
 > itself gives you: no two turns run *between* awaits, but **your state can change across

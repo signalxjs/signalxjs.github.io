@@ -32,8 +32,14 @@ function mdxFilesIn(dir: string): string[] {
 /**
  * Word-boundary so `Silon`/`grainy` are not false positives, and the plural
  * forms because "silos"/"grains" are how the old docs usually said it.
+ *
+ * `Orleans` is here for a different reason: the actor model's prior art is
+ * genuinely Orleans-shaped, and the source README explains several decisions by
+ * reference to it ("the Orleans posture", `[Reentrant]`). That reads on sigx.dev
+ * as borrowing another project's authority to justify our own design. Every one
+ * of those points stands on its own once stated directly, so state it directly.
  */
-const DEAD_VOCABULARY = /\b(silos?|grains?)\b/i;
+const DEAD_VOCABULARY = /\b(silos?|grains?|orleans)\b/i;
 
 describe('actors docs vocabulary', () => {
     const files = mdxFilesIn(ACTORS_PAGES);
@@ -43,7 +49,7 @@ describe('actors docs vocabulary', () => {
     });
 
     it.each(files.map((f) => [relative(ACTORS_PAGES, f), f]))(
-        '%s uses host/actor, never silo/grain',
+        '%s uses host/actor, and does not lean on Orleans',
         (_label, file) => {
             const offenders = readFileSync(file, 'utf8')
                 .split('\n')
@@ -53,7 +59,7 @@ describe('actors docs vocabulary', () => {
             expect(
                 offenders.map(([n, line]) => `  ${n}: ${line.trim()}`).join('\n'),
                 'silo/grain is pre-release vocabulary that no longer exists in @sigx/actors — '
-                    + 'use host/actor. Write from the source, not the docs-issue bodies.',
+                    + 'use host/actor. Write from the source, not the docs-issue bodies. And state design decisions directly rather than by reference to Orleans.',
             ).toBe('');
         },
     );

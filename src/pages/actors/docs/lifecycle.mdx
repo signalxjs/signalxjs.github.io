@@ -65,10 +65,9 @@ Two things count as activity that people expect not to:
   collection cannot deactivate an actor out from under a subscriber.
 - A running [task](/actors/docs/tasks) holds a keep-alive until it finishes.
 
-A `ctx.timer` tick does **not** keep the actor alive. That is the Orleans posture and it is
-intentional: a volatile timer is a convenience, not a reason to pin an object in memory. If
-you need the actor to wake up later regardless, use a
-[durable reminder](/actors/docs/timers-and-reminders).
+A `ctx.timer` tick does **not** keep the actor alive, and that is intentional: a volatile
+timer is a convenience, not a reason to pin an object in memory. If you need the actor to wake
+up later regardless, use a [durable reminder](/actors/docs/timers-and-reminders).
 
 ## Capping activations
 

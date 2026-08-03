@@ -25,9 +25,8 @@ Ticks run as ordinary mailbox turns, so they serialize with your methods and can
 state. Under load they **coalesce** rather than pile up.
 
 A timer **does not keep the actor alive**. If the actor goes idle it deactivates, and the
-timer goes with it. That is the Orleans posture and it is deliberate: a volatile timer is a
-convenience, not a reason to pin an object in memory. Pass `keepAlive: true` when you really
-do want the actor held open.
+timer goes with it. That is deliberate: a volatile timer is a convenience, not a reason to pin
+an object in memory. Pass `keepAlive: true` when you really do want the actor held open.
 
 Use a timer for something that only matters while the actor is already active — refreshing a
 cached value, expiring an in-memory lease, driving an animation of state you are streaming.
