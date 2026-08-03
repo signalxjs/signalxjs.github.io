@@ -49,9 +49,8 @@ an actor file can reach the browser.
 ## One config for dev and production
 
 `sigxActors({ app })` points dev at the same app module your production entry imports, so
-storage, placement, codec handlers, defaults and every plugin are identical in both. Before
-this option existed, dev could not receive any of them — it replaced `storage` and `guard`
-options that are now gone.
+storage, placement, codec handlers, defaults and every plugin are identical in both. There is
+no second place to configure the dev host, and nothing to keep in sync.
 
 The app module gets its registry from `virtual:sigx-actors` under Vite, and from
 `withActors([...])` anywhere else. Add the virtual module's types once:

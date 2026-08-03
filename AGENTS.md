@@ -178,17 +178,18 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 >
 > The release steps are listed in issue #510.
 
-> **Write actors docs from the source, not from the docs-issue bodies.** The line
-> renamed its borrowed actor-system terms before first release — `silo` → `host`,
-> `grain` → `actor`, with no compat aliases — and most actors issues predate that.
-> It also dropped `mailbox`, which described a queue the runtime does not have.
-> `src/lib/__tests__/actors-vocabulary.test.ts` fails the build on any of them in
-> an `/actors/` page. Several issues also carry **comments that supersede their
-> own bodies** (notably #401's cost table, #404's undici figures, #497 on
-> `defineJob`), so read the comments before writing.
+> **Write actors docs from the source, not from the docs-issue bodies.** The queue
+> predates the current API and describes it with names that are not in it — check
+> every symbol against `packages/actors/src` before you write it down. Several
+> issues also carry **comments that supersede their own bodies** (notably #401's
+> cost table, #404's undici figures, #497 on `defineJob`), so read the comments
+> too.
 >
-> Same rule for prose: state a design decision on its own terms rather than by
-> reference to another framework, even when the prior art is genuine.
+> **Nothing has shipped, so nothing is old.** Write every page as if the reader is
+> meeting the API for the first time — which they are. No "this replaced X", no
+> "X is now gone", no explaining what something is *not*, and no justifying a
+> design by reference to another framework. State what is true and move on.
+> Anything that reads as history is a leak from our own working notes.
 
 ### Refresh playbook — after a source repo releases
 

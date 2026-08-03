@@ -21,9 +21,9 @@ import { DetailList } from '@sigx/terminal';
 ```tsx
 <DetailList
     rows={[
-        { label: 'Host', value: silo.host },
-        { label: 'Activations', value: String(silo.activations) },
-        { label: 'p99', value: `${silo.p99}ms`, tone: silo.p99 > 500 ? 'danger' : undefined },
+        { label: 'Host', value: host.id },
+        { label: 'Activations', value: String(host.activations) },
+        { label: 'p99', value: `${host.p99}ms`, tone: host.p99 > 500 ? 'danger' : undefined },
     ]}
 />
 ```

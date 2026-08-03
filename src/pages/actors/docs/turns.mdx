@@ -32,20 +32,19 @@ async checkout() {
 Between two `await`s nothing else touches this actor's state. That is why
 `ctx.state.items.push(item)` is safe with no lock, no transaction and no compare-and-set loop.
 
-## There is no queue
+## Turns chain, they do not queue
 
-It is tempting to picture a mailbox holding messages. There isn't one, and the difference
-matters when you go looking for it.
+Each new turn attaches to the tail of a promise chain with `.then()`. Nothing is stored between
+them, so the ordering you get is the ordering of arrival and nothing else.
 
-Turns chain onto a promise. Each new turn attaches to the tail of that chain with `.then()`;
-nothing is stored, nothing can be inspected, reordered, bounded or selectively received. The
-`queued` number you see in [`host.activations()`](/actors/docs/lifecycle) and the
+That has a practical consequence worth knowing before you go looking: the `queued` number in
+[`host.activations()`](/actors/docs/lifecycle) and the
 [ops endpoint](/actors/docs/ops-endpoint) is a **counter**, not the length of a structure you
-could look inside.
+can inspect. There is no priority lane to configure, no bounded-queue policy to tune, and no
+way to drop or reorder pending work.
 
-So there is no priority lane to configure, no bounded-queue policy to tune, and no way to drop
-or reorder pending work. If you need any of those, they belong in your own code in front of the
-actor.
+If your design needs any of those, put them in your own code in front of the actor — a queue
+you own, with the policy you want, calling the actor as its consumer.
 
 ## Two lanes
 
