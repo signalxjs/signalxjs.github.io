@@ -247,11 +247,18 @@ export default defineSSGConfig({
         ],
     },
 
-    // Per-page structured data (#516, needs @sigx/ssg 0.20): BreadcrumbList +
-    // TechArticle derived from each page's meta — the per-page counterpart to
-    // the site-wide Organization/WebSite/SoftwareSourceCode graph in
-    // index.html. The homepage opts out via meta.autoJsonLd (the site graph
-    // already describes it).
+    // Structured data, and where each kind lives (#516, needs @sigx/ssg 0.20):
+    //
+    // - SITE-wide schema (Organization / WebSite / SoftwareSourceCode) is the
+    //   static @graph block in index.html. That template is shared by every
+    //   route, so nothing page-specific may ever go there.
+    // - PER-page schema (BreadcrumbList + TechArticle from each page's meta)
+    //   is emitted by this flag. The homepage opts out via meta.autoJsonLd —
+    //   the site graph already describes it.
+    // - WebSite.potentialAction/SearchAction is deliberately ABSENT from the
+    //   site graph: there is no on-site search endpoint yet, and claiming one
+    //   Google cannot use is worse than omitting it. If search ships
+    //   (`search: true` here), add the SearchAction in index.html then.
     autoJsonLd: true,
 
     // Redirects for routes that have moved. `@sigx/lynx-device-info` folded into
