@@ -179,12 +179,16 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 > The release steps are listed in issue #510.
 
 > **Write actors docs from the source, not from the docs-issue bodies.** The line
-> renamed its Orleans vocabulary before first release — `silo` → `host`,
+> renamed its borrowed actor-system terms before first release — `silo` → `host`,
 > `grain` → `actor`, with no compat aliases — and most actors issues predate that.
-> `src/lib/__tests__/actors-vocabulary.test.ts` fails the build on `silo`/`grain`
-> in any `/actors/` page. Several issues also carry **comments that supersede their
+> It also dropped `mailbox`, which described a queue the runtime does not have.
+> `src/lib/__tests__/actors-vocabulary.test.ts` fails the build on any of them in
+> an `/actors/` page. Several issues also carry **comments that supersede their
 > own bodies** (notably #401's cost table, #404's undici figures, #497 on
 > `defineJob`), so read the comments before writing.
+>
+> Same rule for prose: state a design decision on its own terms rather than by
+> reference to another framework, even when the prior art is genuine.
 
 ### Refresh playbook — after a source repo releases
 
