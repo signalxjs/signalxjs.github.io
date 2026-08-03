@@ -1,6 +1,6 @@
 ---
 title: "Installation"
-description: "CLI — sigx actors — a terminal dashboard"
+description: "Flags, the app-module convention that unlocks panels, health exit codes and the dashboard keys"
 layout: module-docs
 category: "Getting Started"
 order: 20
@@ -9,18 +9,83 @@ draft: true
 
 # Installation
 
-<p class="lede">Add `@sigx/actors-cli` to your project.</p>
+<p class="lede">Install it as a devDependency of the package that owns the host, and the
+commands appear.</p>
 
-## Install the package
+## Install
 
 ```bash
-pnpm add @sigx/actors-cli
+pnpm add -D @sigx/actors-cli
 ```
 
-## Verify
+Requires `@sigx/cli` ≥ 0.9 and `@sigx/terminal` ≥ 0.11.
 
-```tsx
-import * as CLI from '@sigx/actors-cli';
+## Flags
 
-console.log(Object.keys(CLI));
+| Flag | Default | Meaning |
+|---|---|---|
+| `--url` | — | poll a running host's ops endpoint; wins over a local module |
+| `--secret` | `$SIGX_OPS_SECRET` | bearer token for that endpoint |
+| `--base` | — | ops mount base path |
+| `--app` | discovered | path to the actor app module, for embedded mode |
+| `--timeout` | `5000` | request timeout, ms |
+| `--json` | off | machine-readable output |
+| `--interval` | `1000` | dashboard refresh, ms |
+
+`SIGX_OPS_SECRET` is the preferred way to pass the token — a secret in `--secret` lands in
+your shell history and in `ps`.
+
+## The app-module convention
+
+Embedded mode reads named exports from your app module. `app` is required; the rest each
+unlock panels:
+
+```ts
+// src/actors.app.ts
+export const app = defineActorApp({ actors, storage }).use(metrics()).use(health());
+export const metrics = m;        // unlocks the latency and error panels
+export const ops = o;            // unlocks the ops sections
+export const cluster = c;        // unlocks the cluster tab
 ```
+
+Without `metrics`, the dashboard still runs — it simply has less to show.
+
+## Health exit codes
+
+```sh
+sigx actors health --url http://host:3000
+```
+
+| Code | Means |
+|---|---|
+| `0` | ready |
+| `1` | reachable but **not ready** |
+| `2` | unreachable, or a usage error |
+
+> `1` and `2` are deliberately distinct. A host answering "not ready" is alive and draining; a
+> host answering nothing is a different incident. Collapsing them makes an alert unable to
+> tell a rolling deploy from an outage.
+
+## The dashboard
+
+`sigx actors` (or `top`) opens the dashboard. It is width- and height-aware: tables window to
+the rows available and scroll to follow the cursor, columns shrink from the right so a host id
+or actor key is never truncated, and alert banners wrap.
+
+| Key | Action |
+|---|---|
+| `j` / `k` | move the cursor **on the visible tab only** |
+| `enter` | open a per-host drill-down on the Hosts tab |
+| `esc` | close it |
+
+Detail is only requested while a drill-down is open, so the extra load is opt-in.
+
+**Every panel states its scope** — cluster-wide or one host. That distinction is easy to lose
+and expensive to get wrong. The `READY` column shows `FATAL` distinctly from not-ready, per
+[Health & readiness](/actors/docs/health-and-readiness).
+
+## Next steps
+
+- [API reference](/actors/packages/actors-cli/api) — the `/source` data layer.
+- [Cluster stats](/actors/docs/cluster-stats) — what the panels are showing.
+- [The ops endpoint](/actors/docs/ops-endpoint) — mounting what `--url` reads.

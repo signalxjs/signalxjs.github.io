@@ -1,6 +1,6 @@
 ---
 title: "Overview"
-description: "OpenTelemetry — Prometheus exposition & OTel traces"
+description: "Observability exporters for @sigx/actors — Prometheus text exposition, OpenTelemetry traces and a metrics bridge"
 layout: module-docs
 category: "Getting Started"
 order: 10
@@ -11,7 +11,8 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 # OpenTelemetry
 
-<p class="lede">Scrape-ready Prometheus text on an OTel-free entry, plus spans that join across hosts through the propagated traceparent. Labels are type and method — never actor keys.</p>
+<p class="lede">Turns the host's own metrics into something your monitoring stack already
+speaks — without making OpenTelemetry a dependency of anything that does not want it.</p>
 
 <p class="mod-meta-row"><PkgVersion npm="@sigx/actors-otel" /> <span class="mmr-dot" /> MIT</p>
 
@@ -21,10 +22,49 @@ import { PkgVersion } from '@/components/PkgVersion';
 pnpm add @sigx/actors-otel
 ```
 
-## About
+`@opentelemetry/api` ≥ 1.9 is an **optional** peer dependency — the `/prometheus` entry
+imports no OpenTelemetry at all.
 
-`@sigx/actors-otel` is a Actors package — prometheus exposition & OTel traces. It is versioned in lockstep with the rest of the actors repo, so any combination of backends, transports and tools just works together.
+## Two entries, deliberately
+
+**`@sigx/actors-otel/prometheus`** — `prometheusOps()` and `renderPrometheus()`. Zero OTel.
+If you scrape, this is all you need.
+
+**`@sigx/actors-otel`** — `otelTraces()` and `otelMetricsBridge()`. For OTLP stacks.
+
+```ts
+import { prometheusOps } from '@sigx/actors-otel/prometheus';
+
+app.use(metrics()).use(prometheusOps({ secret: process.env.SIGX_OPS_SECRET }));
+```
+
+Mounts `GET /_sigx/metrics` beside [`ops()`](/actors/docs/ops-endpoint), with the same bearer
+posture. **The secret is mandatory outside dev.**
+
+## Traces
+
+```ts
+app.use(otelTraces({ turnSpans: true }));
+```
+
+One CLIENT span per dispatch and one SERVER span per turn, joined across hosts by the W3C
+`traceparent` the runtime propagates — captured from the public endpoint header and carried on
+the cluster envelope.
+
+With no tracer provider registered the plugin is inert and costs nothing.
+
+## The cardinality rule
+
+> **Labels are `type` and `method` — never actor keys.** An actor key is unbounded by
+> construction, and a key-labelled metric will take your Prometheus down. This is enforced,
+> not advisory.
+
+Span attributes use a **key hash** for the same reason the
+[routing token](/actors/docs/locality-routing) does — and with the same caveat that a hash is
+log hygiene, not privacy.
 
 ## Next steps
 
-Continue with [Installation](/actors/packages/actors-otel/installation) for project setup, or jump to the [API reference](/actors/packages/actors-otel/api).
+- [Installation](/actors/packages/actors-otel/installation) — scrape config and options.
+- [API reference](/actors/packages/actors-otel/api) — exports.
+- [Observability](/actors/docs/observability) — choosing between these.

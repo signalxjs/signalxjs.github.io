@@ -1,6 +1,6 @@
 ---
 title: "Overview"
-description: "Redis — Membership, directory & storage on Redis"
+description: "Redis providers for @sigx/actors — membership, the distributed actor directory and etag-CAS storage on one client"
 layout: module-docs
 category: "Getting Started"
 order: 10
@@ -11,20 +11,68 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 # Redis
 
-<p class="lede">The usual first step out of one process — host membership, the distributed actor directory and etag-CAS actor storage, all on one ioredis client. Requires Redis 7 for SET NX GET.</p>
+<p class="lede">The usual first step out of one process. Membership, the distributed actor
+directory and actor storage — all on one <code>ioredis</code> client.</p>
 
 <p class="mod-meta-row"><PkgVersion npm="@sigx/actors-redis" /> <span class="mmr-dot" /> MIT</p>
 
 ## Installation
 
 ```bash
-pnpm add @sigx/actors-redis
+pnpm add @sigx/actors-redis ioredis
 ```
 
-## About
+Requires **Redis ≥ 7** — the directory claim uses `SET NX GET`. `ioredis` ≥ 5 is a peer
+dependency.
 
-`@sigx/actors-redis` is a Actors package — membership, directory & storage on Redis. It is versioned in lockstep with the rest of the actors repo, so any combination of backends, transports and tools just works together.
+## What it provides
+
+```ts
+import { defineActorApp } from '@sigx/actors/host';
+import { cluster } from '@sigx/actors/cluster';
+import { redisCluster, redisStorage } from '@sigx/actors-redis';
+
+export const app = defineActorApp({
+    actors,
+    storage: redisStorage({ url: process.env.REDIS_URL }),
+}).use(cluster({
+    providers: redisCluster({ url: process.env.REDIS_URL }),
+    advertise: 'http://10.0.4.7:7311',
+    secret: process.env.HOST_SECRET,
+}));
+```
+
+| Export | Role |
+|---|---|
+| `redisCluster()` | membership + directory together |
+| `redisMembership(client, opts)` | membership alone |
+| `redisDirectory(client, opts)` | directory alone — pairs with [k8s membership](/actors/packages/actors-k8s/overview) |
+| `redisStorage()` | etag-CAS [`ActorStorage`](/actors/docs/storage) |
+
+Pass an existing client instead of `url` to share the app's connection —
+`redisCluster({ client })`. Sharing one `ioredis` client across `redisCluster()` and
+`redisStorage()` is safe and saves connections.
+
+> **Call `redisCluster()` once per host.** Each call returns *that host's* own membership
+> handle. The directory is safely shared.
+
+## Fencing
+
+A host that cannot heartbeat past `ttlMs` **self-fences**: it stops claiming actors and
+deactivates what it holds. Directory entries belonging to dead hosts are evicted lazily on
+lookup.
+
+State integrity never rests on any of this. The runtime's storage etag CAS is the floor — a
+briefly wrong directory entry costs a rejected save and a fault-and-reload, never corruption.
+
+## Reminders
+
+Reminders ride the same storage automatically. If your reminder table grows large enough that
+scanning it becomes the problem, [`@sigx/actors-pg`](/actors/packages/actors-pg/overview) has
+a `SKIP LOCKED` implementation designed for exactly that.
 
 ## Next steps
 
-Continue with [Installation](/actors/packages/actors-redis/installation) for project setup, or jump to the [API reference](/actors/packages/actors-redis/api).
+- [Installation](/actors/packages/actors-redis/installation) — setup and the options table.
+- [API reference](/actors/packages/actors-redis/api) — exports and the key layout.
+- [Clustering](/actors/docs/clustering) — where the providers plug in.

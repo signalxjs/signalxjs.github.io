@@ -1,6 +1,6 @@
 ---
 title: "API reference"
-description: "Postgres — Membership, directory, storage & reminders on Postgres"
+description: "Exports of @sigx/actors-pg — pgStorage, pgMembership, pgDirectory, pgReminders, pgCluster — with the table layout and CAS semantics"
 layout: module-docs
 category: "Reference"
 order: 40
@@ -13,8 +13,69 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Exports of `@sigx/actors-pg` <PkgVersion npm="@sigx/actors-pg" />.</p>
 
-## Exports
+## Providers
 
-{/* TODO: document the public API of @sigx/actors-pg */}
+| Export | Returns | Role |
+|---|---|---|
+| `pgCluster(options)` | `ClusterProviders` | membership + directory |
+| `pgMembership(pool, options?)` | `ClusterMembership` | liveness on the database clock |
+| `pgDirectory(pool, options?)` | `ActorDirectory` | single-activation claims |
+| `pgStorage(options)` | `ActorStorage` | etag-CAS jsonb rows |
+| `pgReminders(options)` | `ActorReminders` | `SKIP LOCKED` durable reminders |
 
-See the package source for the complete typed surface.
+## Schema helpers
+
+```ts
+ensurePgSchema(pool, { schema? });   // issues the DDL — dev and tests
+pgSchemaSql(schema?);                // returns it, for your migration tool
+```
+
+## Encoding helpers
+
+`pgText(value)` and `pgTextDecode(value)` — the text encoding used for stored values, exported
+for tooling that needs to read or write the tables directly.
+
+## Types
+
+`PgQueryable`, `PgPoolLike`, `PgClusterOptions`, `PgStorageOptions`, `PgRemindersOptions`.
+
+## Table layout
+
+All under the configured schema, `sigx` by default.
+
+```sql
+state(type, key, etag, state)                       -- jsonb
+directory(actor_id, host_id, activation_id)         -- + directory_host_id index
+hosts(host_id, descriptor, expires_at)
+membership_version(id, version)
+reminders(type, key, name, next_due, period_ms)     -- + reminders_due index
+```
+
+## Semantics worth knowing
+
+**Etags are client-minted UUIDs**, equality-compared only. Every CAS is a single statement
+whose row count is the verdict — no transactions, no advisory locks.
+
+**State is `jsonb`**, always bound as a JSON string with an explicit cast, so a top-level array
+state cannot be silently coerced into a Postgres `ARRAY`.
+
+**Directory entries carry no TTL.** There is one heartbeat per host, not per activation; entry
+validity is the owner's liveness in the membership view, and the storage etag CAS remains the
+integrity floor underneath.
+
+**Membership change detection compares host signatures**, not just the version counter — a
+host that dies silently expires on the database clock without anyone bumping a version, and
+views still converge.
+
+**Push is best-effort.** `LISTEN` rides a connection checked out of the pool; if the pool
+cannot dedicate one, or the connection drops, the poll is the guarantee and `pollMs` is the
+propagation bound.
+
+**Reminders commit before delivery.** The advance-or-delete is committed *before* the handler
+runs, which is what makes delivery at-most-once and prevents catch-up bursts after an outage.
+
+## Next steps
+
+- [Overview](/actors/packages/actors-pg/overview) — what each provider is for.
+- [Installation](/actors/packages/actors-pg/installation) — schema and wiring.
+- [Storage](/actors/docs/storage) — the seam and the alternatives.

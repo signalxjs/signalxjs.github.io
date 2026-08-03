@@ -1,6 +1,6 @@
 ---
 title: "Installation"
-description: "Kubernetes — Host liveness on coordination.k8s.io Leases"
+description: "RBAC for Lease access, the options table, clock assumptions, scale limits and running against kubectl proxy locally"
 layout: module-docs
 category: "Getting Started"
 order: 20
@@ -9,18 +9,94 @@ draft: true
 
 # Installation
 
-<p class="lede">Add `@sigx/actors-k8s` to your project.</p>
+<p class="lede">One Role, one RoleBinding, and everything else is discovered from the pod.</p>
 
-## Install the package
+## Install
 
 ```bash
 pnpm add @sigx/actors-k8s
 ```
 
-## Verify
+## RBAC
 
-```tsx
-import * as Kubernetes from '@sigx/actors-k8s';
+The ServiceAccount needs Lease access in the host namespace, and nothing else:
 
-console.log(Object.keys(Kubernetes));
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+    name: sigx-actors-membership
+rules:
+    - apiGroups: ["coordination.k8s.io"]
+      resources: ["leases"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+    name: sigx-actors-membership
+roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: sigx-actors-membership
+subjects:
+    - kind: ServiceAccount
+      name: my-host
 ```
+
+## Options
+
+| Option | Default | Meaning |
+|---|---|---|
+| `namespace` | ServiceAccount namespace, else `default` | where the Leases live |
+| `clusterName` | `default` | value of the `sigx.dev/cluster` label — two clusters can share a namespace |
+| `labels` | — | extra labels stamped on the own Lease **and** selecting peers |
+| `leasePrefix` | `sigx` | Lease names are `{leasePrefix}-{hostId}` |
+| `heartbeatMs` | `5000` | Lease renewal cadence |
+| `ttlMs` | `15000` | liveness TTL, serialized as `spec.leaseDurationSeconds` |
+| `clockSkewMs` | `2000` | slack added to peer freshness checks |
+| `relistMs` | `60000` | reconciling LIST cadence under the watch; `0` disables |
+| `apiServer` | in-cluster env, else `https://kubernetes.default.svc` | API server origin |
+| `token` | ServiceAccount token file | bearer token, or a provider function |
+| `ca` | ServiceAccount `ca.crt` | PEM bundle |
+| `fetch` | `node:https` shim | transport override |
+| `watchBackoff` | `{ minMs: 250, maxMs: 5000 }` | watch reconnect bounds |
+
+## Clocks
+
+`renewTime` is written by each host's own clock and compared against the observer's, so peer
+freshness assumes NTP-synced nodes — the same assumption kubelet node Leases make.
+`clockSkewMs` is the slack; raise it if your nodes drift more.
+
+If that assumption is uncomfortable, [`pgMembership()`](/actors/packages/actors-pg/overview)
+judges expiry on the database clock instead.
+
+## Scale
+
+Every renewal is a watch event delivered to every host: **n hosts beating every 5s ≈ n²/5
+events per second** cluster-wide.
+
+At tens of hosts this is trivial — 30 hosts is about 180 tiny JSON lines per second, and none
+of them touch the membership view, because renewals never bump its version. Only
+descriptor-set changes (join, leave, drain, expiry) do.
+
+For hundreds of hosts, raise `heartbeatMs` and `ttlMs`; the volume falls quadratically.
+
+## Local development
+
+Kubeconfigs are deliberately not parsed — client certificates and exec plugins are a
+dependency magnet. Let `kubectl` do the auth instead:
+
+```sh
+kubectl proxy --port=8001
+```
+
+```ts
+k8sMembership({ apiServer: 'http://127.0.0.1:8001', token: '', ca: '' });
+```
+
+## Next steps
+
+- [API reference](/actors/packages/actors-k8s/api) — exports and fencing behaviour.
+- [Kubernetes deployment](/actors/docs/kubernetes) — probes, preStop and scaling.
+- [Clustering](/actors/docs/clustering) — the plugin options.

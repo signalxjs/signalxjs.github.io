@@ -1,6 +1,6 @@
 ---
 title: "Installation"
-description: "OpenTelemetry — Prometheus exposition & OTel traces"
+description: "Mounting the Prometheus endpoint, a scrape config, the bucket grid and the reset caveat"
 layout: module-docs
 category: "Getting Started"
 order: 20
@@ -9,18 +9,83 @@ draft: true
 
 # Installation
 
-<p class="lede">Add `@sigx/actors-otel` to your project.</p>
+<p class="lede">Mount it beside <code>ops()</code>, give it the same secret, and point your
+scraper at it.</p>
 
-## Install the package
+## Install
 
 ```bash
 pnpm add @sigx/actors-otel
+# only if you want traces or the OTLP bridge:
+pnpm add @opentelemetry/api
 ```
+
+## Prometheus
+
+```ts
+import { metrics } from '@sigx/actors/host';
+import { prometheusOps } from '@sigx/actors-otel/prometheus';
+
+export const app = defineActorApp({ actors, storage })
+    .use(metrics())
+    .use(prometheusOps({ secret: process.env.SIGX_OPS_SECRET }));
+```
+
+`metrics()` must be enabled for there to be anything to export — if you run
+`metrics({ enabled: false })` in production, the endpoint reports zeroes until you enable it.
+
+```yaml
+scrape_configs:
+  - job_name: sigx-actors
+    metrics_path: /_sigx/metrics
+    authorization:
+      credentials_file: /etc/prometheus/sigx-ops-secret
+    static_configs:
+      - targets: ['actors-host:7311']
+```
+
+## Options
+
+| Option | Default | Meaning |
+|---|---|---|
+| `path` | `/_sigx/metrics` | where it mounts |
+| `secret` | — | **mandatory outside dev** |
+| `prefix` | `sigx_actors_` | metric name prefix |
+| `bucketsSeconds` | per-octave grid | histogram bounds |
+
+The default bucket grid runs from 1µs to about 134s in roughly 28 per-octave bounds — wide
+enough to cover a sub-millisecond local dispatch and a multi-second turn in the same histogram.
+
+## Two caveats
+
+> **`metrics().reset()` breaks monotonicity.** Prometheus counters are expected only ever to
+> increase, so a `reset()` looks like a counter restart. That is survivable — `rate()` handles
+> restarts — but do not wire `reset()` to anything periodic.
+
+> **Never label by actor key.** Enforced by the package, but worth knowing why: keys are
+> unbounded, and one high-cardinality label is enough to take a Prometheus down.
+
+## Traces and the bridge
+
+```ts
+import { otelMetricsBridge, otelTraces } from '@sigx/actors-otel';
+
+app.use(otelTraces({ turnSpans: true }))
+   .use(otelMetricsBridge({ percentileGauges: true }));
+```
+
+Both are inert with no provider registered. `turnSpans: false` keeps the CLIENT spans and
+drops the per-turn SERVER spans, which is the cheaper configuration if you only want the call
+graph.
 
 ## Verify
 
-```tsx
-import * as OpenTelemetry from '@sigx/actors-otel';
-
-console.log(Object.keys(OpenTelemetry));
+```bash
+curl -H "authorization: Bearer $SIGX_OPS_SECRET" http://localhost:7311/_sigx/metrics | head
 ```
+
+## Next steps
+
+- [API reference](/actors/packages/actors-otel/api) — exports.
+- [Observability](/actors/docs/observability) — choosing an approach.
+- [Metrics](/actors/docs/metrics) — what is being exported.

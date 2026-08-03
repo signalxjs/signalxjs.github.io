@@ -1,6 +1,6 @@
 ---
 title: "Overview"
-description: "Postgres — Membership, directory, storage & reminders on Postgres"
+description: "Postgres providers for @sigx/actors — storage, membership, directory and durable reminders, all on one pool"
 layout: module-docs
 category: "Getting Started"
 order: 10
@@ -11,20 +11,59 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 # Postgres
 
-<p class="lede">The whole cluster on the database you already run — jsonb storage with etag compare-and-set, database-clock membership, the directory, and durable reminders claimed with SKIP LOCKED. Ships its DDL; never issues it for you.</p>
+<p class="lede">For the team whose one durable store is SQL. Four providers, one pool — and the
+only shipped backend that covers reminders as well.</p>
 
 <p class="mod-meta-row"><PkgVersion npm="@sigx/actors-pg" /> <span class="mmr-dot" /> MIT</p>
 
 ## Installation
 
 ```bash
-pnpm add @sigx/actors-pg
+pnpm add @sigx/actors-pg pg
 ```
 
-## About
+`pg` (node-postgres) ≥ 8 is a peer dependency; Postgres ≥ 13.
 
-`@sigx/actors-pg` is a Actors package — membership, directory, storage & reminders on Postgres. It is versioned in lockstep with the rest of the actors repo, so any combination of backends, transports and tools just works together.
+## The four providers
+
+**`pgStorage()`** — etag-CAS [`ActorStorage`](/actors/docs/storage): one row per actor, no
+TTL. A conflict throws the branded `ActorStorageConflict` the runtime turns into
+fault-and-reload.
+
+**`pgMembership()`** — TTL-heartbeat membership with expiry judged on the **database clock**,
+so host clock skew cannot fake a death or a survival. LISTEN/NOTIFY push with a poll fallback,
+and self-suspect fencing when a host cannot prove its own membership.
+
+**`pgReminders()`** — durable reminders on an indexed table. A tick is one
+`FOR UPDATE SKIP LOCKED` claim statement for exactly the due rows, and the advance or delete
+**commits before delivery** — at-most-once, no catch-up bursts, database clock throughout.
+Every host may tick the same table, because row locks replace shard ownership.
+
+**`pgDirectory()`** — the single-activation claim directory: create-if-absent claim,
+compare-and-delete release and evict, plus an `evictHost` sweep for departed hosts.
+
+`pgCluster()` bundles membership and directory.
+
+## Why you might pick it over Redis
+
+- **You already run Postgres** and would rather not add Redis.
+- **Reminder tables get large.** The `SKIP LOCKED` design is the scan answer;
+  [Redis](/actors/packages/actors-redis/overview) rides storage with 16 hash shards, which is
+  fine until it is not.
+- **Clock skew worries you.** Expiry on the database clock removes a whole class of
+  split-brain question.
+
+## DDL is explicit
+
+The providers **never issue DDL**, so a production role needs only DML grants.
+
+```ts
+await ensurePgSchema(pool);   // dev and tests
+// production: run pgSchemaSql() through your migration tool
+```
 
 ## Next steps
 
-Continue with [Installation](/actors/packages/actors-pg/installation) for project setup, or jump to the [API reference](/actors/packages/actors-pg/api).
+- [Installation](/actors/packages/actors-pg/installation) — schema, wiring and options.
+- [API reference](/actors/packages/actors-pg/api) — exports and table layout.
+- [Clustering](/actors/docs/clustering) — where the providers plug in.

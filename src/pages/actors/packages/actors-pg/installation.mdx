@@ -1,6 +1,6 @@
 ---
 title: "Installation"
-description: "Postgres — Membership, directory, storage & reminders on Postgres"
+description: "Create the schema, wire all four Postgres providers onto one pool, and grant only DML in production"
 layout: module-docs
 category: "Getting Started"
 order: 20
@@ -9,18 +9,84 @@ draft: true
 
 # Installation
 
-<p class="lede">Add `@sigx/actors-pg` to your project.</p>
+<p class="lede">One pool, four providers, and a schema you own.</p>
 
-## Install the package
+## Install
 
 ```bash
-pnpm add @sigx/actors-pg
+pnpm add @sigx/actors-pg pg
 ```
+
+Postgres ≥ 13, `pg` ≥ 8.
+
+## Create the schema
+
+Tables live in one Postgres schema, `sigx` by default. **DDL is explicit** — the providers
+never issue it, so a production role needs only DML grants.
+
+```ts
+import pg from 'pg';
+import { ensurePgSchema, pgSchemaSql } from '@sigx/actors-pg';
+
+const pool = new pg.Pool({ connectionString: process.env.PG_URL });
+
+await ensurePgSchema(pool);   // dev and tests
+```
+
+In production, emit the SQL and run it through your migration tool instead:
+
+```ts
+console.log(pgSchemaSql('sigx'));
+```
+
+## Wire it up
+
+```ts
+import { defineActorApp } from '@sigx/actors/host';
+import { cluster } from '@sigx/actors/cluster';
+import { pgCluster, pgReminders, pgStorage } from '@sigx/actors-pg';
+
+export const app = defineActorApp({
+    actors,
+    storage: pgStorage({ pool }),
+    reminders: pgReminders({ pool }),
+}).use(cluster({
+    providers: pgCluster({ pool }),
+    advertise: `http://${process.env.POD_IP}:7311`,
+    secret: process.env.HOST_SECRET,
+}));
+```
+
+Every provider takes `pool` **or** `url` — with `url`, the package constructs its own
+`pg.Pool`. Sharing one pool is the point of this package.
+
+## Options
+
+| Option | Default | Applies to | Meaning |
+|---|---|---|---|
+| `pool` / `url` | — | all | a `pg.Pool`, or a URL to construct one |
+| `schema` | `sigx` | all | validated as an SQL identifier |
+| `heartbeatMs` | `5000` | membership | heartbeat cadence |
+| `ttlMs` | `15000` | membership | expiry, on the **database** clock |
+| `pollMs` | `5000` | membership | view poll cadence, and the propagation bound |
+
+## Pool sizing
+
+Every provider shares the pool, and `pgMembership()` checks out a connection to hold `LISTEN`
+when it can. Size the pool with that in mind — a pool of one works, but pushes membership onto
+the poll path permanently.
 
 ## Verify
 
-```tsx
-import * as Postgres from '@sigx/actors-pg';
-
-console.log(Object.keys(Postgres));
+```sh
+PG_URL=postgres://postgres:postgres@localhost:5432/postgres pnpm test -- actors-pg
 ```
+
+The provider suite is env-gated on `PG_URL`; CI provides a `postgres:16` service container and
+the rest of the matrix skips cleanly.
+
+## Next steps
+
+- [API reference](/actors/packages/actors-pg/api) — exports, tables and semantics.
+- [Timers & reminders](/actors/docs/timers-and-reminders) — what `pgReminders()` replaces.
+- [Storage](/actors/docs/storage) — the seam `pgStorage()` implements.

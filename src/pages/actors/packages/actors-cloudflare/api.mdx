@@ -1,6 +1,6 @@
 ---
 title: "API reference"
-description: "Cloudflare — One Durable Object per actor"
+description: "Exports of @sigx/actors-cloudflare — storage, reminders, placement, the host Durable Object and the Worker handler"
 layout: module-docs
 category: "Reference"
 order: 40
@@ -13,8 +13,86 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Exports of `@sigx/actors-cloudflare` <PkgVersion npm="@sigx/actors-cloudflare" />.</p>
 
-## Exports
+## Assembled entries
 
-{/* TODO: document the public API of @sigx/actors-cloudflare */}
+Most apps use these two rather than the seams below.
 
-See the package source for the complete typed surface.
+### `createHostDurableObject<Env>(options)`
+
+Returns a class to extend. The object hosts exactly the actor its id names.
+
+```ts
+interface HostDurableObjectOptions<Env> {
+    actors?: AnyActorDefinition[];
+    namespace(env: Env): DurableObjectNamespaceLike;
+    app?(base: DurableAppOptions): ActorApp;
+    placement?: Pick<DurableObjectPlacementOptions,
+        'objectName' | 'locationHint' | 'jurisdiction' | 'base'>;
+    endpoint?: HostEndpointOptions;
+}
+```
+
+The instance exposes `fetch(request)`, `alarm()` and `host(): Promise<Host>`.
+
+The `app` factory receives the object's own storage, reminders and defaults and must pass them
+on. It **never receives `env`**, so it cannot reach a namespace binding and build a placement
+of its own.
+
+### `createWorkerHandler<Env>(options)`
+
+The edge. Hosts nothing, routes everything. Same options minus `endpoint`, plus
+`fetch?: FetchHandlerOptions`.
+
+## Seams
+
+| Export | Role |
+|---|---|
+| `durableObjectStorage(storage, options?)` | [`ActorStorage`](/actors/docs/storage) on DO storage |
+| `durableObjectReminders(options)` | `ActorReminders` on the DO alarm |
+| `durableObjectPlacement(options?)` | routes a ref to its object |
+| `durableObjects(options?)` | the placement as a plugin |
+| `durableObjectName(...)` | the ref → object-name function |
+| `unhostedStorage()` | storage for the Worker half, which hosts nothing |
+
+### Placement runs on both sides
+
+```ts
+// inside the object
+durableObjectPlacement({ isSelf: (ref) => actorId(ref) === state.id.name });
+// in the Worker — no isSelf; everything is remote
+durableObjectPlacement();
+```
+
+> Using the plain local host inside an object **silently corrupts state**: a cross-actor call
+> would activate the callee inside the caller's object, writing its record into the wrong
+> storage and violating single activation. See
+> [Cloudflare Workers](/actors/docs/cloudflare-workers).
+
+`locationHint` is a hint and safe to change. **`jurisdiction` and `objectName` are part of
+identity**, so changing either is a state migration.
+
+## Alarm concurrency
+
+`onAlarm()` runs in three phases and does **not** hold `blockConcurrencyWhile` across
+delivery: claim and persist (gated) → deliver (ungated) → re-read and re-arm (gated).
+
+Holding the gate across delivery deadlocked the object, because rescheduling from inside
+`onReminder` takes the gate itself and `blockConcurrencyWhile` does not nest.
+
+Relatedly, an expected failure — the wrong-owner error from `ctx.reminders.set()` — is
+returned as a value and thrown **after** the gate closes. An exception escaping
+`blockConcurrencyWhile` *resets* the Durable Object.
+
+## Types
+
+`DurableObjectIdLike`, `DurableObjectNamespaceLike`, `DurableObjectStubLike`,
+`DurableObjectStorageOptions`, `DurableObjectRemindersOptions`,
+`DurableObjectPlacementOptions`, `DurableAppOptions`, `DurableObjectStateLike`,
+`HostDurableObjectInstance`, `WorkerHandler`, `WorkerHandlerOptions`, `BlockConcurrencyWhile`,
+`DurableStorage`, `DurableAlarms`.
+
+## Next steps
+
+- [Overview](/actors/packages/actors-cloudflare/overview) — the two seams.
+- [Installation](/actors/packages/actors-cloudflare/installation) — bindings and migrations.
+- [Cloudflare Workers](/actors/docs/cloudflare-workers) — the deployment guide.

@@ -1,6 +1,6 @@
 ---
 title: "Installation"
-description: "Redis — Membership, directory & storage on Redis"
+description: "Install @sigx/actors-redis, wire the providers into your app, and tune the heartbeat"
 layout: module-docs
 category: "Getting Started"
 order: 20
@@ -9,18 +9,95 @@ draft: true
 
 # Installation
 
-<p class="lede">Add `@sigx/actors-redis` to your project.</p>
+<p class="lede">Add the package and its <code>ioredis</code> peer, then hand the providers to
+the <code>cluster()</code> plugin.</p>
 
-## Install the package
+## Install
 
 ```bash
-pnpm add @sigx/actors-redis
+pnpm add @sigx/actors-redis ioredis
+```
+
+Requires **Redis ≥ 7** and `ioredis` ≥ 5.
+
+## Wire it up
+
+```ts
+import Redis from 'ioredis';
+import { defineActorApp } from '@sigx/actors/host';
+import { cluster } from '@sigx/actors/cluster';
+import { redisCluster, redisStorage } from '@sigx/actors-redis';
+
+const client = new Redis(process.env.REDIS_URL!);
+
+export const app = defineActorApp({
+    actors,
+    storage: redisStorage({ client }),
+}).use(cluster({
+    providers: redisCluster({ client }),
+    advertise: `http://${process.env.POD_IP}:7311`,
+    secret: process.env.HOST_SECRET,
+}));
+```
+
+One client for both is safe and saves connections. Share the `namespace` between them.
+
+## Options
+
+Both `redisCluster()` and `redisStorage()` take `client` **or** `url`.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `client` / `url` | — | ioredis client, or a URL to construct one |
+| `namespace` | `sigx` | key prefix |
+| `heartbeatMs` | `5000` | membership heartbeat cadence |
+| `ttlMs` | `15000` | heartbeat key TTL — missed beats past this means dead |
+| `pollMs` | `5000` | membership view poll cadence |
+
+`redisStorage()` takes `client`/`url` and `namespace` only.
+
+Tuning guidance: `ttlMs` is how long a dead host's actors stay unclaimable, so lowering it
+speeds recovery and raises the risk of fencing a host that merely paused — a long GC, a
+throttled container. Three missed heartbeats is a reasonable floor.
+
+## Splitting the providers
+
+Membership and the directory are independent. Kubernetes Leases for liveness with a Redis
+directory is a common shape:
+
+```ts
+cluster({
+    providers: { membership: k8sMembership(), directory: redisDirectory(client) },
+    advertise, secret,
+});
 ```
 
 ## Verify
 
-```tsx
-import * as Redis from '@sigx/actors-redis';
-
-console.log(Object.keys(Redis));
+```ts
+const report = await clusterStats(placement);
+console.log(report.hosts.length, report.partial);
 ```
+
+Or from a terminal, once [`ops()`](/actors/docs/ops-endpoint) is mounted:
+
+```bash
+sigx actors health --url http://localhost:7311
+```
+
+## Testing
+
+The provider suite is gated on `REDIS_URL`:
+
+```sh
+REDIS_URL=redis://localhost:6379 pnpm test -- actors-redis
+```
+
+For unit tests that need a cluster but not a server, `memoryClusterHub()` from
+`@sigx/actors/cluster` gives an N-host in-process cluster with no external store.
+
+## Next steps
+
+- [API reference](/actors/packages/actors-redis/api) — exports and key layout.
+- [Clustering](/actors/docs/clustering) — the plugin options.
+- [Storage](/actors/docs/storage) — choosing a provider.

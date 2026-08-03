@@ -1,6 +1,6 @@
 ---
 title: "API reference"
-description: "Kubernetes — Host liveness on coordination.k8s.io Leases"
+description: "Exports of @sigx/actors-k8s — k8sMembership and kubeClient — plus heartbeat, discovery, fencing and exit behaviour"
 layout: module-docs
 category: "Reference"
 order: 40
@@ -13,8 +13,67 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Exports of `@sigx/actors-k8s` <PkgVersion npm="@sigx/actors-k8s" />.</p>
 
-## Exports
+## `k8sMembership(options?)`
 
-{/* TODO: document the public API of @sigx/actors-k8s */}
+Returns a `ClusterMembership`. Pair it with a directory provider — this package does not
+supply one.
 
-See the package source for the complete typed surface.
+```ts
+cluster({
+    providers: { membership: k8sMembership(), directory: redisDirectory(redis) },
+    advertise, secret,
+});
+```
+
+Options are documented in [Installation](/actors/packages/actors-k8s/installation#options).
+
+## `kubeClient(options?)`
+
+The minimal HTTPS + JSON client the provider uses, exported for reuse. Types: `KubeClient`,
+`KubeClientOptions`.
+
+## Constants
+
+| Export | Value | Purpose |
+|---|---|---|
+| `CLUSTER_LABEL` | `sigx.dev/cluster` | selects peers; lets two clusters share a namespace |
+| `DESCRIPTOR_ANNOTATION` | `sigx.dev/descriptor` | carries the host descriptor JSON |
+
+## Types
+
+`K8sMembershipOptions`, `KubeClient`, `KubeClientOptions`.
+
+## Behaviour
+
+**Heartbeat** — a merge-patch of `spec.renewTime` every `heartbeatMs`. No read-modify-write,
+so no `resourceVersion` races.
+
+**Discovery** — the standard list-then-watch loop over Leases matching this host's labels. A
+peer is live while its `renewTime` is within its own declared duration.
+
+Watch events for renewals **never bump the membership view's version** — only descriptor-set
+changes do (join, leave, drain, expiry), so heartbeats cause zero `onChange` traffic.
+
+**Self-fencing** — renewal failures past `ttlMs` fire `onSelfSuspect` once: the host stops
+claiming actors and deactivates what it holds. See
+[Health & readiness](/actors/docs/health-and-readiness), where this surfaces as the `fatal`
+state.
+
+> A broken **watch** never fences. That is staleness, not death, and the `relistMs` safety net
+> covers it.
+
+**Graceful exit** — `setStatus('leaving')` patches the descriptor immediately, so a drain is
+visible now rather than next beat; `leave()` deletes the Lease. A crashed host simply stops
+renewing and ages out.
+
+**Versions** — `view().version` is a local monotonic counter. Kubernetes `resourceVersion` is
+an opaque watch bookmark and is never interpreted.
+
+State integrity never rests on any of this: the runtime's storage etag CAS remains the floor,
+exactly as with every other provider.
+
+## Next steps
+
+- [Overview](/actors/packages/actors-k8s/overview) — what it replaces.
+- [Installation](/actors/packages/actors-k8s/installation) — RBAC and options.
+- [Kubernetes deployment](/actors/docs/kubernetes) — the surrounding manifest.

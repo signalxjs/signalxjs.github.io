@@ -1,6 +1,6 @@
 ---
 title: "Overview"
-description: "Cloudflare — One Durable Object per actor"
+description: "Cloudflare Durable Objects as the backend for @sigx/actors — one DO per actor, and why the package is so small"
 layout: module-docs
 category: "Getting Started"
 order: 10
@@ -11,7 +11,9 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 # Cloudflare
 
-<p class="lede">Cloudflare already guarantees one instance of a Durable Object globally and serializes its requests — which is the virtual-actor contract. So there is no membership, no directory and no authenticated host mount: the platform is the cluster.</p>
+<p class="lede">Cloudflare already guarantees a single instance of a Durable Object globally
+and serializes requests to it. That <em>is</em> the virtual-actor contract — so the platform
+is the cluster.</p>
 
 <p class="mod-meta-row"><PkgVersion npm="@sigx/actors-cloudflare" /> <span class="mmr-dot" /> MIT</p>
 
@@ -21,10 +23,58 @@ import { PkgVersion } from '@/components/PkgVersion';
 pnpm add @sigx/actors-cloudflare
 ```
 
-## About
+## Why it is small
 
-`@sigx/actors-cloudflare` is a Actors package — one Durable Object per actor. It is versioned in lockstep with the rest of the actors repo, so any combination of backends, transports and tools just works together.
+This package needs none of the machinery [`@sigx/actors/cluster`](/actors/docs/clustering)
+uses to rebuild that contract: **no membership heartbeats, no activation directory, no
+HMAC-authenticated host-to-host mount.**
+
+There is no HMAC because a Durable Object stub is not network-reachable — holding the binding
+*is* the capability grant, and guards run once at the public edge. And there is no 421 retry
+because ref → object id is a pure function, so a mismatch is a config bug rather than a race.
+
+## Storage
+
+```ts
+const storage = durableObjectStorage(state.storage);
+```
+
+DO storage is strongly consistent and single-threaded per object, so the runtime's etag
+compare-and-set holds without a transaction.
+
+## Reminders
+
+```ts
+const reminders = durableObjectReminders({
+    storage: state.storage,
+    alarms: state.storage,
+    blockConcurrencyWhile: (fn) => state.blockConcurrencyWhile(fn),
+});
+
+export class ActorHost {
+    async alarm() {
+        await reminders.onAlarm();   // fire what is due, re-arm the rest
+    }
+}
+```
+
+The default `shardedReminders()` splits one table into fixed hash shards and polls it, because
+a host holds many actors and has to find whose reminder is due. **A DO holds exactly one**, so
+there is nothing to search and nothing to poll — reminders live in the object's own storage and
+the platform wakes it at the earliest due time.
+
+The visible consequence: an alarm fires **at** the due time, where `shardedReminders()`
+promises only "at or after `nextDue`".
+
+## The getting-started path
+
+Most apps do not touch the two seams directly — `createHostDurableObject()` and
+`createWorkerHandler()` assemble them. See
+[Cloudflare Workers](/actors/docs/cloudflare-workers) for the full entry, the `wrangler.jsonc`
+and the three gotchas that are each worth their own callout.
 
 ## Next steps
 
-Continue with [Installation](/actors/packages/actors-cloudflare/installation) for project setup, or jump to the [API reference](/actors/packages/actors-cloudflare/api).
+- [Installation](/actors/packages/actors-cloudflare/installation) — bindings and migrations.
+- [API reference](/actors/packages/actors-cloudflare/api) — exports.
+- [Cloudflare Workers](/actors/docs/cloudflare-workers) — the deployment guide.
