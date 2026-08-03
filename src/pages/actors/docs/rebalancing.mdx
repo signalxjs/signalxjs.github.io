@@ -1,0 +1,80 @@
+---
+title: Rebalancing
+description: "cluster({ rebalance }) — shedding your own idlest actors down toward the mean, and why it cannot oscillate"
+layout: docs
+category: Clustering
+order: 540
+draft: true
+---
+
+# Rebalancing
+
+<p class="lede">[Placement](/actors/docs/placement-policies) only ever decides where a **new**
+activation goes. Once a workload has gone lumpy, the actors do not move back on their own.
+Rebalancing is the correction, and it is off unless configured.</p>
+
+```ts
+cluster({
+    providers, advertise,
+    policy: activationCountPolicy(),     // where shed actors land
+    rebalance: { intervalMs: 60_000 },   // { threshold, maxMoves, minIdleMs, timeoutMs }
+});
+```
+
+## How it works
+
+Each host runs `placement.rebalance()` on the cadence:
+
+1. Probe peer loads over the authenticated ops channel.
+2. If **this host** is over `threshold × mean` (default 1.2), `migrate()` a bounded batch —
+   `maxMoves`, default 10 — of its **idlest** activations.
+3. Skip anything kept alive by a stream, watch or task; anything with queued turns; and
+   anything active within `minIdleMs`.
+
+The shed actors deactivate with reason `'migrated'`, their claims release, and the next call
+re-activates them wherever the policy chooses.
+
+## Why it cannot oscillate
+
+Two properties do the work.
+
+**A host only ever sheds its own actors, and only downward.** There is no instruction to
+another host to take work, and no host pulls. A host at or below the mean does nothing at all,
+so two hosts cannot hand the same actors back and forth.
+
+**It never acts on missing data.** If peer loads cannot be gathered, the round is skipped
+rather than run against a partial view — which is the case where a naive implementation would
+decide it is the most loaded host in a one-host cluster and shed everything.
+
+## Pair it with `activationCountPolicy()`
+
+Rebalancing decides *what leaves*; the policy decides *where it lands*. With the default
+random policy, shed actors scatter — which is fine and still converges. With
+[`activationCountPolicy()`](/actors/docs/placement-policies) they land cold, on the hosts that
+have room, so the fleet converges in far fewer rounds.
+
+## When you need it
+
+- A **skewed load balancer** concentrated ownership — the 80× row in the placement table.
+- A **scale-up** left the old hosts full and the new ones empty; placement alone only fills
+  the new hosts as actors happen to be created.
+- `preferLocalPolicy()` ran under the wrong edge for a while.
+
+If none of those apply, leave it off. A steady cluster with random placement holds an
+ownership spread around 2.9 without any help.
+
+## Watching it
+
+`rebalanceRounds` and `rebalanceMigrations` counters tell you whether it is doing anything.
+Rounds climbing with migrations flat means the fleet is inside `threshold` — healthy.
+Migrations that never settle mean the threshold is too tight for your churn, or the policy is
+putting actors back where they came from.
+
+`placement.rebalance()` is also callable directly, returning a `RebalanceReport` — useful from
+an admin endpoint or a one-off script after a known-bad deploy.
+
+## Next steps
+
+- [Placement policies](/actors/docs/placement-policies) — where shed actors land.
+- [Cluster stats](/actors/docs/cluster-stats) — ownership spread and the counters.
+- [Clustering](/actors/docs/clustering) — the plugin options.

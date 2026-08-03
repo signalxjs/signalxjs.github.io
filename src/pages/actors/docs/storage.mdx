@@ -1,0 +1,105 @@
+---
+title: Storage
+description: "The ActorStorage seam — load, save and clear with etags — the shipped providers, and what to run in production"
+layout: docs
+category: Running a host
+order: 420
+draft: true
+---
+
+# Storage
+
+<p class="lede">`ActorStorage` is three methods and an etag. Everything the runtime promises
+about persistence — conflict detection, migration write-back, crash-resumable tasks — rides
+that one seam.</p>
+
+## The shipped providers
+
+| Provider | From | Use |
+|---|---|---|
+| `memoryStorage()` | `@sigx/actors/host` | tests and dev |
+| `fileStorage({ dir })` | `@sigx/actors/node` | dev — one cat-able JSON file per actor |
+| [`redisStorage`](/actors/packages/actors-redis/overview) | `@sigx/actors-redis` | production |
+| [`pgStorage`](/actors/packages/actors-pg/overview) | `@sigx/actors-pg` | production |
+| [`durableObjectStorage`](/actors/packages/actors-cloudflare/overview) | `@sigx/actors-cloudflare` | Cloudflare |
+
+```ts
+defineActorApp({ storage: fileStorage({ dir: '.actors' }) });
+```
+
+`memoryStorage()` is the default when you configure nothing, which is fine for a first look
+and wrong for anything else — including dev, where it means every actor-file edit resets your
+state.
+
+## The seam
+
+```ts
+interface ActorStorage {
+    load(type: string, key: string): Promise<ActorStorageRecord | undefined>;
+    save(type: string, key: string, record: ActorStorageRecord): Promise<void>;
+    clear(type: string, key: string): Promise<void>;
+}
+```
+
+A record carries the encoded state and an **etag**. `save` must reject with
+`ActorStorageConflict` when the etag it was handed is not the one currently stored — that
+compare-and-set is what makes
+[`ActorStateConflictError`](/actors/docs/state-and-persistence#conflicts) possible, and
+without it a partition silently loses writes.
+
+Implementing one is a small job for any database that can do a conditional update. What it
+must get right:
+
+- **Compare-and-set on the etag**, atomically. A read-then-write is not enough.
+- **Round-trip the encoded record unchanged.** The codec has already run; do not re-serialize.
+- **`undefined` for a missing record**, not an empty one — that is what selects the fresh
+  `state(key)` path and skips [`migrateState`](/actors/docs/state-and-persistence).
+
+## Choosing one in production
+
+Two questions decide it.
+
+**Do you already run one of these?** If Postgres is in your stack,
+[`@sigx/actors-pg`](/actors/packages/actors-pg/overview) gives you storage, membership, the
+directory *and* reminders on one pool, with the expiry running on the database clock. If Redis
+is, [`@sigx/actors-redis`](/actors/packages/actors-redis/overview) gives you the same minus
+reminders, on one client.
+
+**Are you on Cloudflare?** Then the question does not arise — the Durable Object *is* the
+storage, and the platform is the cluster. See
+[Cloudflare Workers](/actors/docs/cloudflare-workers).
+
+Storage and the cluster providers are independent choices. Kubernetes membership plus a Redis
+directory plus Postgres storage is a perfectly ordinary configuration:
+
+```ts
+cluster({
+    providers: { membership: k8sMembership(), directory: redisDirectory(client) },
+    advertise,
+});
+```
+
+## Decorating storage
+
+A plugin can wrap the configured storage rather than replace it:
+
+```ts
+registry.decorateStorage((inner) => ({
+    async load(type, key) {
+        const t = performance.now();
+        try { return await inner.load(type, key); }
+        finally { record(performance.now() - t); }
+    },
+    save: inner.save,
+    clear: inner.clear,
+}));
+```
+
+Decorators chain, and the **last registered is outermost**. Caching, encryption at rest,
+tenant prefixing and audit logging all fit here without the actor code knowing.
+
+## Next steps
+
+- [State & persistence](/actors/docs/state-and-persistence) — what the runtime does with it.
+- [Clustering](/actors/docs/clustering) — membership and the directory.
+- [The app](/actors/docs/the-app) — `decorateStorage` and the other hooks.

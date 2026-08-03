@@ -1,0 +1,90 @@
+---
+title: Design notes & limits
+description: "What v1 deliberately does not do, the reserved names, and where the extension seams are"
+layout: docs
+category: Reference
+order: 810
+draft: true
+---
+
+# Design notes & limits
+
+<p class="lede">The things this version deliberately does not do, stated so you can plan around
+them rather than discover them.</p>
+
+## One host per process
+
+Many processes via [`@sigx/actors/cluster`](/actors/docs/clustering). The `ActorDispatcher`
+and `ActorPlacement` seams remain the extension point for other distributed backends —
+[Cloudflare Durable Objects](/actors/docs/cloudflare-workers) map onto them naturally.
+
+Every call already flows through those seams, and dev-mode `devSerializeChecks` verifies your
+arguments would survive a remote hop, so single-node code does not quietly depend on being
+single-node.
+
+## Keys and the wire
+
+**String keys.** `POST` by default, with `GET` for methods that declare
+[`reads:`](/actors/docs/cacheable-reads). No form posts or 303 PRG yet.
+
+**No WebSocket or SSE push layer** for the public wire. NDJSON covers server→client both per
+call ([`streams:`](/actors/docs/streams)) and multiplexed per page
+([live reads](/actors/docs/live-reads)).
+
+That is a limit of the *client-facing* mount, and it has a structural cause:
+`ActorRoute.handle` returns a `Response`, which cannot express a Node WebSocket upgrade — that
+needs the raw socket. Workers can express it. It is also why
+[`@sigx/actors-ws`](/actors/packages/actors-ws/overview) attaches to your server rather than
+contributing a route.
+
+## Topic delivery is best-effort
+
+[Topics](/actors/docs/topics) are at-most-once with **no persistence, no retry and no
+replay**. A durable mode is an explicit non-goal for v1, with API room reserved on
+`PublishOptions`.
+
+Explicit runtime subscribe and unsubscribe is likewise deferred; `ctx.topics.*` stays free
+for it.
+
+## Reserved names
+
+| Reserved | Where |
+|---|---|
+| actor types starting with `$` or `@` | refused by `defineActor` |
+| actor types starting with `$sigx:` | runtime-internal |
+| topic names starting with `$` or `@` | refused by `topic()` |
+| method names `$sigx:reminder`, `$sigx:topic` | runtime deliveries |
+| `$live#subscribe` | the live-read mount |
+| `$watch:{Type}#{method}` | internal host-to-host watch forwarding |
+| `$sigx:host#stats` | the cluster ops channel |
+
+`$sigx:host#stats` is answered **before any definition lookup**, so an actor type named
+`$sigx:host` would simply be uncallable across hosts.
+
+The public endpoint refuses every `$sigx:`-prefixed method outright — those are the runtime's
+own deliveries and arrive over the authenticated internal mount only.
+
+## Transport encryption is out of scope
+
+Host-to-host hops are authenticated per request with an HMAC signature derived from the shared
+`secret`, bound to the call and freshness-windowed. **Encryption is deliberately not
+provided** — run mTLS or a private network between hosts.
+
+## The conformance suite is contributor-facing
+
+`transportConformance` is real and is the definition of correct transport behaviour, but it is
+**not in the published `exports` map**. It is reachable inside the actors workspace through a
+tsconfig and vitest alias only. Promoting the subpath is a deliberate step for whenever a
+transport ships outside that repo.
+
+## What holds it all together
+
+Under every layer, the storage etag CAS is the **integrity floor**. A briefly stale route
+costs a rejected save and a fault-and-reload — never corrupted state. That is what lets
+routing, placement and membership all be optimizations that are allowed to be wrong.
+
+## Next steps
+
+- [Entry points](/actors/docs/entry-points) — the package layout.
+- [Clustering](/actors/docs/clustering) — the seams in practice.
+- [The actor model](/actors/docs/actor-model) — the guarantees these limits protect.

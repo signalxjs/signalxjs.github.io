@@ -1,0 +1,159 @@
+---
+title: Cloudflare Workers
+description: "Running actors on Durable Objects — the one-bundle setup, the app factory, and three gotchas each worth its own callout"
+layout: docs
+category: Deploying
+order: 710
+draft: true
+---
+
+# Cloudflare Workers
+
+<p class="lede">Cloudflare already guarantees one instance of a Durable Object globally and
+serializes its requests — which *is* the virtual-actor contract. So there is no membership, no
+directory and no authenticated host mount: the platform is the cluster.</p>
+
+```bash
+pnpm add @sigx/actors-cloudflare
+```
+
+## The entry
+
+The Durable Object and the Worker are the **same bundle**, which is why the actor registry is
+a plain import and needs no build-time indirection.
+
+```ts
+import { createHostDurableObject, createWorkerHandler } from '@sigx/actors-cloudflare';
+import { createApp } from './actors.app';
+import { Counter } from './counter.actor';
+import { servePage } from './page';
+
+export interface Env { ACTORS: DurableObjectNamespace }
+
+const actors = [Counter, Ticker];
+
+// The object: hosts exactly the actor its id names.
+export class ActorHost extends createHostDurableObject<Env>({
+    actors,
+    namespace: (env) => env.ACTORS,
+    app: createApp,
+}) {}
+
+// The edge: hosts nothing, routes everything.
+export default createWorkerHandler<Env>({
+    actors,
+    namespace: (env) => env.ACTORS,
+    app: createApp,
+    fetch: { origin: false, fallback: servePage },
+});
+```
+
+Both need the registry: the Worker to run guards, tell a stream method from a unary one and be
+the 404 authority; the object to actually activate.
+
+## Pass an app *factory*, not an app
+
+```ts
+export const createApp = (base: ActorAppOptions) => defineActorApp(base).use(metrics());
+export const { defineActor } = createApp({});   // type-only binding, never started
+```
+
+Building the app at module scope — which is fine on Node — binds whichever Durable Object
+constructed it first, and every other object is then served from **those** seams. The factory
+receives the object's own storage, reminders and defaults and must pass them on.
+
+It never receives `env`, so it cannot reach a namespace binding and build a placement of its
+own.
+
+## One placement runs on both sides
+
+> **This is the single most important thing to understand here, because the wrong version
+> looks more natural.**
+
+Using the plain local host *inside* a Durable Object silently corrupts state: a cross-actor
+call would activate the callee **inside the caller's object**, writing its record into the
+wrong storage and violating single activation.
+
+`durableObjectPlacement()` runs on both sides. Inside an object it needs `isSelf`:
+
+```ts
+durableObjectPlacement({ isSelf: (ref) => actorId(ref) === state.id.name });
+```
+
+In the Worker there is no `isSelf` — everything is remote.
+
+There is no HMAC and no 421 retry here, deliberately. A stub is not network-reachable, so
+holding the binding **is** the capability grant, and guards run once at the public edge. And
+ref → object id is a pure function, so a mismatch is a config bug rather than a race.
+
+## Identity versus routing
+
+`locationHint` is a hint and safe to change. **`jurisdiction` and `objectName` are part of
+identity**, so changing either is a state migration.
+
+## Three gotchas
+
+> **`new_sqlite_classes`, not `new_classes` — a one-way door.** `new_classes` creates the
+> legacy key-value backed storage, which cannot be migrated to SQLite in place; the class is
+> stuck with it forever, with a far smaller per-value limit. This is the single most
+> consequential irreversible line in `wrangler.jsonc`.
+
+> **`__DEV__` must be defined by the bundler.** The published package ships both a dev and a
+> production dist and expects its bundler to define the flag. Without
+> `"define": { "__DEV__": "false" }` the host throws `__DEV__ is not defined` on the first
+> request.
+
+> **The public mount needs an explicit `origin` policy.** Workers callers are not browsers
+> posting a form, and the mount defaults to refusing a request with no `Origin` — so ordinary
+> calls are rejected as cross-origin. `origin: false` is right for a service; a browser
+> front-end should pass its own origin list.
+
+## Eviction is not deactivation
+
+> The platform destroys the isolate, the host and the activation **together**. `onDeactivate`
+> never runs, and there is no idle sweeper.
+>
+> An actor that flushes in `onDeactivate` must `ctx.save()` in the turn instead.
+
+The same applies to [tasks](/actors/docs/tasks): a fiber does not survive eviction, so a task
+here is checkpoint-and-resume with short gaps rather than one continuous run. Same
+at-least-once contract — checkpoint aggressively.
+
+## `wrangler.jsonc`
+
+```jsonc
+{
+    "main": "src/worker.ts",
+    // Pinned, never floating: a compatibility date is how Workers versions
+    // runtime behaviour, so bumping it is a deliberate change to test.
+    "compatibility_date": "2026-07-01",
+    "compatibility_flags": ["nodejs_compat"],
+    "durable_objects": { "bindings": [{ "name": "ACTORS", "class_name": "ActorHost" }] },
+    "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ActorHost"] }],
+    "define": { "__DEV__": "false" },
+    "observability": { "enabled": true }
+}
+```
+
+`nodejs_compat` is required — [interleaving](/actors/docs/reentrancy) needs
+`AsyncLocalStorage`.
+
+## Reminders differ visibly
+
+`durableObjectReminders()` maps onto the DO alarm, so a reminder fires **at** the due time —
+where `shardedReminders()` promises only "at or after `nextDue`, checked every
+`reminderTickMs`".
+
+`onAlarm()` runs in three phases and does **not** hold `blockConcurrencyWhile` across
+delivery: claim and persist (gated), deliver (ungated), re-read and re-arm (gated). Holding
+the gate across delivery deadlocked the object, because rescheduling from inside `onReminder`
+takes the gate itself and `blockConcurrencyWhile` does not nest.
+
+Relatedly, an expected failure is raised **after** the gate closes, not through it — an
+exception escaping `blockConcurrencyWhile` *resets* the DO.
+
+## Next steps
+
+- [`@sigx/actors-cloudflare`](/actors/packages/actors-cloudflare/overview) — the API.
+- [Tasks](/actors/docs/tasks) — the checkpoint posture here.
+- [The app](/actors/docs/the-app) — the factory pattern.

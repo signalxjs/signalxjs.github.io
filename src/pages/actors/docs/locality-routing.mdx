@@ -1,0 +1,139 @@
+---
+title: Locality routing
+description: "The routing token, load-balancer recipes, and onMiss redirect with client follow — getting the edge to send a call to the host that owns the actor"
+layout: docs
+category: Clustering
+order: 530
+draft: true
+---
+
+# Locality routing
+
+<p class="lede">The actor **key** rides in the JSON body, and no load balancer will parse a
+body to route. The routing token is what lets the edge see which actor a request is for.</p>
+
+Without it, locality decays as 1/N — measured 1.00, 0.50, 0.12, 0.02, 0.01 for N = 1, 2, 10,
+50, 100 — and a cross-host hop costs about 20× a local dispatch.
+
+```
+POST {base}/r/{token}/{Type}%23{method}
+x-sigx-actor-route: {token}
+```
+
+The token is a stable per-actor hint, present in **both carriers** with the same value. It is
+a **middle** segment deliberately: the symbol is decoded as the last path segment, so the
+token slots in ahead of it and the endpoint neither parses nor validates it. A stale, wrong or
+absent token costs a network hop — never a wrong answer.
+
+Two carriers because neither alone is enough: a path segment cannot be silently stripped by a
+service mesh and a mangled one 404s loudly, but Envoy's `route.hash_policy` has no
+path-substring option at all.
+
+## Configuring it
+
+```ts
+configureActors({ route: 'hash' });
+```
+
+| `route` | Token | For |
+|---|---|---|
+| `'hash'` *(default)* | opaque hash of the actor id | production |
+| `'key'` | the raw key | debugging |
+| `'none'` | no token; plain URL | simple cross-origin GETs |
+| `(ref) => string \| null` | yours | tenant affinity, existing sharding |
+
+> **The default hash is log hygiene, not privacy.** An unkeyed hash of an email is one
+> dictionary lookup from plaintext at any width. What it buys is keys staying out of access
+> logs, proxy traces, referrers and screenshots. Real unlinkability needs a keyed HMAC with a
+> secret the client holds — which a browser cannot hold.
+
+## Load-balancer recipes
+
+```nginx
+map $uri $actor { ~^/_sigx/actor/r/([^/]+)/ $1; }
+upstream hosts { hash $actor consistent; }
+# or: hash $http_x_sigx_actor_route consistent;
+```
+
+```
+# HAProxy
+balance uri depth 4
+```
+
+```yaml
+# Envoy
+hash_policy: { header: { header_name: x-sigx-actor-route } }
+```
+
+## The token alone does nothing
+
+> **It must be paired with [`preferLocalPolicy()`](/actors/docs/placement-policies).**
+
+Steady-state local fraction:
+
+| Edge × placement | N=2 | N=10 | N=50 | N=100 |
+|---|---:|---:|---:|---:|
+| round-robin × `randomPlacementPolicy()` *(default)* | 0.50 | 0.12 | 0.02 | 0.01 |
+| hash token × `consistentHashPolicy()` | 0.48 | 0.09 | 0.02 | 0.01 |
+| **hash token × `preferLocalPolicy()`** | **1.00** | **1.00** | **1.00** | **1.00** |
+
+The middle row is an **anti-pattern**, not a middle ground: the edge's hash and the cluster's
+rendezvous hash are different functions over different sets, so they disagree on most keys and
+guarantee a hop for every actor.
+
+## Two limits not to bury
+
+**`$live` carries no routing token**, nor does any `$`-reserved symbol — one held-open
+response fans out to many actors. [Live subscriptions](/actors/docs/live-reads) still dispatch
+correctly through placement, but they keep paying the hop. "~100% locality" does not cover
+live components.
+
+**A migrated actor does not follow the LB.** `preferLocalPolicy()` applies to *new*
+activations, and the directory keeps a live actor where it is. After a scale-out, already-hot
+actors stay misrouted until they deactivate.
+
+## Redirect instead of proxy
+
+By default a call that lands on the wrong host is **proxied**: one client round trip, one
+internal hop, every time. The alternative is to tell the client where to go:
+
+```ts
+handleActorRequest(request, { host, onMiss: 'redirect' });   // or 'auto'
+configureActors({ endpoint, follow: true });
+cluster({ advertise: 'http://10.0.4.7:7311', publicAddress: 'https://host-3.example.com' });
+```
+
+`onMiss` goes on the **mount**, not the host, so one cluster can serve a browser origin that
+proxies and a service origin that redirects.
+
+**`follow` is not optional in practice.** On its own a redirect is *two* client round trips
+against one trip plus an internal hop — strictly worse than proxying. The win exists only
+because the client remembers: **2 requests once, then 1 forever.** A learned endpoint is
+dropped as soon as it proves wrong, and falls back to the configured endpoint.
+
+**`publicAddress` is required and deliberately never guessed.** `advertise` is the *internal*
+peer origin, typically a pod IP. Redirecting a client there hangs, and publishing it hands
+internal topology to anyone who can reach the public mount. Without `publicAddress` the mount
+**proxies anyway** and dev-warns once. The 421 body carries `owner.endpoint`, never
+`address`.
+
+**`'proxy'` is the browser answer.** A cross-origin redirect preflights and is refused by the
+default same-origin policy; redirecting a browser needs an explicit `origin` allowlist plus
+CORS on the *owner's* mount. For browsers the single-origin shape above is better.
+
+**Why 421 is safe to auto-retry:** the endpoint resolves the owner *before* dispatching, so a
+redirect has provably run no application code. That matters because 421 is a status user
+agents may retry on their own, and actor calls are not idempotent.
+
+Limits: `$live` is never redirected; a redirected watch is bound to its owner only until the
+actor migrates, then silently proxied again; and redirect chains are bounded at both ends,
+default 2 hops.
+
+The `locates` / `locateRemote` counters give you the miss rate your edge is producing — see
+[Cluster stats](/actors/docs/cluster-stats).
+
+## Next steps
+
+- [Placement policies](/actors/docs/placement-policies) — the other half.
+- [The client](/actors/docs/client) — `learningRouter()` and friends.
+- [Wire protocol](/actors/docs/wire-protocol) — where the token sits.

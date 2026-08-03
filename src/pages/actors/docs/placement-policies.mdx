@@ -1,0 +1,110 @@
+---
+title: Placement policies
+description: "Where a new activation goes — the measured comparison, why the default is random, and when preferLocal or activationCount wins"
+layout: docs
+category: Clustering
+order: 510
+draft: true
+---
+
+# Placement policies
+
+<p class="lede">A policy decides which host a **new** activation lands on. It never moves an
+existing one — that is [rebalancing](/actors/docs/rebalancing).</p>
+
+## The measured comparison
+
+`pnpm bench:run locality-warm`, N=100 hosts, 240 actors, in the **warm** steady state — actors
+already placed, which is where a running cluster spends its life.
+
+| Edge × policy | Local fraction | Ownership spread |
+|---|---:|---:|
+| round-robin × `randomPlacementPolicy()` *(default)* | 0.02 | 2.92 |
+| round-robin × `preferLocalPolicy()` | 0.00 | 1.25 |
+| **hash the routing token × `preferLocalPolicy()`** | **1.00** | 2.50 |
+| skewed LB × `randomPlacementPolicy()` | 0.00 | 2.92 |
+| skewed LB × `preferLocalPolicy()` | 0.80 | **80.4** |
+
+*Ownership spread is the most-loaded host's actor count over the mean: 1.0 is perfectly even,
+and N means one host owns everything.*
+
+## Use `preferLocalPolicy()` only with a hashing edge
+
+> **Use `preferLocalPolicy()` if — and only if — your edge hashes the
+> [routing token](/actors/docs/locality-routing).**
+
+That is the one row that wins, and it wins completely: 100% local. Set it per type with
+`defineActor({ placement })` or cluster-wide with `cluster({ policy })`.
+
+## Why the default is random
+
+Two rows explain it.
+
+**Under a plain round-robin balancer, `preferLocalPolicy()` buys nothing** — 0.00 against
+random's 0.02, both noise around 1/N. It pins each actor wherever its first call landed, and
+the balancer then sends the next call somewhere else anyway. A default that only helps once
+you have *also* configured your load balancer is not a default; it is a trap with a good
+outcome attached.
+
+**Under a balancer that is not even** — a rolling deploy, a bad health check, a scaled-down
+pool — it concentrates ownership catastrophically: **80×** at N=100, one host holding 80% of
+the actors. And they do not move back, because placement only applies to new activations.
+
+Random holds ~2.9 regardless of what the edge does, which is the property you want precisely
+when things are going wrong.
+
+## `consistentHashPolicy()`
+
+Mostly an anti-pattern under edge hashing: the edge's hash and the cluster's rendezvous hash
+are different functions over different sets, so they disagree on most keys and guarantee a hop
+for nearly every actor.
+
+It earns its place when a *client* routes with the cluster's own rule rather than the load
+balancer's.
+
+## `activationCountPolicy()`
+
+Steers new activations toward the least-loaded host — the answer when the workload is uneven
+(hot types, lumpy keys) and **ownership spread** is the number you are watching.
+
+```ts
+cluster({ providers, advertise, policy: activationCountPolicy({ refreshMs: 5_000 }) });
+```
+
+It keeps a load view refreshed out of band over the authenticated host-to-host ops channel
+(`refreshMs` default 5s; a peer probe that misses its `timeoutMs` keeps its stale entry).
+`choose()` stays synchronous: it samples **two** random active hosts and takes the less loaded
+— power-of-two-choices — plus a local pending delta, so a burst inside one refresh window sees
+its own effect.
+
+Degradation is graceful by design. Un-attached it keeps no state and behaves exactly as
+`randomPlacementPolicy()`; attached but not yet refreshed it spreads random-or-better until
+data lands. A host with no known load reads as **cold**, which is what makes a freshly joined
+host attract work immediately.
+
+> Staleness is the design, not a defect. Routing is an optimization, so a decision made on old
+> numbers costs a little balance — never correctness.
+
+## Stateful policies: the attach seam
+
+A policy may declare `attach(runtime)`, which the placement calls at start — or on first
+resolution for a `defineActor({ placement })` declaration — with `PolicyRuntime`:
+`{ hostId, view(), selfLoad(), peerLoad(target, timeoutMs) }`. It returns a teardown run at
+stop.
+
+A throwing `attach` is contained, and `choose()` must keep working un-attached.
+
+## Precedence
+
+Highest first:
+
+1. `defineActor({ placement })`
+2. `cluster({ typePolicies })`
+3. `cluster({ policy })`
+4. random
+
+## Next steps
+
+- [Locality routing](/actors/docs/locality-routing) — the edge half of `preferLocalPolicy`.
+- [Rebalancing](/actors/docs/rebalancing) — moving actors that are already placed.
+- [Cluster stats](/actors/docs/cluster-stats) — watching ownership spread.

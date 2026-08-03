@@ -1,0 +1,122 @@
+---
+title: Running a host on Node
+description: "createAppHandler, the production entry, and the graceful-shutdown recipe that retires keep-alive sockets properly"
+layout: docs
+category: Running a host
+order: 410
+draft: true
+---
+
+# Running a host on Node
+
+<p class="lede">One handler serves the public actor endpoint and every plugin-contributed
+route. The composition stays visible in your entry file — the sigx idiom.</p>
+
+```ts
+import { createServer } from 'node:http';
+import { createAppHandler, attachSignalHandlers } from '@sigx/actors/node';
+import { app } from './src/actors.app.ts';
+import { Counter } from './src/counter.actor.ts';
+
+// THE SAME app module the dev server runs: storage, defaults and every plugin
+// shared, declared once. Only the registry differs — Vite hands the plugin's
+// over, this entry names its actors.
+const host = await app.withActors([Counter]).start();
+
+const actorHandler = createAppHandler(app);
+
+const server = createServer((req, res) => {
+    void actorHandler(req, res, async () => {
+        // your static / SSR fallthrough
+    });
+});
+
+attachSignalHandlers(host, { server });
+server.listen(5199);
+```
+
+`createAppHandler(app)` is a connect-style handler: it answers actor requests and any route a
+plugin contributed, and calls `next()` for everything else. That last part is what lets it sit
+in front of your existing app rather than beside it.
+
+## Graceful shutdown
+
+Stopping the actors is only half of it. The other half is retiring keep-alive sockets, and
+getting it wrong shows up as occasional connection resets during every deploy:
+
+```ts
+// Once shutdown starts, every response says `connection: close` so keep-alive
+// clients retire their pooled socket after the response they are already
+// receiving — rather than reusing it right up to the moment it is destroyed.
+let stopping = false;
+const server = createServer((req, res) => {
+    if (stopping) res.setHeader('connection', 'close');
+    void actorHandler(req, res, staticFallthrough);
+});
+
+// Pass the server AND onStopBegin: `server` alone closes the listener at the
+// end, without giving pools a chance to retire their sockets first.
+attachSignalHandlers(host, { server, onStopBegin: () => (stopping = true) });
+```
+
+`attachSignalHandlers` wires `SIGINT`/`SIGTERM` to `host.stop()`, which drains in-flight
+turns, flushes pending write-behind saves and runs `onDeactivate` for every activation. See
+[Lifecycle](/actors/docs/lifecycle).
+
+In a cluster, a graceful stop announces `leaving` before handing off — which is why liveness
+and readiness [are allowed to disagree](/actors/docs/health-and-readiness) during a drain.
+
+## The lower-level entry
+
+`createHost` remains available when you want no app layer at all:
+
+```ts
+import { createHost } from '@sigx/actors/host';
+import { handleActorRequest, matchesActorRequest } from '@sigx/actors/server';
+import { actors } from './dist/server/sigx-actors.js'; // build-emitted registry
+
+const host = createHost({ actors, storage });
+await host.start();
+
+export default {
+    async fetch(request: Request): Promise<Response> {
+        if (matchesActorRequest(request)) return handleActorRequest(request, { host });
+        if (matchesServerFn(request))     return handleServerFnRequest(request, { resolve });
+        return documentHandler(request);
+    },
+};
+```
+
+This is the WinterCG shape, and it is what the
+[Cloudflare](/actors/docs/cloudflare-workers) and other platform entries build on.
+`createFetchHandler` from `@sigx/actors/server` packages the same composition.
+
+Prefer [`defineActorApp`](/actors/docs/the-app) unless you have a reason not to — `createHost`
+takes exactly one `placement` and one `storage`, which is what makes plugins impossible.
+
+## Host defaults
+
+```ts
+defineActorApp({
+    defaults: {
+        idleAfterMs: 20 * 60_000,   // deactivate after 20 minutes idle
+        callTimeoutMs: 30_000,      // 0 disables
+        sweepIntervalMs: 60_000,    // 0 disables
+        maxActivations: 0,          // 0 = unlimited
+        reminderTickMs: 30_000,
+        slowTurnMs: 5_000,          // __DEV__ warning threshold
+        taskGraceMs: 10_000,
+        devSerializeChecks: false,
+    },
+});
+```
+
+Note that `callTimeoutMs` deadlines
+[fire coarsely](/actors/docs/errors#call-deadlines-fire-coarsely) at 10 seconds or more.
+
+## Next steps
+
+- [Storage](/actors/docs/storage) — what to run in production.
+- [Clustering](/actors/docs/clustering) — more than one of these.
+- [Health & readiness](/actors/docs/health-and-readiness) — probes and draining.
+- [Kubernetes](/actors/docs/kubernetes) — the deployment shape.
