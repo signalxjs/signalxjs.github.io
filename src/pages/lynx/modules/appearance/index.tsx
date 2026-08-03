@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Appearance",
-    description: "Appearance — module overview",
+    description: "System color scheme & bars — the Appearance module for SignalX Lynx (@sigx/lynx-appearance).",
     layout: 'default',
     sidebar: false,
 };

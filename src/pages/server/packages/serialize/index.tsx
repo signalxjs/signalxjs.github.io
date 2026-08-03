@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Serialize",
-    description: "Serialize — module overview",
+    description: "Custom-type serialization codec — the Serialize package for SignalX Server (@sigx/serialize).",
     layout: 'default',
     sidebar: false,
 };

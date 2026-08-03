@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Date/Time Picker",
-    description: "Date/Time Picker — module overview",
+    description: "Native date & time picker — the Date/Time Picker module for SignalX Lynx (@sigx/lynx-datetime-picker).",
     layout: 'default',
     sidebar: false,
 };

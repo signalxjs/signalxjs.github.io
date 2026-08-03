@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Runtime",
-    description: "Runtime — module overview",
+    description: "Background-thread renderer — the Runtime module for SignalX Lynx (@sigx/lynx-runtime).",
     layout: 'default',
     sidebar: false,
 };

@@ -64,3 +64,19 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  # Tell IndexNow-consuming engines (Bing/Yandex/Seznam/Naver) the site
+  # changed (#516). Reads the just-deployed live sitemap; failure-tolerant —
+  # the script never exits non-zero, a flaky endpoint can't fail the deploy.
+  indexnow:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Ping IndexNow with sitemap URLs
+        run: node scripts/indexnow-ping.mjs

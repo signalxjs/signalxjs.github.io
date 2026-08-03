@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "File System",
-    description: "File System — module overview",
+    description: "Sandboxed file access — the File System module for SignalX Lynx (@sigx/lynx-file-system).",
     layout: 'default',
     sidebar: false,
 };

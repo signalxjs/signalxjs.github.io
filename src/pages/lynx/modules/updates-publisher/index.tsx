@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "OTA Publisher",
-    description: "OTA Publisher — module overview",
+    description: "CI bundle publisher — the OTA Publisher module for SignalX Lynx (@sigx/lynx-updates-publisher).",
     layout: 'default',
     sidebar: false,
 };

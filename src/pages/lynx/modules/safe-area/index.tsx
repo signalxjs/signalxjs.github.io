@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Safe Area",
-    description: "Safe Area — module overview",
+    description: "Safe-area insets — the Safe Area module for SignalX Lynx (@sigx/lynx-safe-area).",
     layout: 'default',
     sidebar: false,
 };

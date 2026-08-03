@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Vercel",
-    description: "Vercel — module overview",
+    description: "Build Output API v3 generation — the Vercel adapter for SignalX (@sigx/vercel).",
     layout: 'default',
     sidebar: false,
 };

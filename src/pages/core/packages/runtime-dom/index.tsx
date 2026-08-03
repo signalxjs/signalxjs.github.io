@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Runtime DOM",
-    description: "Runtime DOM — module overview",
+    description: "The DOM renderer — the Runtime DOM package for SignalX (@sigx/runtime-dom).",
     layout: 'default',
     sidebar: false,
 };

@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Background Tasks",
-    description: "Background Tasks — module overview",
+    description: "Periodic sync & fetch — the Background Tasks module for SignalX Lynx (@sigx/lynx-background).",
     layout: 'default',
     sidebar: false,
 };

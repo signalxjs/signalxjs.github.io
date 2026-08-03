@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Dev Client",
-    description: "Dev Client — module overview",
+    description: "On-device dev menu — the Dev Client module for SignalX Lynx (@sigx/lynx-dev-client).",
     layout: 'default',
     sidebar: false,
 };

@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Keyboard",
-    description: "Keyboard — module overview",
+    description: "Soft-keyboard handling — the Keyboard module for SignalX Lynx (@sigx/lynx-keyboard).",
     layout: 'default',
     sidebar: false,
 };

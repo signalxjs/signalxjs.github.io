@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Build Plugin",
-    description: "Build Plugin — module overview",
+    description: "Rspack / Rspeedy plugin — the Build Plugin module for SignalX Lynx (@sigx/lynx-plugin).",
     layout: 'default',
     sidebar: false,
 };

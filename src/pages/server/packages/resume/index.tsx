@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Resume",
-    description: "Resume — module overview",
+    description: "Resumable SSR & boundary refresh — the Resume package for SignalX Server (@sigx/resume).",
     layout: 'default',
     sidebar: false,
 };

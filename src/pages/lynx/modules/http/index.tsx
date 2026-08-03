@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "HTTP",
-    description: "HTTP — module overview",
+    description: "WHATWG fetch transport — the HTTP module for SignalX Lynx (@sigx/lynx-http).",
     layout: 'default',
     sidebar: false,
 };

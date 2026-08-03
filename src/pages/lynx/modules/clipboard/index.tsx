@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Clipboard",
-    description: "Clipboard — module overview",
+    description: "System clipboard — the Clipboard module for SignalX Lynx (@sigx/lynx-clipboard).",
     layout: 'default',
     sidebar: false,
 };

@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Reactivity",
-    description: "Reactivity — module overview",
+    description: "Signals, computed & effects — the Reactivity package for SignalX (@sigx/reactivity).",
     layout: 'default',
     sidebar: false,
 };

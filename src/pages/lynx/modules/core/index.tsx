@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Native Bridge",
-    description: "Native Bridge — module overview",
+    description: "Low-level NativeModules bridge — the Native Bridge module for SignalX Lynx (@sigx/lynx-core).",
     layout: 'default',
     sidebar: false,
 };

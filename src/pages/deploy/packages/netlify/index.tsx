@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Netlify",
-    description: "Netlify — module overview",
+    description: "Frameworks API function generation — the Netlify adapter for SignalX (@sigx/netlify).",
     layout: 'default',
     sidebar: false,
 };
