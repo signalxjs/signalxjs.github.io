@@ -257,8 +257,13 @@ export default defineSSGConfig({
     //   the site graph already describes it.
     // - WebSite.potentialAction/SearchAction is deliberately ABSENT from the
     //   site graph: there is no on-site search endpoint yet, and claiming one
-    //   Google cannot use is worse than omitting it. If search ships
-    //   (`search: true` here), add the SearchAction in index.html then.
+    //   Google cannot use is worse than omitting it. If on-site search ever
+    //   ships, add the SearchAction to the index.html graph at that point.
+    //
+    // Page meta is injected FIRST in <head> (the <!--head-tags--> marker in
+    // index.html sits right after charset/viewport/theme-color): the tab
+    // title isn't blocked behind the font CSS, and scrapers that read only
+    // the head's first chunk still see the OG tags.
     autoJsonLd: true,
 
     // Redirects for routes that have moved. `@sigx/lynx-device-info` folded into

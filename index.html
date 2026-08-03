@@ -4,9 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#000000" />
-    <!-- Page meta first (title, description, canonical, OG, per-page JSON-LD):
-         the tab title isn't blocked behind the font CSS, and scrapers that
-         read only the head's first chunk still see the OG tags. -->
+    <!-- Page meta first by design — rationale in ssg.config.ts. -->
     <!--head-tags-->
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/png" href="/sigx.png" />
@@ -27,8 +25,7 @@
             }
         })();
     </script>
-    <!-- SITE-wide JSON-LD only — per-page schema comes from autoJsonLd; see
-         the structured-data note in ssg.config.ts before editing. -->
+    <!-- SITE-wide JSON-LD only — before editing, see the note in ssg.config.ts. -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
