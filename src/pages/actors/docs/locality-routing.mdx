@@ -111,6 +111,34 @@ against one trip plus an internal hop — strictly worse than proxying. The win 
 because the client remembers: **2 requests once, then 1 forever.** A learned endpoint is
 dropped as soon as it proves wrong, and falls back to the configured endpoint.
 
+```mermaid title="onMiss proxy, the default — one client trip plus an internal hop, every time"
+sequenceDiagram
+    participant Cl as Client
+    participant H1 as Host 1
+    participant H2 as Host 2
+    Note over H2: owns the actor
+    Cl->>H1: call
+    H1->>H2: forward over the host transport
+    H2-->>H1: result
+    H1-->>Cl: result
+    Note over Cl,H2: every later call repeats the hop
+```
+
+```mermaid title="onMiss redirect with client follow — 2 requests once, then 1"
+sequenceDiagram
+    participant Cl as Client
+    participant H1 as Host 1
+    participant H2 as Host 2
+    Note over H2: owns the actor
+    Cl->>H1: call
+    H1-->>Cl: 421 with owner.endpoint
+    Cl->>H2: retry
+    H2-->>Cl: result
+    Note over Cl: endpoint learned
+    Cl->>H2: every later call, one trip
+    H2-->>Cl: result
+```
+
 **`publicAddress` is required and deliberately never guessed.** `advertise` is the *internal*
 peer origin, typically a pod IP. Redirecting a client there hangs, and publishing it hands
 internal topology to anyone who can reach the public mount. Without `publicAddress` the mount

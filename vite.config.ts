@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import { sigxPlugin } from '@sigx/vite';
 import { ssgPlugin } from '@sigx/ssg/vite';
+import { rehypeMermaid } from '@sigx/mermaid/ssg';
 import { monacoPrebundledPlugin } from '@sigx/monaco-editor/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'path';
@@ -78,7 +79,17 @@ export default defineConfig({
         // The Shiki transformer's options come from ssgPlugin() args (not
         // ssg.config.ts's markdown.shiki, which only feeds the runtime).
         // triggerLabel sets the live-code "Try Live" button to the v2 "⚡ Run".
-        ssgPlugin({ markdown: { shiki: { triggerLabel: '⚡ Run' } } }),
+        //
+        // Mermaid rides the same seam and for the same reason: `skipLanguages`
+        // leaves ```mermaid fences un-highlighted so `rehypeMermaid` can claim
+        // them and emit the <figure>. Put either in ssg.config.ts instead and
+        // the fences silently render as ordinary code blocks.
+        ssgPlugin({
+            markdown: {
+                shiki: { triggerLabel: '⚡ Run', skipLanguages: ['mermaid'] },
+                rehypePlugins: [rehypeMermaid],
+            },
+        }),
         monacoPrebundledPlugin({
             strategy: MONACO_STRATEGY,
             publicPath: `${BASE_PATH}monaco-bundle`,

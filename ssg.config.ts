@@ -48,6 +48,11 @@ export default defineSSGConfig({
     clientImports: [
         './src/live-code-config',
         '@sigx/live-code/client',
+        // Renders the ```mermaid fences claimed by rehypeMermaid below. The
+        // package lazy-loads mermaid itself, so pages without a diagram pay
+        // nothing.
+        '@sigx/mermaid/styles',
+        '@sigx/mermaid/client',
     ],
     
     // Site metadata
@@ -74,6 +79,11 @@ export default defineSSGConfig({
         rehypePlugins: [],
         // Shiki syntax highlighting
         // Using dracula for vibrant colors on dark background
+        //
+        // NOTE: this block only feeds the runtime. The build-time markdown
+        // pipeline — `skipLanguages` and the `rehypeMermaid` plugin that
+        // renders ```mermaid fences — is configured on ssgPlugin() in
+        // vite.config.ts. Adding either here has no effect.
         shiki: {
             light: 'github-light',
             dark: 'github-dark',

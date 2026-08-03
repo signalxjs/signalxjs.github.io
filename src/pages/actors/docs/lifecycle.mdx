@@ -31,6 +31,20 @@ defineActor({
 `onActivate` always observes [migrated](/actors/docs/state-and-persistence) state. A throw
 from it fails activation with `ActorActivationError` and the call that triggered it rejects.
 
+```mermaid title="Activation lifecycle"
+stateDiagram-v2
+    [*] --> Activating: first call
+    Activating --> Active: load, migrate, onActivate
+    Activating --> Faulted: hook throws
+    Faulted --> [*]: ActorActivationError
+    Active --> Active: turns
+    Active --> Deactivating: idle, shutdown, capacity, migrated
+    Deactivating --> [*]: onDeactivate
+```
+
+Deactivation is not deletion: the next call activates again and reads the state back. What is
+lost is anything kept *outside* `ctx.state`.
+
 `onDeactivate` receives **why**, which matters because the reasons are not equivalent:
 
 | Reason | Means |

@@ -49,9 +49,24 @@ for await (const info of actor(SecuritySync, runId).watch()) render(info);
 
 ## What the layer decides for you
 
-**The state machine.** `pending → running → (paused ⇄ running) → completed | failed |
-cancelled`. `status()` and `watch()` return `JobInfo` — never the checkpoint, which is
-private, and never the result, which is fetched once via `result()`.
+**The state machine.** `status()` and `watch()` return `JobInfo` — never the checkpoint, which
+is private, and never the result, which is fetched once via `result()`.
+
+```mermaid title="Job lifecycle"
+stateDiagram-v2
+    [*] --> pending: start(input)
+    pending --> running
+    running --> paused: job.pause(cp)
+    paused --> running: resume(data)
+    running --> running: crash-resume
+    running --> completed: run() returns
+    running --> failed: past maxAttempts
+    running --> cancelled: cancel()
+    paused --> cancelled: cancel()
+    completed --> [*]: retainMs
+    failed --> [*]: retainMs
+    cancelled --> [*]: retainMs
+```
 
 **One actor per run**, keyed by your run id. The directory's single-activation guarantee *is*
 the "exactly one runner" guarantee — there is no separate lock.

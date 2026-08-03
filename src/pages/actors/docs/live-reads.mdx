@@ -30,6 +30,22 @@ method.
 response (`$live#subscribe`), multiplexed by subscription index, pinging every 30 seconds so
 proxies and mobile NATs leave it alone. Twelve live components do not open twelve connections.
 
+```mermaid title="Every live read on the page rides one connection"
+sequenceDiagram
+    participant P as Page
+    participant L as live mount
+    participant R as RoomActor/lobby
+    participant F as ActivityFeed/all
+    P->>L: subscribe recent, topic, activity
+    L->>R: watch recent, watch topic
+    L->>F: watch recent
+    R-->>L: chunk i=0
+    R-->>L: chunk i=1
+    F-->>L: chunk i=2
+    L-->>P: one NDJSON response, multiplexed by index
+    Note over L,P: ping every 30s while idle
+```
+
 **The first paint is unchanged.** The ordinary read still seeds the cell, SSR still serializes
 it, and hydration still costs no request. `live` is purely additive — note that options go
 last in the positional form, after the method arguments.
