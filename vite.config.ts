@@ -63,8 +63,20 @@ const daisyuiDevTailwindSource = (): Plugin | null =>
           }
         : null;
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
     base: BASE_PATH,
+    /**
+     * Unreleased docs areas (currently `/actors/`) are navigable in `pnpm dev`
+     * and absent from anything built. `command` is the reliable signal:
+     * 'serve' for the dev server, 'build' for every build.
+     *
+     * `import.meta.env.DEV` is NOT usable here — it is true during the SSG's
+     * prerender step, so gating on it renders the area into the static HTML
+     * that ships. See SHOW_ACTORS in src/lib/family.ts.
+     */
+    define: {
+        __SIGX_SHOW_UNRELEASED__: JSON.stringify(command === 'serve'),
+    },
     build: {
         // LightningCSS (the default CSS minifier) doesn't support @scope yet
         // and silently DROPS the whole rule — which would strip the prose
@@ -84,10 +96,22 @@ export default defineConfig({
         // leaves ```mermaid fences un-highlighted so `rehypeMermaid` can claim
         // them and emit the <figure>. Put either in ssg.config.ts instead and
         // the fences silently render as ordinary code blocks.
+        //
+        // BUILD ONLY, deliberately. Under the dev server `rehypeMermaid`
+        // (@sigx/mermaid 0.1.0) breaks MDX rendering site-wide — every page,
+        // not just ones with a diagram, fails with `slots.default is not a
+        // function` from the layout. Verified by toggling this one line: with
+        // it, /core/docs/signals/ throws; without it, nothing does. Production
+        // builds are unaffected and render diagrams correctly.
+        //
+        // The cost is that a ```mermaid fence shows as its source in `pnpm dev`
+        // and only becomes a diagram in a build — preview with
+        // `pnpm build && pnpm preview`. Remove the condition once the upstream
+        // fix lands.
         ssgPlugin({
             markdown: {
                 shiki: { triggerLabel: '⚡ Run', skipLanguages: ['mermaid'] },
-                rehypePlugins: [rehypeMermaid],
+                rehypePlugins: command === 'build' ? [rehypeMermaid] : [],
             },
         }),
         monacoPrebundledPlugin({
@@ -125,7 +149,13 @@ export default defineConfig({
         // condition points at a UMD build with no ESM `default`, so serving it
         // unbundled throws before any page renders. Forcing it through
         // prebundling converts it to real ESM.
+        // `@sigx/mermaid` lazy-loads `mermaid`, which imports `dayjs` — another
+        // UMD build with no ESM `default`. Same failure, same fix: Vite's
+        // scanner never reaches a lazily-imported dep, so name it explicitly
+        // and let prebundling convert it. Both are dev-only; a production build
+        // bundles these correctly either way.
+        //
         // pnpm does not hoist, so the nested "parent > child" form is required.
-        include: ['@sigx/live-code > sucrase'],
+        include: ['@sigx/live-code > sucrase', '@sigx/mermaid > mermaid'],
     },
-});
+}));

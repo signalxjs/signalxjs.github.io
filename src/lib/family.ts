@@ -146,14 +146,28 @@ const RAW_PACKAGES: SigxPackage[] = [
 ];
 
 /**
- * Whether the site shows the actors area at all.
- *
- * NOT dev-aware, and that is deliberate: `import.meta.env.DEV` is **true during
- * the SSG's prerender step**, so gating on it leaks the area into the static
- * HTML that ships. Flip ACTORS_RELEASED while you are writing if you want the
- * area navigable locally.
+ * Injected by vite.config.ts — true only under the dev server (`command ===
+ * 'serve'`). Declared with a `typeof` guard below so any consumer outside the
+ * Vite graph (a plain Node script, a vitest run without the define) still
+ * evaluates it safely rather than throwing on an unresolved global.
  */
-const SHOW_ACTORS = ACTORS_RELEASED;
+declare const __SIGX_SHOW_UNRELEASED__: boolean | undefined;
+
+/**
+ * Whether the site shows the actors area at all: once the packages ship, and
+ * in the dev server regardless — matching the `showDrafts: 'dev'` convention
+ * the rest of the site uses. Writing an unreleased area should feel like
+ * writing any other section, and dev shows the layout as it will ship,
+ * including `server` sitting beside `actors` in the backend group.
+ *
+ * Deliberately NOT `import.meta.env.DEV`: that is **true during the SSG's
+ * prerender step**, so gating on it renders the area into the static HTML that
+ * ships. `command === 'serve'` in vite.config.ts is the signal that actually
+ * distinguishes serving from building.
+ */
+const SHOW_ACTORS =
+    ACTORS_RELEASED
+    || (typeof __SIGX_SHOW_UNRELEASED__ !== 'undefined' && __SIGX_SHOW_UNRELEASED__);
 
 /**
  * Registry with live npm versions overlaid (falls back to the literal).
