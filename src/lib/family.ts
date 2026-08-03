@@ -94,9 +94,9 @@ const RAW_PACKAGES: SigxPackage[] = [
 
     // ---- Web: server & state ----
     // `actors` is a collection like `server`, but with a real umbrella package.
-    // It sits in `backend` alongside `server`; the `server` row moves from
-    // `render` to `backend` in the release PR, so the mega-menu changes once
-    // rather than twice (see ACTORS_RELEASED in lib/modules.ts).
+    // It sits in `backend` alongside `server` — the `server` row's category is
+    // switched to match in the PACKAGES mapping below, at the same moment
+    // actors becomes visible, so the live mega-menu changes exactly once.
     { id: 'actors', npm: '@sigx/actors', title: 'Actors', cat: 'backend', target: 'web', kind: 'collection',
       hue: 116, glyph: '⬡', status: 'experimental', version: '0.1.0',
       tag: 'Addressable, single-threaded server state',
@@ -145,23 +145,44 @@ const RAW_PACKAGES: SigxPackage[] = [
       blurb: 'A browser panel to trace the reactive graph, time-travel effects and inspect components.' },
 ];
 
-/** Registry with live npm versions overlaid (falls back to the literal). */
-export const PACKAGES: SigxPackage[] =
-    RAW_PACKAGES.map((p) => ({ ...p, version: VERSIONS[p.npm] ?? p.version }));
+/**
+ * Whether the site shows the actors area at all.
+ *
+ * NOT dev-aware, and that is deliberate: `import.meta.env.DEV` is **true during
+ * the SSG's prerender step**, so gating on it leaks the area into the static
+ * HTML that ships. Flip ACTORS_RELEASED while you are writing if you want the
+ * area navigable locally.
+ */
+const SHOW_ACTORS = ACTORS_RELEASED;
+
+/**
+ * Registry with live npm versions overlaid (falls back to the literal).
+ *
+ * `server` moves from the `render` group to `backend` at the same moment
+ * actors becomes visible, so the two sit together as siblings — see the
+ * `actors` row above. Doing it here rather than in the literal keeps the
+ * release a single flag flip instead of two edits that must agree.
+ */
+export const PACKAGES: SigxPackage[] = RAW_PACKAGES.map((p) => ({
+    ...p,
+    version: VERSIONS[p.npm] ?? p.version,
+    cat: p.id === 'server' && SHOW_ACTORS ? 'backend' : p.cat,
+}));
 
 /**
  * The registry minus anything not yet released — what the site's PUBLIC
- * surfaces (mega-menu, home grid, ⌘K palette) enumerate.
+ * surfaces (mega-menu, home grid, ⌘K palette, package counts) enumerate.
  *
  * `PACKAGES`/`byId` stay complete on purpose: the docs pages themselves are
  * gated by `draft: true` (the SSG drops draft routes from the build entirely),
  * so a `--drafts` build still needs to resolve the landing, catalog and hues.
  * What drafts do NOT cover is a registry row rendering a tile that links to a
  * page the production build never emitted — hence this second list.
- * See ACTORS_RELEASED in lib/modules.ts.
+ *
+ * See SHOW_ACTORS above, and ACTORS_RELEASED in lib/modules.ts.
  */
 export const PUBLIC_PACKAGES: SigxPackage[] =
-    PACKAGES.filter((p) => ACTORS_RELEASED || p.id !== 'actors');
+    PACKAGES.filter((p) => SHOW_ACTORS || p.id !== 'actors');
 
 export const CATEGORIES: { id: PackageCategory; label: string; hint: string }[] = [
     { id: 'core', label: 'Core', hint: 'Reactivity, routing & state' },

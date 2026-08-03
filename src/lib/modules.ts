@@ -32,8 +32,13 @@ export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy' | 
  * emitted. So the public enumerations read `PUBLIC_PACKAGES` (lib/family.ts)
  * and the llms.txt sections are gated on this flag (ssg.config.ts).
  *
- * On publish day: flip to `true`, strip `draft: true` from src/pages/actors/**,
- * and move the `server` row from `cat: 'render'` to `cat: 'backend'`.
+ * Dev ignores this flag — see SHOW_ACTORS in lib/family.ts. Writing an
+ * unreleased area should feel like writing any other, and dev should show the
+ * layout as it will ship, including `server` sitting beside `actors` in the
+ * backend group. Only production hides it.
+ *
+ * On publish day: flip to `true` and strip `draft: true` from
+ * src/pages/actors/**. The `server` category move follows automatically.
  */
 export const ACTORS_RELEASED = false;
 
