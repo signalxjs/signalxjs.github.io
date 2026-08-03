@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Main Runtime",
-    description: "Main Runtime — module overview",
+    description: "Main-thread (Lepus) runtime — the Main Runtime module for SignalX Lynx (@sigx/lynx-runtime-main).",
     layout: 'default',
     sidebar: false,
 };

@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Camera",
-    description: "Camera — module overview",
+    description: "Camera capture — the Camera module for SignalX Lynx (@sigx/lynx-camera).",
     layout: 'default',
     sidebar: false,
 };

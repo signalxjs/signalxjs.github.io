@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "DaisyUI",
-    description: "DaisyUI — module overview",
+    description: "Component library — the DaisyUI module for SignalX Lynx (@sigx/lynx-daisyui).",
     layout: 'default',
     sidebar: false,
 };

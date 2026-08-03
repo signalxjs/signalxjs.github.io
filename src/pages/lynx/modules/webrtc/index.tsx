@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "WebRTC",
-    description: "WebRTC — module overview",
+    description: "W3C-shaped WebRTC — the WebRTC module for SignalX Lynx (@sigx/lynx-webrtc).",
     layout: 'default',
     sidebar: false,
 };

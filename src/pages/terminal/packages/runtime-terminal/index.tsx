@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Runtime Terminal",
-    description: "Runtime Terminal — module overview",
+    description: "The cell renderer — the Runtime Terminal package for SignalX Terminal (@sigx/runtime-terminal).",
     layout: 'default',
     sidebar: false,
 };

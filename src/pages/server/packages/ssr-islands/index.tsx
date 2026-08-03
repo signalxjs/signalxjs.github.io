@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Islands",
-    description: "Islands — module overview",
+    description: "Selective hydration via client:* — the Islands package for SignalX Server (@sigx/ssr-islands).",
     layout: 'default',
     sidebar: false,
 };

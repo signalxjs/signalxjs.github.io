@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Image Picker",
-    description: "Image Picker — module overview",
+    description: "Pick / capture images — the Image Picker module for SignalX Lynx (@sigx/lynx-image-picker).",
     layout: 'default',
     sidebar: false,
 };

@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "SQLite",
-    description: "SQLite — module overview",
+    description: "Embedded SQLite database — the SQLite module for SignalX Lynx (@sigx/lynx-sqlite).",
     layout: 'default',
     sidebar: false,
 };

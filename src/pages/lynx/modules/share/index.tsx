@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Share",
-    description: "Share — module overview",
+    description: "Native share sheet — the Share module for SignalX Lynx (@sigx/lynx-share).",
     layout: 'default',
     sidebar: false,
 };

@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Cache",
-    description: "Cache — module overview",
+    description: "Cache policy for value-first async — the Cache package for SignalX (@sigx/cache).",
     layout: 'default',
     sidebar: false,
 };

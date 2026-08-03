@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "List",
-    description: "List — module overview",
+    description: "Data-driven virtualized list — the List module for SignalX Lynx (@sigx/lynx-list).",
     layout: 'default',
     sidebar: false,
 };

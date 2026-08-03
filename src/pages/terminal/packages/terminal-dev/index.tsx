@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Terminal Dev",
-    description: "Terminal Dev — module overview",
+    description: "HMR dev runner — the Terminal Dev package for SignalX Terminal (@sigx/terminal-dev).",
     layout: 'default',
     sidebar: false,
 };

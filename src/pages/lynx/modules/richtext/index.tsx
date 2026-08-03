@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Rich Text",
-    description: "Rich Text — module overview",
+    description: "Native rich-text input — the Rich Text module for SignalX Lynx (@sigx/lynx-richtext).",
     layout: 'default',
     sidebar: false,
 };

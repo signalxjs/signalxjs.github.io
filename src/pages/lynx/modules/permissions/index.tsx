@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Permissions",
-    description: "Permissions — module overview",
+    description: "Permission helper — the Permissions module for SignalX Lynx (@sigx/lynx-permissions).",
     layout: 'default',
     sidebar: false,
 };

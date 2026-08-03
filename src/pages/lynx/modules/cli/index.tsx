@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "CLI Plugin",
-    description: "CLI Plugin — module overview",
+    description: "@sigx/cli plugin — the CLI Plugin module for SignalX Lynx (@sigx/lynx-cli).",
     layout: 'default',
     sidebar: false,
 };

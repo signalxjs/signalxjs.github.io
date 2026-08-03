@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Video",
-    description: "Video — module overview",
+    description: "Native video player — the Video module for SignalX Lynx (@sigx/lynx-video).",
     layout: 'default',
     sidebar: false,
 };

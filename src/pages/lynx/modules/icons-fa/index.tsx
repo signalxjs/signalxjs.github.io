@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "FA Icons",
-    description: "FA Icons — module overview",
+    description: "Font Awesome adapter — the FA Icons module for SignalX Lynx (@sigx/lynx-icons-fa-free).",
     layout: 'default',
     sidebar: false,
 };

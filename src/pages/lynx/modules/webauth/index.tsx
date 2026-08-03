@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Web Auth",
-    description: "Web Auth — module overview",
+    description: "System web-auth session for OAuth — the Web Auth module for SignalX Lynx (@sigx/lynx-webauth).",
     layout: 'default',
     sidebar: false,
 };

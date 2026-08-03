@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Terminal UI",
-    description: "Terminal UI — module overview",
+    description: "Themed components — the SigX-tui skin — the Terminal UI package for SignalX Terminal (@sigx/terminal-ui).",
     layout: 'default',
     sidebar: false,
 };

@@ -53,7 +53,12 @@ export default defineSSGConfig({
     // Site metadata
     site: {
         title: 'SignalX',
-        description: 'A lightweight reactive component framework',
+        // The canonical product one-liner (#516) — keep in sync with the
+        // homepage meta and the JSON-LD in index.html. Keyword-bearing on
+        // purpose: "SignalX"/"sigx" collides with unrelated projects, so the
+        // fallback description must say what this actually is.
+        description:
+            'SignalX (sigx) — a fine-grained reactive TypeScript framework with signals, TSX components, typed server functions and actors. One core for web, native (Lynx) and terminal apps.',
         // origin only — the SSG appends Vite's `base` for sitemap and
         // canonical URLs, so site.url must NOT include it.
         url: 'https://sigx.dev',
@@ -63,8 +68,9 @@ export default defineSSGConfig({
             'Geist:wght@400..800',
             'Geist+Mono:wght@400;500',
         ],
-        // OG/Twitter support
-        ogImage: 'https://sigx.dev/sigx.png',
+        // OG/Twitter support — a real 1200×630 card (#516); the 150×119 logo
+        // was invalid for the summary_large_image Twitter card.
+        ogImage: 'https://sigx.dev/og-card.png',
         twitter: 'signalxjs',
     },
     

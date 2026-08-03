@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Server Functions",
-    description: "Server Functions — module overview",
+    description: "Type-safe server functions — the Server Functions package for SignalX Server (@sigx/server).",
     layout: 'default',
     sidebar: false,
 };

@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Haptics",
-    description: "Haptics — module overview",
+    description: "Haptic feedback — the Haptics module for SignalX Lynx (@sigx/lynx-haptics).",
     layout: 'default',
     sidebar: false,
 };

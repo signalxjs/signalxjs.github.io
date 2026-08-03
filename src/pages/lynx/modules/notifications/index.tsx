@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Notifications",
-    description: "Notifications — module overview",
+    description: "Local notifications — the Notifications module for SignalX Lynx (@sigx/lynx-notifications).",
     layout: 'default',
     sidebar: false,
 };

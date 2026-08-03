@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "WebView",
-    description: "WebView — module overview",
+    description: "Native web view — the WebView module for SignalX Lynx (@sigx/lynx-webview).",
     layout: 'default',
     sidebar: false,
 };

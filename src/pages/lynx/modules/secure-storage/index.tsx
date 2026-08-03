@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Secure Storage",
-    description: "Secure Storage — module overview",
+    description: "Encrypted KV storage — the Secure Storage module for SignalX Lynx (@sigx/lynx-secure-storage).",
     layout: 'default',
     sidebar: false,
 };
