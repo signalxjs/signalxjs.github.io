@@ -15,7 +15,7 @@ watches keep answering while it works.</p>
 ```ts
 const Sync = defineActor({
     type: 'Sync',
-    unguarded: true,
+    allowAnonymous: true,
     state: () => ({ done: 0, total: 0, phase: 'idle' as string }),
     methods: (ctx) => ({
         begin: (total: number) => ctx.tasks.start('run', total),
@@ -60,7 +60,7 @@ A task that throws is terminal: no automatic retry, because that policy belongs 
 above.
 
 **No wire surface.** Start, cancel and status go through your own methods, so your
-[guard chain](/actors/docs/guards) governs them like any other call.
+[policy](/actors/docs/guards) governs them like any other call.
 
 ## Crash resume is built in
 

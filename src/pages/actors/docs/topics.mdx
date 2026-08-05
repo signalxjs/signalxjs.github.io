@@ -22,7 +22,7 @@ export const chatMessages = topic<{ from: string; text: string }>('chat-messages
 ```ts
 export const RoomFeed = defineActor({
     type: 'RoomFeed',
-    use: [sessionGuard],
+    authorize: requireAuthenticated,
     state: () => ({ recent: [] as { from: string; text: string }[] }),
     methods: (ctx) => ({
         async recent() { return ctx.snapshot().recent; },

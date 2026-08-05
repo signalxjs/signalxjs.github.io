@@ -17,7 +17,7 @@ import { defineWorker } from '@sigx/actors';
 
 export const Resize = defineWorker({
     type: 'Resize',
-    use: [requireUser],
+    authorize: requireAuthenticated,
     maxLocal: 8,             // pool cap; default: hardwareConcurrency (≤16)
     methods: () => ({
         async run(image: Uint8Array, width: number) {
@@ -48,7 +48,7 @@ throw if reached through a cast.
 
 ## What remains
 
-- **Guards** — `use` / `methodUse` / `unguarded`, the same build gate.
+- **Authorization** — `authorize` / `methodAuthorize` / `allowAnonymous`, the same build gate.
 - **[`reads:`](/actors/docs/cacheable-reads)** — a pure read is the ideal cacheable `GET`.
 - **[`streams:`](/actors/docs/streams)** — pure generators; an open stream pins its member
   against the sweep.

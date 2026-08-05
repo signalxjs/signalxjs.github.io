@@ -98,7 +98,7 @@ const RAW_PACKAGES: SigxPackage[] = [
     // switched to match in the PACKAGES mapping below, at the same moment
     // actors becomes visible, so the live mega-menu changes exactly once.
     { id: 'actors', npm: '@sigx/actors', title: 'Actors', cat: 'backend', target: 'web', kind: 'collection',
-      hue: 116, glyph: '⬡', status: 'experimental', version: '0.1.0',
+      hue: 116, glyph: '⬡', status: 'experimental', version: '0.2.0',
       tag: 'Addressable, single-threaded server state',
       blurb: 'Virtual actors for SignalX — addressable, persistent server objects that ride the serverFn wire. Lazy activation, turn-based concurrency so a method body never races itself, pluggable storage with optimistic concurrency, durable reminders, and clustering across hosts when one machine stops being enough.' },
 

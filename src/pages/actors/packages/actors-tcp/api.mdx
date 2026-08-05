@@ -20,12 +20,26 @@ Returns a `HostTransportFactory` for `cluster({ transport })`.
 interface TcpTransportOptions {
     port?: number;
     host?: string;
-    advertiseHost?: string;   // what peers dial — see Installation
+    advertiseHost?: string;        // what peers dial — see Installation
     maxFrameBytes?: number;
     credit?: number;
-    keepAliveMs?: number;     // 15000
+    keepAliveMs?: number;          // 15000
+    handshakeTimeoutMs?: number;   // 10000 — 0 disables
+    maxPendingInbound?: number;    // 256 — 0 disables
 }
 ```
+
+`handshakeTimeoutMs` and `maxPendingInbound` bound what an unauthenticated peer can hold open:
+a connection that never completes its handshake is dropped, and the number of in-flight
+inbound connections awaiting one is capped.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>This transport binds all interfaces unless <code>host</code> is set, and speaks no
+    TLS.</strong> It belongs on a private network. Set <code>host</code> to the interface you
+    mean, and do not expose the port.
+  </div>
+</div>
 
 ## Constants
 
