@@ -394,6 +394,64 @@ Element children with a `slot="x"` attribute are unaffected: a function only
 ever fills the default slot, because a function never satisfies the `slot`-prop
 test that routes a child to a named one.
 
+### What `slot=` routes, per child shape
+
+`slot=` is the **HTML attribute**, so it routes host elements and fragments only:
+
+| Child | Where it lands |
+|---|---|
+| `<div slot="header">` — host element | the `header` slot |
+| `<><span slot="header"/></>` — fragment | the `header` slot |
+| `{() => …}` — function child | the default slot, always |
+| `<Chip slot="badge"/>` — **component** | the **default** slot |
+
+A component child is the one to know about. The JSX types have always rejected
+`slot=` on a component, so it was reachable only through a cast or from untyped
+JS — and it now renders in the default slot, with `slot` arriving as an ordinary
+undeclared prop plus a development warning.
+
+The typed way to fill a named slot with a component is the `slots` prop, which is
+checked against the consumer's declared slots:
+
+```tsx code
+// Not routed — Chip lands in the default slot.
+<Card><Chip slot="badge"/></Card>
+
+// Routed, and type-checked against Card's declared slots.
+<Card slots={{ badge: () => <Chip/> }}/>
+```
+
+### Fills are type-checked against the declaration
+
+A slot declaration is a contract on both sides, and TypeScript enforces both
+halves:
+
+```tsx code
+// The declaration is what buys the checking.
+type ListProps = Define.Slot<'row', { item: Item; active: boolean }>;
+
+<List>{(p) => <Row item={p.item}/>}</List>   // p is INFERRED — no annotation
+```
+
+Two mistakes that used to compile are now errors:
+
+- **A fill expecting props the slot does not declare.** Fix by declaring them:
+  `Define.Slot<'default', { active: boolean }>`.
+- **Calling a props-declaring slot with no arguments** — `slots.row?.()` where
+  `row` declares props. Fix by passing them: `slots.row?.(props)`.
+
+Together those were one runtime crash — a fill destructuring `{ active }` on a
+slot that declares nothing, invoked with no argument — now unreachable rather
+than merely survivable.
+
+The payoff for correct code is inference: an unannotated fill parameter is typed
+from the declaration, with no annotation and no cast.
+
+A component that declares **no** `default` slot keeps `children?: any`. Children
+are legal without a declaration and there is nothing to check them against, so
+declaring the slot is what buys the checking. Element and function children still
+mix freely in one default slot.
+
 ### Slot presence
 
 A slot accessor is a **callable only when the parent actually provided content**;

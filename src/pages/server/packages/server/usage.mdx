@@ -265,6 +265,36 @@ requirePrincipal(rq)  // Principal — throws 401 when absent
 `principal(rq)` is memoized per request, so one SSR render with five cells
 decodes the session once.
 
+### Rate limiting is middleware
+
+Rate limiting is the clearest case for the middleware stage rather than a policy:
+it is not about *who* the caller is or *what* they may do, it must run before the
+body is read, and no function should be able to opt out of it.
+
+```ts
+// src/server-app.ts
+const rateLimit: ServerMiddleware = async (rq, fn) => {
+  if (fn.transport !== 'wire') return;      // in-process SSR calls are not traffic
+  const ip = rq.request.headers.get('cf-connecting-ip') ?? 'unknown';
+  if (!(await bucket.take(ip, fn.name))) {
+    throw new ServerFnError(429, 'Slow down');
+  }
+};
+
+createServerApp({ middleware: [rateLimit], /* … */ });
+```
+
+`fn.transport` is the gate — an SSR render calling the same function in-process
+is your own code, not inbound traffic. Do **not** infer this from `fn.symbol`;
+`symbol` is pure identity, and `''` only ever means "no build stamp".
+
+Because middleware runs for `allowAnonymous` functions too, this covers the
+sign-in endpoint — the one that most needs it.
+
+Pair it with `maxResponseBytes` for the other direction: a limiter bounds how
+often a caller can ask, and `maxResponseBytes` bounds how much any one answer can
+return.
+
 ## Migrating from 0.14
 
 | 0.14 | 0.15 |
@@ -488,9 +518,10 @@ cookies, never auth, never a request header. A shared cache will serve one user'
 response to another. Without it, the endpoint emits `private` and appends
 `Vary: Cookie`.
 
-`cache` and [`invalidates`](#options-form) are mutually exclusive — a read
-that invalidates is not a read. So is `cache` with `form: true`; a form target is
-a mutation.
+`cache` with [`invalidates`](#options-form) is a **definition-time error** — a
+read that invalidates is not a read. So is `cache` with `form: true`; a form
+target is a mutation. Both throw where the function is defined rather than
+silently preferring one, so the contradiction cannot reach a deploy.
 
 Bypass the HTTP cache for a single call with
 [`.with({ fresh: true })`](#per-call-options).
@@ -590,10 +621,15 @@ stays at full strength:
   policy short of `origin: false` — including `'verify-when-present'`, which
   relaxes the check for JSON callers but not for forms.
 - `input` is mandatory, so the validator always runs.
-- Combining `form: true` with `origin: 'verify-when-present'` or `origin: false`
-  **reopens classic CSRF** on that function. Don't, unless it is genuinely public.
+- Only `origin: false` — the explicit public-endpoint escape hatch — **reopens
+  classic CSRF** on a form target. Don't, unless it is genuinely public.
 
-`form` is mutually exclusive with `cache` — a form target is a mutation.
+`'verify-when-present'` used to admit Origin-less form posts, and that quietly
+reopened CSRF: the relaxation's safety rests on the JSON content-type gate, which
+a form target deliberately gives up. It no longer does. Form posts carrying a
+matching `Origin`, and the whole JSON path, are unaffected.
+
+`form` with `cache` is a definition-time error — a form target is a mutation.
 
 ### When stamping happens
 

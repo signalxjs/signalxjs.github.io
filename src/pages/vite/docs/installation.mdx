@@ -92,6 +92,21 @@ to `include` so the editor picks it up:
 }
 ```
 
+### Types for the generated `virtual:` modules
+
+`@sigx/vite/client` carries ambient declarations for every module the plugin
+generates — `virtual:sigx-app`, `virtual:sigx-manifests`,
+`virtual:sigx-server-fns`, `virtual:sigx-islands` and `virtual:sigx-resume/entry`.
+One reference line replaces the hand-written `declare module` blocks apps used to
+copy around:
+
+```ts
+/// <reference types="@sigx/vite/client" />
+```
+
+Put it in a `.d.ts` your `tsconfig` already includes (or `src/vite-env.d.ts`, if
+you have one).
+
 ## Package Entry Points
 
 The package exposes three entry points through its exports map:
