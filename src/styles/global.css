@@ -358,6 +358,84 @@
         transform: none;
     }
 
+    /* The header is `space-between`, so whichever child claims the free space
+       decides the layout. A block WITH tabs has `.code-window-tabs`
+       (margin-left: auto, below) to do that; a block without tabs emits
+       `[left] [Run] [copy]`, leaving Run as the middle child — dead centre.
+       Claim it here so the trigger and the copy button read as one right-hand
+       group either way. Scoped to the no-tabs case: the tabs variant carries
+       `.code-window-preview`, and a second auto margin there would split the
+       free space and drag the tabs inward. */
+    .code-window-live:not(.code-window-preview) .code-window-try-live {
+        margin-left: auto;
+    }
+
+    /* Copy button.
+       `@sigx/ssg/styles.css` carries these, but this site does not load it —
+       it styles the code window itself (see the rules above). Without them the
+       button renders bare and, more importantly, `installCodeCopy()`'s success
+       class has nothing to show, so a successful copy looks like a dead click. */
+    .code-window-copy {
+        appearance: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.75rem;
+        height: 1.75rem;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: var(--r-sm);
+        background: transparent;
+        color: var(--fg-3);
+        cursor: pointer;
+        /* Chrome, not content: revealed on window hover or keyboard focus.
+           pointer-events off while hidden so it cannot be tapped invisibly. */
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+    }
+
+    .code-window:hover .code-window-copy,
+    .code-window-copy:focus-visible,
+    .code-window-copy-done {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* No hover to reveal it — keep the button reachable on touch. */
+    @media (hover: none) {
+        .code-window-copy {
+            opacity: 1;
+            pointer-events: auto;
+        }
+    }
+
+    .code-window-copy:hover {
+        color: var(--fg-1);
+        background: var(--bg-3);
+        border-color: var(--line);
+    }
+
+    .code-window-copy svg {
+        display: block;
+    }
+
+    /* The feedback that was missing: swap the icon for a ✓ until
+       installCodeCopy() removes the class 1.5s later. */
+    .code-window-copy-done {
+        color: var(--accent);
+    }
+
+    .code-window-copy-done svg {
+        display: none;
+    }
+
+    .code-window-copy-done::after {
+        content: '✓';
+        font-size: 0.875rem;
+        line-height: 1;
+    }
+
     /* ============================================
        LIVE PREVIEW - Tabs and Preview Pane
        ============================================ */
