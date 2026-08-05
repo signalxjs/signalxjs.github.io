@@ -48,9 +48,11 @@ Whatever the platform, the entry rhymes (Cloudflare shown):
 // src/entry.cloudflare.ts — user-owned, ~20 lines
 import { createFetchHandler } from '@sigx/server-renderer/server';
 import { handleServerFnRequest, matchesServerFn } from '@sigx/server/server';
+import { createBoundaryRefresh } from '@sigx/resume/server';
 import { template, assets } from 'virtual:sigx-app';
-import { serverFns } from 'virtual:sigx-server-fns';
+import { serverFns, serverFnBase } from 'virtual:sigx-server-fns';
 import { createApp } from './entry-server';
+import './server-app';                     // stamps createServerApp's pipeline
 
 const handler = createFetchHandler({
     template,
@@ -58,11 +60,15 @@ const handler = createFetchHandler({
     document: { assets }
 });
 
+const renderBoundaries = createBoundaryRefresh({ components: { /* … */ } });
+
 export default {
     async fetch(request: Request) {
-        if (matchesServerFn(request)) {
+        if (matchesServerFn(request, serverFnBase)) {
             return handleServerFnRequest(request, {
-                resolve: (s) => serverFns[s]?.() ?? null
+                base: serverFnBase,
+                resolve: (s) => serverFns[s]?.() ?? null,
+                renderBoundaries
             });
         }
         return handler(request);
@@ -73,6 +79,24 @@ export default {
 The composition order **is** your routing policy: static assets first (served by
 the platform wherever possible), then the server-function endpoint, then the
 document render for everything else.
+
+Three details in that entry are easy to leave out, and two of them fail silently:
+
+- **`serverFnBase`** — `virtual:sigx-server-fns` exports the mount path the build
+  actually used, so the predicate and the handler cannot disagree with each other
+  or with `sigxServer({ base })`. Everything after the base *is* the symbol, so a
+  base that is wrong only in part slices the symbol at the wrong offset — worse
+  than a clean miss. Passing it to both is the fix; the plugin warns at build time
+  when a non-default base is configured and an entry still calls
+  `matchesServerFn(request)` bare.
+- **`renderBoundaries`** — without it, [single-flight boundary
+  refresh](/server/packages/resume/usage#single-flight-boundary-refresh) never
+  happens. Nothing errors; mutations simply stop updating server-rendered
+  boundaries, and the client converges a round trip later through `$cache`.
+- **The `server-app` import** — a side-effect import that stamps your
+  [`createServerApp`](/server/packages/server/usage#the-app) pipeline. Production
+  builds inject it at the top of `virtual:sigx-server-fns`, so an entry that
+  imports the registry already has it; import it explicitly if yours does not.
 
 ## The static-tier rules
 

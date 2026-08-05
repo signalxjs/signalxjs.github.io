@@ -54,6 +54,25 @@ app.listen(process.env.PORT ?? 3000);
 [static-tier rule](/deploy/docs/overview/#the-static-tier-rules) every platform
 shares.
 
+### The AsyncLocalStorage cost
+
+On Node, the request scope backing in-process calls resolves an
+`AsyncLocalStorage` through a dynamic `import('node:async_hooks')`. **Only the
+first scope entry is asynchronous**; every one after it enters synchronously, so
+the per-request cost is a synchronous store entry rather than an awaited promise.
+
+The observable consequence is a widened return type: entering the scope yields
+`T | Promise<T>` rather than `Promise<T>`. Awaiting it is unaffected — what breaks
+is treating the result as a thenable *without* awaiting, such as
+`runInScope(rq, fn).then(…)` or passing it to something that requires a real
+`Promise`. Wrap it in `Promise.resolve(…)`, or just `await` it.
+
+`runWithServerFnContext` imports `node:async_hooks` dynamically, so merely loading
+`@sigx/server/node` does not pull it on a runtime that lacks it — only calling the
+function does. Where ALS is unavailable (workerd without `nodejs_compat`), there
+is no scope to share, so a per-request value is computed per invocation;
+`.with({ context })` behaves identically and needs no ALS.
+
 ## Run
 
 ```bash
