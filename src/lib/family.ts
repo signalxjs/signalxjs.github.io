@@ -104,7 +104,7 @@ const RAW_PACKAGES: SigxPackage[] = [
 
     // ---- Targets with their own framework package ----
     { id: 'lynx', npm: '@sigx/lynx', title: 'Lynx', cat: 'platform', target: 'lynx', kind: 'collection',
-      hue: 350, glyph: '◑', status: 'experimental', version: '0.23.0',
+      hue: 350, glyph: '◑', status: 'experimental', version: '0.26.0',
       tag: 'Native iOS & Android with Lynx',
       blurb: 'Write one SignalX component tree, render it to real native views on iOS and Android.' },
     { id: 'terminal', npm: '@sigx/terminal', title: 'Terminal', cat: 'platform', target: 'terminal', kind: 'collection',

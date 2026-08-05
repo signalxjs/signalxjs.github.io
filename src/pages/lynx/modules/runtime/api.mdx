@@ -340,6 +340,30 @@ function useAnimatedStyle(
 
 Note: the `width` and `height` mappers trigger a native layout pass per frame.
 
+### useAnimatedMethod
+
+The imperative sibling of `useAnimatedStyle`. Binds a `MainThreadRef`'s element to a `SharedValue` and has the main-thread runtime invoke a **named UI method** on every flush boundary where the value changed — same dirty-diffing and derived-value ordering as a style binding, and no thread crossing per frame.
+
+```ts
+function useAnimatedMethod(
+  elRef: MainThreadRef<MainThread.Element | null>,
+  sv: SharedValue<unknown>,
+  method: string,
+  valueKey: string,
+  params?: Record<string, unknown>,
+): void;
+function useAnimatedMethod(
+  elRef: MainThreadRef<MainThread.Element | null>,
+  spec: () => AnimatedMethodSpec | null,
+): void;
+```
+
+The runtime calls `method` with `{ ...params, [valueKey]: value }`.
+
+Reach for it when per-frame state is natively backed and a style write cannot express it without a layout pass. The first consumer is `<list>`'s `setBottomInset`, behind the [`bottomInset`](/lynx/modules/list/api#bottominset) prop — a frame-synced inset under keyboards and dragged sheets.
+
+Both call shapes match `useAnimatedStyle`: static registers once at setup, and the reactive form (`() => spec | null`) re-binds when the spec's signature changes, with `null` meaning unbind. The wire ops are `REGISTER_AV_METHOD_BINDING` / `UNREGISTER_AV_METHOD_BINDING`.
+
 ### useGestureDetector
 
 Attaches a gesture (or composed gesture) to the element pointed at by `elRef`. Walks composed gestures into unique base gestures; on `onMounted` pushes `SET_GESTURE_DETECTOR` per base (op emit is deferred so the `SET_MT_REF` op applies first); on `onUnmounted` pushes `REMOVE_GESTURE_DETECTOR`.

@@ -192,6 +192,27 @@ and **don't** pass `estimatedItemSize` — bubbles are variable-height, and a
 fixed estimate briefly clips taller messages as they scroll in. Let the cells
 self-measure.
 
+### The pin survives late growth
+
+While the viewport is at the bottom, **every `layoutcomplete` re-pins** — so a cell
+that grows *after* the pin landed does not strand you above the newest message.
+That covers the cases you cannot predict from an item count: long text
+self-measuring late, images decoding, and a streaming last message growing in
+place. Scrolling up still releases the pin on the first real movement.
+
+Streaming a reply into the last bubble therefore needs no follow-the-growth code
+of your own.
+
+### Clearing the composer
+
+The `newMessages` affordance floats 12 px above the wrapper's bottom edge, which
+puts it **behind** the floating composer most chat UIs place there. Raise it with
+`newMessagesOffset`:
+
+```tsx
+<List inverted newMessagesOffset={72} … />
+```
+
 ```tsx
 <List
   items={messages.value}
@@ -224,7 +245,15 @@ items are revealed per scroll-edge page. Omit `windowSize` to render every item.
 />
 ```
 
-Scrolling to the top reveals an older page — because it happens at the top edge,
-there is no visible jump. A zero-jump anchored expansion in the *middle* of the
-list is device-pending. Reach for windowing only for very long histories; for
-ordinary feeds, plain virtualization already keeps only on-screen cells alive.
+Scrolling to the top reveals an older page with no visible jump. Paging older
+history into the **front** of `items` leaves `{start, end}` numerically unchanged
+while it references different items, which used to make the rendered slice jump on
+every load-older. The list now detects the prepend by finding the old first item's
+key again and **translates the window** by the prepended count, so the same cells
+keep rendering the same items.
+
+That detection needs a real `keyExtractor` — with the index fallback there is no
+key to find again.
+
+Reach for windowing only for very long histories; for ordinary feeds, plain
+virtualization already keeps only on-screen cells alive.

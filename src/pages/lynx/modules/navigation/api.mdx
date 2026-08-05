@@ -121,6 +121,25 @@ function useFocusEffect(cb: () => void | (() => void)): void
 
 Runs `cb` when the screen gains focus and runs its returned cleanup on blur or unmount. Re-runs on each focus return. Use for analytics, subscriptions or video playback while visible.
 
+### useDidAppear
+
+```ts
+function useDidAppear(cb: () => void | (() => void)): void
+```
+
+The heavy-work sibling of `useFocusEffect`. Runs `cb` only once the screen is focused **and** no transition is in flight; the returned cleanup runs on blur, on a new transition, or on unmount.
+
+`useFocusEffect` cannot serve this case. `useIsFocused` is `nav.current.key === myKey`, and a push commits the stack immediately — so a focus effect fires while the slide is still running.
+
+That matters more than it sounds. Component setup runs on the background thread, but the resulting op batch is applied on the **main** thread in one uninterruptible pass — the same thread driving the tween. Mount work scheduled on focus therefore starves the animation it is running under.
+
+```tsx
+useFocusEffect(() => { analytics.screen('Chat'); });     // cheap — fine on focus
+useDidAppear(() => { const s = subscribeToFeed(); return () => s.close(); });
+```
+
+Reach for `useDidAppear` when the work is expensive enough to be felt: opening a socket, decoding media, hydrating a long list.
+
 ### useScreenOptions
 
 ```ts

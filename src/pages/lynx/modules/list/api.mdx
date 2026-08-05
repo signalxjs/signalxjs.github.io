@@ -53,7 +53,9 @@ element type `T` of `items`.
 | `refreshing` | `boolean` | Controlled pull-to-refresh state; passing it opts in (vertical only). |
 | `pullThreshold` | `number` | Pull distance (px) that triggers a refresh. Default `64`. |
 | `inverted` | `boolean` | Chat mode: bottom-anchored + stick-to-bottom (vertical only). |
-| `stickToBottom` | `boolean` | In chat mode, auto-scroll on new items when at the bottom. Default `true`. |
+| `stickToBottom` | `boolean` | In chat mode, auto-scroll on new items when at the bottom. Default `true`. While at the bottom the pin is re-applied on every `layoutcomplete`, so late cell growth cannot strand the viewport. |
+| `newMessagesOffset` | `number` | Raises the chat `newMessages` affordance off the wrapper's bottom edge. Default `12` — enough to clear nothing, so set it to clear a floating composer. |
+| `bottomInset` | `number \| SharedValue<number>` | Bottom content inset the recycler keeps clear, applied natively with no CSS write and no layout pass — so a `SharedValue` can drive it per frame. See [below](#bottominset). |
 | `windowSize` | `number` | Enables windowing: render only this many cells of a long `items`. |
 | `pageSize` | `number` | Items revealed per scroll-edge page when windowing. Default `30`. |
 | `maxWindow` | `number` | Cap on rendered window length; the far end trims past it. Default `max(120, windowSize × 2)`. |
@@ -107,5 +109,52 @@ ListMethods.scrollToIndex(el, 12, { align: 'middle', smooth: true });
 | `align` | `ScrollAlign` | `'top'` | Align the target cell to `top`, `bottom`, or `middle`. |
 | `offset` | `number` | `0` | Extra pixel offset applied after alignment. |
 | `smooth` | `boolean` | `false` | Animate the scroll (default is a jump). |
+
+## `scrollHandle`
+
+`ListMethods` needs the native element. `scrollHandle` is the prop form — pass an
+identity-stable handle and the List populates it at setup:
+
+```tsx
+const handle: ListScrollHandle = {};
+
+<List scrollHandle={handle} … />
+
+handle.scrollToEnd?.();                  // jump to the newest
+handle.scrollToEnd?.({ smooth: true });
+```
+
+`scrollToEnd` is the one piece of index math you cannot do yourself once windowing
+is on: it accounts for the header, footer and loading cells **and** the rendered
+window. In chat mode it also marks the viewport at-bottom and clears the unread
+affordance, so a target cell that has not reached native yet is caught by the next
+relayout's re-pin.
+
+The handle must be identity-stable — build it once, outside render.
+
+## `bottomInset`
+
+The recycler keeps `bottomInset` pixels of its bottom viewport clear. It is applied
+**natively**, as a padding/inset delta rather than a CSS write, so there is no
+layout pass and a main-thread `SharedValue` — `useKeyboardLiftSV()`, a
+`BottomSheet`'s `onReveal` — can drive it every frame:
+
+```tsx
+const lift = useKeyboardLiftSV();
+
+<List inverted bottomInset={lift} … />
+```
+
+In chat mode the newest item stays anchored *above* the inset via same-frame native
+compensation, and at-bottom detection becomes inset-aware — so a compensation
+scroll cannot falsely release the pin or fire a spurious `endReached`.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    This is the package's first native side. Run <code>sigx prebuild</code> after
+    upgrading. Hosts without the native module — the web target — ignore the inset
+    rather than failing.
+  </div>
+</div>
 
 See [Usage](/lynx/modules/list/usage) for worked examples of each feature.
