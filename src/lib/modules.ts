@@ -461,8 +461,8 @@ const RAW_MODULES: SigxModule[] = [
       blurb: 'Emits the .netlify/v1/functions/sigx-ssr catch-all function with preferStatic routing — CDN files win, the raw outlet template stays off "/", and netlify.toml stays yours. Deploy with netlify deploy --prod.' },
 
     // ============ Actors (@sigx/actors*) — lockstep-versioned ============
-    // actors is a collection like terminal: signalxjs/actors publishes all nine
-    // in lockstep, and `@sigx/actors` is a real umbrella you install. The eight
+    // actors is a collection like terminal: signalxjs/actors publishes all ten
+    // in lockstep, and `@sigx/actors` is a real umbrella you install. The nine
     // satellites are all OPTIONAL — each one peer-depends on `@sigx/actors` and
     // adds a backend, a transport or a tool. A single-node app needs none of them.
     { id: 'actors', parent: 'actors', npm: '@sigx/actors', name: 'Actors', category: 'runtime',
@@ -477,6 +477,10 @@ const RAW_MODULES: SigxModule[] = [
       hue: 230, glyph: '⬢', status: 'experimental', version: '0.2.0', role: 'Postgres',
       tag: 'Membership, directory, storage & reminders on Postgres',
       blurb: 'The whole cluster on the database you already run — jsonb storage with etag compare-and-set, database-clock membership, the directory, and durable reminders claimed with SKIP LOCKED. Ships its DDL; never issues it for you.' },
+    { id: 'actors-surreal', parent: 'actors', npm: '@sigx/actors-surreal', name: 'SurrealDB', category: 'providers',
+      hue: 320, glyph: '⬢', status: 'experimental', version: '0.2.0', role: 'SurrealDB',
+      tag: 'Membership, directory, storage & reminders on SurrealDB 3',
+      blurb: 'The whole cluster on SurrealDB — etag compare-and-set storage, database-clock membership, the single-activation directory, and durable reminders on a due-time index. No lock primitive exists, so retry is part of the contract rather than tuning.' },
     { id: 'actors-k8s', parent: 'actors', npm: '@sigx/actors-k8s', name: 'Kubernetes', category: 'providers',
       hue: 255, glyph: '⎈', status: 'experimental', version: '0.2.0', role: 'Kubernetes',
       tag: 'Host liveness on coordination.k8s.io Leases',

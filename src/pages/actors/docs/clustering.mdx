@@ -33,8 +33,9 @@ falls out of it: a host that cannot renew its heartbeat past `ttlMs` refuses eve
 **The directory** answers "which host owns this actor?" — the claim that makes single
 activation true cluster-wide.
 
-They are independent choices. [Redis](/actors/packages/actors-redis/overview) and
-[Postgres](/actors/packages/actors-pg/overview) provide both;
+They are independent choices. [Redis](/actors/packages/actors-redis/overview),
+[Postgres](/actors/packages/actors-pg/overview) and
+[SurrealDB](/actors/packages/actors-surreal/overview) provide both;
 [Kubernetes](/actors/packages/actors-k8s/overview) provides membership only, on Leases you are
 already running, and pairs with either directory:
 

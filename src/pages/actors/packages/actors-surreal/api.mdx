@@ -1,0 +1,122 @@
+---
+title: "API reference"
+description: "API reference for @sigx/actors-surreal — every export of the SignalX SurrealDB package."
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/actors-surreal` <PkgVersion npm="@sigx/actors-surreal" />. One
+entry point; everything below imports from `@sigx/actors-surreal`.</p>
+
+## Providers
+
+```ts
+function surrealStorage(options: SurrealStorageOptions): ActorStorage;
+function surrealCluster(options: SurrealClusterOptions): ClusterProviders;
+function surrealMembership(options: SurrealClusterOptions): ClusterMembership;
+function surrealDirectory(options: SurrealConnectionOptions): ActorDirectory;
+function surrealReminders(options?: SurrealRemindersOptions): ActorReminders;
+```
+
+`surrealCluster` is membership + directory for one host — the bundle you hand to
+`cluster({ providers })`. Take the two individually when you want to mix backends.
+
+## Schema
+
+```ts
+function surrealSchemaSql(options?: { prefix?: string }): string;
+function ensureSurrealSchema(db: SurrealQueryable, options?: { prefix?: string }): Promise<void>;
+```
+
+- **`surrealSchemaSql`** returns the DDL for one prefix. Idempotent and safe to re-run. Every
+  table is `SCHEMAFULL`.
+- **`ensureSurrealSchema`** runs it. **For dev and tests** — production migrations should carry
+  `surrealSchemaSql()` through the tool that already owns the schema. It SELECTs the namespace
+  and database rather than creating them; `DEFINE NAMESPACE` / `DEFINE DATABASE` need root and
+  are a deployment decision.
+
+Running the DDL is **mandatory**: reading an undefined table is an error in SurrealDB 3.
+
+## Retry
+
+```ts
+function surrealRetryable(error: unknown): boolean;
+```
+
+The conflict predicate. **Install it on any connection you pass in as `db`** — see
+[Installation](/actors/packages/actors-surreal/installation).
+
+It is a connection-wide predicate, so it governs your own queries on that connection too, not
+only this package's.
+
+## Options
+
+### `SurrealConnectionOptions`
+
+Shared by every provider.
+
+| Option | Default | Notes |
+|---|---|---|
+| `db` | — | An existing, already-connected `Surreal`, shared with your app — one socket multiplexes everything. |
+| `url` | — | Or an endpoint, in which case the package connects lazily and owns the socket. Prefer `ws://`/`wss://`. |
+| `namespace` / `database` | — | For the self-constructed connection. |
+| `auth` | — | `{ username, password }` for the self-constructed connection. |
+| `prefix` | `'sigx_'` | Table-name prefix. |
+
+Pass `db` **or** `url`, not both.
+
+### `SurrealClusterOptions`
+
+Adds the membership knobs, on `surrealCluster` and `surrealMembership`.
+
+| Option | Default | Notes |
+|---|---|---|
+| `heartbeatMs` | `5000` | Heartbeat cadence. |
+| `ttlMs` | `15000` | Heartbeat record TTL — missed beats past this read as dead. |
+| `pollMs` | `5000` | Membership view poll cadence, the fallback under the push. |
+| `push` | `true` | Subscribe to a live query for immediate convergence. **The poll remains the guarantee either way.** |
+| `coalesceMs` | `0` | Trailing quiet window for coalescing push notifications. |
+
+The subscriber is single-flight regardless of `coalesceMs`: a burst of N changes costs one
+refresh plus at most one trailing catch-up, not N. A non-zero window widens the net past one
+round-trip, at the price of that much extra staleness.
+
+TTL is judged on the **database** clock, so a skewed host cannot fake a death or a survival.
+
+## Semantics worth knowing
+
+- **Etags are opaque and client-minted.** The runtime only ever compares them.
+- **State is stored as a JSON string**, so it is opaque in Surrealist. That is deliberate:
+  actor state may be a top-level array or scalar, may contain NUL, and distinguishes `null`
+  from absent — round-tripping it through SurrealDB's value model would risk `none`/`null`
+  conflation and record-id reinterpretation.
+- **`UPDATE … WHERE`, never `UPSERT … WHERE`.** `UPSERT`'s create arm carries no condition
+  check, so a writer holding a stale etag whose record had since been deleted would
+  *resurrect* it.
+- **No NUL escaping layer.** An actor id is `type<NUL>key`, and SurrealDB carries a NUL
+  verbatim and injectively inside a record id. (Postgres `text` cannot, which is the only
+  reason `@sigx/actors-pg` has `pgText`.)
+- **Every hot-path record is addressed by its record id** — the primary index.
+  `{prefix}state:[type, key]` is a composite id, not a secondary index, so a load or save never
+  scans. The three secondary indexes serve only cold sweeps.
+- **Directory entries carry no TTL.** An entry is valid iff its host is live in the membership
+  view — one heartbeat per host, not per activation.
+- **Membership change detection compares host signatures**, not just a version counter,
+  because a silent expiry changes the view without bumping anything.
+- **Reminders honour shard ownership** — the opposite of `pgReminders`, which ignores it
+  because `SKIP LOCKED` lets every host claim disjoint rows from one scan. With no lock
+  available, partitioning is what removes contention.
+- **Reminder firing is at-most-once.** The advance/delete commits before any delivery, and a
+  periodic reminder advances to `time::now() + period` — so downtime costs one firing rather
+  than replaying the gap.
+
+## See also
+
+- [Storage](/actors/docs/storage) — the `ActorStorage` seam and its ownership contract.
+- [Clustering](/actors/docs/clustering) — membership, the directory, and the required `secret`.
+- [Postgres](/actors/packages/actors-pg/overview) — the same four providers with a lock primitive available.
