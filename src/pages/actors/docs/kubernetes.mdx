@@ -26,7 +26,7 @@ cluster({
 ```
 
 You still need a directory — Leases answer *which hosts are alive*, not *which host owns this
-actor*. Redis or Postgres provides it.
+actor*. Redis, Postgres or SurrealDB provides it.
 
 RBAC needs `get`/`list`/`watch`/`create`/`update` on `leases` in the namespace. No kubeconfig
 is parsed; in-cluster service-account credentials are used, and `kubectl proxy` covers local

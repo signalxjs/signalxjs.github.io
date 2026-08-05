@@ -1,0 +1,95 @@
+---
+title: "Overview"
+description: "Membership, directory, storage & reminders on SurrealDB 3 — the SurrealDB package for SignalX (@sigx/actors-surreal): what it does, setup and API."
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# SurrealDB
+
+<p class="lede">The whole cluster on SurrealDB — etag compare-and-set storage,
+database-clock membership, the single-activation directory, and durable reminders on a
+due-time index. Four providers over one connection.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/actors-surreal" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/actors-surreal surrealdb
+```
+
+## What it provides
+
+| Provider | Seam | What it does |
+|---|---|---|
+| `surrealStorage` | [`ActorStorage`](/actors/docs/storage) | Persisted state with etag CAS, so two hosts can never both persist an activation. |
+| `surrealMembership` | `ClusterMembership` | TTL heartbeats judged on the **database** clock, so a skewed host cannot fake a death or a survival. |
+| `surrealDirectory` | `ActorDirectory` | The single-activation claim: create-if-absent returning the *winner*, plus compare-and-delete release. |
+| `surrealReminders` | `ActorReminders` | Durable reminders on a due-time-indexed table — one indexed query per tick instead of scanning shard records. |
+
+`surrealCluster` bundles membership and directory for `cluster({ providers })`.
+
+## Requirements
+
+SurrealDB **≥ 3.0**, with **3.2.4 or newer recommended**. `surrealdb` (the JS SDK) `^2.0.8`
+is a peer dependency.
+
+**Prefer a `ws://` or `wss://` endpoint.** The HTTP engine re-authenticates on every request
+and cannot serve live queries, so membership push is unavailable over it.
+
+## Three things to get right
+
+Each of these produces wrong behaviour silently rather than an error, so they are worth
+reading before the setup steps.
+
+### 1. Retry is part of the contract, not tuning
+
+**If you pass your own connected `Surreal`, you must install `surrealRetryable` on it.**
+
+SurrealDB has no `SELECT … FOR UPDATE`, no `SKIP LOCKED` and no advisory lock. Snapshot
+isolation with a commit-time write–write check is the only mutual exclusion available — so
+the directory's `claim()` and the create arm of `save()` are correct *because* two racers
+collide and the loser re-runs to observe the winner.
+
+Without a retry, the loser raises a raw conflict error instead of returning the winning
+entry. And the SDK ships retry **disabled by default**: its own `isRetryableConflict` matches
+only the structured `TransactionConflict` detail (wire code `-32009`), which in practice never
+arrives — a conflicting statement surfaces as a message through the `NotExecuted` path
+instead. `surrealRetryable` matches what actually arrives.
+
+### 2. The DDL step is mandatory
+
+Unlike Postgres, this is not optional. Reading an **undefined** table is an error in
+SurrealDB 3, where 2.x returned `[]`. So `ensureSurrealSchema()` (or the equivalent migration
+through `surrealSchemaSql()`) must run before a host starts.
+
+The providers never issue DDL themselves, so a production role needs only DML grants.
+
+### 3. Membership push is best-effort and single-node
+
+Push is a **live query**, and SurrealDB documents live queries as single-node-only, unordered
+and at-most-once. A silent expiry also produces no write to notify on.
+
+**The poll is the guarantee.** Do not deploy multi-node expecting push-speed convergence; set
+`push: false` to turn it off entirely. It listens on the version *table* rather than a record,
+because record-scoped live queries fail to listen on 3.2.4 — and that table holds one record.
+
+## State is stored as a JSON string
+
+Deliberately, and the trade is worth knowing: **state is opaque in Surrealist.**
+
+Actor state is whatever the codec produced. It may be a top-level array or scalar, may contain
+NUL, and distinguishes `null` from absent. Round-tripping that through SurrealDB's value model
+would risk `none`/`null` conflation, datetime and record-id reinterpretation, and v3's
+collapsing of differently-typed numeric ids. One `JSON.stringify` round-trips it exactly.
+
+## Next steps
+
+- [Installation](/actors/packages/actors-surreal/installation) — the schema step and wiring a host.
+- [API reference](/actors/packages/actors-surreal/api) — every export and option.
+- [Storage](/actors/docs/storage) — the `ActorStorage` seam these implement.
+- [Clustering](/actors/docs/clustering) — membership, directory and the required secret.

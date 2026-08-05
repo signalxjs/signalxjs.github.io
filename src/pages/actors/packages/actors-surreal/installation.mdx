@@ -1,0 +1,131 @@
+---
+title: "Installation"
+description: "Install and configure @sigx/actors-surreal, the SurrealDB package for SignalX."
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Connect, define the schema, then wire a clustered host.</p>
+
+## Install
+
+```bash
+pnpm add @sigx/actors-surreal surrealdb
+```
+
+`surrealdb` is a peer dependency (`^2.0.8`). You need SurrealDB **≥ 3.0** running, 3.2.4 or
+newer recommended.
+
+## Connect and define the schema
+
+```ts
+import { Surreal } from 'surrealdb';
+import { ensureSurrealSchema, surrealRetryable } from '@sigx/actors-surreal';
+
+const db = new Surreal();
+await db.connect('ws://127.0.0.1:8000', {
+    namespace: 'app',
+    database: 'main',
+    authentication: { username: 'root', password: 'root' },
+    // REQUIRED on a connection you own — see below.
+    retry: { enabled: true, attempts: 5, retryable: surrealRetryable },
+});
+
+await ensureSurrealSchema(db);   // dev and tests — see below for production
+```
+
+`ensureSurrealSchema()` SELECTs the namespace and database; it does not create them.
+`DEFINE NAMESPACE` / `DEFINE DATABASE` need root and are a deployment decision, so they are
+deliberately not issued for you.
+
+Two things in that snippet are load-bearing:
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong><code>surrealRetryable</code> is not optional on a connection you pass in.</strong>
+    The directory claim and the storage create arm are correct <em>because</em> two racers
+    collide at commit and the loser re-runs to observe the winner. The SDK ships retry
+    disabled, and its built-in predicate matches a structured error code that in practice never
+    arrives — so without this, a lost claim race surfaces as a raw conflict error instead of
+    the winning entry.
+  </div>
+</div>
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>The DDL step is mandatory</strong>, unlike with Postgres. Reading an undefined
+    table is an <em>error</em> in SurrealDB 3 (2.x returned <code>[]</code>), so the schema has
+    to exist before a host starts.
+  </div>
+</div>
+
+Prefer `ws://`/`wss://` over `http://`: the HTTP engine re-authenticates per request and cannot
+serve live queries, so membership push will not work over it.
+
+### In production, use a migration tool
+
+`ensureSurrealSchema()` is for **dev and tests**. In production, carry the statements through
+whatever tool already owns your schema:
+
+```ts
+import { surrealSchemaSql } from '@sigx/actors-surreal';
+
+console.log(surrealSchemaSql({ prefix: 'sigx_' }));
+```
+
+The DDL is idempotent and safe to re-run. Every table is `SCHEMAFULL` — this package is the
+only writer and all five shapes are fixed, so a typo becomes an error at the write rather than
+a silently ignored field. That works because a v3 `SCHEMAFULL` table **rejects** an undefined
+field instead of dropping it.
+
+Because the providers never issue DDL, a production role needs only DML grants.
+
+## Wire a host
+
+```ts
+import { defineActorApp } from '@sigx/actors/host';
+import { cluster } from '@sigx/actors/cluster';
+import { surrealCluster, surrealReminders, surrealStorage } from '@sigx/actors-surreal';
+
+const app = defineActorApp({
+    actors,
+    storage: surrealStorage({ db }),
+    // Optional: without it the runtime keeps its default sharded reminders,
+    // which also work over surrealStorage. Pass it to get the indexed table.
+    reminders: surrealReminders({ db }),
+}).use(
+    cluster({
+        providers: surrealCluster({ db }),
+        advertise: process.env.ADVERTISE!,
+        secret: process.env.CLUSTER_SECRET!,
+    }),
+);
+```
+
+## Connection: shared or owned
+
+Every provider takes one of two shapes:
+
+| You pass | What happens |
+|---|---|
+| `db` — a connected `Surreal` | Shared with your app; **one socket multiplexes everything**. You own the retry config. |
+| `url` plus `namespace` / `database` / `auth` | The package connects lazily and owns the socket, retry included. |
+
+`prefix` (default `sigx_`) names the tables.
+
+## Verify
+
+```ts
+import { surrealStorage } from '@sigx/actors-surreal';
+
+const storage = surrealStorage({ db });
+await storage.save('Probe', 'k1', { state: '{"n":1}', etag: 'e1' });
+console.log(await storage.load('Probe', 'k1'));   // → { state: '{"n":1}', etag: 'e1' }
+await storage.clear('Probe', 'k1');
+```
+
+A `load` that returns `undefined` immediately after a `save` usually means the schema step did
+not run against this namespace/database.

@@ -15,6 +15,7 @@ export const VERSIONS: Record<string, string> = {
     "@sigx/actors-otel": "0.2.0",
     "@sigx/actors-pg": "0.2.0",
     "@sigx/actors-redis": "0.2.0",
+    "@sigx/actors-surreal": "0.2.0",
     "@sigx/actors-tcp": "0.2.0",
     "@sigx/actors-ws": "0.2.0",
     "@sigx/args": "0.12.0",
