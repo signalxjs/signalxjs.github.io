@@ -158,25 +158,24 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 `src/lib/modules.ts` (core + lynx + server + terminal + deploy + actors) and the
 `@sigx/*` entries in `package.json` (what the site builds against).
 
-> **`/actors/` is pre-release and gated.** Nothing in `signalxjs/actors` is on npm
-> yet, so the whole section is invisible on sigx.dev and stays that way until the
-> packages ship. Two mechanisms, because one is not enough:
+> **`/actors/` is released and live.** `@sigx/actors` shipped 0.1.0 on 2026-08-03
+> and 0.2.0 on 2026-08-05; `ACTORS_RELEASED` in `src/lib/modules.ts` is `true`, no
+> page carries `draft: true`, and `pnpm build` covers the section like any other.
 >
-> - Every page under `src/pages/actors/` carries `draft: true`, which makes the
->   SSG drop it from the build entirely. **`pnpm build` therefore cannot catch
->   broken actors MDX — use `pnpm exec sigx build --drafts` when editing there.**
-> - `ACTORS_RELEASED` in `src/lib/modules.ts` gates the registry, because a
->   registry row renders tiles in the mega-menu, home grid and ⌘K palette
->   regardless of drafts. Public enumerations read `PUBLIC_PACKAGES`
->   (`src/lib/family.ts`); the llms.txt sections are gated in `ssg.config.ts`.
+> The gating machinery is still in place and still worth understanding before you
+> add another pre-release area. `ACTORS_RELEASED` gates the **registry**, because a
+> registry row renders tiles in the mega-menu, home grid and ⌘K palette regardless
+> of drafts — public enumerations read `PUBLIC_PACKAGES` (`src/lib/family.ts`), and
+> the llms.txt sections are gated in `ssg.config.ts`. Flipping it also moves the
+> `server` row's category, so the mega-menu changes exactly once.
 >
-> Two SSG constraints shaped this and will bite anyone extending it: `draft` is
-> only honoured on statically-parsed **MDX** frontmatter — a `draft: true` in a
-> `.tsx` `export const meta` is ignored and the page ships — which is why the
-> actors landing and catalog are `.mdx`, and why `gen:modules` skips the
-> `ModuleIndexRedirect` shell for drafted modules.
->
-> The release steps are listed in issue #510.
+> Two SSG constraints shaped that and will bite anyone reusing it: `draft` is only
+> honoured on statically-parsed **MDX** frontmatter — a `draft: true` in a `.tsx`
+> `export const meta` is ignored and the page ships — which is why the actors
+> landing and catalog are `.mdx`, and why `gen:modules` skips the
+> `ModuleIndexRedirect` shell for drafted modules. A drafted area also cannot be
+> checked by `pnpm build` at all; `pnpm exec sigx build --drafts` is the real gate
+> while an area is still hidden.
 
 > **Write actors docs from the source, not from the docs-issue bodies.** The queue
 > predates the current API and describes it with names that are not in it — check
@@ -186,10 +185,13 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 > too.
 >
 > **Nothing has shipped, so nothing is old.** Write every page as if the reader is
-> meeting the API for the first time — which they are. No "this replaced X", no
-> "X is now gone", no explaining what something is *not*, and no justifying a
-> design by reference to another framework. State what is true and move on.
-> Anything that reads as history is a leak from our own working notes.
+> meeting the API for the first time — which, two releases in, they still are. No
+> "this replaced X", no "X is now gone", no explaining what something is *not*, and
+> no justifying a design by reference to another framework. State what is true and
+> move on. Anything that reads as history is a leak from our own working notes.
+>
+> That rule is specific to `/actors/`, which has no installed base to migrate.
+> `core` does, so its pages **do** carry migration tables for breaking changes.
 
 ### Refresh playbook — after a source repo releases
 

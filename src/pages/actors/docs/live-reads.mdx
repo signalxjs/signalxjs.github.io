@@ -71,7 +71,7 @@ read whose feed cannot be established at all keeps working as a plain read.
 
 **Nothing subscribes during SSR.** The subscription lives in `onMounted`.
 
-**Security is the read's own.** A subscription runs the same guard chain as a unary call, at
+**Security is the read's own.** A subscription runs the same policy as a unary call, at
 subscribe time, so it exposes nothing a polling client could not already read. There is
 deliberately **no** per-actor `live` opt-in to configure.
 
@@ -105,6 +105,29 @@ actorsPlugin({ live: { debounceMs, retryMs, maxRetryMs, onError } });
 
 A transport that brings its own `live()` channel — a WebSocket transport, say — is used
 instead of the NDJSON one, with no call site changing.
+
+### Bounding the subscription array
+
+`$live#subscribe` caps its subscription array at **256** by default.
+
+The mount fans out one watch per entry, all started at once, and each can force a distinct
+activation pinned for `idleAfterMs`. A minimal entry is about 25 bytes, so the 1 MiB body cap
+alone bought tens of thousands of activations from a single unauthenticated request — and the
+per-subscription policies run *inside* that fan-out, so they never bounded it.
+
+```ts
+handleActorRequest(request, { host, maxLiveSubscriptions: 64 });
+```
+
+The option flows through `createFetchHandler` and `createAppHandler` too, and `0` disables it.
+An over-cap array is a `400` for the whole request, checked before the per-entry walk —
+answering per index would mean doing the work first.
+
+Anything that is not a non-negative integer **throws**: under a plain `> 0` test a typo like
+`-1` would silently turn the cap off, which is the exact state the option exists to prevent.
+
+The cap joins the resolver cache key, so two mounts on one host with different caps do not
+share whichever resolver happened to be built first.
 
 ## Under the hood
 

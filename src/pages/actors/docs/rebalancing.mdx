@@ -14,7 +14,7 @@ Rebalancing is the correction, and it is off unless configured.</p>
 
 ```ts
 cluster({
-    providers, advertise,
+    providers, advertise, secret,
     policy: activationCountPolicy(),     // where shed actors land
     rebalance: { intervalMs: 60_000 },   // { threshold, maxMoves, minIdleMs, timeoutMs }
 });

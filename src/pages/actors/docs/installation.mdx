@@ -93,20 +93,28 @@ context extensions into `ctx` with types attached. See [The app](/actors/docs/th
 > server: { watch: { ignored: ['**/.actors/**'] } }
 > ```
 
-## Guards are required by default
+## Authorization is required by default
 
-Core 0.14 turned on `requireGuards` for server functions, and an actor endpoint **is** a
-server function — so the rule applies here too. Every actor must either declare a `use:`
-chain, derive from a preset, or opt out explicitly:
+An actor endpoint **is** a server function, so it inherits core's fail-closed pipeline: an actor
+that says nothing about access, with no server app configured, denies every call.
 
-```ts
-defineActor({ type: 'Counter', unguarded: true, /* … */ });
+The usual answer is one line — point the plugin at your
+[server app](/server/packages/server/usage#the-app) and its default policy covers every actor:
+
+```js
+sigxActors({ app: '/src/actors/app.ts', serverApp: '/src/server-app.ts' })
 ```
 
-The Vite plugin enforces this at build time (`requireGuards: true` by default, `'warn'` to
-soften it while migrating). It cannot see inside `node_modules`, so
+Otherwise an actor declares its own policy, or opts out explicitly:
+
+```ts
+defineActor({ type: 'Counter', allowAnonymous: true, /* … */ });
+```
+
+The Vite plugin enforces the choice at build time (`requireAuthorization: true` by default,
+`'warn'` to soften it). It cannot see inside `node_modules`, so
 [actors shipped in a package](/actors/docs/shipping-actors-in-packages) are the author's
-responsibility. See [Guards](/actors/docs/guards).
+responsibility. See [Authorization](/actors/docs/guards).
 
 ## Verify
 

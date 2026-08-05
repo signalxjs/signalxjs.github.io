@@ -93,14 +93,15 @@ this reason. Actors are a layer **on** server functions, not an alternative stac
 
 Three practical consequences:
 
-1. **Guards are the same guards.** A `use:` chain on an actor is the serverFn guard contract,
-   so a preset you wrote for your server functions works on an actor unchanged. See
-   [Guards](/actors/docs/guards).
+1. **Policies are the same policies.** An actor's `authorize` takes core's `ServerPolicy`, so
+   one you wrote for your server functions works on an actor unchanged — and your app's default
+   policy covers both. What an actor adds is `op.resource`, which carries the actor's type and
+   key, so a policy can decide per **instance**. See [Authorization](/actors/docs/guards).
 2. **Your types cross both boundaries identically.** `Date`, `Map`, `Set`, `bigint` and your
    own registered types round-trip through the same codec.
-3. **Core 0.14's `requireGuards` default applies to both.** If server functions in your app
-   must declare a guard, so must your actors — declare `use:`, derive from a preset, or set
-   `unguarded: true` deliberately.
+3. **The fail-closed rule applies to both.** A server function and an actor that each declare
+   nothing, with no server app configured, both deny — so configuring the app once is what
+   makes either of them callable.
 
 ## Using both together
 

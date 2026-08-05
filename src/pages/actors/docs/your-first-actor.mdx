@@ -41,9 +41,9 @@ import { defineActor } from './actors.app.ts';
 
 export const Counter = defineActor({
     type: 'Counter',
-    // This demo counter is deliberately public. Real actors declare a
-    // `use: [...]` chain — the build gate insists you pick one.
-    unguarded: true,
+    // This demo counter is deliberately public. Real actors inherit the
+    // server app's policy, or declare their own `authorize:`.
+    allowAnonymous: true,
     state: () => ({ count: 0, lastVisit: null as Date | null }),
     methods: (ctx) => ({
         async increment(by: number) {
@@ -149,7 +149,8 @@ Stop the dev server and start it again — the count is still there, in `.actors
   that is [deliberate](/actors/docs/state-and-persistence).
 - **Add `await new Promise(r => setTimeout(r, 3000))`** inside `increment`, then click twice
   quickly. The second click waits — that is guarantee 3, [`await` keeping the turn open](/actors/docs/turns).
-- **Replace `unguarded: true`** with a real [guard chain](/actors/docs/guards).
+- **Replace `allowAnonymous: true`** with a real [policy](/actors/docs/guards) — usually by
+  configuring the server app once, so every actor inherits it.
 
 ## Next steps
 
