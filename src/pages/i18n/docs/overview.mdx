@@ -41,6 +41,20 @@ It was a runtime problem too, not only a typing one: pulling `sigx/jsx-runtime` 
 
 So the package takes no dependency on `sigx` at all — it is not even an optional peer — and a packaging test asserts the core entry's source graph contains no bare `sigx` specifier. Use it from web, lynx and terminal apps alike.
 
+### `Intl` is optional too
+
+Renderer-neutrality is a type-level claim; this is the runtime half of it. Some JavaScript
+engines a sigx app runs on do not ship `Intl` at all — lynx's PrimJS is the one you are most
+likely to meet.
+
+The default `lightweightFormatter` does not need it: interpolation, plurals and selects are
+resolved without `Intl.PluralRules` or `Intl.NumberFormat`. So a lynx or terminal app gets
+working translations on an engine with no `Intl` object.
+
+What `Intl` buys, where it exists, is locale-correct number, date and currency formatting. If
+you need that, supply a `formatter` that uses it — and check the engines you ship to before you
+do.
+
 ## The model
 
 **A master locale defines the key set.** `fallbackLocale` is the source of truth for which keys exist; other locales supply translations for those keys, and anything missing falls through to it.

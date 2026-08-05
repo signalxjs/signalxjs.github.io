@@ -67,7 +67,9 @@ How each `config` field merges (the site's own config always wins):
 - **`markdown`** — `remarkPlugins` / `rehypePlugins` that run *before* the site's own markdown plugins.
 - **`hooks`** — build hooks composed with the site's: the theme's run first, then the site's (`transformHtml` chains the output through both).
 
-A theme layout is an ordinary `@sigx/ssg` layout — a component that renders `slots.default()` and reads `props.meta`, `props.path`, and `props.site`. See [Configuration → Layouts](/ssg/docs/configuration#layouts).
+A theme layout is an ordinary `@sigx/ssg` layout — a component that renders `slots.default?.()` and reads `props.meta`, `props.path`, and `props.site`. See [Configuration → Layouts](/ssg/docs/configuration#layouts).
+
+**Call the slot optionally.** A layout whose default fill is missing renders nothing there rather than throwing, so one page without body content cannot take the build down. `slots.default?.()` is also what type-checks under core 0.15, which checks a slot fill against the slot it declares and makes the accessor optional at the call site.
 
 ## @sigx/ssg-theme-daisyui
 
