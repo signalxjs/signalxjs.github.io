@@ -55,9 +55,13 @@ Installs on import.
 
 | Export | Purpose |
 |---|---|
-| `rehypeMermaid(options?)` | The rehype plugin. Also the default export. |
+| `remarkMermaid(options?)` | The remark plugin — claims the fence on the markdown tree. **Prefer this one.** |
+| `rehypeMermaid(options?)` | The rehype plugin — claims the fence on the HTML tree. Also the default export. |
+| `RemarkMermaidOptions` | `{ language?, className? }`. |
 | `RehypeMermaidOptions` | `{ language?, className? }`. |
-| `mermaidThemeContribution` | Drop-in `ThemeConfig` slice for an `@sigx/ssg` theme. |
+| `mermaidThemeContribution` | Drop-in `ThemeConfig` slice for an `@sigx/ssg` theme — contributes `markdown.remarkPlugins` and `css`. |
+
+Both plugins emit the same `<figure>` shell and neither renders an SVG. `remarkMermaid` runs before HTML conversion, so it never contends with the syntax highlighter; `rehypeMermaid` does, and needs `markdown.shiki.skipLanguages: ['mermaid']` alongside it.
 
 See [SSG integration](/mermaid/docs/ssg).
 

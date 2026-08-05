@@ -35,7 +35,7 @@ Key `I18nOptions` fields:
 | `load` | The catalog loader. Without it, catalogs come from `addMessages`. |
 | `layers` / `defaultLayer` / `loaders` / `layerMessages` | Per-key override layering — see [Layers](/i18n/docs/usage#layers). |
 | `initialMessages` | Catalogs seeded synchronously at creation, marked loaded. The idiomatic SSR preload. |
-| `formatter` | Defaults to `lightweightFormatter`. |
+| `formatter` | Defaults to `lightweightFormatter` — interpolation, plurals and selects with **no `Intl` dependency**, so it runs on engines that lack it. Supply your own to opt into `Intl`-backed number/date formatting. |
 | `onMissing` | Missing-key handler. |
 | `onLoadError` | Replaces the default console logging for a failed catalog load. |
 
