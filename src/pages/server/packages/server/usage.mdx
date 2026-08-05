@@ -103,7 +103,7 @@ It takes exactly **one** input, described by a
 runs on every transport.
 
 ```ts
-import { serverFn } from '@sigx/server';
+import { serverFn, principal, requireAuthenticated } from '@sigx/server';
 import * as z from 'zod';
 
 const QuoteInput = z.object({ symbol: z.string(), qty: z.number().int() });
@@ -273,6 +273,8 @@ body is read, and no function should be able to opt out of it.
 
 ```ts
 // src/server-app.ts
+import { createServerApp, ServerFnError, type ServerMiddleware } from '@sigx/server';
+
 const rateLimit: ServerMiddleware = async (rq, fn) => {
   if (fn.transport !== 'wire') return;      // in-process SSR calls are not traffic
   const ip = rq.request.headers.get('cf-connecting-ip') ?? 'unknown';
