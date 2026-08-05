@@ -49,7 +49,7 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props, sig
                 <main class="content">
                     <div class="content-narrow">
                         <article class="prose max-w-none">
-                            {slots.default()}
+                            {slots.default?.()}
                         </article>
                     </div>
                 </main>

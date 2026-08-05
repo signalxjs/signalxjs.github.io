@@ -93,7 +93,7 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props, sig
                                         {(COMPONENT_CATALOGS[mod.id] || COMPONENT_CATALOGS[`${mod.parent}-${mod.id}`]) ? ' · Component library' : ''}
                                     </span>
                                 )}
-                                {slots.default()}
+                                {slots.default?.()}
                             </article>
                         </div>
                     </main>
