@@ -95,6 +95,8 @@ ssrState(ctx, { state, patch }, {
 
 Whatever the page carries, only keys that actually exist on the slice are ever applied; unknown keys and reserved/`__proto__`-style keys are filtered out on both ends, so a tampered or mismatched blob can never assign unexpected keys onto your reactive state.
 
+The filtering is **per key, not per entry**. A tampered entry is sanitized rather than rejected wholesale, so its surviving legitimate keys still seed the slice — one poisoned key does not cost you the rest of the page's state. Nothing that survives can reach the prototype.
+
 ## Composing with `persist()`
 
 `ssrState` and [`persist`](/store/docs/persistence) layer cleanly — server-rendered data first, then device-local overrides. **Call `ssrState` first:**
@@ -123,7 +125,7 @@ This is the store-shaped entry point to the **same** SSR state-transfer mechanis
 
 SSR state transfer needs the server renderer in the picture: `sigx` (or `@sigx/server-renderer` directly) on the server, rendering through `renderDocument` or a `createSSR()` pipeline with `stateSerializationPlugin()`. The store package itself adds no SSR dependency — on a purely client-rendered page `ssrState` is a no-op that returns `{ hydrated: false }`, and the store renders from defaults.
 
-The shared default, the `scope` option, and the rich-value round-trip need `@sigx/store@0.11` or newer. The current `@sigx/store` <PkgVersion npm="@sigx/store" /> pins the **0.14.x core line** (`@sigx/reactivity` / `@sigx/runtime-core` `^0.14.0`).
+The shared default, the `scope` option, and the rich-value round-trip need `@sigx/store@0.11` or newer; per-key sanitizing of a tampered blob needs `0.13`. The current `@sigx/store` <PkgVersion npm="@sigx/store" /> pins the **0.15.x core line** (`@sigx/reactivity` / `@sigx/runtime-core` `^0.15.0`).
 
 ## Next steps
 

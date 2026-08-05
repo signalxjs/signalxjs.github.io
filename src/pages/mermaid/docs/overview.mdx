@@ -42,17 +42,16 @@ import { Mermaid } from '@sigx/mermaid';
 
 ## In an SSG site
 
-`@sigx/ssg` needs no changes — `markdown.shiki.skipLanguages` was already the documented seam for exactly this:
+Two lines. `remarkMermaid` claims the fence on the markdown tree, before the syntax highlighter ever sees it:
 
 ```ts
 // ssg.config.ts
 import { defineSSGConfig } from '@sigx/ssg';
-import { rehypeMermaid } from '@sigx/mermaid/ssg';
+import { remarkMermaid } from '@sigx/mermaid/ssg';
 
 export default defineSSGConfig({
     markdown: {
-        shiki: { skipLanguages: ['mermaid'] },
-        rehypePlugins: [rehypeMermaid],
+        remarkPlugins: [remarkMermaid],
     },
     clientImports: ['@sigx/mermaid/styles', '@sigx/mermaid/client'],
 });
@@ -80,5 +79,5 @@ Neither is a good default. So this package renders on the client and keeps the c
 ## What's here
 
 - [Usage](/mermaid/docs/usage) — the component, configuration and theming.
-- [SSG integration](/mermaid/docs/ssg) — `rehypeMermaid` and the client enhancer.
+- [SSG integration](/mermaid/docs/ssg) — `remarkMermaid` and the client enhancer.
 - [API reference](/mermaid/docs/api) — every export.
