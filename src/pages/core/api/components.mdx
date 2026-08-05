@@ -486,16 +486,26 @@ no cast:
 
 ```tsx
 type AsyncState<T> =
-    | AsyncIdle | AsyncPending | AsyncReady<T> | AsyncRefreshing<T> | AsyncErrored<T>;
+    | AsyncIdle<T> | AsyncPending<T> | AsyncReady<T> | AsyncRefreshing<T> | AsyncErrored<T>;
 
-interface AsyncStateBase<T> {
-    readonly state: AsyncStateName;   // 'idle' | 'pending' | 'ready' | 'refreshing' | 'errored'
-    readonly value: T | null;         // the best data the cell has — see below
-    readonly hasValue: boolean;       // presence — a resolved null IS a value
-    readonly error: Error | null;
-    readonly loading: boolean;        // state === 'pending' ONLY (refresh reads state === 'refreshing')
+// Every member carries these, narrowed per state:
+//   state    'idle' | 'pending' | 'ready' | 'refreshing' | 'errored'
+//   value    the best data the cell has — see below
+//   hasValue presence — a resolved null IS a value
+//   error    Error | null
+//   loading  state === 'pending' ONLY (a refresh reads state === 'refreshing')
+
+interface AsyncStateBase<T> {          // the shared methods
     match<R>(arms: MatchArms<T, R>): R | undefined;
-    refresh(): Promise<void>;         // re-run in place; NEVER rejects (failures land on .error)
+    refresh(): Promise<void>;          // re-run in place; NEVER rejects (failures land on .error)
+}
+
+interface AsyncReady<T> extends AsyncStateBase<T> {
+    readonly state: 'ready';
+    readonly value: T;                 // narrowed — no cast
+    readonly hasValue: true;
+    readonly error: null;
+    readonly loading: false;
 }
 ```
 

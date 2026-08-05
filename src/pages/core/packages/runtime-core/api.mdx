@@ -999,16 +999,26 @@ The reactive result of `useData` (and, via `all`, the combined state), plus the 
 type AsyncStateName = 'idle' | 'pending' | 'ready' | 'refreshing' | 'errored';
 
 type AsyncState<T> =
-  | AsyncIdle | AsyncPending | AsyncReady<T> | AsyncRefreshing<T> | AsyncErrored<T>;
+  | AsyncIdle<T> | AsyncPending<T> | AsyncReady<T> | AsyncRefreshing<T> | AsyncErrored<T>;
 
-interface AsyncStateBase<T> {
-  readonly state: AsyncStateName;
-  readonly value: T | null;                  // last-good; survives an error
-  readonly hasValue: boolean;                // presence — a resolved null IS a value
-  readonly error: Error | null;
-  readonly loading: boolean;                 // state === 'pending' ONLY
+interface AsyncStateBase<T> {                // the shared methods
   match<R>(arms: MatchArms<T, R>): R | undefined;
   refresh(): Promise<void>;                  // never rejects
+}
+
+// Each member narrows state / value / hasValue / error / loading:
+interface AsyncReady<T> extends AsyncStateBase<T> {
+  readonly state: 'ready';
+  readonly value: T;                         // narrowed — no cast
+  readonly hasValue: true;
+  readonly error: null;
+  readonly loading: false;
+}
+interface AsyncErrored<T> extends AsyncStateBase<T> {
+  readonly state: 'errored';
+  readonly error: Error;                     // splits on hasValue: a cell that
+                                             // once succeeded still holds its value
+  readonly loading: false;
 }
 
 interface MatchArms<T, R> {
