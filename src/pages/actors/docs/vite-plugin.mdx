@@ -28,7 +28,7 @@ export default {
 | `exclude` | `node_modules`, `dist` | never transformed |
 | `base` | `/_sigx/actor` | where the endpoint mounts |
 | `endpoint` | `= base` | what the client ref is stamped with |
-| `requireGuards` | `true` | `'warn'` to soften while migrating |
+| `requireAuthorization` | `true` | `'warn'` to soften while migrating |
 | `origin` | — | `'same-origin'`, `'verify-when-present'`, an allowlist, or `false` |
 | `maxBodyBytes` | — | request body cap |
 | `onMiss` | `'proxy'` | what to do when the actor is on another host |
@@ -87,4 +87,4 @@ refusal.
 
 - [The app](/actors/docs/the-app) — what the `app` option points at.
 - [Running a host on Node](/actors/docs/node) — the production entry.
-- [Guards](/actors/docs/guards) — the `requireGuards` gate.
+- [Authorization](/actors/docs/guards) — the `requireAuthorization` gate.

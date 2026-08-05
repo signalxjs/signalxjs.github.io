@@ -116,7 +116,7 @@ Not everything an actor does is a turn, and the exceptions are deliberate:
 
 | Runs outside | Why |
 |---|---|
-| [Guards](/actors/docs/guards) | a slow auth check must not occupy the actor |
+| [Authorization](/actors/docs/guards) | a slow auth check must not occupy the actor |
 | [Stream bodies](/actors/docs/streams) | a stream awaiting its own actor's next turn would deadlock against itself |
 | [Task bodies](/actors/docs/tasks) | long work must not block ordinary calls |
 

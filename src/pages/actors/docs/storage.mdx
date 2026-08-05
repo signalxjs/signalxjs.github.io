@@ -54,6 +54,22 @@ must get right:
 - **`undefined` for a missing record**, not an empty one — that is what selects the fresh
   `state(key)` path and skips [`migrateState`](/actors/docs/state-and-persistence).
 
+### The ownership contract
+
+Both halves of the seam say who owns the tree, and they say opposite things:
+
+| | contract |
+|---|---|
+| `save(state)` | **takes ownership.** The caller must not mutate the tree afterwards; an implementation may store it by reference rather than copying. |
+| `load()` | **hands ownership over.** The returned record is the caller's to mutate freely — never a shared, frozen or cached object. |
+
+The host always passes `save` a codec-fresh tree, so a provider that keeps the reference is
+safe and skips a clone. The load side is the one to be careful about: returning a cached
+record means the next activation mutates the copy your provider is still holding.
+
+This is what makes `memoryStorage` correct without cloning on save while still cloning on
+load — a stored value never aliases live activation state.
+
 ## Choosing one in production
 
 Two questions decide it.
@@ -75,6 +91,7 @@ directory plus Postgres storage is a perfectly ordinary configuration:
 cluster({
     providers: { membership: k8sMembership(), directory: redisDirectory(client) },
     advertise,
+    secret: process.env.HOST_SECRET,
 });
 ```
 
@@ -94,8 +111,17 @@ registry.decorateStorage((inner) => ({
 }));
 ```
 
-Decorators chain, and the **last registered is outermost**. Caching, encryption at rest,
-tenant prefixing and audit logging all fit here without the actor code knowing.
+Decorators chain, and the **last registered is outermost**. Encryption at rest, tenant
+prefixing and audit logging all fit here without the actor code knowing.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>A decorator that caches a <code>load()</code> result is wrong.</strong> `load` hands
+    the record to the caller to mutate, so serving the same object twice means the second
+    activation is mutating the first one's state. Cache the encoded bytes and rebuild, or do not
+    cache at all.
+  </div>
+</div>
 
 ## Next steps
 

@@ -17,7 +17,7 @@ import { defineJob } from '@sigx/actors/job';
 
 export const SecuritySync = defineJob({
     type: 'SecuritySync',
-    use: [adminGuard],
+    authorize: requireStaff,
     maxAttempts: 3,          // crash-resume attempts before 'failed'
     retainMs: 86_400_000,    // keep the terminal record a day, then forget
     run: async (job, input: { providerId: string }) => {

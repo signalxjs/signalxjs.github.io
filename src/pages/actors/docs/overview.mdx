@@ -19,7 +19,7 @@ without a queue, a lock or a lifetime to manage.</p>
 ```ts
 export const CartActor = defineActor({
     type: 'Cart',
-    use: [requireUser],
+    authorize: ownsIt,
     state: () => ({ items: [] as Item[] }),
     methods: (ctx) => ({
         async addItem(item: Item) {

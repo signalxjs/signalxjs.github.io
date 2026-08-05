@@ -99,7 +99,7 @@ internal hop, every time. The alternative is to tell the client where to go:
 ```ts
 handleActorRequest(request, { host, onMiss: 'redirect' });   // or 'auto'
 configureActors({ endpoint, follow: true });
-cluster({ advertise: 'http://10.0.4.7:7311', publicAddress: 'https://host-3.example.com' });
+cluster({ advertise: 'http://10.0.4.7:7311', publicAddress: 'https://host-3.example.com', secret });
 ```
 
 `onMiss` goes on the **mount**, not the host, so one cluster can serve a browser origin that

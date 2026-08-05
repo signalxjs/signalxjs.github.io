@@ -67,7 +67,7 @@ Steers new activations toward the least-loaded host — the answer when the work
 (hot types, lumpy keys) and **ownership spread** is the number you are watching.
 
 ```ts
-cluster({ providers, advertise, policy: activationCountPolicy({ refreshMs: 5_000 }) });
+cluster({ providers, advertise, secret, policy: activationCountPolicy({ refreshMs: 5_000 }) });
 ```
 
 It keeps a load view refreshed out of band over the authenticated host-to-host ops channel

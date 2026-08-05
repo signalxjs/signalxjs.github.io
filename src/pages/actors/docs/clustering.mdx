@@ -42,6 +42,7 @@ already running, and pairs with either directory:
 cluster({
     providers: { membership: k8sMembership(), directory: redisDirectory(client) },
     advertise,
+    secret: process.env.HOST_SECRET,
 });
 ```
 
@@ -99,8 +100,9 @@ The sequence is deliberately not the obvious one:
 | `providers` | — | membership + directory |
 | `advertise` | — | this host's **internal** peer-reachable origin |
 | `publicAddress` | — | where *clients* reach this host; never guessed — see [Locality routing](/actors/docs/locality-routing) |
-| `secret` | — | HMAC for the host-to-host mount |
+| `secret` | — | **Required outside development.** HMAC for the host-to-host mount — see below |
 | `internalBase` | `/_sigx/host` | where that mount lives |
+| `refreshCoalescer` | provider default | coalesces push-notification refreshes — see [below](#membership-refresh-coalescing) |
 | `transport` | `httpTransport()` | see [Transports](/actors/docs/transports) |
 | `policy` / `typePolicies` | random | see [Placement policies](/actors/docs/placement-policies) |
 | `rebalance` | off | see [Rebalancing](/actors/docs/rebalancing) |
@@ -108,6 +110,48 @@ The sequence is deliberately not the obvious one:
 
 `fetch` and `endpoint` remain as sugar for exactly those two `httpTransport()` options, and
 passing either *alongside* an explicit `transport` throws.
+
+## The secret is not optional
+
+`cluster()` **throws at construction** without a `secret`, in every build but development.
+
+The internal host-to-host mount runs **no policies** — the public edge is expected to have
+decided already — and it is contributed as an ordinary route, so it lands on the same listener
+as the public actor endpoint. Without a secret, every registered actor type, key and method is
+reachable unauthenticated by anything that can address that listener.
+
+```ts
+cluster({ providers, advertise, secret: process.env.HOST_SECRET });   // normal
+cluster({ providers, advertise, secret: null });                     // explicit opt-out
+```
+
+`secret: null` is for a mount genuinely unreachable by an untrusted caller — an mTLS mesh, a
+private network with no other tenant. It is a claim you are making, which is why it has to be
+written down. An empty or whitespace-only secret throws in **every** build, development
+included.
+
+The HMAC authenticates the **peer**, not the payload.
+
+## Membership refresh coalescing
+
+Membership providers that support push notifications coalesce their refreshes: leading-edge
+immediate, then single-flight with version-gated hint skipping, so a burst of N changes costs
+one re-read rather than N per subscriber.
+
+`coalesceMs` (default `0`) is the knob, on `redisCluster`/`redisMembership`,
+`pgCluster`/`pgMembership` and `surrealCluster`/`surrealMembership`:
+
+```ts
+redisCluster({ url, coalesceMs: 50 })
+```
+
+`0` keeps the leading-edge behaviour with no trailing window — every notification that is not
+already in flight refreshes immediately. Raise it when a noisy membership channel is costing
+more than the staleness it saves.
+
+Writing a custom `ClusterMembership`? `refreshCoalescer()` from `@sigx/actors/cluster` is the
+same primitive: `demand()` preserves `ClusterMembership.refresh()`'s started-at-or-after
+contract, and `settled()` is for teardown.
 
 ## What clustering does not change
 
