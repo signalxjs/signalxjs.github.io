@@ -36,7 +36,7 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props }) =
                         {/* Main content */}
                         <main class={`flex-1 min-w-0 px-6 py-12 ${hasToc ? 'max-w-4xl' : 'max-w-4xl mx-auto'}`}>
                             <article class="prose prose-lg max-w-none">
-                                {slots.default()}
+                                {slots.default?.()}
                             </article>
                         </main>
                         

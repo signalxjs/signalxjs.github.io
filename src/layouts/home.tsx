@@ -33,7 +33,7 @@ export default component<LayoutProps, unknown, LayoutSlots>(({ slots, props }) =
 
             {/* Main content - full width, no container */}
             <main class="relative">
-                {slots.default()}
+                {slots.default?.()}
             </main>
 
             {/* Footer */}

@@ -36,6 +36,16 @@ function encodeWithHandlers(value: unknown, handlers?: readonly TypeHandler[]): 
 
 Walk a value into a JSON-safe tree, applying registered `handlers` first, then the built-ins. Handlers see **raw** values (the walk runs before `toJSON`, which is why `Date` matches). Throws `TypeError('Converting circular structure to JSON')` on cycles, like `JSON.stringify`.
 
+A plain object or array reachable through several paths (a diamond, a DAG) is encoded **once** rather than once per path — two-way sharing N levels deep used to be 2<sup>N</sup> work. The wire text is byte-for-byte identical, since `JSON.stringify` re-expands each reference. Two edges follow: the return value now carries shared object identity where the input did, and a handler's `test`/`serialize` run once per unique subtree rather than once per path.
+
+### The dev warning for lossy values
+
+Some values encode "successfully" while losing what made them themselves — a class instance loses its prototype, a typed array becomes `{"0":…,"1":…}`, `Error`/`Promise`/`WeakMap` become `{}`, and `NaN`/`±Infinity` become `null`. Every one is a **lossy success**: the encode returns, the result looks like data, and nothing downstream can notice.
+
+In development the encoder walks the value and reports the offending property paths in one warning (up to three, node-budgeted so a large payload cannot stall the dev server). It consults the same handler chain the encoder does, so a type you have taught the codec is never flagged. Production pays nothing — the walk is behind `__DEV__` and is stripped from the built dist.
+
+Circular structures are deliberately *not* reported here: they already throw, and callers that encode speculatively to test admissibility catch that throw and report their own message.
+
 ## reviveWithHandlers
 
 ```ts
@@ -43,6 +53,18 @@ function reviveWithHandlers<T = unknown>(value: unknown, handlers?: readonly Typ
 ```
 
 The inverse — turns `{ [tag]: payload }` back into live values. `T` is an **assertion, not validation** (it types the result; nothing checks wire data). Apply only to trees `encodeWithHandlers` produced. Idempotent over already-live values; an unknown `$`-tag is left encoded (forward-compat) with a dev warning.
+
+`__proto__` is dropped at both of revive's object rebuilds, with a dev warning naming the drop. `out[key] = value` with the key `__proto__` does not create an own property — it silently sets the prototype of the object being rebuilt, invisible to `Object.keys`, `JSON.stringify` and a `toEqual` assertion. The guard lives **in the codec**, which is the one place that sees every boundary: the SSR state blob, resume boundary props, the cache seed and the RPC wire.
+
+`constructor` and `prototype` are **plain data keys** and are not filtered — assigning them creates ordinary own properties and swaps nothing.
+
+## Depth cap
+
+Both halves refuse values nesting deeper than **256 levels**, throwing `TypeError('Value nests deeper than 256 levels')`.
+
+`encode` and `revive` are recursive where `JSON.parse`/`JSON.stringify` are not, and wire data is attacker-typable — roughly 1 MiB of `[[[[…` spells hundreds of thousands of levels and used to overflow the stack. For scale: the deepest fixture in the source repo's benchmarks nests 12 levels, and boundary records nest single digits, so a legitimate payload is orders of magnitude clear of the cap.
+
+The cap also turns a cyclic *live* value handed to `reviveWithHandlers` — reachable through the mixed hydration blob, which revive walks idempotently — from infinite recursion into that same clean throw.
 
 ## TypeHandler
 
@@ -84,3 +106,20 @@ A user object whose sole key starts with `$` is escaped as `{ "$esc": original }
 
 - **`provideTypeHandlers(app._context, handlers)`** — from `sigx/internals`; the per-app DI registry (consulted before built-ins).
 - **`serverPlugin({ types })`** — from [`@sigx/server/plugin`](/server/packages/server/api); one call registers both the RPC wire codec and the per-app registry.
+
+## Binary — `@sigx/serialize/bytes`
+
+An **opt-in** subpath carrying one handler, `bytesHandler` (tag `$bytes`):
+
+```ts
+import { bytesHandler } from '@sigx/serialize/bytes';
+import { serverPlugin } from '@sigx/server/plugin';
+
+serverPlugin({ types: [bytesHandler] });
+```
+
+It round-trips `Uint8Array` (Node's `Buffer` included — it revives as a plain `Uint8Array`), every standard typed-array kind, `DataView`, and a bare `ArrayBuffer`, each back to its exact constructor. The encoding is base64: `{"$bytes":"AQID"}` for a `Uint8Array`, a `[kind, base64]` tuple for the rest. A **view encodes its window**, never the whole backing buffer, and multi-byte kinds carry raw host-order bytes.
+
+Opt-in rather than built-in, deliberately. The root entry is bundled by `@sigx/server/client`'s dependency-free stubs under a 1 KB budget with no ignore list possible, so a built-in `$bytes` would tax every client bundle — and would quietly start admitting binary into the SSR state blob.
+
+Registering it silences the lossy-value dev warning for exactly the types it claims. `Blob` and `File` stay out of scope because the codec is synchronous, and `SharedArrayBuffer` and `Float16Array` keep warning.

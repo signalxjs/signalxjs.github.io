@@ -991,26 +991,46 @@ type ResolvedDirective<T = any, El = any> = [DirectiveDefinition<T, El>, T];
 
 ### AsyncState
 
-The reactive result of `useData` (and, via `all`, the combined state), plus the `match` arm table, the shared fetcher shape, and the read options. `value` is SWR last-good (kept across a same-key `refresh()`, cleared on key change); `loading` is `state === 'pending'` only; `refresh()` never rejects (failures land on `.error`).
+The reactive result of `useData` (and, via `all`, the combined state), plus the `match` arm table, the shared fetcher shape, and the read options. `value` is the best data the cell has — kept across a same-key `refresh()` **and across a failed fetch**, cleared on key change; `loading` is `state === 'pending'` only; `refresh()` never rejects (failures land on `.error`).
+
+`AsyncState<T>` is a discriminated union, so `state`/`hasValue` checks narrow `value` without a cast. Extending it with `interface X extends AsyncState<T>` no longer compiles — intersect instead (`type X<T> = AsyncState<T> & { … }`).
 
 ```ts
 type AsyncStateName = 'idle' | 'pending' | 'ready' | 'refreshing' | 'errored';
 
-interface AsyncState<T> {
-  readonly state: AsyncStateName;
-  readonly value: T | null;
-  readonly error: Error | null;
-  readonly loading: boolean;                 // state === 'pending' ONLY
+type AsyncState<T> =
+  | AsyncIdle<T> | AsyncPending<T> | AsyncReady<T> | AsyncRefreshing<T> | AsyncErrored<T>;
+
+interface AsyncStateBase<T> {                // the shared methods
   match<R>(arms: MatchArms<T, R>): R | undefined;
   refresh(): Promise<void>;                  // never rejects
+}
+
+// Each member narrows state / value / hasValue / error / loading:
+interface AsyncReady<T> extends AsyncStateBase<T> {
+  readonly state: 'ready';
+  readonly value: T;                         // narrowed — no cast
+  readonly hasValue: true;
+  readonly error: null;
+  readonly loading: false;
+}
+interface AsyncErrored<T> extends AsyncStateBase<T> {
+  readonly state: 'errored';
+  readonly error: Error;                     // splits on hasValue: a cell that
+                                             // once succeeded still holds its value
+  readonly loading: false;
 }
 
 interface MatchArms<T, R> {
   idle?: () => R;                            // defaults to `pending`
   pending?: () => R;                         // omitted ⇒ renders nothing
-  error?: (e: Error, retry: () => void, stale: T | null) => R; // omitted ⇒ bubbles to errorScope / app onError
+  error?: (e: Error, ctx: ErrorArmContext<T>) => R; // omitted ⇒ bubbles to errorScope / app onError
   ready: (v: T) => R;                        // required — the only route to a non-null T
 }
+
+type ErrorArmContext<T> =
+  & { retry: () => void }
+  & ({ value: T; hasValue: true } | { value: null; hasValue: false });
 
 type Fetcher<T, Arg> = (arg: Arg, ctx: AsyncFetcherContext) => Promise<T>;
 interface AsyncFetcherContext { signal: AbortSignal; } // pass to fetch(url, { signal })
