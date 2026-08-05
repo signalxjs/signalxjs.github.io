@@ -481,22 +481,49 @@ interface ComponentOptions {
 
 ### AsyncState
 
+`AsyncState<T>` is a **discriminated union**, so a state check narrows `value` with
+no cast:
+
 ```tsx
-interface AsyncState<T> {
-    readonly state: 'idle' | 'pending' | 'ready' | 'refreshing' | 'errored';
-    readonly value: T | null;     // SWR last-good; kept across same-key refresh, cleared on key change
-    readonly hasValue: boolean;    // presence — a resolved null IS a value
+type AsyncState<T> =
+    | AsyncIdle | AsyncPending | AsyncReady<T> | AsyncRefreshing<T> | AsyncErrored<T>;
+
+interface AsyncStateBase<T> {
+    readonly state: AsyncStateName;   // 'idle' | 'pending' | 'ready' | 'refreshing' | 'errored'
+    readonly value: T | null;         // the best data the cell has — see below
+    readonly hasValue: boolean;       // presence — a resolved null IS a value
     readonly error: Error | null;
-    readonly loading: boolean;     // state === 'pending' ONLY (refresh reads state === 'refreshing')
+    readonly loading: boolean;        // state === 'pending' ONLY (refresh reads state === 'refreshing')
     match<R>(arms: MatchArms<T, R>): R | undefined;
-    refresh(): Promise<void>;      // re-run in place; NEVER rejects (failures land on .error)
+    refresh(): Promise<void>;         // re-run in place; NEVER rejects (failures land on .error)
 }
 ```
 
+```tsx
+if (q.state === 'ready') q.value   // T — narrowed
+if (q.hasValue) q.value            // T — narrowed
+```
+
+`value` is **the best data the cell has**, under one rule: kept across a same-key
+`refresh()` *and across a failed fetch*, cleared on key change. So an errored cell
+that once succeeded still holds its last-good value, and `'errored'` genuinely
+splits on `hasValue`.
+
 `value` is not a presence signal: a fetch that legitimately resolves `null` has a
-value, and the cell stays `ready`. Read presence from `state` (`'ready'` or
-`'refreshing'`) or from `hasValue`, which is present on `useData` cells,
-`@sigx/cache` cells, `all()` and SSR-side state.
+value, and the cell stays `ready`. Read presence from `state` or from `hasValue`,
+which is present on `useData` cells, `@sigx/cache` cells, `all()` and SSR-side
+state. `AsyncStateName` is exported.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>Two patterns break under the union.</strong> `q.error && !q.value` no
+    longer means "errored" — an errored cell that once had data still holds it, so
+    content beside an error banner stays on screen instead of blanking. That is the
+    intended SWR posture; to blank deliberately, check `q.state === 'errored'`.
+    And `interface X extends AsyncState<T>` no longer compiles — intersect instead:
+    `type X<T> = AsyncState<T> & { … }`.
+  </div>
+</div>
 
 ### MatchArms
 
@@ -504,10 +531,20 @@ value, and the cell stays `ready`. Read presence from `state` (`'ready'` or
 interface MatchArms<T, R> {
     idle?: () => R;                                    // defaults to `pending`
     pending?: () => R;                                 // omitted ⇒ renders nothing
-    error?: (e: Error, retry: () => void, stale: T | null) => R; // omitted ⇒ bubbles to errorScope / app onError
+    error?: (e: Error, ctx: ErrorArmContext<T>) => R;  // omitted ⇒ bubbles to errorScope / app onError
     ready: (v: T) => R;                                // required — the only route to a present T
 }
+
+type ErrorArmContext<T> =
+    & { retry: () => void }
+    & ({ value: T; hasValue: true } | { value: null; hasValue: false });
 ```
+
+The error arm's second parameter is a **context object**, not positional
+arguments: `error: (e, { retry }) => …`. The last-good value is `ctx.value`,
+guarded by `ctx.hasValue` — so a legitimately-`null` last-good finally reads as
+present. `match` renders the error arm on every `'errored'` state; it never falls
+back to `ready`.
 
 ### AsyncAction
 

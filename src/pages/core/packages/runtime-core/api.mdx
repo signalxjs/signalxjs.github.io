@@ -991,14 +991,20 @@ type ResolvedDirective<T = any, El = any> = [DirectiveDefinition<T, El>, T];
 
 ### AsyncState
 
-The reactive result of `useData` (and, via `all`, the combined state), plus the `match` arm table, the shared fetcher shape, and the read options. `value` is SWR last-good (kept across a same-key `refresh()`, cleared on key change); `loading` is `state === 'pending'` only; `refresh()` never rejects (failures land on `.error`).
+The reactive result of `useData` (and, via `all`, the combined state), plus the `match` arm table, the shared fetcher shape, and the read options. `value` is the best data the cell has — kept across a same-key `refresh()` **and across a failed fetch**, cleared on key change; `loading` is `state === 'pending'` only; `refresh()` never rejects (failures land on `.error`).
+
+`AsyncState<T>` is a discriminated union, so `state`/`hasValue` checks narrow `value` without a cast. Extending it with `interface X extends AsyncState<T>` no longer compiles — intersect instead (`type X<T> = AsyncState<T> & { … }`).
 
 ```ts
 type AsyncStateName = 'idle' | 'pending' | 'ready' | 'refreshing' | 'errored';
 
-interface AsyncState<T> {
+type AsyncState<T> =
+  | AsyncIdle | AsyncPending | AsyncReady<T> | AsyncRefreshing<T> | AsyncErrored<T>;
+
+interface AsyncStateBase<T> {
   readonly state: AsyncStateName;
-  readonly value: T | null;
+  readonly value: T | null;                  // last-good; survives an error
+  readonly hasValue: boolean;                // presence — a resolved null IS a value
   readonly error: Error | null;
   readonly loading: boolean;                 // state === 'pending' ONLY
   match<R>(arms: MatchArms<T, R>): R | undefined;
@@ -1008,9 +1014,13 @@ interface AsyncState<T> {
 interface MatchArms<T, R> {
   idle?: () => R;                            // defaults to `pending`
   pending?: () => R;                         // omitted ⇒ renders nothing
-  error?: (e: Error, retry: () => void, stale: T | null) => R; // omitted ⇒ bubbles to errorScope / app onError
+  error?: (e: Error, ctx: ErrorArmContext<T>) => R; // omitted ⇒ bubbles to errorScope / app onError
   ready: (v: T) => R;                        // required — the only route to a non-null T
 }
+
+type ErrorArmContext<T> =
+  & { retry: () => void }
+  & ({ value: T; hasValue: true } | { value: null; hasValue: false });
 
 type Fetcher<T, Arg> = (arg: Arg, ctx: AsyncFetcherContext) => Promise<T>;
 interface AsyncFetcherContext { signal: AbortSignal; } // pass to fetch(url, { signal })

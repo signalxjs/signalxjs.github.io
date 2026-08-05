@@ -290,9 +290,36 @@ name. A per-request value is the recommended hand-off: it types itself from its
 own setup, and the accessor is the only way to reach it, so there is nothing to
 cast.
 
-There is no disposal in v1, deliberately. On WinterCG runtimes the render's
-scope settles at the shell, so "released once the response has flushed" would
-fire mid-stream; teardown belongs to the app's own handler for now.
+### Disposal
+
+A setup's **second parameter registers teardown**:
+
+```ts code
+const dbConn = perRequest(async (rq, onDispose) => {
+  const conn = await pool.connect();
+  onDispose(() => conn.release());
+  return conn;
+});
+```
+
+Disposers run **LIFO**, each awaited, and a throw is logged and swallowed so one
+bad disposer cannot strand the rest. They run when the request is *really* over,
+which is a different moment per path:
+
+| Path | Disposes at |
+|---|---|
+| Endpoint call | the work promise's settle — **never** the `timeoutMs` race, so a 504 does not yank resources out from under a still-settling handler |
+| `serverStream` | after the generator's `return()` settles, so a `finally` reading a per-request value never races its own teardown |
+| Streamed edge response | **end of body**, via the `keepAlive(until)` seam the fetch handler calls with a body-settle promise |
+
+That last row is why disposal could not exist before: on WinterCG runtimes the
+render's scope settles at the shell, so "released once the response has flushed"
+would have fired mid-stream. `keepAlive` is optional — an older package beside a
+newer renderer degrades to the pre-disposal behaviour rather than breaking.
+
+Ownership is claim-based per store: the endpoint first, then the outermost scope
+entry. A `fn.with({ context })` or otherwise detached store has **no owner** and
+dev-warns; call **`disposeRequestValues(rq)`** yourself to trigger teardown there.
 
 Where `AsyncLocalStorage` is unavailable — workerd without `nodejs_compat` —
 there is no scope to share, so a value is computed per invocation. The guards
