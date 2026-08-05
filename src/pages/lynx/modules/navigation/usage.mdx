@@ -211,7 +211,13 @@ useNavSerializer({
 
 An animated push commits its render immediately but parks the incoming layer off-screen, and holds the slide until the background→main pipeline goes quiet: the screen's mount batch, post-mount effect flushes, native layout and a `<list>`'s initial cell pulls all complete while the outgoing screen is still on screen. Then the slide animates a fully built tree.
 
-The effect is that a heavy destination slides in at vsync cadence instead of stuttering into place. There is **no new API** — this is how animated transitions behave.
+The effect is that a heavy destination slides in at vsync cadence instead of stuttering into place. It needs nothing from you — this is how animated transitions behave.
+
+For work that must **not** run during the slide, there is an API:
+[`useDidAppear()`](/lynx/modules/navigation/api#usedidappear) defers its callback until the
+screen is focused *and* no transition is in flight. `useFocusEffect` fires while the slide is
+still running, and its op batch is applied on the same main thread driving the tween — so
+expensive mount work scheduled on focus starves the animation it is running under.
 
 What to expect in practice:
 
