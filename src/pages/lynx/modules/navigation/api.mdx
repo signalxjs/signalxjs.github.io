@@ -127,7 +127,7 @@ Runs `cb` when the screen gains focus and runs its returned cleanup on blur or u
 function useDidAppear(cb: () => void | (() => void)): void
 ```
 
-The heavy-work sibling of `useFocusEffect`. Runs `cb` only once the screen is focused **and** no transition is in flight; the returned cleanup runs on blur, on a new transition, or on unmount.
+The heavy-work sibling of `useFocusEffect`. Runs `cb` once the screen is focused **and** no transition is in flight — not before, and not on every focus regardless of motion; the returned cleanup runs on blur, on a new transition, or on unmount.
 
 `useFocusEffect` cannot serve this case. `useIsFocused` is `nav.current.key === myKey`, and a push commits the stack immediately — so a focus effect fires while the slide is still running.
 

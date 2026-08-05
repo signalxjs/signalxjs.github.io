@@ -116,6 +116,7 @@ ListMethods.scrollToIndex(el, 12, { align: 'middle', smooth: true });
 identity-stable handle and the List populates it at setup:
 
 ```tsx
+// Module or component scope — NOT inside render. The handle must keep its identity.
 const handle: ListScrollHandle = {};
 
 <List scrollHandle={handle} … />

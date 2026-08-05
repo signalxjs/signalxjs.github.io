@@ -214,8 +214,8 @@ An animated push commits its render immediately but parks the incoming layer off
 The effect is that a heavy destination slides in at vsync cadence instead of stuttering into place. It needs nothing from you — this is how animated transitions behave.
 
 For work that must **not** run during the slide, there is an API:
-[`useDidAppear()`](/lynx/modules/navigation/api#usedidappear) runs its callback only once the
-screen is focused and no transition is in flight. `useFocusEffect` fires while the slide is
+[`useDidAppear()`](/lynx/modules/navigation/api#usedidappear) defers its callback until the
+screen is focused *and* no transition is in flight. `useFocusEffect` fires while the slide is
 still running, and its op batch is applied on the same main thread driving the tween — so
 expensive mount work scheduled on focus starves the animation it is running under.
 
