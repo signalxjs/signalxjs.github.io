@@ -70,6 +70,62 @@ or `@`:
 `@` is reserved for data keys (`['@actor', …]` — see
 [Reads & writes in components](/actors/docs/in-components)).
 
+## The request-context bag
+
+A small string-only key/value bag that rides the call envelope, for **app data** a method needs
+but should not take as an argument — a request id, a tenant hint, a feature flag.
+
+Stamp it at the edge and read it in the method:
+
+```ts
+// in a middleware or policy, server-side
+stampCallBag(rq, { tenant: 'acme', reqId });
+
+// in an actor method
+methods: (ctx) => ({
+    async post(text: string) {
+        log(ctx.bag.reqId, ctx.key, text);
+    },
+}),
+```
+
+Server-side callers can also pass entries explicitly, and explicit wins on conflict:
+
+```ts
+await actor(RoomActor, id).with({ bag: { tenant: 'acme' } }).post(text);
+```
+
+`ctx.bag` is frozen and rebuilt per read, and it is **empty outside a turn**.
+`ctx.actor` and `ctx.publish` hops inherit it; detached [task](/actors/docs/tasks) bodies and
+volatile timer ticks deliberately read it empty, the same way `traceparent` does.
+
+### Caps, and what happens at the edges
+
+| limit | value |
+|---|---|
+| entries | 8 |
+| key length | 64 B |
+| value length | 256 B |
+| total | 1 KiB |
+
+Exported as `CALL_BAG_MAX_*`. The posture differs by who made the mistake: **your own** input
+throws, so you find it in development; a bag arriving **en route** that is malformed or over
+cap is dropped **whole** and silently — never a 400.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    Because an en-route bag drops whole, <strong>a missing entry must read as
+    unauthenticated</strong>, never as "allow". The bag is never populated from a request
+    header — client-settable identity would be an authorization bypass — and it is not where
+    identity belongs at all. Use <a href="/actors/docs/guards"><code>ctx.principal</code></a>
+    for that.
+  </div>
+</div>
+
+The envelope decode rebuilds the bag into a fresh null-prototype object. Between hosts its
+integrity is the envelope's perimeter posture: the cluster HMAC signs the call identity, not
+the body, so run mTLS or a private network between hosts.
+
 ## Pluggable transports
 
 The client proxy never speaks HTTP itself — it delegates to an `ActorTransport`, so batching,

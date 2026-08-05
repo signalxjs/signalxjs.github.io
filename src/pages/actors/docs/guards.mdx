@@ -1,108 +1,184 @@
 ---
-title: Guards
-description: "use:, methodUse: and unguarded — the serverFn guard contract applied to actor methods, run outside the turn sequence on every transport"
+title: Authorization
+description: "authorize, methodAuthorize and allowAnonymous — per-instance policies over ctx.principal, run outside the turn sequence on every transport"
 layout: docs
 category: Core concepts
 order: 140
 ---
 
-# Guards
+# Authorization
 
-<p class="lede">Actor methods are as security-sensitive as server functions, so the build
-requires a decision per actor: a `use:` chain, or a literal `unguarded: true`. There is no
-default.</p>
+<p class="lede">A policy answers one question: may **this** caller run **this**
+operation on **this** actor? Because an actor has an address, the answer can name
+the instance — `op.resource.key` is the actor's key.</p>
 
-## Declaring one
+## The app decides, most actors declare nothing
+
+Authorization is app-wide by default. Point `sigxActors` at your
+[server app](/server/packages/server/usage#the-app) and its policy covers every
+actor you have not spoken about:
 
 ```ts
-import { requireUser } from './guards';
+// vite.config.ts
+sigxActors({ app: '/src/actors/app.ts', serverApp: '/src/server-app.ts' })
+```
+
+```ts
+// src/server-app.ts
+createServerApp({
+    authenticate: (rq) => sessionFrom(rq.request),
+    authorize: requireAuthenticated,   // every actor inherits this
+    codec: principalCodec,             // required for cross-hop propagation
+});
+```
+
+That is the whole setup for the common case. An actor declares a policy only when
+it needs something *different* from the app default.
+
+## Per-instance policies
+
+A policy is core's `ServerPolicy` — `(principal, rq, op) => boolean`, **strict-`true`
+to allow** — and `op.resource` carries the address:
+
+```ts
+type ActorResource = {
+    kind: 'actor';
+    type: string;      // 'Cart'
+    key: string;       // 'u_123'
+    method: string;    // 'checkout'
+};
+```
+
+So the policy every real system wants is one line:
+
+```ts
+// src/policies.ts
+export const ownsIt: ServerPolicy = (p, rq, op) =>
+    p != null && op.resource.key === p.id;
 
 export const CartActor = defineActor({
     type: 'Cart',
-    use: [requireUser],
-    methodUse: {
-        applyDiscount: [requireStaff],   // this method needs more
+    authorize: ownsIt,
+    methodAuthorize: {
+        applyDiscount: requireStaff,   // this one method needs more
     },
     state: () => ({ items: [] as Item[] }),
     methods: (ctx) => ({ /* … */ }),
 });
 ```
 
-Or opt out, explicitly:
+`methodAuthorize` replaces the actor-level policy for the methods it names; it does
+not stack on top of it.
+
+Declaring a deliberately open actor:
 
 ```ts
-defineActor({ type: 'Counter', unguarded: true, /* … */ });
+defineActor({ type: 'Counter', allowAnonymous: true, /* … */ });
 ```
 
-The Vite plugin enforces the choice (`requireGuards: true` by default, `'warn'` while
-migrating). Core 0.14 made the same rule the default for server functions, so this is one
-policy across both — see
-[Actors or server functions?](/actors/docs/actors-or-server-functions).
+`allowAnonymous` waives the **identity gate** only. Middleware and authentication
+still run, and a policy declared alongside it still decides — against a nullable
+principal. The two together are coherent, not contradictory.
 
-## They are the serverFn guard shape
+`sigxActors({ requireAuthorization })` is the build gate, on by default. It asks
+whether an actor has said anything about access; an app-wide default answers for
+every actor at once.
 
-A guard is core's `ServerFnGuard`: `(rq, info) => void`, vetoing by throwing. Anything you
-already wrote for your server functions — a preset, a role check, a rate limiter — works on an
-actor unchanged.
+## Three properties worth stating outright
 
-Three properties are worth stating outright:
+**They run on every transport.** The wire endpoint and in-process `actor()` calls
+both run the policy. You cannot bypass one by calling from the server.
+`info.transport` (`'wire'` or `'in-process'`) tells them apart where that matters,
+while `Type#method` identity stays the same on both.
 
-**They run on every transport.** The wire endpoint and in-process `actor()` calls both run the
-chain. You cannot bypass a guard by calling from the server.
+**They run [outside the turn sequence](/actors/docs/turns).** A slow auth check
+never occupies the actor, so a burst of unauthorized calls cannot queue behind
+each other or block legitimate ones.
 
-**They run [outside the turn sequence](/actors/docs/turns).** A slow auth check never occupies
-the actor, so a burst of unauthenticated calls cannot queue behind each other or block
-legitimate ones.
+**Actor-to-actor calls do not re-run them.** `ctx.actor(Other, key).method()` is
+intra-system: the decision was made at the edge where the request entered. Treat an
+actor method as trusted once it is executing.
 
-**Actor-to-actor calls do not re-run them.** `ctx.actor(Other, key).method()` is intra-system:
-the guard already ran at the edge where the request entered. Treat an actor method as trusted
-once it is executing.
+## ctx.principal
 
-## What a guard can see
-
-A guard receives the request and `{ symbol, name }` — **not** the actor key and not the
-arguments.
-
-That is a real boundary and it shapes the design. "Is this user signed in?" and "does this
-user have the staff role?" are guard questions. "Is this user allowed to post to *this* room?"
-is not — the guard cannot see which room.
-
-For attributed writes, put the identity on the server side of the call:
+The authenticated identity is a first-class slot on the call envelope, and actors
+read it as `ctx.principal`:
 
 ```ts
-// The serverFn knows the session; it passes the identity to the actor.
-export const postMessage = serverFn(async (rq, { room, text }) => {
-    const user = await sessionFrom(rq.request);
-    if (!user) throw new ServerFnError(401, 'Sign in first');
-    return actor(RoomActor, room).post(user.id, text);
-});
+methods: (ctx) => ({
+    async checkout() {
+        audit(ctx.principal?.id, 'checkout', ctx.key);
+    },
+}),
 ```
 
-The `examples/chat` app in the actors repo does exactly this, and documents why.
+It is decoded lazily and memoized, and it carries **unchanged** through
+`ctx.actor` and `ctx.publish` hops and host-to-host — so a downstream actor sees
+whoever entered the system, not the actor that called it.
 
-## The endpoint backstop
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    Cross-hop propagation needs <strong><code>codec</code> on
+    <code>createServerApp</code></strong>. Without one it propagates nothing and
+    dev-warns exactly once — fail-closed at the reader, but easy to miss if you
+    only ever test in one process.
+  </div>
+</div>
 
-`handleActorRequest(request, { host, guard })` keeps a wire-only guard, exactly like the
-serverFn endpoint's. It runs for requests arriving over HTTP and not for in-process calls, so
-it is a backstop for the mount rather than a substitute for `use:`.
+### Identity is not a bag key
 
-## Guards and cacheable reads
+`ctx.principal` and [`ctx.bag`](/actors/docs/wire-protocol) look similar and are
+not interchangeable:
 
-A [cacheable read](/actors/docs/cacheable-reads) still runs its guards on `GET`, and a
-rejection answers `Cache-Control: no-store`. But `public: true` is **refused at definition
-time on a guarded read** — a shared cache would serve one caller's copy to the next, and
-core's contract for a public cache entry is args-only. Without `public`, a declared read is
-still cached per client with `Vary: Cookie`.
+| | carries | can it be forged? |
+|---|---|---|
+| `ctx.principal` | the authenticated identity | **No** — it rides its own envelope slot, unreachable from `.with({ bag })` |
+| `ctx.bag` | app data (a request id, a tenant hint, a feature flag) | it is caller-supplied by design |
+
+Two failure modes follow. A bag key can be **forged** by any caller that can build
+a request, and it can be **dropped** by an author forgetting to stamp it — and a
+missing entry reads as "unauthenticated", which is the one thing an identity
+channel must never be ambiguous about. Identity gets its own slot for exactly
+those reasons; the bag stays for data.
+
+## Jobs authorize at enqueue
+
+A [job](/actors/docs/jobs) outlives the request that started it. A crash-resume
+can happen on another host hours later with nobody waiting, so there is no live
+request to authorize against.
+
+So **`start` is the entry point that decides**, and the detached run body reads a
+snapshot:
+
+```ts
+const run = await ctx.jobs.start(ImportJob, input);   // authorized HERE
+
+// inside the job body:
+job.principal        // the snapshot, persisted with the run
+ctx.principal        // null — by design, there is no request behind a task body
+```
+
+`ctx.principal` being null inside a task body is exactly why `job.principal`
+exists. Read the snapshot, not the ambient identity.
+
+## Cacheable reads
+
+A [cacheable read](/actors/docs/cacheable-reads) still authorizes on `GET`, and a
+denial answers `Cache-Control: no-store`. But `public: true` is **refused at
+definition time on an authorized read** — a shared cache would serve one caller's
+copy to the next, and core's contract for a public cache entry is args-only.
+Without `public`, a declared read is still cached per client with `Vary: Cookie`.
 
 ## Packaged actors
 
 `sigxActors()` excludes `node_modules`, so it cannot see inside a
-[packaged actor](/actors/docs/shipping-actors-in-packages) to enforce the rule. Declaring
-`use:` or `unguarded:` is the package author's responsibility; the host dev-warns when a
-packaged actor declares neither.
+[packaged actor](/actors/docs/shipping-actors-in-packages) to enforce the gate.
+Declaring `authorize` or `allowAnonymous` is the package author's responsibility;
+with a server app configured, the app default covers a package that declares
+nothing.
 
 ## Next steps
 
-- [Wire protocol](/actors/docs/wire-protocol) — where guards sit in a request.
+- [Wire protocol](/actors/docs/wire-protocol) — where authorization sits in a request, and the context bag.
 - [Cacheable reads](/actors/docs/cacheable-reads) — the `public` restriction in context.
-- [Server functions](/server/packages/server/overview) — the guard contract itself.
+- [Server functions](/server/packages/server/usage#the-three-stages) — the pipeline actors inherit.
