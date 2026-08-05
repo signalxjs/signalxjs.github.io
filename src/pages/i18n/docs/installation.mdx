@@ -30,6 +30,8 @@ pnpm add @sigx/i18n
 
 **No `sigx` dependency.** The package never imports the DOM umbrella — not even as an optional peer — so it is importable from a lynx or terminal app without dragging the DOM JSX intrinsics into your program. See [renderer-neutral](/i18n/docs/overview#it-is-renderer-neutral).
 
+**No `Intl` requirement either.** The default formatter resolves interpolation, plurals and selects without `Intl`, so the package works on engines that do not ship it — lynx/PrimJS among them. See [`Intl` is optional too](/i18n/docs/overview#intl-is-optional-too).
+
 ## Install the plugin
 
 ```tsx
