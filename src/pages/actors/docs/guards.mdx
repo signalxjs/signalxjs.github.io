@@ -67,8 +67,9 @@ export const CartActor = defineActor({
 });
 ```
 
-`methodAuthorize` replaces the actor-level policy for the methods it names; it does
-not stack on top of it.
+`methodAuthorize` **ANDs after** `authorize` — it does not replace it. A call to
+`applyDiscount` above must satisfy `ownsIt` *and* `requireStaff`. Policies within an
+array AND together too, so a chain is a conjunction at every level.
 
 Declaring a deliberately open actor:
 
@@ -87,9 +88,9 @@ every actor at once.
 ## Three properties worth stating outright
 
 **They run on every transport.** The wire endpoint and in-process `actor()` calls
-both run the policy. You cannot bypass one by calling from the server.
-`info.transport` (`'wire'` or `'in-process'`) tells them apart where that matters,
-while `Type#method` identity stays the same on both.
+both run the policy. You cannot bypass one by calling from the server. Where the
+distinction matters, a policy reads **`op.fn.transport`** (`'wire'` or
+`'in-process'`); `Type#method` identity stays the same on both.
 
 **They run [outside the turn sequence](/actors/docs/turns).** A slow auth check
 never occupies the actor, so a burst of unauthorized calls cannot queue behind
@@ -155,11 +156,12 @@ const run = await ctx.jobs.start(ImportJob, input);   // authorized HERE
 
 // inside the job body:
 job.principal        // the snapshot, persisted with the run
-ctx.principal        // null — by design, there is no request behind a task body
+ctx.principal        // null — by design, there is no request behind a detached run
 ```
 
-`ctx.principal` being null inside a task body is exactly why `job.principal`
-exists. Read the snapshot, not the ambient identity.
+`ctx.principal` being null inside a detached run is exactly why `job.principal`
+exists. Read the snapshot, not the ambient identity. (The same holds for a
+[task](/actors/docs/tasks) body, for the same reason — no request is behind it.)
 
 ## Cacheable reads
 
