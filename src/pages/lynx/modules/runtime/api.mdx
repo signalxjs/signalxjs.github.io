@@ -340,6 +340,58 @@ function useAnimatedStyle(
 
 Note: the `width` and `height` mappers trigger a native layout pass per frame.
 
+### useAnimatedMethod
+
+The imperative sibling of `useAnimatedStyle`. Binds a `MainThreadRef`'s element to a `SharedValue` and has the main-thread runtime invoke a **named UI method** on every flush boundary where the value changed — same dirty-diffing and derived-value ordering as a style binding, and no thread crossing per frame.
+
+```ts
+function useAnimatedMethod(
+  elRef: MainThreadRef<MainThread.Element | null>,
+  sv: SharedValue<unknown>,
+  methodName: string,
+  opts?: { valueKey?: string; params?: Record<string, unknown> },
+): void;
+function useAnimatedMethod(
+  elRef: MainThreadRef<MainThread.Element | null>,
+  spec: () => AnimatedMethodSpec | null,
+): void;
+
+interface AnimatedMethodSpec {
+  sv: SharedValue<unknown>;
+  methodName: string;                      // e.g. 'setBottomInset'
+  valueKey?: string;                       // default 'value'
+  params?: Record<string, unknown>;        // the SV value wins on collision
+}
+```
+
+The runtime invokes `methodName` on the element with `{ ...params, [valueKey]: value }`. The invoke happens in the same flush pass as style bindings and **after** derived values fold, so binding a `useDerivedValue` result sees the fresh folded value in the same frame.
+
+Reach for it when per-frame state is natively backed and a style write cannot express it without a layout pass. The first consumer is `<list>`'s `setBottomInset`, behind the [`bottomInset`](/lynx/modules/list/api#bottominset) prop.
+
+**Parameters**
+
+- `elRef` — the main-thread ref of the element to invoke on.
+- `sv` — the shared value driving the invoke (static form).
+- `methodName` — the native UI method (static form).
+- `opts.valueKey` / `opts.params` — where the value is written and what is merged around it.
+- `spec` — an accessor returning an `AnimatedMethodSpec` or `null` (reactive form). Use it when the shared value only becomes available after mount — a bottom sheet handing out its reveal SV via a callback prop on first render.
+
+```tsx
+useAnimatedMethod(listRef, () =>
+  revealSV.value
+    ? { sv: revealSV.value, methodName: 'setBottomInset',
+        valueKey: 'inset', params: { pin: true } }
+    : null,
+);
+```
+
+Two behaviours differ from a style binding:
+
+- **A method binding stays dirty while its element is unmounted or unresolved**, and applies on a later flush. A style binding can tolerate a dropped frame because the next write re-applies — but a producer like the keyboard lift may settle once and never write again, and that value must not strand.
+- **Failures are fire-and-forget.** An element whose host widget does not know the method degrades to a no-op — which is how web hosts without the native subclass behave.
+
+The wire ops are `REGISTER_AV_METHOD_BINDING` / `UNREGISTER_AV_METHOD_BINDING`.
+
 ### useGestureDetector
 
 Attaches a gesture (or composed gesture) to the element pointed at by `elRef`. Walks composed gestures into unique base gestures; on `onMounted` pushes `SET_GESTURE_DETECTOR` per base (op emit is deferred so the `SET_MT_REF` op applies first); on `onUnmounted` pushes `REMOVE_GESTURE_DETECTOR`.
