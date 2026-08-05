@@ -32,25 +32,66 @@ function serverFn<S = void, R = unknown>(
 ): ServerFnCallable<[S] extends [void] ? [] : [S], Awaited<R>>;
 ```
 
-The client stub is `(...args) => Promise<R>` — the context is server-only and never passed by callers. `ServerFnOptions` carries `input` (a Standard Schema), `use` (guards), `handler`, `invalidates`, `cache`, `form`, `id` and `unguarded` — see [Authoring](/server/packages/server/usage#options-form).
+The client stub is `(...args) => Promise<R>` — the context is server-only and never passed by callers. `ServerFnOptions` carries `input` (a Standard Schema), `authorize` (policies), `allowAnonymous`, `handler`, `invalidates`, `cache`, `form` and `id` — see [Authoring](/server/packages/server/usage#options-form).
 
-### serverFnPreset
+### createServerApp
 
 ```ts
-type ServerFnPreset = typeof serverFn & { stream: typeof serverStream };
+function createServerApp(config: ServerAppConfig): ServerApp;
 
-function serverFnPreset(base: { use: ServerFnGuard[] }): ServerFnPreset;
+interface ServerAppConfig {
+  middleware?: ServerMiddleware[];       // always runs, every transport, pre-decode
+  authenticate?: (rq: ServerFnContext) => Principal | null | Promise<Principal | null>;
+  authorize?: ServerPolicy | ServerPolicy[];   // the app-wide default
+  codec?: PrincipalCodec;                // cross-hop propagation (@sigx/actors)
+  origin?: OriginPolicy;                 // ─┐
+  maxBodyBytes?: number;                 //  │ endpoint posture, stated once and
+  maxUrlBytes?: number;                  //  │ inherited by every mount and by
+  maxResponseBytes?: number;             //  │ bare handleServerFnRequest calls;
+  timeoutMs?: number;                    //  │ an explicit per-call value wins
+  onError?: (err: unknown, info: ServerFnInfo) => void;  // ─┘
+  authorizeBoundary?: (d: BoundaryDescriptor, rq: ServerFnContext) => boolean;
+}
+
+interface ServerApp {
+  serverFns(mount?: ServerFnRequestOptions): (request: Request) => Promise<Response>;
+  dispose(): void;
+}
 ```
 
-Returns `serverFn`'s exact overloads bound to a shared guard chain, plus the `serverStream` twin at `.stream`. The array is copied at definition; preset guards run before the function's own `use:`. **Same-module only** — exporting a preset is a build warning and using one in the inline form is a build error, so share the guard *array* across modules. See [Sharing a guard chain](/server/packages/server/usage#sharing-a-guard-chain).
+The one user-owned value holding everything app-wide. `app.serverFns(mount)` returns a plain handler bound to the app — routing stays in the platform entry, and `matchesServerFn` is still the predicate. The app decides what every operation passes *through*, never which handler answers a URL.
+
+Mounts claim their `base` namespace: overlapping prefixes **throw at mount time**, because everything after the base *is* the symbol. Stamping the `__SIGX_SERVER_APP__` seam is last-wins, and `dispose()` releases it only if it still holds this app's stamp.
+
+### ServerPolicy
+
+```ts
+type ServerPolicy = (principal: Principal | null, rq: ServerFnContext, op: ServerOp) => boolean;
+
+function principal(rq: ServerFnContext): Principal | null;    // memoized per request
+function requirePrincipal(rq: ServerFnContext): Principal;    // throws 401 when absent
+function setPrincipal(rq: ServerFnContext, p: Principal | null): void;
+
+const requireAuthenticated: ServerPolicy;                     // the built-in default
+```
+
+**Strict-`true` to allow** — any other return is a 403, or a 401 when the principal is null. Policies run **after** `input` validation, so `op.input` is the trusted, parsed resource. (The old `use:` guards ran *before* validation, which is why they could never safely authorize on the payload.)
+
+`principal(rq)` is memoized once per request store, so one SSR render with five cells decodes the session once.
 
 ### perRequest
 
 ```ts
-function perRequest<T>(setup: (rq: ServerFnContext) => T): (rq: ServerFnContext) => T;
+function perRequest<T>(
+  setup: (rq: ServerFnContext, onDispose: (fn: () => void | Promise<void>) => void) => T
+): (rq: ServerFnContext) => T;
+
+function disposeRequestValues(rq: ServerFnContext): Promise<void>;
 ```
 
-Declares a value derived from the request and computed at most once per request, shared by every guard, handler and nested in-process call in that flow. Returns the accessor, which is the only way to reach the value; values compose by calling each other. A rejected setup stays rejected for the request. See [Per-request values](/server/packages/server/usage#per-request-values).
+Declares a value derived from the request and computed at most once per request, shared by every middleware, policy, handler and nested in-process call in that flow. Returns the accessor, which is the only way to reach the value; values compose by calling each other. A rejected setup stays rejected for the request.
+
+The setup's second parameter registers teardown. Disposers run LIFO, each awaited, throws logged and swallowed. Ownership is claim-based per store — the endpoint first, then the outermost scope entry; a detached store (`fn.with({ context })`) has no owner, dev-warns, and is the app's job to tear down via `disposeRequestValues(rq)`. See [Per-request values](/server/packages/server/usage#per-request-values).
 
 ### serverStream
 
@@ -63,14 +104,31 @@ function serverStream<A extends unknown[], T>(
   options: ServerStreamOptions<A, T>
 ): ((...args: A) => AsyncIterable<T>) & WrappedServerFn;
 
+// multi-argument options form
 interface ServerStreamOptions<A extends unknown[], T> {
-  use?: ServerFnGuard[];
-  unguarded?: true;
+  authorize?: ServerPolicy | ServerPolicy[];
+  allowAnonymous?: true;
   handler(rq: ServerFnContext, ...args: A): AsyncGenerator<T>;
+}
+
+// single-input options form — selected by declaring `input`
+interface ServerStreamInputOptions<S, T> {
+  input: StandardSchemaV1<S>;
+  authorize?: ServerPolicy | ServerPolicy[];
+  allowAnonymous?: true;
+  handler(rq: ServerFnContext, input: S): AsyncGenerator<T>;
 }
 ```
 
-Streams yield as NDJSON; a string stream plugs into [`useStream`](/core/docs/data-loading). The options form has no `input` — validate at the top of the generator. A guard veto surfaces on the first pull.
+Streams yield as NDJSON; a string stream plugs into [`useStream`](/core/docs/data-loading). An authorization denial surfaces on the first pull.
+
+**Declaring `input` selects the single-input form.** Any Standard Schema works (Zod, Valibot, ArkType). The schema runs after the policies and **before the first chunk**, on every transport:
+
+- Over the wire a rejection is a buffered JSON `400 { issues }` — headers are still writable and no stream byte has been sent.
+- In-process it rejects on the first pull, exactly where an authorization denial surfaces.
+- The stream then takes **one** argument; extra wire args are a 400, and the *validated* value (not the raw wire arg) reaches the handler.
+
+Omitting `input` never falls back to the handler's annotation — no `input` means the multi-argument form.
 
 ### Per-call options
 
@@ -134,6 +192,19 @@ interface ServerFnContext {
 }
 ```
 
+### ServerFnInfo
+
+```ts
+interface ServerFnInfo {
+  /** Pure identity. `''` means "no build stamp" — never a transport signal. */
+  symbol: string;
+  name: string;
+  transport: 'wire' | 'in-process';
+}
+```
+
+`transport` is the discriminator for middleware that should only apply to real HTTP traffic — a rate limiter's gate line is `if (fn.transport !== 'wire') return`. Do not infer it from `symbol`.
+
 ### Errors
 
 ```ts
@@ -149,7 +220,35 @@ function isServerFnError(error: unknown): error is ServerFnError;
 ## Runtime entries
 
 - **`@sigx/server/node`** — `createServerFnHandler(options)` (a connect-style middleware) and `runWithServerFnContext(source, fn)`, where `source` is a `Request` or a partial `{ request?, locals? }`. Nested scopes for the same request (same URL and method) merge, so `runWithServerFnContext({ locals }, …)` pre-seeds a render that opens its own inner scope.
-- **`@sigx/server/server`** — WinterCG/edge: `handleServerFnRequest(request, options)`, `matchesServerFn(request, base?)`.
+- **`@sigx/server/server`** — WinterCG/edge: `handleServerFnRequest(request, options)`, `matchesServerFn(request, base?)`. Both are also re-exported from the package root, so a platform entry that already imports `createServerApp` needs no second import path.
 - **`@sigx/server/plugin`** — the app-plugin face: `serverPlugin({ transport?, types? })`, `registerWireTypeHandlers(handlers)`. The `types` option registers [`@sigx/serialize`](/server/packages/serialize/overview) handlers for the RPC wire **and** the SSR state registry in one call.
+- **`@sigx/server/testing`** — `createTestServerFnContext(init?, { principal })` and `stubServerApp(config)`. See [Testing](#testing) below.
 
 See [Deployment & security](/server/packages/server/deployment) for how these are mounted.
+
+## Testing
+
+```ts
+import { createTestServerFnContext, stubServerApp } from '@sigx/server/testing';
+
+stubServerApp({ authenticate: () => ({ id: 'u_1', roles: ['staff'] }) });
+
+const rq = createTestServerFnContext({ url: 'http://localhost/checkout' });
+await placeOrder.with({ context: rq })(cart);
+```
+
+`createTestServerFnContext(init?)` builds a real, `Request`-backed `ServerFnContext` (default `http://localhost/`) with none of the ceremony: `rq.request` and `rq.url` never throw the detached-context error, `rq.status(code)` records to a readable `.statusCode` instead of dev-warning, and caller `locals` keep their identity — one factory context reused across several `fn.with({ context: ctx })` calls is **one** request store, while two contexts are two.
+
+`stubServerApp(config)` stamps the app seam for a test. Because the runtime is fail-closed, a `serverFn` under no app **denies with 401**, so a unit test that exercises a handler needs either a stubbed app or a `allowAnonymous: true` declaration.
+
+## Extending the pipeline
+
+`ServerFeatureContext` is the seam for an endpoint family *other* than `serverFns` — `@sigx/actors` is the first — so two families cannot drift apart on the auth path. It exposes `prelude` (middleware → authenticate → identity gate), `enter` (the same, from a raw `Request`), `authorize` (carrying `op.resource`, for per-instance policies), plus the app's `posture`, its `principalCodec`, and `claimBase`.
+
+```ts
+import { serverFeature } from '@sigx/server';
+
+const feature = serverFeature();          // or app.feature() from a ServerApp
+```
+
+Both resolve `__SIGX_SERVER_APP__` per call, so a feature can hold one at module scope and a call site with no platform value in scope still runs the whole pipeline. These are the same functions the serverFn path runs, not a second implementation — fail-closed throughout.

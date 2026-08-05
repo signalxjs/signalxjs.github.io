@@ -13,6 +13,18 @@ content-hashed id derived from the function. You wire that endpoint once per
 runtime; everything else — validation, error masking, the security gate — is the
 same everywhere.
 
+**The URL is percent-free.** A stable symbol spends as real path segments, so it
+reads back as what you wrote:
+
+```
+POST /_sigx/fn/@acme/api/src/cart.server.ts/addToCart
+POST /_sigx/fn/cart/add                        # serverFn({ id: 'cart/add' })
+```
+
+That also retires a deploy hazard: nothing in front of the app has to preserve
+encoded slashes any more. A proxy or CDN that decodes or merges them no longer
+mangles these routes.
+
 ## Development
 
 Zero config. Add the `sigxServer()` plugin from `@sigx/vite/server` to your Vite
@@ -31,18 +43,27 @@ export default defineConfig({
 ```
 
 `sigxServer()` options: `include` (default `**/*.server.{ts,tsx}`), `exclude`,
-`base` (default `/_sigx/fn`), `guard` (a root-relative module path applied to
-every function), `origin`, `maxBodyBytes` and `requireGuards` — the same security
-knobs described below, applied in dev too.
+`base` (default `/_sigx/fn`), `serverApp` (a root-relative path to your
+[`createServerApp`](/server/packages/server/usage#the-app) module), and the full
+endpoint posture — `origin`, `maxBodyBytes`, `maxUrlBytes`, `maxResponseBytes`,
+`timeoutMs` and `onError` — so dev runs the same knobs described below.
 
-`requireGuards` defaults to `true` and fails the build when an extracted
-`serverFn` or `serverStream` declares no guard chain. Set it to `'warn'` to list
-offenders without failing, or `false` to opt out. See
-[Guards are required](/server/packages/server/usage#guards-are-required).
+```js
+sigxServer({ serverApp: '/src/server-app.ts' })
+```
 
-Note the division of labour: `guard` is a **wire-only** check the endpoint runs,
-so it can't cover in-process SSR calls. A function's own `use:` chain is what
-runs on every transport, which is why `requireGuards` asks for that one.
+Dev loads that module eagerly through the SSR module runner and re-evaluates it
+after edits, so the app-wide pipeline is live in development rather than
+production-only. Production builds inject one side-effect import at the top of
+`virtual:sigx-server-fns`.
+
+The endpoint-level `guard` option is gone. App `middleware` runs at the same
+pre-decode slot **and** reaches in-process SSR calls, which the wire-only `guard`
+never could; a genuinely wire-only concern is one line in the middleware body:
+
+```ts
+if (fn.transport !== 'wire') return;
+```
 
 ## Production (Node)
 
@@ -59,7 +80,6 @@ const { serverFns } = await import('./dist/server/sigx-server-fns.js');
 
 app.use(createServerFnHandler({
   functions: serverFns,     // the build's registry chunk — never ambient
-  guard: requireSession,    // optional app-wide auth seam
 }));
 app.use(createRequestHandler({ /* your document handler, unchanged */ }));
 ```
@@ -107,8 +127,11 @@ by default. You get all of this without opting in:
   emits CORS headers.
 - **Origin check** — default `'same-origin'`: the `Origin` header must match the
   request's origin.
-- **A `guard` hook** runs before *every* function, the place for app-wide
-  authentication.
+- **A fail-closed pipeline** — middleware, then authentication, then the identity
+  gate, all *before* the wire payload is revived. A function that declares neither
+  `authorize:` nor `allowAnonymous: true`, under no configured app, denies with
+  `401` rather than running open. An anonymous attacker's payload never reaches
+  the codec or the validator.
 - **Body & URL limits** — bodies are capped at `maxBodyBytes` (default 1 MiB)
   during the read; GET reads are capped at `maxUrlBytes` (default 8 KiB → `414`).
 - **Prototype-pollution-safe parsing** on both the client and server sides.
@@ -124,20 +147,29 @@ by default. You get all of this without opting in:
 
 | Option | Default | Purpose |
 |---|---|---|
-| `resolve` | — | **Required.** Symbol → wrapped function. Return null/undefined for unknown symbols; the stub surfaces that as a version-skew error. |
-| `guard` | — | Runs before every function reached through **this endpoint**. See the note below. |
+| `resolve` | — | **Required.** Symbol → wrapped function. Return null/undefined for unknown symbols; the stub surfaces that as a version-skew error. A **throwing** `resolve` is masked like any other failure — it does not leak. |
+| `base` | `/_sigx/fn` | The mount prefix. Everything after it *is* the symbol, so pass the same value you gave `sigxServer({ base })` — `serverFnBase` from `virtual:sigx-server-fns` is the single source of truth. Overlapping mounts throw at mount time. |
 | `origin` | `'same-origin'` | `'verify-when-present'`, an allowlist, or `false`. |
-| `maxBodyBytes` | 1 MiB | Body cap, enforced while reading. |
-| `maxUrlBytes` | 8 KiB | Cap on a GET read's encoded query string → `414`. Sits under mainstream proxies' request-line caps. |
+| `maxBodyBytes` | 1 MiB | Body cap, enforced while reading. An error **mid-read** is a `400`, not a 500 — a truncated upload is the caller's problem. |
+| `maxUrlBytes` | 8 KiB | Cap on a GET read's query string → `414`. Sits under mainstream proxies' request-line caps. |
+| `maxResponseBytes` | none | Opt-in **outbound** cap — the missing analog of `maxBodyBytes`, for a function whose result is unbounded (an unfiltered query, a runaway generator). Measures actual UTF-8 bytes, never `.length`. A breach is a masked 500 through `onError`. |
 | `onError` | — | Observability seam for **masked** failures. |
-| `timeoutMs` | none | Upper bound on guard + handler. |
-| `renderBoundaries` | — | Single-flight boundary refresh; `createBoundaryRefresh` from [`@sigx/resume/server`](/server/packages/resume/api) builds one. |
+| `timeoutMs` | none | Upper bound on the middleware + handler. Note the timeout race never triggers request-value disposal — a 504 does not yank resources from a still-settling handler. |
+| `renderBoundaries` | — | Single-flight boundary refresh; `createBoundaryRefresh` from [`@sigx/resume/server`](/server/packages/resume/api) builds one. **Required for boundary refresh to happen at all** — omitting it fails silently. |
+| `authorizeBoundary` | — | Vetoes ONE boundary descriptor under the request's principal, after the deps ∩ `invalidates` gate. Strict-`true`; a deny drops that descriptor silently, a throw drops the whole refresh. The mutation is never affected. |
+
+Every posture option above is also settable once on
+[`createServerApp`](/server/packages/server/usage#the-app) and inherited by every
+mount and by bare `handleServerFnRequest` calls; an explicit per-call value wins.
+
+The symbol registry is a **null-prototype** object, so a symbol named
+`__proto__` or `constructor` cannot reach anything but a real registration.
 
 #### `onError`
 
-Called for every **masked** failure — any non-`ServerFnError` throw from a guard
-or handler, timeouts included — in dev *and* production, **before** the client
-response is built:
+Called for every **masked** failure — any non-`ServerFnError` throw from
+middleware, a policy, `resolve` or the handler, timeouts included — in dev *and*
+production, **before** the client response is built:
 
 ```ts
 handleServerFnRequest(request, {
@@ -157,7 +189,7 @@ the response.
 
 #### `timeoutMs`
 
-An upper bound on guard + handler, in milliseconds:
+An upper bound on the middleware pipeline + handler, in milliseconds:
 
 ```ts
 handleServerFnRequest(request, { resolve, timeoutMs: 10_000 });
@@ -174,13 +206,12 @@ side instead.
 
 There is no default: without `timeoutMs`, a handler runs until it settles.
 
-> **`guard` here is wire-only.** It runs for endpoint requests — POST, GET reads,
-> form posts, streams — and never for an in-process SSR-time call, which does not
-> enter the handler at all. A chain that must hold on *every* transport belongs in
-> the definition: `use:` per function, or one
-> [`serverFnPreset({ use })`](/server/packages/server/usage#sharing-a-guard-chain)
-> per module. Use this hook as the wire-level backstop, not as the app's only
-> authorization.
+> **Everything here is app-wide, not per-transport.** Configure the posture once
+> on [`createServerApp`](/server/packages/server/usage#the-app) and every mount
+> inherits it, in-process SSR calls included — there is no longer a wire-only
+> layer to keep in sync with a definition-level one. Per-operation authorization
+> stays on the function, as
+> [`authorize:`](/server/packages/server/usage#writing-a-policy).
 
 ### Relaxing a default — deliberately
 

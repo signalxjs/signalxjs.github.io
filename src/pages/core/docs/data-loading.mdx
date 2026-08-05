@@ -22,7 +22,7 @@ Plus **`useStream(key, source)`** for progressive, token-at-a-time text.
 
 Every read has a **key** — data always has identity. The key is the reactive trigger, the cache / SSR identity, and the fetcher's input, all at once. The fetcher runs untracked; only the key getter is reactive, so anything that should re-run the fetch belongs in the key.
 
-`useData` returns a reactive `AsyncState<T>` with a `state` of `idle | pending | ready | refreshing | errored`, the last-good `value`, a `hasValue` flag, the `error`, a `loading` flag (`state === 'pending'` only), a `match()` dispatcher, and a `refresh()` method.
+`useData` returns a reactive `AsyncState<T>` with a `state` of `idle | pending | ready | refreshing | errored`, the last-good `value`, a `hasValue` flag, the `error`, a `loading` flag (`state === 'pending'` only), a `match()` dispatcher, and a `refresh()` method. It is a discriminated union, so `if (q.state === 'ready')` or `if (q.hasValue)` narrows `value` to `T` with no cast.
 
 ```tsx code preview live
 import { component, render, useData } from 'sigx';
@@ -40,7 +40,7 @@ const Joke = component(() => {
         <div style="padding: 16px;">
             {joke.match({
                 pending: () => <p>Loading…</p>,
-                error: (e, retry) => (
+                error: (e, { retry }) => (
                     <p>Failed: {e.message} <button onClick={retry}>Retry</button></p>
                 ),
                 ready: (text) => <p>{text}</p>,
@@ -68,10 +68,38 @@ The fetcher receives the resolved key as its first argument and an `AbortSignal`
 |---|---|---|
 | `idle` | conditional fetch not started | defaults to `pending` if omitted |
 | `pending` | nothing to show yet | omitted ⇒ renders nothing while pending |
-| `error(e, retry, stale)` | fetch failed | `stale` is the last-good value (for "keep content + toast"); omitted ⇒ bubbles to an [error scope](/core/docs/error-handling) |
+| `error(e, ctx)` | fetch failed | `ctx.retry` re-runs; `ctx.value`/`ctx.hasValue` are the last-good (for "keep content + toast"); omitted ⇒ bubbles to an [error scope](/core/docs/error-handling) |
 | `ready(value)` | the happy path | **required** |
 
+The error arm's second parameter is a **context object**, not positional arguments — destructure what you need:
+
+```tsx code
+error: (e, { retry }) => <Banner error={e} onRetry={retry} />,
+
+// The last-good value, if the cell ever had one:
+error: (e, ctx) => (
+    <>
+        <Banner error={e} onRetry={ctx.retry} />
+        {ctx.hasValue && <Table rows={ctx.value} />}
+    </>
+),
+```
+
 You never have to use `match` — `state`, `value`, `error` and `loading` are plain reactive reads — but it keeps the four states exhaustive.
+
+### An error keeps the last-good value
+
+`value` survives a failed fetch. A cell that succeeded once and then errored still
+holds its data, so content next to an error banner stays on screen instead of
+blanking — the SWR posture. `'errored'` splits on `hasValue`: a cell that never
+succeeded has `value: null`, `hasValue: false`.
+
+Two consequences worth knowing:
+
+- **`q.error && !q.value` no longer means "errored"**, because an errored cell may
+  well have a value. To blank deliberately, check `q.state === 'errored'`.
+- **Retrying from errored-after-success goes to `'refreshing'`, not `'pending'`** —
+  no skeleton flash over content the user can still see.
 
 ### Presence is not the value
 

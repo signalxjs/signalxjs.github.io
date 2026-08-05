@@ -45,13 +45,20 @@ before the document render — the scaffold carries this block as a comment:
 
 ```ts
 import { handleServerFnRequest, matchesServerFn } from '@sigx/server/server';
+import { createBoundaryRefresh } from '@sigx/resume/server';
 // virtual:sigx-server-fns maps each symbol to a LAZY FACTORY — resolve
-// invokes it to get the server function.
-import { serverFns } from 'virtual:sigx-server-fns';
+// invokes it to get the server function. `serverFnBase` is the mount path
+// the build used: pass it to both, so they cannot disagree.
+import { serverFns, serverFnBase } from 'virtual:sigx-server-fns';
 
-if (matchesServerFn(request)) {
+// Module scope, built once. Omit it and boundary refresh silently never runs.
+const renderBoundaries = createBoundaryRefresh({ components: { /* … */ } });
+
+if (matchesServerFn(request, serverFnBase)) {
     return handleServerFnRequest(request, {
-        resolve: (symbol) => serverFns[symbol]?.() ?? null
+        base: serverFnBase,
+        resolve: (symbol) => serverFns[symbol]?.() ?? null,
+        renderBoundaries
     });
 }
 return handler(request);
