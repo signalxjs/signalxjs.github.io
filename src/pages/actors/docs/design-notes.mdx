@@ -26,15 +26,17 @@ single-node.
 **String keys.** `POST` by default, with `GET` for methods that declare
 [`reads:`](/actors/docs/cacheable-reads). No form posts or 303 PRG yet.
 
-**No WebSocket or SSE push layer** for the public wire. NDJSON covers server→client both per
-call ([`streams:`](/actors/docs/streams)) and multiplexed per page
-([live reads](/actors/docs/live-reads)).
+**The default public wire is plain HTTP**, no push layer required: NDJSON covers
+server→client both per call ([`streams:`](/actors/docs/streams)) and multiplexed per page
+([live reads](/actors/docs/live-reads)). A socket is an *option*
+([`@sigx/actors-ws`](/actors/packages/actors-ws/overview)), never a requirement — the wire has
+to work over the one protocol every runtime and every proxy already agrees on.
 
-That is a limit of the *client-facing* mount, and it has a structural cause:
-`ActorRoute.handle` returns a `Response`, which cannot express a Node WebSocket upgrade — that
-needs the raw socket. Workers can express it. It is also why
-[`@sigx/actors-ws`](/actors/packages/actors-ws/overview) attaches to your server rather than
-contributing a route.
+The socket transport attaches to your server rather than contributing a route, and that is
+structural: `ActorRoute.handle` returns a `Response`, which cannot express a Node WebSocket
+upgrade — that needs the raw socket. On Workers a 101 *is* a `Response`, which is why
+[`workerSocket()`](/actors/packages/actors-cloudflare/overview) can be an ordinary route
+contribution there.
 
 ## Topic delivery is best-effort
 

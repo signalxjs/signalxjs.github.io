@@ -1,0 +1,106 @@
+---
+title: Socket sessions
+description: "createActorSocketSession — one session per connection, the upgrade-time posture it pins, the caps HTTP used to give implicitly, and session lifetime"
+layout: docs
+category: Calling actors
+order: 260
+---
+
+# Socket sessions
+
+<p class="lede">A `Request` in, a send and a close callback out. That is the whole seam, which
+is why `ws`, socket.io, uWS, Bun, Deno and a Durable Object all drive the same core.</p>
+
+```ts
+import { createActorSocketSession } from '@sigx/actors/server';
+
+const session = await createActorSocketSession({
+    host,
+    request,                                   // the UPGRADE request
+    send: (message) => socket.send(message),
+    close: (code, reason) => socket.close(code, reason),
+});
+
+socket.on('message', (data) => session.handle(String(data)));
+socket.on('close', () => session.close());
+```
+
+`session.handle(message)` never throws — a protocol breach closes the socket through your
+`close` callback instead. `session.close()` aborts every in-flight call and is idempotent.
+
+Most people never call this directly:
+[`attachActorSocket`](/actors/packages/actors-ws/installation#the-node-adapter) wraps it for
+Node, and [`workerSocket()`](/actors/packages/actors-cloudflare/overview) for Workers.
+
+## What pins at the upgrade, and what does not
+
+**Origin is checked once, at the upgrade.** This is the one check that cannot move to
+per-message, because the cookies ride the upgrade: a browser will open a cross-origin
+WebSocket with credentials attached and **no preflight** to stop it. The policy is
+`posture.origin ?? 'same-origin'` — the same contract as `ServerFnRequestOptions.origin`.
+
+**Identity is pinned once**, from the upgrade request's cookies.
+
+**The full prelude re-runs on every message.** Middleware may be a rate limiter, so it has to
+see each call; authentication itself stays memoized on the connection.
+
+A refused upgrade — origin, or authentication — answers before serving a byte.
+
+## Calls
+
+Unary calls, streams and cancellation all ride the one connection, with a per-call deadline
+from `posture.timeoutMs`. Middleware sees per-call `locals`, but `responseHeaders` and
+`status()` are **inert**: there is no response to put a header on.
+
+Guards reach the pipeline through the same single door every transport uses —
+`enterActorRequest()`, `actorPosture()` and `actorPrincipal()`.
+
+## The caps HTTP gave you for free
+
+An HTTP mount gets body limits, connection limits and timeouts from the server around it. A
+socket has none of that, so the session states them:
+
+| Option | Default | What it does |
+|---|---|---|
+| `maxMessageBytes` | `posture.maxBodyBytes ?? 1 MiB` | oversized message closes **1009**. `0` disables |
+| `maxConcurrent` | `256` | most calls in flight at once; excess **fails the call with 429**, never the connection. `0` disables |
+| `maxSubscriptions` | `256` | most live subscriptions this connection may hold |
+| `pingMs` | `30_000` | outbound keepalive after this much send-silence. `0` disables |
+
+An unparseable message closes **1003**.
+
+`maxSubscriptions` is validated at construction, not at first use — a security bound must not
+be disabled by a typo. The connection is the right unit for it, because the connection is what
+actually costs activations: over one socket a page can hold thousands of in-flight calls, each
+able to force an activation.
+
+## Session lifetime
+
+Both default to `0` (off), and both are validated at construction.
+
+**`revalidateMs`** re-runs authentication against the **pinned upgrade request** on a fresh
+context every interval, and closes **1008** when it no longer stands: the authenticate hook
+throws, a previously-authenticated connection comes back anonymous, or the identity *changes*
+— a swap mid-connection is a reconnect, not a mutation.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>Its honest contract is narrow.</strong> It answers "are the credentials presented
+    at upgrade still valid" — never "what would the browser send now". A rotated cookie is
+    invisible until the next connection.
+  </div>
+</div>
+
+**`maxConnectionMs`** caps one connection's lifetime and closes 1008 at the cap. It is also
+the credential-refresh mechanism, precisely because the reconnect is a fresh upgrade carrying
+the browser's **current** cookies. Subscriptions re-establish over it; in-flight calls fail
+un-retried, as on any drop.
+
+**Set one of them in any app with sign-out or short-lived sessions.** With both off, a
+connection authenticated an hour ago is still trusted.
+
+## Next steps
+
+- [`@sigx/actors-ws`](/actors/packages/actors-ws/overview) — the client transport and the Node adapter.
+- [Observability](/actors/docs/observability#socket-sessions) — `socketStats()`.
+- [Wire protocol](/actors/docs/wire-protocol#the-socket-wire) — the messages themselves.

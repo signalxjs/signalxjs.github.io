@@ -1,6 +1,6 @@
 ---
 title: Entry points
-description: "The eleven subpath exports of @sigx/actors, what each contains and which runtimes each is safe on"
+description: "The twelve subpath exports of @sigx/actors, what each contains and which runtimes each is safe on"
 layout: docs
 category: Reference
 order: 800
@@ -8,7 +8,7 @@ order: 800
 
 # Entry points
 
-<p class="lede">`@sigx/actors` is one package with eleven subpaths. The split is about what may
+<p class="lede">`@sigx/actors` is one package with twelve subpaths. The split is about what may
 reach a browser and what may reach a Worker — not about tree-shaking.</p>
 
 | Entry | Contents |
@@ -21,7 +21,8 @@ reach a browser and what may reach a Worker — not about tree-shaking.</p>
 | `@sigx/actors/app` | `actorsPlugin()`, `useActorState`, `useActorAction` — the sigx integration, and the only entry that imports `@sigx/runtime-core` |
 | `@sigx/actors/job` | `defineJob` — durable long-running operations |
 | `@sigx/actors/cluster` | `cluster()`, `clusterPlacement`, `clusterStats`, `handleHostRequest`, `memoryClusterHub`, provider seams — WinterCG-clean |
-| `@sigx/actors/cluster/frames` | the shared frame codec, for transport authors |
+| `@sigx/actors/cluster/frames` | the shared frame codec, for host-transport authors |
+| `@sigx/actors/socket-wire` | the client-facing socket protocol and codec, for adapter authors — WinterCG-clean |
 | `@sigx/actors/vite` | `sigxActors()`, `extractActors` |
 | `@sigx/actors/vite-client` | ambient types for `virtual:sigx-actors` (types only) |
 
@@ -43,15 +44,17 @@ normally prevents; if you have reached for it in shared code, you want `@sigx/ac
 
 | Entry | Budget |
 |---|---|
-| `@sigx/actors` | 3.4 kB (`{ actor }` alone ≤ 2 kB) |
-| `./client` | 5 kB |
-| `./app` | 5 kB |
-| `./job` | 3 kB |
-| `./server` | 6 kB |
-| `./cluster` | 12 kB |
-| `./cluster/frames` | 4 kB |
+| `@sigx/actors` | 4.4 kB (`{ actor }` alone ≤ 2 kB) |
+| `./client` | 5 kB (≤ 2.3 kB with no router pulled in) |
+| `./app` | 6.5 kB |
+| `./job` | 3.1 kB |
+| `./server` | 8 kB |
+| `./cluster` | 14.2 kB |
+| `./cluster/frames` | 4.1 kB |
+| `./socket-wire` | 2.5 kB |
 
-Enforced in CI by `size-limit`.
+Enforced in CI by `size-limit`, with the tree-shaking guards as their own entries — so a
+change that quietly drags the router into a bundle that never asked for one fails the build.
 
 ## Dual dev and production builds
 

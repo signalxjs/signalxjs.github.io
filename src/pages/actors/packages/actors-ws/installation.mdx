@@ -1,6 +1,6 @@
 ---
 title: "Installation"
-description: "Mounting the upgrade handler, why advertiseUrl is a function, and attach() versus attachHostUpgrade()"
+description: "Wiring socketTransport on the client and attachActorSocket on Node, the session options, and recipes for ws, socket.io, uWS, Bun and Deno"
 layout: module-docs
 category: "Getting Started"
 order: 20
@@ -8,78 +8,152 @@ order: 20
 
 # Installation
 
-<p class="lede">Two things to get right: where the upgrade attaches, and when the advertised
-URL is known.</p>
-
-## Install
+<p class="lede">One package, two halves: a transport in the browser and an upgrade adapter on
+the server. The adapter is Node-only; every other runtime already has what it needs.</p>
 
 ```bash
-pnpm add @sigx/actors-ws ws
+pnpm add @sigx/actors-ws
 ```
 
-`ws` ≥ 8 is a peer dependency — this package does not hand-roll RFC 6455.
+`ws` is an **optional** peer (`>= 8`), imported lazily and only by the Node adapter — and only
+once a server actually sees an upgrade. Browsers, Bun, Deno and Workers never pull it in.
 
-## Mount it
+## The client
 
 ```ts
-const ws = wsTransport({ advertiseUrl: () => `ws://${process.env.POD_IP}:7311/_sigx/host-ws` });
+import { actorsPlugin } from '@sigx/actors/app';
+import { socketTransport } from '@sigx/actors-ws/client';
 
-const app = defineActorApp({ actors, storage })
-    .use(cluster({ providers, advertise, secret, transport: [ws, httpTransport()] }));
-
-const server = createServer(createAppHandler(app));
-await ws.attach(server);
-await new Promise<void>((r) => server.listen(7311, r));
-await app.start();
+app.use(actorsPlugin({ transport: socketTransport({ url: 'wss://example.com/_sigx/socket' }) }));
 ```
-
-Order matters: attach and listen **before** `app.start()`, because starting joins membership
-and from that moment peers may dial you.
-
-## `advertiseUrl` is a function
-
-Deliberately. The port is often unknown until the HTTP listener binds — `server.listen(0)`, a
-container-assigned port — and the address must exist before the membership join.
-
-A function defers the question to the moment the answer exists.
-
-## Options
 
 | Option | Default | Meaning |
 |---|---|---|
-| `advertiseUrl` | — | **required**; a function returning the peer-dialable URL |
-| `path` | `/_sigx/host-ws` | upgrade path |
-| `maxFrameBytes` | — | frame size cap |
-| `credit` | — | flow-control window |
-| `keepAliveMs` | — | keep-alive cadence |
-| `connect` | — | override how the client half dials |
+| `connect(handlers)` | — | build one connection attempt; the primary seam |
+| `url` | — | sugar over `connect`, dialling the global `WebSocket` |
+| `retryMs` | `300` | backoff floor between failed attempts |
+| `maxRetryMs` | `10_000` | backoff ceiling |
 
-## `attach()` versus `attachHostUpgrade()`
+Nothing is dialled until the first call, so a transport configured at module scope costs
+nothing on pages that never touch an actor.
 
-Use **`ws.attach(server)`** in the normal case. `cluster()` builds the transport internally, so
-`attach()` resolves that instance for you.
-
-Use **`attachHostUpgrade(server, { transport })`** when you already hold a transport instance
-and want to wire the upgrade yourself.
+## The Node adapter
 
 ```ts
-const stop = await ws.attach(server);   // returns a teardown
+import { attachActorSocket } from '@sigx/actors-ws/node';
+
+const detach = attachActorSocket(server, { host, origin: 'same-origin' });
 ```
 
-## Through a proxy
+It registers an `upgrade` listener and returns a **detach** function; sockets an already
+detached listener accepted keep running until they close on their own.
 
-The point of this transport. Anything that forwards WebSocket works — nginx with
-`proxy_set_header Upgrade`, an ingress with WebSocket enabled, a service mesh. Make sure the
-proxy's idle timeout exceeds `keepAliveMs`.
+| Option | Default | Meaning |
+|---|---|---|
+| `path` | `/_sigx/socket` | upgrade path, **matched exactly** — never a prefix |
+| `wss` | — | bring your own `new WebSocketServer({ noServer: true })`; without one, `ws` is imported dynamically |
+
+Everything else is forwarded to the session — see
+[Socket sessions](/actors/docs/socket-sessions) for `origin`, `maxMessageBytes`,
+`maxConcurrent`, `maxSubscriptions`, `pingMs`, `revalidateMs`, `maxConnectionMs` and `stats`.
+
+Two details worth knowing:
+
+- **An unmatched upgrade is left alone** unless nothing else is listening for one, in which
+  case the socket is destroyed rather than hanging unanswered forever.
+- **Messages arriving before the session finishes constructing are buffered**, not dropped.
+  `ws` begins reading the moment the upgrade completes, which is earlier than the session's
+  own async setup can finish.
+
+## Interop
+
+The adapter is a convenience, not a requirement. `createActorSocketSession` takes a `Request`
+and a pair of callbacks, so any server that can hand you those can drive it.
+
+### An existing `ws` server
+
+Construct the session in your own upgrade handler, and use `toRequest()` to build the
+WinterCG `Request` a Node upgrade does not come with:
+
+```ts
+import { createActorSocketSession } from '@sigx/actors/server';
+import { toRequest } from '@sigx/actors-ws/node';
+
+wss.on('connection', async (socket, req) => {
+    const session = await createActorSocketSession({
+        host,
+        request: toRequest(req),
+        send: (message) => socket.send(message),
+        close: (code, reason) => socket.close(code, reason),
+    });
+    socket.on('message', (data) => session.handle(String(data)));
+    socket.on('close', () => session.close());
+});
+```
+
+Cookies and `Origin` carry over verbatim, which is exactly what the session's upgrade-time
+authentication and origin check need.
+
+### socket.io
+
+About ten lines per side. The protocol is text, so carry it as an event payload:
+
+```ts
+// server
+io.on('connection', async (socket) => {
+    const session = await createActorSocketSession({
+        host,
+        request: toRequest(socket.request),
+        send: (message) => socket.emit('sigx', message),
+        close: () => socket.disconnect(true),
+    });
+    socket.on('sigx', (message: string) => session.handle(message));
+    socket.on('disconnect', () => session.close());
+});
+
+// client
+socketTransport({
+    connect: (handlers) => {
+        io.on('connect', handlers.onOpen);
+        io.on('sigx', handlers.onMessage);
+        io.on('disconnect', handlers.onClose);
+        return { send: (m) => io.emit('sigx', m), close: () => io.disconnect() };
+    },
+});
+```
+
+This is a recipe rather than a package — there is nothing to abstract.
+
+### uWebSockets.js
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>Build the <code>Request</code> synchronously inside <code>upgrade()</code>.</strong>
+    uWS reuses its <code>req</code> object and it is dead the moment the handler returns, so
+    reading headers from it later yields garbage. Read what you need, construct the
+    <code>Request</code>, then go async.
+  </div>
+</div>
+
+### Bun and Deno
+
+No adapter needed. Both hand you a real `Request` at upgrade time and a real `WebSocket`
+afterwards, so `createActorSocketSession` wires up directly.
 
 ## Security
 
-Frames are authenticated per request with the cluster HMAC, exactly as over HTTP.
-**Transport encryption is out of scope** — terminate TLS at your proxy (`wss://`) or run a
-private network.
+The origin check happens **at the upgrade**, and it is the one check that cannot be deferred
+to per-message: a browser will open a cross-origin WebSocket with cookies attached and no
+preflight to stop it. The default is `posture.origin ?? 'same-origin'`.
+
+Identity is pinned once, at the upgrade, from the cookies the browser sent. For an app with
+sign-out or short-lived sessions, set `revalidateMs` or `maxConnectionMs` — see
+[session lifetime](/actors/docs/socket-sessions#session-lifetime).
+
+TLS is your terminator's job; use `wss://` in production.
 
 ## Next steps
 
-- [API reference](/actors/packages/actors-ws/api) — exports.
-- [TCP transport](/actors/packages/actors-tcp/overview) — when you control the network.
-- [Host transports](/actors/docs/transports) — the comparison and rollout.
+- [Socket sessions](/actors/docs/socket-sessions) — the server half in full.
+- [API](/actors/packages/actors-ws/api) — the exported surface.
+- [Observability](/actors/docs/observability) — `socketStats()` and the ops section.

@@ -9,7 +9,7 @@ order: 520
 # Host transports
 
 <p class="lede">How hosts talk to each other is a seam. HTTP is the default and the only
-portable option; TCP and WebSocket collapse connection count on Node.</p>
+portable option; TCP collapses connection count on Node.</p>
 
 ```ts
 cluster({ providers, advertise, secret, transport: httpTransport({ fetch: tuned }) });
@@ -22,13 +22,21 @@ cluster({ providers, advertise, secret, transport: httpTransport({ fetch: tuned 
 | `httpTransport()` **(default)**, unbounded pool | **everywhere, incl. Workers** | 2 × concurrency | 0.9× |
 | `httpTransport()` with a bounded pool | **everywhere, incl. Workers** | concurrency | 1.0× (baseline) |
 | [`tcpTransport()`](/actors/packages/actors-tcp/overview) | Node only | **1** | 4.9× |
-| [`wsTransport()`](/actors/packages/actors-ws/overview) | Node server, any WinterCG client | **1** | 4.4× |
 
 Throughput is relative to **bounded** HTTP, because that is the fair baseline — the shipped
 default is the first row, and bounding it is a free improvement.
 
-**On Node, prefer TCP** — or WebSocket when one port, proxy traversal or a WinterCG client
-matters.
+**On Node, prefer TCP.** It is the socket transport for hosts.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>This page is about host-to-host traffic.</strong> The transport a
+    <em>browser</em> uses to reach a host is a different seam —
+    <a href="/actors/docs/client"><code>fetchTransport()</code></a> by default, or
+    <a href="/actors/packages/actors-ws/overview"><code>socketTransport()</code></a> from
+    <code>@sigx/actors-ws</code>. The two never meet.
+  </div>
+</div>
 
 **HTTP stays the default, and must.** `@sigx/actors/cluster` is zero-dependency and
 WinterCG-clean so Cloudflare Workers keep working, and HTTP is the only transport that runs
@@ -71,9 +79,12 @@ So halving the sockets is free, and going below your concurrency trades throughp
 worth it only when file descriptors are the real constraint.
 
 > These numbers are **undici-major-specific**. Figures measured on undici 8.x do not hold.
-> HTTP/2 does not currently help either: `allowH2` measures identical to plain keep-alive
-> because `createAppHandler` serves over `node:http`, which is HTTP/1.1 only, so the client
-> falls back.
+
+**HTTP/2 does not help, and it is worth knowing why before you try it.** `allowH2: true`
+measures identical to plain keep-alive at every pool size, because `createAppHandler` serves
+over `node:http` — HTTP/1.1 only — so the client negotiates nothing and falls back.
+Multiplexing would need a `node:http2` server first: a much larger change than the pool cap,
+for the same reduction in sockets.
 
 `undici` is a **recipe, not an API** — it is not a dependency of `@sigx/actors`.
 
@@ -112,8 +123,13 @@ It is currently **contributor-facing only**: reachable inside the actors workspa
 `@sigx/actors/cluster/testing` through a tsconfig and vitest alias, but not in the published
 `exports` map, so an out-of-repo package cannot import it yet.
 
+The frame codec, however, **is** published:
+[`@sigx/actors/cluster/frames`](/actors/docs/entry-points) carries it, including the
+message-oriented `FrameLink` variant. A WebSocket host-to-host transport, or anything else
+message-shaped, can be built on it outside this repo.
+
 ## Next steps
 
 - [TCP transport](/actors/packages/actors-tcp/overview) — the Node default choice.
-- [WebSocket transport](/actors/packages/actors-ws/overview) — one port, proxy-friendly.
 - [Clustering](/actors/docs/clustering) — where the transport plugs in.
+- [The client](/actors/docs/client) — the other seam, browser to host.

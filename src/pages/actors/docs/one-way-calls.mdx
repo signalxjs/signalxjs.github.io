@@ -80,8 +80,25 @@ Poor fits: anything a user is waiting on, and anything where a dropped post-acce
 would go unnoticed. For long work that must survive and report progress, use a
 [job](/actors/docs/jobs) instead.
 
+## Watching for the failures you cannot await
+
+Because a post-acceptance failure has no caller to reject, the counter **is** the signal.
+`oneWayFailures` surfaces on every observability path:
+
+| Where | What to look for |
+|---|---|
+| [Prometheus](/actors/docs/observability#prometheus) | `{prefix}one_way_failures_total` |
+| [OTel](/actors/docs/observability#the-metrics-bridge) | `sigx.actors.calls.one_way_failures` |
+| [CLI](/actors/packages/actors-cli/overview) | a `one-way fail` row under `calls` in `sigx actors stats`, and `N one-way` appended to the dashboard's call rows |
+
+The CLI surfaces it **only when it is non-zero**, so a quiet dashboard means there is nothing
+to see rather than that nobody is counting.
+
+Worth an alert: a rising `oneWayFailures` is work you believed had happened.
+
 ## Next steps
 
+- [Observability](/actors/docs/observability) — exporting the counter.
 - [Tasks](/actors/docs/tasks) — detached work that still belongs to the actor.
 - [Jobs](/actors/docs/jobs) — durable, resumable, observable work.
 - [Topics](/actors/docs/topics) — actor-to-actor fan-out.
