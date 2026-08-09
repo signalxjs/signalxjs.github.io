@@ -270,8 +270,12 @@ try {
 **Varying the config between cases means re-stamping, not mutating** — [the stamped config is frozen](#the-config-is-frozen-once-stamped):
 
 ```ts
-let restore: () => void;
-afterEach(() => restore?.());
+let restore: (() => void) | undefined;
+
+afterEach(() => {
+    restore?.();
+    restore = undefined;   // so a test that stamps nothing restores nothing
+});
 
 it('denies a non-owner', async () => {
     restore = stubServerApp({ authorize: ownsIt });
