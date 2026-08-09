@@ -188,6 +188,11 @@ their `base` namespace, and overlapping prefixes throw at **mount** time —
 everything after the base *is* the symbol, so a partly-wrong base is worse than a
 missing one.
 
+**The config is frozen once stamped**, so the pipeline cannot be weakened in place
+at runtime — reconfiguring means stamping a new app, and in tests it means
+re-stamping through `stubServerApp`. See
+[the frozen config](/server/packages/server/api#the-config-is-frozen-once-stamped).
+
 ## The runtime is fail-closed
 
 A function that declares nothing, with no app configured, **denies with 401**.

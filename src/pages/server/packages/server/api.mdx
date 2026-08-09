@@ -63,6 +63,28 @@ The one user-owned value holding everything app-wide. `app.serverFns(mount)` ret
 
 Mounts claim their `base` namespace: overlapping prefixes **throw at mount time**, because everything after the base *is* the symbol. Stamping the `__SIGX_SERVER_APP__` seam is last-wins, and `dispose()` releases it only if it still holds this app's stamp.
 
+#### The config is frozen once stamped
+
+`__SIGX_SERVER_APP__` is the fail-closed control seam — `middleware`, `authenticate`, `authorize`, posture and `codec`. Stamping freezes the config object, so swapping a member in place throws:
+
+```ts
+globalThis.__SIGX_SERVER_APP__.authorize = () => true;   // TypeError
+```
+
+This applies to the object you pass `createServerApp` and to the one you pass [`stubServerApp`](#testing) alike; `resolveServerAppConfig()` likewise returns a frozen object.
+
+The freeze is **shallow**, so `claimedBases` still accepts `push` and mounting is unaffected.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>Upgrading from 0.15.2 or earlier?</strong> Mutating a member used to warn nothing
+    and silently fail <em>open</em> — an authorization bypass — which is why the throw shipped
+    in a patch. The pattern that breaks is a test suite that stamps once and then swaps
+    <code>authorize</code> or <code>authenticate</code> between cases. Re-stamp through
+    <code>stubServerApp</code> instead; see <a href="#testing">Testing</a>.
+  </div>
+</div>
+
 ### ServerPolicy
 
 ```ts
@@ -231,15 +253,33 @@ See [Deployment & security](/server/packages/server/deployment) for how these ar
 ```ts
 import { createTestServerFnContext, stubServerApp } from '@sigx/server/testing';
 
-stubServerApp({ authenticate: () => ({ id: 'u_1', roles: ['staff'] }) });
+const restore = stubServerApp({ authenticate: () => ({ id: 'u_1', roles: ['staff'] }) });
 
-const rq = createTestServerFnContext({ url: 'http://localhost/checkout' });
-await placeOrder.with({ context: rq })(cart);
+try {
+    const rq = createTestServerFnContext({ url: 'http://localhost/checkout' });
+    await placeOrder.with({ context: rq })(cart);
+} finally {
+    restore();
+}
 ```
 
 `createTestServerFnContext(init?)` builds a real, `Request`-backed `ServerFnContext` (default `http://localhost/`) with none of the ceremony: `rq.request` and `rq.url` never throw the detached-context error, `rq.status(code)` records to a readable `.statusCode` instead of dev-warning, and caller `locals` keep their identity — one factory context reused across several `fn.with({ context: ctx })` calls is **one** request store, while two contexts are two.
 
-`stubServerApp(config)` stamps the app seam for a test. Because the runtime is fail-closed, a `serverFn` under no app **denies with 401**, so a unit test that exercises a handler needs either a stubbed app or a `allowAnonymous: true` declaration.
+`stubServerApp(config)` stamps the app seam for a test **and returns the restore**. Call it in teardown: the seam is process-global and last-wins, so an un-restored stamp leaks into every test that follows. Because the runtime is fail-closed, a `serverFn` under no app **denies with 401**, so a unit test that exercises a handler needs either a stubbed app or an `allowAnonymous: true` declaration.
+
+**Varying the config between cases means re-stamping, not mutating** — [the stamped config is frozen](#the-config-is-frozen-once-stamped):
+
+```ts
+let restore: () => void;
+afterEach(() => restore?.());
+
+it('denies a non-owner', async () => {
+    restore = stubServerApp({ authorize: ownsIt });
+    // …
+});
+```
+
+For a plain unit test of a single handler, prefer `createTestServerFnContext(init, { principal })` — injecting the identity tests the handler rather than the cookie parser.
 
 ## Extending the pipeline
 

@@ -1,0 +1,105 @@
+---
+title: Globals on the page
+description: "The __SIGX_* names a sigx page defines — which are visible and why, what lands in the data cache, and the rule for a pack stamping its own seam"
+layout: docs
+category: Advanced
+order: 40
+---
+
+# Globals on the page
+
+<p class="lede">Open devtools on a sigx page and a handful of `__SIGX_*` names are there. This
+is what each one is, which of them you are meant to see, and the one thing worth knowing
+before you put a secret behind a `useData` key.</p>
+
+Every SSR framework puts state on a global, because the server has to hand the browser
+something and `window` is the channel — Next.js ships `__NEXT_DATA__` and `self.__next_f`,
+Nuxt has `__NUXT__`, SvelteKit one hashed name, Solid `_$HY`. So the question is not whether
+to have them. It is which ones a person opening a console should ever see.
+
+## Two classes
+
+**Wire seams are enumerable.** They are the page's data cache and streaming bootstrap — the
+things you might legitimately want to inspect — and the server writes them with a plain
+assignment from an emitted `<script>`, so their descriptor is not ours to choose without
+changing what goes over the wire.
+
+| Global | What it is |
+|---|---|
+| `__SIGX_ASYNC__` | the page's data cache: `key → value` for everything [`useData`](/core/docs/data-loading) and `useAsync` resolved, encoded by [`@sigx/serialize`](/server/packages/serialize/overview). Every mount of the same key restores from it, including after client-side navigation. |
+| `__SIGX_BOUNDARIES__` | `id → SSRBoundaryRecord` — per-boundary props and signal snapshots, for selective hydration and [resume](/server/packages/resume/overview). |
+| `__SIGX_STREAMING_COMPLETE__` | `true` once the document has finished streaming. It is set alongside a `sigx:ready` event on `window`, and **the event is the half most apps should use** — the flag is for code that starts running after it already fired. |
+| `$SIGX_REPLACE` | `(id, html) => void` — swaps a resolved async boundary's placeholder for its HTML, then dispatches a bubbling `sigx:async-ready` event. |
+| `$SIGX_APPEND` | `(id, text) => void` — appends a streamed `useStream` text token into its placeholder. |
+
+**Control seams are non-enumerable.** Everything else. These are pack-to-pack wiring stamped
+by JavaScript at runtime — the server-app config, the serverFn codec and scope, the type
+handlers, the devtools hook. Nobody reads them off `globalThis` by hand, so they are kept out
+of `Object.keys(globalThis)` and console completion.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>Non-enumerable is not a security boundary.</strong> Anything running on the page
+    can still read a hidden property by name. The point is surface area and legibility, not
+    access control.
+  </div>
+</div>
+
+## What the page exposes is yours, and unfiltered
+
+This is the part worth reading twice.
+
+Whatever your fetcher returns lands **verbatim** in `__SIGX_ASYNC__` under its key, and a
+claimed component's props and signals land in `__SIGX_BOUNDARIES__[id]`. Boundary records
+additionally carry canonical cache-key strings in `deps`, which can identify a user
+(`user:42`) even when the value itself does not.
+
+The renderer applies **key-safety and serializability checks, and no sensitivity filter**. So:
+
+```ts
+// Everything this returns is readable from the console.
+const account = useData('billing', () => getAccount(userId));
+```
+
+A secret fetched under a `useData` key is one `window.__SIGX_ASYNC__` away. Fetch it in a
+[server function](/server/packages/server/overview) the client calls when it needs it, or
+return only the fields the page actually renders.
+
+Nothing the framework itself owns goes there. The principal lives on `rq.locals` under a
+non-enumerable `Symbol.for` slot that no serializer walks, and `@sigx/server-renderer`
+performs no `globalThis` writes at all.
+
+## Stamping a seam from your own pack
+
+Plain assignment works and stays hidden:
+
+```ts
+globalThis.__SIGX_MY_PACK__ = value;
+```
+
+An assignment to an existing writable data property **inherits its descriptor**, so a seam
+another pack already defined non-enumerably stays that way. To define a fresh one, match the
+convention:
+
+```ts
+Object.defineProperty(globalThis, '__SIGX_MY_PACK__', {
+    value,
+    writable: true,      // last-wins re-stamping
+    configurable: true,  // so a dispose() path can delete it
+});
+```
+
+A *new* property defined this way is non-enumerable by default, which is the behaviour you
+want — spell `enumerable: false` only when you may be overwriting a property that an older
+module copy created by assignment during HMR.
+
+Reach for one global accessor module per seam rather than touching `globalThis` from several
+places; that is the rule the framework holds itself to, and it is why each of these has
+exactly one writer.
+
+## Next steps
+
+- [Data loading](/core/docs/data-loading) — what fills `__SIGX_ASYNC__`.
+- [`@sigx/server`](/server/packages/server/api#the-config-is-frozen-once-stamped) — the
+  server-app control seam and why its config is frozen.
+- [Hydration](/server/packages/server-renderer/hydration) — how the boundary table is read.
