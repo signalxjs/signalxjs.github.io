@@ -60,7 +60,7 @@ Everything else is forwarded to the session — see
 Two details worth knowing:
 
 - **An unmatched upgrade is left alone** unless nothing else is listening for one, in which
-  case the socket is destroyed rather than hanging un-answered forever.
+  case the socket is destroyed rather than hanging unanswered forever.
 - **Messages arriving before the session finishes constructing are buffered**, not dropped.
   `ws` begins reading the moment the upgrade completes, which is earlier than the session's
   own async setup can finish.
