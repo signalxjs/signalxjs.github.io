@@ -31,7 +31,8 @@ works for both pre-rendered and client-only pages.
 
 ### Gate hydration on the completion script
 
-The document renderer emits a trailing script — `__SIGX_STREAMING_COMPLETE__` plus
+The document renderer emits a trailing script —
+[`__SIGX_STREAMING_COMPLETE__`](/core/docs/advanced/globals) plus
 a `sigx:ready` event — in **both** `'blocking'` and `'stream'` modes, so a
 blocking-rendered page hydrates the same way a streamed one does. The inline
 script runs during HTML parse, before any deferred module script, so your entry

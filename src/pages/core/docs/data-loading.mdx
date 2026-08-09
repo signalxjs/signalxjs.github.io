@@ -183,7 +183,7 @@ const UserProfile = component<{ id: string }>(({ props }) => {
 
 With a static (or resolved reactive) key, `useData`:
 
-- **Runs on the server**, serializing the resolved value under the key into `window.__SIGX_ASYNC__` — a prototype-pollution-safe, page-lifetime cache the server renderer emits.
+- **Runs on the server**, serializing the resolved value under the key into [`window.__SIGX_ASYNC__`](/core/docs/advanced/globals) — a prototype-pollution-safe, page-lifetime cache the server renderer emits. It is **readable from the browser console**, so return only what the page renders; see [what the page exposes](/core/docs/advanced/globals#what-the-page-exposes-is-yours-and-unfiltered).
 - **Restores on hydration** from that cache — no refetch on first client render.
 - **Dedupes per key** — two components with the same key share one in-flight request and one cached value.
 

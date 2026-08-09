@@ -134,6 +134,12 @@ by default. You get all of this without opting in:
   the codec or the validator.
 - **Body & URL limits** — bodies are capped at `maxBodyBytes` (default 1 MiB)
   during the read; GET reads are capped at `maxUrlBytes` (default 8 KiB → `414`).
+- **An immutable control seam** — the app config carrying `middleware`,
+  `authenticate`, `authorize`, posture and `codec` is frozen when it is stamped,
+  so nothing can weaken the pipeline in place at runtime. Reconfiguring means
+  stamping a new app, which is an act with an owner rather than a silent
+  assignment. See
+  [the frozen config](/server/packages/server/api#the-config-is-frozen-once-stamped).
 - **Prototype-pollution-safe parsing** on both the client and server sides.
 - **Production error masking** — any non-`ServerFnError` throw becomes a generic
   `500`; the original never leaves the server.
