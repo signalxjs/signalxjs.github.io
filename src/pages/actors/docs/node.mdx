@@ -93,6 +93,37 @@ This is the WinterCG shape, and it is what the
 Prefer [`defineActorApp`](/actors/docs/the-app) unless you have a reason not to — `createHost`
 takes exactly one `placement` and one `storage`, which is what makes plugins impossible.
 
+## Other runtimes
+
+`createFetchHandler(app)` turns an app into a single WinterCG `fetch` handler, which is all
+Deno, Bun and edge runtimes need:
+
+```ts
+import { createFetchHandler } from '@sigx/actors/server';
+
+await app.start();
+
+Deno.serve(createFetchHandler(app));                 // Deno
+export default { fetch: createFetchHandler(app) };   // Bun, Workers
+```
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>On Node, keep <code>createAppHandler</code>.</strong> It is not a legacy shim —
+    it keeps core's connect adapter for the public endpoint, which pumps request bodies with
+    backpressure. The portable handler is what runtimes without <code>node:http</code> need,
+    not a better version of the Node mount.
+  </div>
+</div>
+
+If you want to place the mounts yourself, `app.routes` is the list — each entry a
+`{ name, match(request), handle(request, host) }` triple you can hang off whatever server you
+already have. Reading it **seals the app**, so register every plugin first.
+
+`handleHostRequest` and `matchesHostRequest` from `@sigx/actors/cluster` cover the internal
+host-to-host mount, the same way `handleActorRequest` and `matchesActorRequest` cover the
+public one.
+
 ## Host defaults
 
 ```ts

@@ -35,7 +35,9 @@ function ensureSurrealSchema(db: SurrealQueryable, options?: { prefix?: string }
 
 - **`surrealSchemaSql`** returns the DDL for one prefix. Idempotent and safe to re-run. Every
   table is `SCHEMAFULL`.
-- **`ensureSurrealSchema`** runs it. **For dev and tests** — production migrations should carry
+- **`ensureSurrealSchema`** runs it, and is safe to call from every replica at boot: it carries
+  its own bounded, jittered retry, independent of the connection's `retry` setting, and
+  verifies the tables exist before surfacing a failure. In production, prefer carrying
   `surrealSchemaSql()` through the tool that already owns the schema. It SELECTs the namespace
   and database rather than creating them; `DEFINE NAMESPACE` / `DEFINE DATABASE` need root and
   are a deployment decision.

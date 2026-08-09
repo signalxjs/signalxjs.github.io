@@ -28,7 +28,7 @@ import { PkgVersion } from '@/components/PkgVersion';
 // ensurePgSchema(pool: PgPoolLike, options?: { schema?: string }): Promise<void>
 // pgSchemaSql(schema?: string): string
 
-await ensurePgSchema(pool);                  // issues the DDL — dev and tests
+await ensurePgSchema(pool);                  // issues the DDL under an advisory xact lock
 await ensurePgSchema(pool, { schema: 'app' });
 
 console.log(pgSchemaSql());                  // returns it, for your migration tool
@@ -48,7 +48,7 @@ for tooling that needs to read or write the tables directly.
 All under the configured schema, `sigx` by default.
 
 ```sql
-state(type, key, etag, state)                       -- jsonb
+state(type, key, etag, state)                       -- state is text
 directory(actor_id, host_id, activation_id)         -- + directory_host_id index
 hosts(host_id, descriptor, expires_at)
 membership_version(id, version)
@@ -60,8 +60,10 @@ reminders(type, key, name, next_due, period_ms)     -- + reminders_due index
 **Etags are client-minted UUIDs**, equality-compared only. Every CAS is a single statement
 whose row count is the verdict — no transactions, no advisory locks.
 
-**State is `jsonb`**, always bound as a JSON string with an explicit cast, so a top-level array
-state cannot be silently coerced into a Postgres `ARRAY`.
+**State is `text`, not `jsonb`** — deliberately. Actor state may contain NUL, which `jsonb`
+rejects outright, so the column stores the encoded string verbatim and Postgres never parses
+it. A top-level array state therefore cannot be silently coerced into a Postgres `ARRAY`
+either.
 
 **Directory entries carry no TTL.** There is one heartbeat per host, not per activation; entry
 validity is the owner's liveness in the membership view, and the storage etag CAS remains the

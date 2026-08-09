@@ -79,8 +79,34 @@ providers replace it:
   Object alarm. Semantics differ visibly here: an alarm fires **at** the due time, where
   `shardedReminders()` promises only "at or after".
 
-The clock itself is a seam too — `ActorScheduler`, with `timerScheduler()` in production and
-`manualScheduler()` for tests, so you can advance time deterministically instead of sleeping.
+## The clock is a seam
+
+Background work — the idle sweeper, the reminder tick, `ctx.timer`, write-behind flushes — all
+runs on an `ActorScheduler` rather than on bare `setTimeout`. Set it on the app:
+
+```ts
+import { manualScheduler } from '@sigx/actors/host';
+
+const scheduler = manualScheduler();
+const app = defineActorApp({ actors, scheduler, defaults: { idleAfterMs: 0 } });
+```
+
+`timerScheduler()` is the default and uses host timers. `manualScheduler()` is driven by hand,
+which is how you test idle deactivation, reminders and write-behind without sleeping:
+
+```ts
+scheduler.advance(60_000);   // an hour of sweeps, instantly
+```
+
+`advance(ms)` fires due jobs in order and cannot go backwards.
+
+**Why it is a seam rather than a test shim.** Background work is exactly the set of jobs that
+must keep running *between* requests — and a Cloudflare Worker only runs while it is handling
+one, so an interval registered at startup never fires there. A platform that schedules
+differently supplies its own scheduler instead of losing the capability.
+
+Two things deliberately do **not** go through it: call deadlines and the shutdown drain. Both
+are scoped to an in-flight request or to `stop()`, so they stay on host timers.
 
 ## Cron-shaped work
 

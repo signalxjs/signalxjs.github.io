@@ -69,6 +69,30 @@ mutation in between is lost — and the snapshot it yielded is already stale by 
 `{ initial: true }` queues the current snapshot in the same synchronous call that registers
 the subscription, leaving no gap.
 
+## Coalesce bursts with `throttleMs`
+
+```ts
+async *watch() {
+    yield* ctx.changes({ initial: true, throttleMs: 100 });
+}
+```
+
+At most one snapshot per window, **leading edge plus trailing edge**, and the trailing
+snapshot is taken **fresh when the window closes** — so a throttled consumer never receives
+state older than the window it waited out.
+
+Reach for it when the consumer **redraws rather than accumulates**. A snapshot is a full
+encode+revive of the whole state, and a boundary landing inside an open window builds none at
+all. The case that makes this obvious is an actor whose state grows through a run — a
+[job](/actors/docs/jobs) appending a step's output per turn and reporting progress as it goes
+— which otherwise clones everything it has accumulated on every single step.
+
+**The final state is never dropped.** A window still owing an emit when the actor deactivates
+is flushed before the feed ends.
+
+`throttleMs` must be a non-negative finite number; anything else throws rather than quietly
+reading as unthrottled. Omitting it, or `0`, keeps one snapshot per mutating turn.
+
 ## The factory runs once per subscription
 
 Each subscription gets its own context. That is what lets a disconnect close the feeds a body
@@ -111,8 +135,9 @@ An open stream also keeps the activation alive, so
 `streams:` is for a feed that is **not** a read of current state: a log tail, a progress
 sequence, an event history where each item matters in its own right.
 
-The `examples/chat` app in the actors repo dropped roughly 45 lines of hand-written stream and
-reconnect code when it moved its current-state reads to `{ live: true }`.
+The `examples/chat` app in the actors repo is the worked case for the other side of that line:
+its message list, topic and activity feed are all reads of current state, so it declares
+`{ live: true }` on each and carries no `streams:` at all.
 
 ## Next steps
 

@@ -15,7 +15,8 @@ needs a startup probe, and its shutdown order matters more than most.</p>
 
 [`@sigx/actors-k8s`](/actors/packages/actors-k8s/overview) implements membership on
 `coordination.k8s.io` Leases — one Lease per host, `renewTime` as the heartbeat, peers
-discovered by a label-selected Lease watch, and self-fencing when renewal fails past `ttlMs`.
+discovered by a label-selected Lease watch, and [self-fencing](/actors/docs/clustering#fencing)
+when the host loses its place in membership.
 
 ```ts
 cluster({
@@ -32,6 +33,28 @@ whichever you already run.
 RBAC needs `get`/`list`/`watch`/`create`/`update` on `leases` in the namespace. No kubeconfig
 is parsed; in-cluster service-account credentials are used, and `kubectl proxy` covers local
 development.
+
+### A deleted Lease fences the host
+
+The Lease **is** the membership token, so a renewal answering `404` fences — it does not
+recreate it. By the time the Lease is gone, peers have aged the host out of their views,
+`evictHost` has released every directory claim it held, and a survivor may already be serving
+those actors. Recreating the Lease would re-advertise a host whose claims are forfeit, and no
+elapsed-time check could catch it: the recreate succeeds promptly and everything looks
+healthy.
+
+So the host fences, liveness fails, and the restart mints a fresh identity that rejoins
+cleanly.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>Deleting a host's Lease by hand restarts its pod.</strong> That is the intended
+    outcome, not a bug to work around — there is no silent re-registration.
+  </div>
+</div>
+
+The one exception is the host's own `leave()` racing an in-flight renewal: a graceful exit,
+and it never fences.
 
 ## Probes
 
@@ -95,8 +118,8 @@ The public actor endpoint goes behind your ingress. `/_sigx/host`, `/_sigx/ops` 
 If you configure [locality routing](/actors/docs/locality-routing), the ingress is where the
 routing token gets hashed.
 
-A worked example — Helm chart with deployment, HPA, PDB, service, RBAC, Redis and a load
-generator, plus a runbook — is `examples/aks-cluster` in the actors repo.
+A worked rig — Helm chart with deployment, HPA, PDB, service, RBAC, Redis and a load
+generator, plus a runbook — is `perf/aks` in the actors repo.
 
 ## Next steps
 

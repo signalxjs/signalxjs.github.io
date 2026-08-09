@@ -34,8 +34,18 @@ await db.connect('ws://127.0.0.1:8000', {
     retry: { enabled: true, attempts: 5, retryable: surrealRetryable },
 });
 
-await ensureSurrealSchema(db);   // dev and tests — see below for production
+await ensureSurrealSchema(db);
 ```
+
+**Every replica may call this at boot, concurrently.** SurrealDB 3 has no lock primitive, so
+convergence is by a bounded, jittered retry that `ensureSurrealSchema()` carries **itself**,
+independent of the connection's `retry` setting — which matters, because the SDK ships retry
+disabled and this path would otherwise have none. The retry is deliberately blind to error
+shape; if it exhausts its attempts it verifies the tables are present before giving up, and
+rethrows the original error if they are not.
+
+`surrealRetryable` is unchanged by any of that and stays deliberately narrow — it is a
+connection-wide predicate governing your own queries, and the bootstrap does not depend on it.
 
 `ensureSurrealSchema()` SELECTs the namespace and database; it does not create them.
 `DEFINE NAMESPACE` / `DEFINE DATABASE` need root and are a deployment decision, so they are
@@ -67,8 +77,8 @@ serve live queries, so membership push will not work over it.
 
 ### In production, use a migration tool
 
-`ensureSurrealSchema()` is for **dev and tests**. In production, carry the statements through
-whatever tool already owns your schema:
+Calling `ensureSurrealSchema()` from every replica is safe, but a migration tool is still the
+better shape in production — it runs once, under review, rather than racing at every boot:
 
 ```ts
 import { surrealSchemaSql } from '@sigx/actors-surreal';

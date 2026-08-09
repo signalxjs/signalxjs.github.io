@@ -12,7 +12,7 @@ order: 200
 Everything you configured for server functions applies here unchanged.</p>
 
 ```
-POST {base}/r/{token}/{Type}%23{method}
+POST {base}/r/{token}/{Type}/{method}
 {"args": [key, ...args]}
 
 → {"data": …}  |  {"error": …}          (NDJSON for streams)
@@ -25,20 +25,73 @@ implementation. See
 
 The `/r/{token}/` segment is an optional [routing hint](/actors/docs/locality-routing). Under
 `route: 'none'`, and for the reserved symbols below, the URL is plain
-`{base}/{Type}%23{method}` and everything else is unchanged.
+`{base}/{Type}/{method}` and everything else is unchanged.
 
 `configureActors()` from `@sigx/actors/client` points remote and native clients at another
 base, independently of `configureServerFn`.
+
+## The path
+
+The separator between type and method is a **real path separator**, and encoding is
+per segment — so a normal call spends no `%` at all:
+
+```
+Cart#addItem          →  /_sigx/actor/Cart/addItem
+acme/greeter#greet    →  /_sigx/actor/acme/greeter/greet
+$live#subscribe       →  /_sigx/actor/$live/subscribe
+$watch:Counter#read   →  /_sigx/host/$watch:Counter/read
+```
+
+**A type may itself contain `/`** — `acme/greeter` is the packaged-actor convention — so the
+reading half splits on the **last** separator. The last segment is always the method.
+
+Three characters are restored after encoding: **`@`, `$` and `:`**. The runtime's own reserved
+vocabulary spends `$` and `:` (`$live`, `$watch:`, `$sigx:host`), and all three are RFC 3986
+`pchar`, so they are legal literal path characters. The other legal sub-delims — `&`, `+`,
+`,`, `;`, `=` — stay escaped deliberately; `+` especially, because a naive query-ish parser
+decodes it as a space.
+
+**The routing token stays percent-encoded**, and that asymmetry is deliberate. The symbol
+spans several segments; the token is escaped so it stays exactly **one**, which is what keeps
+`{base}/r/{token}/{symbol}` parseable from the left — the first segment after `r/` is the
+whole token, and everything after it is the whole symbol.
+
+**The in-memory symbol is the same string everywhere else.** It is `` `${type}#${method}` `` everywhere that is not
+a URL: it is what the per-call HMAC signs, what `ServerFnInfo.symbol` reports to a policy, and
+what a frame transport like [`@sigx/actors-tcp`](/actors/packages/actors-tcp/overview) carries
+with no URL anywhere near it. Only the URL spelling differs.
+
+Two names are refused, both because the alternative is a silent misroute rather than an error:
+
+- **A `type` with an empty, `.` or `..` path segment** — `new URL()` would resolve it away and
+  quietly retarget the route.
+- **A `method` containing `/`** — `Type#a/b` would encode to `Type/a%2Fb`, and the reading
+  half decodes each segment before it splits on the last `/`, so the symbol would come back as
+  `Type/a#b`: a different actor, silently. This one throws in production as well as dev, since
+  escaping it would not save the round trip.
 
 ## The GET form
 
 A method with a [`reads:` declaration](/actors/docs/cacheable-reads) also answers:
 
 ```
-GET {base}/r/{token}/{Type}%23{method}?args=[key,...args]
+GET {base}/r/{token}/{Type}/{method}?a0=p-9&a1=EUR
 ```
 
 Same codec, same envelope, plus the `Cache-Control` the declaration asked for.
+
+**Arguments ride as named params when every one of them is a simple scalar** — `null`, a
+string, a boolean, or a finite number. Argument 0 is the actor key, so it is `a0`. A string
+that would read back as a number, `true`, `false` or `null`, or that already starts with a
+quote, is JSON-quoted (`a0="42"`).
+
+Anything richer — an object, a `Date` — falls back to the `?args=<JSON>` blob, and does so
+**all-or-nothing**, so one call never mixes the two encodings and the cache key stays a pure
+function of the arguments.
+
+This grammar is core's, character for character: the same declared read must decode
+identically on `/_sigx/fn` and `/_sigx/actor`, so the actor endpoint delegates to
+`handleServerFnRequest` and never re-derives it.
 
 ## The callable surface
 
@@ -54,18 +107,22 @@ methods: (ctx) => ({ async addItem(i) { /* … */ } }),   // ✓ own keys
 methods: (ctx) => new CartMethods(ctx),                 // ✗ prototype methods
 ```
 
-Dev builds warn on the second form. Declaring a method that *shadows* a prototype name is
-fine — `async toString()` in the literal is an own key and is callable.
+Dev builds warn on the second form.
+
+Shadowing a prototype name in the literal does not help either: `async toString()` is an own
+key the *server* would dispatch, but the [client proxy answers those names
+locally](/actors/docs/client#refs-are-inspectable) and never issues the call. Pick another
+name.
 
 ## Reserved symbols
 
 Two `$`-prefixed shapes exist, which is why `defineActor` refuses a `type` starting with `$`
 or `@`:
 
-| Symbol | What it is |
-|---|---|
-| `$live#subscribe` | the multiplexed [live-read](/actors/docs/live-reads) mount — the only one a browser talks to |
-| `$watch:{Type}#{method}` | internal host-to-host watch forwarding; not a public endpoint |
+| Symbol | On the wire | What it is |
+|---|---|---|
+| `$live#subscribe` | `{base}/$live/subscribe` | the multiplexed [live-read](/actors/docs/live-reads) mount — the only one a browser talks to |
+| `$watch:{Type}#{method}` | `/_sigx/host/$watch:{Type}/{method}` | internal host-to-host watch forwarding, on the internal mount — not a public endpoint |
 
 `@` is reserved for data keys (`['@actor', …]` — see
 [Reads & writes in components](/actors/docs/in-components)).
@@ -95,7 +152,9 @@ Server-side callers can also pass entries explicitly, and explicit wins on confl
 await actor(RoomActor, id).with({ bag: { tenant: 'acme' } }).post(text);
 ```
 
-`ctx.bag` is frozen and rebuilt per read, and it is **empty outside a turn**.
+`ctx.bag` is frozen and rebuilt per read, and it is **empty outside a turn** — that empty
+value is exported from the root entry as `EMPTY_CALL_BAG`, so a caller comparing against it
+does not have to mint its own.
 `ctx.actor` and `ctx.publish` hops inherit it; detached [task](/actors/docs/tasks) bodies and
 volatile timer ticks deliberately read it empty, the same way `traceparent` does.
 

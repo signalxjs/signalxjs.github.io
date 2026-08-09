@@ -40,6 +40,29 @@ at every `await`.
 In-chain calls under `'always'` complete as concurrent turns rather than inline, so a
 self-cycle cannot deadlock by construction.
 
+## What re-enters, and what does not
+
+`reentrant` governs three kinds of in-chain open, and they do not all behave alike:
+
+| In-chain, under `'call-chain'` | Behaviour |
+|---|---|
+| A **method call** — `A → B → A.method()` | runs inline against the up-stack turn |
+| A **stream open** — `A → B → A.someStream()` | runs inline, the same way |
+| A **watch open** | throws `ActorDeadlockError` (`kind: 'deadlock'`) |
+
+**Stream opens re-enter** because the setup is synchronous where it matters: it sets the call
+context, resolves the generator and restores it with **no `await` in between** — invoking an
+async generator function runs none of its body — so no other turn can interleave. Iteration is
+detached from turns either way.
+
+**Watches refuse**, and throw rather than hang. A watch is a long-lived subscription whose
+reads are ordinary turns, so only its very first read could ever be inline; and the loop is
+shared per `(method, args, throttleMs)`, so a subscriber joining one whose initial read is
+already queued would deadlock regardless of who opened it.
+
+No `ctx` API opens a watch, so this is a runtime guarantee rather than something an actor body
+can trip over today.
+
 ## Per-method interleaving
 
 `methodReentrancy` marks individual methods `'always'` on an otherwise serial (or
