@@ -115,6 +115,44 @@ crash, so how often you call it is how much work you are willing to redo.
 The resume contract is **at-least-once**: the runtime resumes the function, and your code
 resumes the work by reading `job.resumedFrom`. Make the step after a checkpoint idempotent.
 
+## Projecting status outside the job
+
+`onSettled` fires on **every** terminal transition, which is what makes it safe to keep a
+projection — a status row in your own database, a metric, a notification — in step with the
+job:
+
+```ts
+export const ImportJob = defineJob({
+    type: 'Import',
+    async run(job) { /* … */ },
+    async onSettled(control, info) {
+        await db.imports.update(info.key, { status: info.status });
+    },
+});
+```
+
+Two of those transitions cannot be observed from inside `run()` at all, which is the reason
+the hook exists:
+
+- **The `maxAttempts` give-up.** The body is re-entered, sees `attempts > maxAttempts`, and
+  finishes as failed without ever calling your `run` — so there is no body turn to write from.
+- **`cancel()` on a paused job.** A paused job holds no task, so nothing in the body is around
+  to notice.
+
+Without the hook, a projection written only from `run()` asserts "still running" forever after
+either one.
+
+The contract:
+
+- **It runs after the save.** The transition is already durable and `info` is the final state.
+  A handler that throws is caught, logged in dev, and swallowed — it cannot unwind the settle.
+- **It fires for `completed` too**, not only the runtime-driven cases, so handlers should be
+  **idempotent**.
+- **No self-dispatch**, the same rule as `onReminder`: it receives a `JobControl`, not a
+  client.
+- **Awaiting slow I/O holds the actor's turn.** Hand long work to a
+  [task](/actors/docs/tasks) rather than blocking the settle.
+
 ## `migrateState` is not supported
 
 > **`defineJob` does not accept `migrateState`.** `JobOptions` has no such option and the

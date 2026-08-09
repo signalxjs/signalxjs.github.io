@@ -151,6 +151,9 @@ Stop the dev server and start it again — the count is still there, in `.actors
   quickly. The second click waits — that is guarantee 3, [`await` keeping the turn open](/actors/docs/turns).
 - **Replace `allowAnonymous: true`** with a real [policy](/actors/docs/guards) — usually by
   configuring the server app once, so every actor inherits it.
+- **Run `pnpm --filter counter-example runtime-demo`** for the parts a counter does not
+  reach: [detached work](/actors/docs/tasks) through `ctx.tasks`, and a
+  [durable reminder](/actors/docs/timers-and-reminders) that survives a host restart.
 
 ## Next steps
 

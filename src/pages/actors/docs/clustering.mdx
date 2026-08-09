@@ -27,8 +27,9 @@ export const app = defineActorApp({ actors, storage }).use(
 
 ## The two providers
 
-**Membership** answers "which hosts are alive?" — a heartbeat plus a view of peers. Fencing
-falls out of it: a host that cannot renew its heartbeat past `ttlMs` refuses every activation.
+**Membership** answers "which hosts are alive?" — a heartbeat plus a view of peers.
+[Fencing](#fencing) falls out of it: a host that has lost its place in membership refuses
+every activation.
 
 **The directory** answers "which host owns this actor?" — the claim that makes single
 activation true cluster-wide.
@@ -132,6 +133,72 @@ written down. An empty or whitespace-only secret throws in **every** build, deve
 included.
 
 The HMAC authenticates the **peer**, not the payload.
+
+## Fencing
+
+A host fences itself when it can no longer prove it holds its place in membership. Fenced is
+**terminal**: activations are refused, liveness fails, and an orchestrator restart is the way
+back — a host that has been aged out by its peers cannot talk itself back in.
+
+Three things trigger it:
+
+| Trigger | Why it counts |
+|---|---|
+| A heartbeat **failed** and the presence window has lapsed | the classic case |
+| A heartbeat **landed** past the window | a stalled loop or a suspended container; the write may have taken longer than the whole TTL to return, and there is no way to tell *when* it landed |
+| The host is **absent from its own membership view** | peers have already stopped counting it |
+
+A fenced host also **withdraws from membership**, so peers stop routing to it immediately
+rather than waiting out its TTL.
+
+### Writing a provider
+
+Drive `heartbeatClock()` from your heartbeat rather than hand-rolling a TTL comparison:
+
+```ts
+import { heartbeatClock } from '@sigx/actors/cluster';
+
+const clock = heartbeatClock({ ttlMs, onSuspect: () => fenceThisHost() });
+
+clock.arm();                                    // once, when beating starts
+// each beat:
+clock.beat();                                   // before the write
+try { await writeHeartbeat(); clock.confirmed(); }
+catch { clock.failed(); }
+```
+
+It watches the **monotonic and the wall clock together**, because `CLOCK_MONOTONIC` does not
+advance across a VM suspend — and `setTimeout` rides that same clock, so a suspended host
+would otherwise conclude every beat had been punctual. The window is stamped when the beat is
+**armed**, not at the join write, so a slow join cannot fence a host at startup.
+
+`clock.lost()` is the fourth door, for a provider holding **proof** its record is gone rather
+than a suspicion inferred from elapsed time — a Kubernetes Lease deleted out from under its
+host, say. It fires immediately whatever the clocks say, because the next write would succeed
+promptly and look perfectly healthy. Like every other trigger it is latched, cleared by the
+next `confirmed()`, and silent before `arm()`.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>A live host MUST appear in its own <code>view()</code>.</strong> Placement reads
+    its own absence as lost membership. An <em>empty</em> view is exempt — that reads as
+    solo-or-not-started, so a store failing over to a cold replica cannot fence the whole
+    cluster — and absence only counts once this host has been seen in a view at all. Placement
+    confirms against a fresh <code>refresh()</code> before acting.
+  </div>
+</div>
+
+### Testing it
+
+`memoryClusterHub()` can simulate both shapes of loss:
+
+```ts
+hub.kill(hostId);      // a crash the host notices — fires onSelfSuspect
+hub.expire(hostId);    // a TTL lapse it is never told about
+```
+
+`expire()` is the one worth reaching for: no cleanup, no notification, exactly the case a
+provider has to detect for itself.
 
 ## Membership refresh coalescing
 

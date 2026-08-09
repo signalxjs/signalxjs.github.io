@@ -57,8 +57,8 @@ compare-and-delete release and evict, plus an `evictHost` sweep for departed hos
 The providers **never issue DDL**, so a production role needs only DML grants.
 
 ```ts
-await ensurePgSchema(pool);   // dev and tests
-// production: run pgSchemaSql() through your migration tool
+await ensurePgSchema(pool);   // safe from every replica, concurrently
+// or: run pgSchemaSql() through the migration tool that owns your schema
 ```
 
 ## Next steps

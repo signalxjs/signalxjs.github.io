@@ -87,6 +87,43 @@ the caller falls back to the configured endpoint.
 > hosts directly. A browser talking to one public origin should stay on the default and get
 > its locality from [the routing token](/actors/docs/locality-routing) instead.
 
+## Refs are inspectable
+
+A ref's `get` trap synthesizes a dispatcher for any unknown property — that is what lets
+methods need no registration. A handful of names are answered **locally** instead, so
+inspecting a ref never issues a call:
+
+```ts
+const ref = actor(CartActor, 'user-42');
+
+String(ref);            // '[actor Cart#user-42]'
+JSON.stringify(ref);    // undefined — no call
+ref.constructor;        // undefined — no call
+```
+
+`toString` reads `[actor Type#key]`, so refs interpolate usefully into logs. Every other
+`Object.prototype` name — plus `toJSON` and Node's legacy `inspect` — reads `undefined`,
+exactly like symbols and `then`. This holds for every proxy: `actor()` in the browser and on
+the server, `host.actor(…)` and `ctx.actor(…)`.
+
+The cost is one naming rule: **an actor method named after an `Object.prototype` member**
+(`toString`, `valueOf`, `hasOwnProperty`, `toJSON`, …) **is not reachable through a proxy.**
+Pick another name.
+
+## The request-context bag
+
+Server-side callers can attach a small string-only bag of app data to a call — a request id, a
+tenant hint, a feature flag — without adding an argument:
+
+```ts
+await actor(RoomActor, id).with({ bag: { tenant: 'acme' } }).post(text);
+```
+
+The method reads it as `ctx.bag`. Caps, propagation rules and the deliberately silent
+drop-whole posture for a malformed bag arriving en route are covered under
+[the request-context bag](/actors/docs/wire-protocol#the-request-context-bag). Identity does
+**not** belong here — use [`ctx.principal`](/actors/docs/guards).
+
 ## Per-call options
 
 ```ts

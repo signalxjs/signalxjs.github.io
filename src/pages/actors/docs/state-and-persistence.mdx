@@ -135,7 +135,7 @@ mixed-version fleet.
 | `memoryStorage()` | tests and dev |
 | `fileStorage({ dir })` | dev — one cat-able JSON file per actor |
 | [`redisStorage`](/actors/packages/actors-redis/overview) | production, with the cluster providers |
-| [`pgStorage`](/actors/packages/actors-pg/overview) | production, jsonb with etag CAS |
+| [`pgStorage`](/actors/packages/actors-pg/overview) | production, `text` rows with etag CAS |
 
 Implement `ActorStorage` — `load` / `save` / `clear` with etags — for anything else. See
 [Storage](/actors/docs/storage).

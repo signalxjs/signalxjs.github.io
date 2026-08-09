@@ -69,6 +69,11 @@ resets on any healthy frame, and the re-seed doubles as the catch-up read.
 guard rejection, say — is delivered to that read alone and leaves the rest of the page live. A
 read whose feed cannot be established at all keeps working as a plain read.
 
+**A subscriber costs the actor almost nothing per turn.** A watch re-invokes the read method
+and the pump reads only the iterator's `done` flag, so a subscriber whose value nobody is
+waiting on receives a value-free tick and the runtime builds no snapshot for it at all. State
+size is a question for your own reads, not a reason to avoid `live: true`.
+
 **Nothing subscribes during SSR.** The subscription lives in `onMounted`.
 
 **Security is the read's own.** A subscription runs the same policy as a unary call, at

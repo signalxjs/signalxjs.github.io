@@ -20,9 +20,31 @@ pnpm add @sigx/actors
 That is the whole runtime. Backends, transports and tooling are
 [separate packages](/actors/packages) you add only when you need them.
 
-`@sigx/actors` peer-depends on sigx core **0.14 or later** — `@sigx/reactivity`,
-`@sigx/serialize` and [`@sigx/server`](/server/packages/server/overview), plus `@sigx/vite`
-and `@sigx/runtime-core` if you use them. It declares no runtime dependencies of its own.
+`@sigx/actors` declares **no runtime dependencies of its own** — only peers:
+
+| Peer | Range | |
+|---|---|---|
+| `@sigx/reactivity` | `^0.15.3` | required |
+| `@sigx/serialize` | `^0.15.0` | required |
+| [`@sigx/server`](/server/packages/server/overview) | `^0.15.0` | required |
+| `@sigx/runtime-core` | `^0.15.0` | optional — the `./app` integration |
+| `@sigx/vite` | `^0.15.0` | optional — the build plugin |
+| `vite` | `>=6` | optional — the build plugin |
+
+**`@sigx/reactivity` has a higher floor than the rest**: `^0.15.3`, meaning 0.15.3 or newer
+*within* 0.15 — not 0.16. The host's change tracking imports `deepTrack` from
+`@sigx/reactivity/internals`, which landed in that release, and a missing named export is a
+hard resolution failure rather than a graceful degradation.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>Raising a floor does not re-resolve a dependency that is already satisfied.</strong>
+    A package depending on <code>@sigx/reactivity ^0.15.0</code> can sit on 0.15.2 alongside
+    actors on 0.15.3, and two copies split core's module-local singletons. The symptom is
+    <code>signal is not a function</code> — not a version warning.
+    <code>pnpm dedupe</code> fixes it.
+  </div>
+</div>
 
 ## Add the Vite plugin
 
