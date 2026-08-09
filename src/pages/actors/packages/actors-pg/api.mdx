@@ -19,7 +19,7 @@ import { PkgVersion } from '@/components/PkgVersion';
 | `pgCluster(options)` | `ClusterProviders` | membership + directory |
 | `pgMembership(pool, options?)` | `ClusterMembership` | liveness on the database clock |
 | `pgDirectory(pool, options?)` | `ActorDirectory` | single-activation claims |
-| `pgStorage(options)` | `ActorStorage` | etag-CAS jsonb rows |
+| `pgStorage(options)` | `ActorStorage` | etag-CAS `text` rows |
 | `pgReminders(options)` | `ActorReminders` | `SKIP LOCKED` durable reminders |
 
 ## Schema helpers
