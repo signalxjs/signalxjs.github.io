@@ -221,6 +221,33 @@ mount, which `createAppHandler` and `createFetchHandler` serve in dev and prod a
 > transport. A [host-to-host transport](/actors/docs/transports) is not bound by it, because
 > it may bring its own listener instead of a route.
 
+## The socket wire
+
+`@sigx/actors/socket-wire` is the protocol a socket speaks, published as its own subpath so an
+adapter written outside this repo reaches the one true wire instead of copying it — the same
+standing `./cluster/frames` has for host transports.
+
+```ts
+import { encodeWire, parseWire, reviveWire, wireFail } from '@sigx/actors/socket-wire';
+import type { SocketReply, SocketRequest } from '@sigx/actors/socket-wire';
+```
+
+Replies are `{i,v}` for a value and `{i,e}` for an error, and those **are** the `$live`
+`LiveFrame` shapes by construction, not a parallel spelling of them. Calls and subscriptions
+share **one id namespace**, which is why a reply carries only `i` and needs no kind tag.
+
+`parseWire` is pollution-safe and `wireFail` is branded, so a malformed message is a typed
+failure rather than something that has to be guessed at.
+
+Two things live here rather than in either channel, so the two cannot fork: identity
+coalescing with late-subscriber replay and `fingerprint()` re-seed suppression, and
+`createSocketLiveChannel`.
+
+What it deliberately is **not**: there is no principal field, no envelope and no
+inbound-call direction. That is the browser trust model expressed as a shape — a client may
+ask, and may subscribe, and may do nothing else. The
+[cluster frames](/actors/docs/transports) are a different protocol for a different perimeter.
+
 ## Next steps
 
 - [The client](/actors/docs/client) — configuring transports and routers.

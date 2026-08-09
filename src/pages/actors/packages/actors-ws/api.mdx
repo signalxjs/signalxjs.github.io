@@ -1,6 +1,6 @@
 ---
-title: "API reference"
-description: "Exports of @sigx/actors-ws — wsTransport, attachHostUpgrade, the path and name constants and the shared frame codec"
+title: "API"
+description: "Exports of @sigx/actors-ws — socketTransport on ./client, attachActorSocket and toRequest on ./node"
 layout: module-docs
 category: "Reference"
 order: 40
@@ -8,58 +8,104 @@ order: 40
 
 import { PkgVersion } from '@/components/PkgVersion';
 
-# API reference
+# API
 
 <p class="lede">Exports of `@sigx/actors-ws` <PkgVersion npm="@sigx/actors-ws" />.</p>
 
-## `wsTransport(options)`
+Three entries. The root re-exports the client half, which is WinterCG-clean; `./node` is the
+only one that touches Node built-ins.
 
-Returns a `WsTransportHandle` — a callable `HostTransportFactory` that also carries `attach`.
+| Entry | Contents |
+|---|---|
+| `@sigx/actors-ws` | `socketTransport` and its types — runtime-neutral re-exports of `./client` |
+| `@sigx/actors-ws/client` | the same, at its source |
+| `@sigx/actors-ws/node` | `attachActorSocket`, `toRequest`, `DEFAULT_SOCKET_PATH` |
+
+## `./client`
 
 ```ts
-interface WsTransportOptions {
-    advertiseUrl: () => string | Promise<string>;   // required
-    path?: string;             // '/_sigx/host-ws'
-    maxFrameBytes?: number;
-    credit?: number;
-    keepAliveMs?: number;
-    connect?: (url: string) => MinimalWebSocket;
+function socketTransport(options?: SocketTransportOptions): ActorTransport;
+
+interface SocketTransportOptions {
+    connect?(handlers: SocketHandlers): SocketLink;
+    url?: string;
+    retryMs?: number;        // default 300
+    maxRetryMs?: number;     // default 10_000
+}
+
+interface SocketLink {
+    send(message: string): void;
+    close(): void;
+}
+
+interface SocketHandlers {
+    onOpen(): void;          // gates the first send
+    onMessage(message: string): void;
+    onClose(): void;
 }
 ```
 
-```ts
-// attach(server: Server, options?: { wss?: WebSocketServerLike }): Promise<() => void>
+`connect` is called again after a drop — each call is one fresh attempt. Passing `url` on a
+runtime with no global `WebSocket` constructor throws with a message telling you to pass
+`connect` instead.
 
-const stop = await ws.attach(server);                       // usual case
-const stop = await ws.attach(server, { wss: myWsServer });   // reuse your own
+The returned value is an ordinary [`ActorTransport`](/actors/docs/wire-protocol), so it also
+carries `live()` — the incremental subscription channel — and a `close()` that is
+**idempotent by contract**, since either the plugin or the live channel may release it first.
+
+## `./node`
+
+```ts
+function attachActorSocket(server: Server, options: AttachActorSocketOptions): () => void;
+
+interface AttachActorSocketOptions
+    extends Omit<ActorSocketSessionOptions, 'request' | 'send' | 'close'> {
+    path?: string;              // default '/_sigx/socket', matched exactly
+    wss?: WebSocketServerLike;  // bring your own noServer WebSocketServer
+}
+
+function toRequest(request: IncomingMessage): Request;
+
+const DEFAULT_SOCKET_PATH = '/_sigx/socket';
 ```
 
-## `attachHostUpgrade(server, { transport, wss? })`
+`attachActorSocket` returns a **detach** function. `toRequest` builds the WinterCG `Request` a
+Node upgrade does not come with — scheme `http` (the session folds `ws:`/`http:` when checking
+origin), headers including cookies and `Origin` carried over verbatim.
 
-The standalone form, for when you already hold a transport instance rather than letting
-`cluster()` build one.
+Everything `AttachActorSocketOptions` inherits — `host`, `origin`, `maxMessageBytes`,
+`maxConcurrent`, `maxSubscriptions`, `pingMs`, `revalidateMs`, `maxConnectionMs`, `onError`,
+`stats` — is documented under [Socket sessions](/actors/docs/socket-sessions).
 
-## Constants
+### Structural types
 
-| Export | Value |
-|---|---|
-| `WS_TRANSPORT_NAME` | `'ws'` — the key under `HostDescriptor.addresses` |
-| `DEFAULT_WS_PATH` | `/_sigx/host-ws` |
+`WebSocketServerLike` and `MinimalWebSocket` describe only the slices of `ws` the adapter
+actually drives, so a compatible implementation satisfies them without `ws` being installed:
 
-## Types
+```ts
+interface WebSocketServerLike {
+    handleUpgrade(
+        request: IncomingMessage, socket: Duplex, head: Buffer,
+        done: (client: MinimalWebSocket) => void,
+    ): void;
+}
 
-`WsHostTransport`, `UpgradeOptions`, `WebSocketServerLike`, `MinimalWebSocket`.
+interface MinimalWebSocket {
+    send(message: string): void;
+    close(code?: number, reason?: string): void;
+    on(event: 'message', listener: (data: unknown, isBinary: boolean) => void): void;
+    on(event: 'close', listener: () => void): void;
+}
+```
 
-`webSocketLink` is exported for transport authors wiring the client half by hand.
+## The wire
 
-## Re-exported frame codec
-
-`DEFAULT_CREDIT`, `DEFAULT_MAX_FRAME_BYTES` — shared with
-[`@sigx/actors-tcp`](/actors/packages/actors-tcp/overview), and also available from
-`@sigx/actors/cluster/frames`.
+Both halves speak [`@sigx/actors/socket-wire`](/actors/docs/wire-protocol#the-socket-wire),
+which is a published subpath of `@sigx/actors` rather than something this package owns — so an
+adapter written outside this repo reaches the same protocol.
 
 ## Next steps
 
-- [Overview](/actors/packages/actors-ws/overview) — why this over TCP.
-- [Installation](/actors/packages/actors-ws/installation) — mounting and `advertiseUrl`.
-- [Host transports](/actors/docs/transports) — the comparison.
+- [Overview](/actors/packages/actors-ws/overview) — what the transport is for.
+- [Installation](/actors/packages/actors-ws/installation) — wiring and interop recipes.
+- [Socket sessions](/actors/docs/socket-sessions) — the server session in full.

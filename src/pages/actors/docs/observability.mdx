@@ -41,7 +41,9 @@ Options: `path` (default `/_sigx/metrics`), `secret`, `prefix` (default `sigx_ac
 `bucketsSeconds` — a per-octave grid from 1µs to ~134s, about 28 bounds.
 
 `renderPrometheus(digest, stats, options)` is the pure function underneath, if you would
-rather serve it yourself.
+rather serve it yourself. Among what it emits is `{prefix}one_way_failures_total` — a
+[one-way call](/actors/docs/one-way-calls) that failed *after* acceptance has nowhere else to
+be reported, so this counter is the only place it surfaces in Prometheus.
 
 > **The cardinality rule: labels are `type` and `method` — never actor keys.** An actor key is
 > unbounded by construction, and a key-labelled metric will take your Prometheus down. This is
@@ -79,7 +81,47 @@ app.use(otelMetricsBridge({ percentileGauges: true }));
 ```
 
 Feeds the host's counters and histograms into whatever OTel meter provider you have
-configured, for stacks that collect metrics over OTLP rather than by scraping.
+configured, for stacks that collect metrics over OTLP rather than by scraping — including
+`sigx.actors.calls.one_way_failures`, the OTLP spelling of the counter above.
+
+## Socket sessions
+
+[Socket connections](/actors/docs/socket-sessions) are counted separately, because none of the
+things worth watching about them — how many are open, how long they live, how many were
+refused — are visible to the turn metrics.
+
+`socketStats()` is one recorder per host or listener, handed to every session:
+
+```ts
+import { socketStats } from '@sigx/actors/server';
+
+const stats = socketStats();
+attachActorSocket(server, { host, stats });
+```
+
+Publish it as an ops section, and it appears under `ops.sockets` behind the existing
+[bearer posture](/actors/docs/ops-endpoint) — no endpoint changes:
+
+```ts
+registry.reportOps('sockets', () => stats.snapshot());
+```
+
+`snapshot()` carries the totals — connections opened, closed and **refused** (origin or auth,
+turned away before serving a byte); calls started and failed; subscriptions opened and closed;
+`protocolBreaches` (1003/1009) and `lifetimeCloses` (1008 from `revalidateMs` or
+`maxConnectionMs`) — plus three live gauges summed across open sessions (`open`, `inFlight`,
+`subscriptions`) and a connection-lifetime histogram, `null` until there is data.
+
+`stats.digest()` is the mergeable form, in the same log-linear layout as every other
+histogram, so a fleet-wide view merges the way [cluster stats](/actors/docs/cluster-stats)
+does.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>Prometheus, OTel and CLI rendering are not wired to this yet.</strong> The ops
+    section is the way to read socket stats today.
+  </div>
+</div>
 
 ## Choosing
 

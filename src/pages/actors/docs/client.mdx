@@ -60,6 +60,30 @@ configureActors({
 `call` and `stream` are required; `live` and `close` are optional. Omit `live` and
 [live reads](/actors/docs/live-reads) are driven over your `stream()` instead.
 
+`close()` is **idempotent by contract**. A live channel resolved from a transport's own
+`live()` is released through the transport that produced it, so either owner — the plugin or
+the channel — may release first. (`ActorLiveChannel` deliberately has no `close()` of its
+own.)
+
+### The socket transport
+
+[`@sigx/actors-ws`](/actors/packages/actors-ws/overview) is the ready-made one: every call and
+every live subscription on the page over a single connection.
+
+```ts
+import { socketTransport } from '@sigx/actors-ws/client';
+
+app.use(actorsPlugin({ transport: socketTransport({ url: 'wss://example.com/_sigx/socket' }) }));
+```
+
+It implements `live()`, so subscriptions change incrementally instead of reopening. Note that
+it is **host-affine** — a per-call `endpoint` is ignored, because every call re-dispatches
+through placement anyway — and that in-flight calls fail un-retried when a socket drops, while
+subscriptions re-establish.
+
+`fetchTransport()` stays the default; reach for the socket when the connection *shape* is the
+problem, not when you want a faster call.
+
 ## Routing
 
 `ActorTransport` decides *how* a call travels; `ActorRouter` decides *where* it goes. They
@@ -141,8 +165,8 @@ Nothing about the wire requires a SignalX client. It is the
 mobile app or another service can call an actor with `fetch` and no SDK.
 
 `@sigx/actors/client` is worth using anyway when you want the typed proxy, since it is
-dependency-free and small: the size budget for `{ __actorRef, configureActors, fetchTransport }`
-is 2 kB.
+dependency-free and small: 5 kB budgeted for the whole entry, and 2.3 kB for a bundle that
+pulls in no router.
 
 ## Next steps
 

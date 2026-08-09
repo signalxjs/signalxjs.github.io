@@ -93,6 +93,39 @@ single actor can claim it. Two consequences worth knowing:
 - An open watch counts as activity, so [idle collection](/actors/docs/lifecycle) cannot
   deactivate an actor out from under a subscriber.
 
+**Clients never connect to an actor's owning host.** Hosts relay, and the relay hop is cheap
+— which is what lets the fan-out scale.
+
+### Subscribers share one stream
+
+Each relaying host holds **one** cross-host stream per
+`(actor, method, throttleMs, args, principal)` and fans it out locally. Owner-side delivery is
+therefore **O(hosts), not O(subscribers)**: the write ceiling moves *with* fleet size instead
+of against it.
+
+The shared stream is pulled at the **fastest** consumer's rate. A slower subscriber drops
+oldest at a 16-value buffer, so a stalled tab cannot backpressure anyone else on the stream —
+superseded live values are worthless by definition.
+
+A shared-stream failure fails **every** subscriber on it and drops the entry. Recovery is the
+`$live` channel's ordinary reconnect-and-reseed, unchanged.
+
+Two counters report it: `remoteWatches` counts remote watch **streams**, and
+`coalescedWatches` counts attaches that joined an existing one.
+
+### Identity-dependent reads split automatically
+
+A watch loop is shared per `(method, args, throttleMs)`, which would be wrong for a read whose
+result depends on who is asking. So the runtime observes whether a read actually consults
+`ctx.principal`, and **only then** splits that key's loop per encoded principal.
+
+Reads that never touch identity keep one shared loop however many subscribers it has;
+same-principal subscribers still share. There is no API for this and nothing to opt into — a
+caller observes only that the value is theirs.
+
+Distinct authenticated principals do not yet share a stream even where the read is
+identity-independent in practice.
+
 ## Live reads or streams?
 
 Use **`{ live: true }`** for *current state* — a message list, a topic, a presence count, a
