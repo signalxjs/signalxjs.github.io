@@ -107,6 +107,113 @@ identity**, so changing either is a state migration.
 > calls are rejected as cross-origin. `origin: false` is right for a service; a browser
 > front-end should pass its own origin list.
 
+## Client sockets
+
+Browsers can speak [`@sigx/actors/socket-wire`](/actors/docs/wire-protocol#the-socket-wire)
+over a WebSocket here, with `socketTransport()` from
+[`@sigx/actors-ws`](/actors/packages/actors-ws/overview) on the client side unchanged. There
+are two places the socket can terminate, and the choice is about **who the connection belongs
+to**.
+
+| | Worker-terminated | Object-terminated |
+|---|---|---|
+| Upgrade path | `{path}` | `{path}/{type}/{key}` |
+| Sockets | one per **client** | one per **actor** |
+| Reach | every actor, multiplexed | that one actor |
+| Releases a departed consumer's `keptAlive` | no | **yes** |
+| Survives hibernation | n/a — the Worker holds nothing | yes |
+| Good for | a dashboard watching many actors | a room many clients watch |
+
+### Worker-terminated
+
+```ts
+export default createWorkerHandler<Env>({
+    actors,
+    namespace: (env) => env.ACTORS,
+    app: createApp,
+    socket: { path: '/_sigx/socket' },        // terminate: 'worker' is the default
+});
+```
+
+Sugar for `app.use(workerSocket(...))`. The upgrade happens in the Worker — on Workers a 101
+**is** a `Response`, so this is an ordinary route contribution around
+[`createActorSocketSession`](/actors/docs/socket-sessions), not a special case.
+
+Every call and every subscription re-dispatches through placement to its actor's Durable
+Object, with the stub derived fresh per dispatch. A refused construction — origin, or
+authentication — answers with an honest HTTP status rather than an accepted-then-closed
+socket. No pre-session buffer is needed either: the client end of a `WebSocketPair` only
+exists inside the returned `Response`, so no frame can race the session's construction.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>This mode does not release <code>keptAlive</code> for a departed live
+    consumer.</strong> The cancellation dies at the <code>stub.fetch</code> boundary, so an
+    actor whose last watcher closed its tab stays alive until it idles out. When empty-room
+    economics matter, terminate in the object.
+  </div>
+</div>
+
+### Object-terminated — the room pattern
+
+```ts
+export class ActorHost extends createHostDurableObject<Env>({
+    actors,
+    namespace: (env) => env.ACTORS,
+    app: createApp,
+    socket: { maxConnectionMs: 3_600_000 },   // session options live HERE in this mode
+}) {}
+
+export default createWorkerHandler<Env>({
+    actors,
+    namespace: (env) => env.ACTORS,
+    app: createApp,
+    socket: { terminate: 'object' },          // only `path` is meaningful on this side
+});
+```
+
+The Worker parses the actor out of `{path}/{type}/{key}` and **forwards the upgrade verbatim**
+— cookies, `Origin` and all — to that actor's Durable Object, which accepts it with
+`state.acceptWebSocket` under the tag `sigx:socket`. The 101 carrying the client end passes
+straight back out.
+
+Because the session lives where the actor lives, **a disconnect tears down locally**:
+`iterator.return()` reaches the watch, `keptAlive` clears, and the empty room is released.
+That is the whole reason this mode exists.
+
+The option split is enforced by the types: in `'object'` mode the Worker side accepts only
+`path`, so session options cannot be configured on the side that never runs the session.
+
+Note the arity difference means the two modes **compose** — mount this one and
+`app.use(workerSocket(...))` for the other if you want both.
+
+### The hibernation contract
+
+Deliberately minimal, because the point of hibernation is that an idle page costs nothing:
+
+- **Keepalive is `setWebSocketAutoResponse`**, answered by the runtime without waking the
+  object. `pingMs` is therefore **not accepted** — a session-owned ping timer would hold the
+  object resident, which is exactly the cost hibernation removes.
+- **`maxConnectionMs` survives eviction** as a deadline stored in the socket attachment,
+  checked per message. So an idle hibernated socket can nominally outlive its cap until its
+  next frame; the alternative would be an alarm, and the object's one alarm belongs to
+  reminders.
+- **An evicted isolate loses the session** — pinned principal, in-flight calls, watches. The
+  first message after a cold wake closes **`1012 'session evicted — reconnect'`**, and the
+  client transport redials: a fresh upgrade with the browser's current cookies, subscriptions
+  re-seeded exactly as on any other drop.
+
+A subclass may accept its own sockets under a different tag and compose fine; one that
+overrides the hibernation handlers must delegate `sigx:socket` sockets back through `super`.
+
+### Also exported
+
+`objectSocketRoute` and `parseSocketActorPath` for the forwarding half, and
+**`durableObjectStubResolver`** — the ref → stub derivation, extracted so placement and the
+forwarding route cannot drift apart about where an actor lives. `CloudflareWebSocketLike`,
+`DurableWebSocketLike` and the optional hibernation members on `DurableObjectStateLike`
+describe the runtime surface structurally.
+
 ## Eviction is not deactivation
 
 > The platform destroys the isolate, the host and the activation **together**. `onDeactivate`
@@ -154,5 +261,6 @@ exception escaping `blockConcurrencyWhile` *resets* the DO.
 ## Next steps
 
 - [`@sigx/actors-cloudflare`](/actors/packages/actors-cloudflare/overview) — the API.
+- [Socket sessions](/actors/docs/socket-sessions) — the session both modes drive.
 - [Tasks](/actors/docs/tasks) — the checkpoint posture here.
 - [The app](/actors/docs/the-app) — the factory pattern.

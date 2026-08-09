@@ -65,6 +65,25 @@ the platform wakes it at the earliest due time.
 The visible consequence: an alarm fires **at** the due time, where `shardedReminders()`
 promises only "at or after `nextDue`".
 
+## Client sockets
+
+Browsers can reach actors over a WebSocket here, terminating in either half:
+
+```ts
+createWorkerHandler({ ..., socket: {} });                        // in the Worker
+createWorkerHandler({ ..., socket: { terminate: 'object' } });   // in the object
+```
+
+**Worker-terminated** gives one multiplexed socket per client, reaching every actor — the
+right shape for a dashboard. **Object-terminated** gives one socket per actor, accepted with
+the hibernation API inside the object that owns it — the room pattern, and the mode where a
+disconnect actually releases the activation, because teardown happens locally instead of dying
+at the `stub.fetch` boundary.
+
+Pair either with [`socketTransport()`](/actors/packages/actors-ws/overview) on the client. The
+[deployment guide](/actors/docs/cloudflare-workers#client-sockets) has the choice in full,
+plus the hibernation contract.
+
 ## The getting-started path
 
 Most apps do not touch the two seams directly — `createHostDurableObject()` and
@@ -77,3 +96,4 @@ and the three gotchas that are each worth their own callout.
 - [Installation](/actors/packages/actors-cloudflare/installation) — bindings and migrations.
 - [API reference](/actors/packages/actors-cloudflare/api) — exports.
 - [Cloudflare Workers](/actors/docs/cloudflare-workers) — the deployment guide.
+- [`@sigx/actors-ws`](/actors/packages/actors-ws/overview) — the client half of a socket.

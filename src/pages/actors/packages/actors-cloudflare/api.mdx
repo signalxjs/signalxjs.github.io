@@ -28,6 +28,9 @@ interface HostDurableObjectOptions<Env> {
     placement?: Pick<DurableObjectPlacementOptions,
         'objectName' | 'locationHint' | 'jurisdiction' | 'base'>;
     endpoint?: HostEndpointOptions;
+    /** Terminate client sockets inside this object. */
+    socket?: Omit<ActorSocketSessionOptions,
+        'host' | 'request' | 'send' | 'close' | 'pingMs'> & { path?: string };
 }
 ```
 
@@ -40,7 +43,18 @@ of its own.
 ### `createWorkerHandler<Env>(options)`
 
 The edge. Hosts nothing, routes everything. Same options minus `endpoint`, plus
-`fetch?: FetchHandlerOptions`.
+`fetch?: FetchHandlerOptions` and `socket?`:
+
+```ts
+socket?:
+    | (WorkerSocketOptions & { terminate?: 'worker' })
+    | { terminate: 'object'; path?: string };
+```
+
+A discriminated union on purpose: in `'object'` mode the session runs inside the Durable
+Object, so the type refusing session options on the Worker side is what stops them being
+configured where they would never run. See
+[client sockets](/actors/docs/cloudflare-workers#client-sockets).
 
 ## Seams
 
@@ -52,6 +66,10 @@ The edge. Hosts nothing, routes everything. Same options minus `endpoint`, plus
 | `durableObjects(options?)` | the placement as a plugin |
 | `durableObjectName(...)` | the ref → object-name function |
 | `unhostedStorage()` | storage for the Worker half, which hosts nothing |
+| `durableObjectStubResolver(...)` | the ref → stub derivation, shared by placement and the forwarding socket route so the two cannot disagree about where an actor lives |
+| `workerSocket(options?)` | the Worker-terminated socket route, as a plugin |
+| `objectSocketRoute(options)` | the forwarding half of the object-terminated mode |
+| `parseSocketActorPath(pathname, path?)` | `{path}/{type}/{key}` → the actor it names |
 
 ### Placement runs on both sides
 
@@ -88,10 +106,16 @@ returned as a value and thrown **after** the gate closes. An exception escaping
 `DurableObjectStorageOptions`, `DurableObjectRemindersOptions`,
 `DurableObjectPlacementOptions`, `DurableAppOptions`, `DurableObjectStateLike`,
 `HostDurableObjectInstance`, `WorkerHandler`, `WorkerHandlerOptions`, `BlockConcurrencyWhile`,
-`DurableStorage`, `DurableAlarms`.
+`DurableStorage`, `DurableAlarms`, `DurableObjectStubResolver`, `WorkerSocketOptions`,
+`ObjectSocketRouteOptions`, `CloudflareWebSocketLike`, `DurableWebSocketLike`.
+
+`DurableObjectStateLike` carries the hibernation members — `acceptWebSocket`,
+`setWebSocketAutoResponse` and friends — as optional, so a runtime without them still
+type-checks.
 
 ## Next steps
 
 - [Overview](/actors/packages/actors-cloudflare/overview) — the two seams.
+- [Client sockets](/actors/docs/cloudflare-workers#client-sockets) — the two termination modes.
 - [Installation](/actors/packages/actors-cloudflare/installation) — bindings and migrations.
 - [Cloudflare Workers](/actors/docs/cloudflare-workers) — the deployment guide.
