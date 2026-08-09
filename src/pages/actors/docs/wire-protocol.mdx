@@ -122,7 +122,7 @@ or `@`:
 | Symbol | On the wire | What it is |
 |---|---|---|
 | `$live#subscribe` | `{base}/$live/subscribe` | the multiplexed [live-read](/actors/docs/live-reads) mount — the only one a browser talks to |
-| `$watch:{Type}#{method}` | `{base}/$watch:{Type}/{method}` | internal host-to-host watch forwarding; not a public endpoint |
+| `$watch:{Type}#{method}` | `/_sigx/host/$watch:{Type}/{method}` | internal host-to-host watch forwarding, on the internal mount — not a public endpoint |
 
 `@` is reserved for data keys (`['@actor', …]` — see
 [Reads & writes in components](/actors/docs/in-components)).

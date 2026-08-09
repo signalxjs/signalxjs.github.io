@@ -476,7 +476,7 @@ const RAW_MODULES: SigxModule[] = [
     { id: 'actors-pg', parent: 'actors', npm: '@sigx/actors-pg', name: 'Postgres', category: 'providers',
       hue: 230, glyph: '⬢', status: 'experimental', version: '0.7.0', role: 'Postgres',
       tag: 'Membership, directory, storage & reminders on Postgres',
-      blurb: 'The whole cluster on the database you already run — jsonb storage with etag compare-and-set, database-clock membership, the directory, and durable reminders claimed with SKIP LOCKED. Ships its DDL; never issues it for you.' },
+      blurb: 'The whole cluster on the database you already run — state rows with etag compare-and-set, database-clock membership, the directory, and durable reminders claimed with SKIP LOCKED. Ships its DDL, and never runs it behind your back.' },
     { id: 'actors-surreal', parent: 'actors', npm: '@sigx/actors-surreal', name: 'SurrealDB', category: 'providers',
       hue: 320, glyph: '⬢', status: 'experimental', version: '0.7.0', role: 'SurrealDB',
       tag: 'Membership, directory, storage & reminders on SurrealDB 3',

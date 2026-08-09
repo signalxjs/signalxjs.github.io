@@ -54,7 +54,8 @@ compare-and-delete release and evict, plus an `evictHost` sweep for departed hos
 
 ## DDL is explicit
 
-The providers **never issue DDL**, so a production role needs only DML grants.
+The providers **never issue DDL on their own** — it happens only when you call for it, so a
+production role that never runs the bootstrap needs only DML grants.
 
 ```ts
 await ensurePgSchema(pool);   // safe from every replica, concurrently

@@ -20,8 +20,8 @@ Postgres ≥ 13, `pg` ≥ 8.
 
 ## Create the schema
 
-Tables live in one Postgres schema, `sigx` by default. **DDL is explicit** — the providers
-never issue it, so a production role needs only DML grants.
+Tables live in one Postgres schema, `sigx` by default. **DDL is explicit** — nothing issues it
+implicitly, so a production role that never runs the bootstrap needs only DML grants.
 
 ```ts
 import pg from 'pg';
