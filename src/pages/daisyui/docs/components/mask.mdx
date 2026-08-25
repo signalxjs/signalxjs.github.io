@@ -1,0 +1,97 @@
+---
+title: Mask
+description: Mask crops its content to a shape such as a circle, hexagon or star
+layout: docs
+category: ["Components", "Layout"]
+order: 640
+---
+
+# Mask
+
+Mask clips whatever you put inside it to one of DaisyUI's shapes. It works on
+images, coloured blocks — anything with a size.
+
+## Import
+
+```tsx
+import { Mask } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Mask } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Mask shape="squircle" class="w-24 h-24">
+            <img src="https://i.pravatar.cc/150?u=30" alt="Masked photo" />
+        </Mask>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## All Shapes
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Mask, Row, Col, Text } from '@sigx/daisyui';
+
+const shapes = [
+    'squircle', 'heart', 'hexagon', 'hexagon-2', 'decagon', 'pentagon', 'diamond',
+    'square', 'circle', 'parallelogram', 'parallelogram-2', 'parallelogram-3', 'parallelogram-4',
+    'star', 'star-2', 'triangle', 'triangle-2', 'triangle-3', 'triangle-4',
+] as const;
+
+const Demo = component(() => {
+    return () => (
+        <Row gap="4" wrap>
+            {shapes.map((shape) => (
+                <Col align="center" gap="1">
+                    <Mask shape={shape} class="w-16 h-16 bg-primary" />
+                    <Text size="xs" class="opacity-70">{shape}</Text>
+                </Col>
+            ))}
+        </Row>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Half Masks
+
+DaisyUI's `mask-half-1` / `mask-half-2` modifiers keep only one half of the
+shape; pass them through `class`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Mask, Row } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Row gap="1">
+            <Mask shape="star-2" class="mask-half-1 w-16 h-16 bg-warning" />
+            <Mask shape="star-2" class="mask-half-2 w-16 h-16 bg-warning opacity-30" />
+        </Row>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `shape` | `MaskShape` | - | One of `squircle`, `heart`, `hexagon`, `hexagon-2`, `decagon`, `pentagon`, `diamond`, `square`, `circle`, `parallelogram`, `parallelogram-2`, `parallelogram-3`, `parallelogram-4`, `star`, `star-2`, `triangle`, `triangle-2`, `triangle-3`, `triangle-4` |
+| `class` | `string` | - | Additional CSS classes — use it to size the mask |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Content to clip |

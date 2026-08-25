@@ -1,0 +1,104 @@
+---
+title: Code
+description: MockupCode shows terminal-style output with line prefixes and colours
+layout: docs
+category: ["Components", "Mockup"]
+order: 710
+---
+
+# Code
+
+MockupCode renders a dark terminal-style block. Feed it `lines` — each with an
+optional prompt prefix and colour — or supply your own `<pre>` elements as
+children. It is also available as `Mockup.Code`.
+
+## Import
+
+```tsx
+import { MockupCode } from '@sigx/daisyui';
+// or
+import { Mockup } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { MockupCode } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <MockupCode lines={[
+            { prefix: '$', text: 'npm install sigx @sigx/daisyui' },
+        ]} />
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Multiple Lines with Colours
+
+`prefix` is rendered as the line's gutter text; `color` tints the line with a
+theme colour.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Mockup } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Mockup.Code lines={[
+            { prefix: '$', text: 'pnpm build' },
+            { prefix: '>', text: 'compiling 283 pages...', color: 'warning' },
+            { prefix: '>', text: 'Done in 4.2s', color: 'success' },
+        ]} />
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Custom Children
+
+When you pass children they replace `lines` entirely. Use `data-prefix` on
+each `<pre>` for the gutter, and DaisyUI's `bg-*` / `text-*` classes to
+highlight a whole line.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { MockupCode } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <MockupCode>
+            <pre data-prefix="1"><code>const count = signal(0);</code></pre>
+            <pre data-prefix="2" class="bg-warning text-warning-content"><code>count.value++;</code></pre>
+            <pre data-prefix="3"><code>console.log(count.value); // 1</code></pre>
+        </MockupCode>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `lines` | `CodeLine[]` | - | Lines to render when no children are given |
+| `class` | `string` | - | Additional CSS classes |
+
+### CodeLine
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `prefix` | `string` | Gutter text (`$`, `>`, a line number, …) |
+| `text` | `string` | Line content |
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'info' \| 'success' \| 'warning' \| 'error'` | Text colour for the line |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Custom `<pre>` lines; replaces `lines` when present |
