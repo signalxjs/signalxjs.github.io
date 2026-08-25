@@ -172,7 +172,7 @@ const RAW_MODULES: SigxModule[] = [
     { id: 'file-system', parent: 'lynx', npm: '@sigx/lynx-file-system', name: 'File System', category: 'native',
       hue: 158, glyph: '❏', status: 'stable', version: '0.27.0', downloads: '17k', shots: 0,
       tag: 'Sandboxed file access',
-      blurb: 'Read / write / delete and list files in the app documents directory.' },
+      blurb: 'Read / write / delete files and read file info in the app documents and cache directories.' },
     { id: 'haptics', parent: 'lynx', npm: '@sigx/lynx-haptics', name: 'Haptics', category: 'native',
       hue: 46, glyph: '∿', status: 'stable', version: '0.27.0', downloads: '33k', shots: 0,
       tag: 'Haptic feedback',

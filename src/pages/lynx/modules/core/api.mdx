@@ -187,14 +187,14 @@ export function unwrapNative<T>(pkg: string, action: string, raw: T): T
 export function unwrapNativeVoid(pkg: string, action: string, raw: unknown): void
 ```
 
-[`callAsync`](#callasync) rejects only when the *synchronous* bridge call throws; a native module reports its own failure by **resolving** `{ error: string }`. `unwrapNative` turns that envelope into a rejection: it throws a [`SigxError`](#sigxerror) with `code: 'native_error'`, the message `[@sigx/lynx-<pkg>] <action> failed: <cause>` and the raw payload on `cause`, and otherwise returns `raw` unchanged. `unwrapNativeVoid` is the same for methods whose success payload is nothing.
+[`callAsync`](#callasync) rejects only when the *synchronous* bridge call throws; a native module reports its own failure by **resolving** `{ error: string }`. `unwrapNative` turns that envelope into a rejection: it throws a [`SigxError`](#sigxerror) with `code: 'native_error'`, the message `[@sigx/<pkg>] <action> failed: <cause>` (so `pkg: 'lynx-camera'` yields `[@sigx/lynx-camera] takePicture failed: …`) and the raw payload on `cause`, and otherwise returns `raw` unchanged. `unwrapNativeVoid` is the same for methods whose success payload is nothing.
 
 ```ts
 const raw = await callAsync<{ uri?: string; error?: string }>('Camera', 'takePicture', opts);
 const { uri } = unwrapNative('lynx-camera', 'takePicture', raw);
 ```
 
-- **`pkg`** — the package short name without the scope, for example `'lynx-camera'`.
+- **`pkg`** — the package name without the `@sigx/` scope, for example `'lynx-camera'`; it is interpolated verbatim into the `[@sigx/<pkg>]` prefix.
 - **`action`** — what was attempted, for the message — usually the method name.
 - **`raw`** — whatever the bridge resolved.
 - **Platform** — iOS and Android.
