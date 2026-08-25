@@ -64,7 +64,7 @@ const back = reviveWithHandlers<Cart>(JSON.parse(wire), [money]);
 
 `reviveWithHandlers<T>` types the result as `T` for callers that know the tree's shape — it's an **assertion, not validation**; nothing checks wire data against `T`. Only apply it to trees `encodeWithHandlers` produced.
 
-When what you actually want is the **string** — a storage adapter's `save`, a request body, a state blob — skip the intermediate tree with [`stringifyWithHandlers`](/server/packages/serialize/api#stringify-sigxserializestringify) from the opt-in `@sigx/serialize/stringify` subpath. It yields the same bytes as the pair above in one walk; reading back is unchanged:
+When what you actually want is the **string** — a storage adapter's `save`, a request body, a state blob — skip the intermediate tree with [`stringifyWithHandlers`](/server/packages/serialize/api#stringify--sigxserializestringify) from the opt-in `@sigx/serialize/stringify` subpath. It yields the same bytes as the pair above in one walk; reading back is unchanged:
 
 ```ts
 import { stringifyWithHandlers } from '@sigx/serialize/stringify';
