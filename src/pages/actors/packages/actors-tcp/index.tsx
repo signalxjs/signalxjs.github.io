@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "TCP",
-    description: "TCP — module overview",
+    description: "Framed, multiplexed host-to-host TCP — the TCP package for SignalX (@sigx/actors-tcp).",
     layout: 'default',
     sidebar: false,
 };

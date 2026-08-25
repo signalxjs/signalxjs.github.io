@@ -9,6 +9,6 @@ export default Landing;
 
 export const meta = {
     title: 'SignalX i18n - Reactive localization',
-    description: 'Namespaces, a master locale with automatic fallback, locale detection and SSR-safe state transfer - renderer-neutral, so it runs on web, lynx and terminal alike.',
+    description: 'Internationalization for SignalX — namespaces, a master locale with automatic fallback, locale detection and SSR-safe state transfer on web, Lynx and terminal.',
     layout: 'package',
 };

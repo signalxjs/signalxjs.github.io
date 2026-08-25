@@ -49,6 +49,11 @@ export const Footer = component(() => {
                                     Components
                                 </SxLink>
                             </li>
+                            <li>
+                                <SxLink to="/why-signalx" class="hover:text-base-content transition-colors">
+                                    Why SignalX
+                                </SxLink>
+                            </li>
                         </ul>
                     </div>
                     

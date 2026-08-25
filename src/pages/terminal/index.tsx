@@ -18,7 +18,7 @@ const Landing = component(() => {
 export default Landing;
 
 export const meta = {
-    title: 'SignalX Terminal - Build TUIs with TSX',
-    description: 'The reactive model, rendered to the terminal - flexbox layout, input and a cell renderer.',
+    title: 'SignalX Terminal — Reactive terminal UIs (TUIs) in TSX',
+    description: 'Build terminal UIs (TUIs) in TypeScript with signals and TSX: the SignalX reactive model rendered to terminal cells, with flexbox layout and keyboard input.',
     layout: 'package',
 };

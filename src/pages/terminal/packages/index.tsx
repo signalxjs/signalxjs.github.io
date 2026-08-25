@@ -18,6 +18,6 @@ export default TerminalPackageCatalog;
 
 export const meta = {
     title: 'Terminal packages - The @sigx/terminal monorepo',
-    description: 'Browse the terminal repo packages — the @sigx/terminal umbrella, the @sigx/runtime-terminal renderer, the @sigx/terminal-zero foundation, @sigx/terminal-ui components, the @sigx/terminal-dev HMR runner and the standalone @sigx/args parser.',
+    description: 'Browse the SignalX terminal packages — @sigx/terminal, @sigx/runtime-terminal, @sigx/terminal-zero, @sigx/terminal-ui, @sigx/terminal-dev and @sigx/args.',
     layout: 'package',
 };

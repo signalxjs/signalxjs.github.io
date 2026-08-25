@@ -18,7 +18,7 @@ const Landing = component(() => {
 export default Landing;
 
 export const meta = {
-    title: 'SignalX Core - Signals, effects & the component model',
-    description: 'Fine-grained reactivity with signals and effects, plus a tiny TSX component runtime.',
+    title: 'SignalX Core — Signals and fine-grained reactivity for TSX',
+    description: 'Fine-grained reactivity for TypeScript: signals, computed values and effects update exactly the DOM nodes that changed — no virtual DOM, no re-renders.',
     layout: 'package',
 };

@@ -34,7 +34,8 @@ export const HeroSection = component(() => {
             </h1>
             <p class="hh-sub">
                 A fine-grained reactive framework with one core and a package for every surface —
-                web, native, terminal and the tooling in between.
+                web, native, terminal and the tooling in between.{' '}
+                <SxLink to="/why-signalx">Why SignalX?</SxLink>
             </p>
             <div class="hh-cta">
                 <SxLink

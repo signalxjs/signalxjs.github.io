@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Cloudflare",
-    description: "Cloudflare — module overview",
+    description: "One Durable Object per actor — the Cloudflare package for SignalX (@sigx/actors-cloudflare).",
     layout: 'default',
     sidebar: false,
 };

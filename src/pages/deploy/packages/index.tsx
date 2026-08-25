@@ -18,6 +18,6 @@ export default DeployAdapterCatalog;
 
 export const meta = {
     title: 'Deploy adapters - Cloudflare, Vercel & Netlify for SignalX',
-    description: 'Browse the deploy adapters — @sigx/cloudflare (bundled workerd worker), @sigx/vercel (Build Output API v3) and @sigx/netlify (Frameworks API function). Node, Deno and Bun deploy without an adapter package.',
+    description: 'Browse the SignalX deploy adapters — @sigx/cloudflare, @sigx/vercel and @sigx/netlify. Node, Deno and Bun deploy without an adapter package.',
     layout: 'package',
 };

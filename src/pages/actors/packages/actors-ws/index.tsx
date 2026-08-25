@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "WebSocket",
-    description: "WebSocket — module overview",
+    description: "Browser to host, over one socket — the WebSocket package for SignalX (@sigx/actors-ws).",
     layout: 'default',
     sidebar: false,
 };
