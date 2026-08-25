@@ -141,7 +141,7 @@ stringifyWithHandlers({ at: new Date(5), n: 7n });
 // {"at":{"$date":5},"n":{"$bigint":"7"}}
 ```
 
-Reading it back is unchanged — `reviveWithHandlers(JSON.parse(wire), handlers)`. There is no revive-from-string counterpart; that path is not hot.
+Reading it back is unchanged — `reviveWithHandlers(JSON.parse(wire), handlers)` — once you have a string: like `JSON.stringify`, the result is `undefined` for a top-level symbol or function, so narrow it before parsing. There is no revive-from-string counterpart; that path is not hot.
 
 - **Return type mirrors `JSON.stringify`:** `undefined` only for a top-level symbol or function. An *explicit* `undefined` — including one returned by a `toJSON` — is tagged `$undef` and survives, the opposite of plain JSON.
 - **Parity is the contract**, not "what `JSON.stringify` would do": a boxed `new Number(5)` encodes to `{}`, a sole `$`-key gains the `$esc` wrap, `toJSON` is called with no arguments, cycles throw `TypeError('Converting circular structure to JSON')`, and the 256-level [depth cap](#depth-cap) applies. The dev-only [lossy-value warning](#the-dev-warning-for-lossy-values) fires identically.

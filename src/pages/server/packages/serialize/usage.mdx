@@ -70,6 +70,7 @@ When what you actually want is the **string** — a storage adapter's `save`, a 
 import { stringifyWithHandlers } from '@sigx/serialize/stringify';
 
 const wire = stringifyWithHandlers(value, [money]);        // string | undefined
-const back = reviveWithHandlers<Cart>(JSON.parse(wire!), [money]);
+if (wire === undefined) throw new Error('not serializable');  // a top-level symbol or function
+const back = reviveWithHandlers<Cart>(JSON.parse(wire), [money]);
 ```
 
