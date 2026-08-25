@@ -23,7 +23,7 @@ and stops on unmount.
 
 ```ts
 interface ActorsDashboardProps {
-    source: MonitorSource;        // almost always httpSource({ url: '/your/ops/proxy' })
+    source: MonitorSource;        // almost always httpSource({ url: location.origin, base: '/admin/ops' })
     intervalMs?: number;          // 1000
     history?: number;             // sparkline samples, 60
     tab?: TabId;                  // 'overview' | 'hosts' | 'actors' | 'cluster' | 'health'

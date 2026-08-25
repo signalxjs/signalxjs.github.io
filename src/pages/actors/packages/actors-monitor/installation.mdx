@@ -63,9 +63,9 @@ with the bearer attached server-side:
 ```js
 // GET /admin/ops         → the host snapshot
 // GET /admin/ops/cluster → the fan-out
-if (url.pathname.startsWith('/admin/ops')) {
+if (url.pathname === '/admin/ops' || url.pathname.startsWith('/admin/ops/')) {
     if (!(await isOperator(request))) return new Response('no', { status: 403 });
-    return fetch(HOST_ORIGIN + url.pathname.replace('/admin', '/_sigx/ops') + url.search, {
+    return fetch(HOST_ORIGIN + url.pathname.replace('/admin/ops', '/_sigx/ops') + url.search, {
         headers: { authorization: `Bearer ${process.env.OPS_SECRET}` }
     });
 }

@@ -26,7 +26,7 @@ pnpm add @sigx/actors-dashboard @sigx/actors-monitor
 import { ActorsDashboard } from '@sigx/actors-dashboard';
 import { httpSource } from '@sigx/actors-monitor';
 
-<ActorsDashboard source={httpSource({ url: '/admin/ops' })} />
+<ActorsDashboard source={httpSource({ url: location.origin, base: '/admin/ops' })} />
 ```
 
 That is the whole integration. The component owns a `DashboardState` for its lifetime, polls
@@ -79,7 +79,7 @@ renders the panel it needs. Every panel is exported standalone and takes `{ stat
 ```tsx
 import { DashboardState, HostsPanel, httpSource } from '@sigx/actors-dashboard';
 
-const state = new DashboardState({ source: httpSource({ url: '/admin/ops' }) });
+const state = new DashboardState({ source: httpSource({ url: location.origin, base: '/admin/ops' }) });
 state.start();
 
 <HostsPanel state={state} />

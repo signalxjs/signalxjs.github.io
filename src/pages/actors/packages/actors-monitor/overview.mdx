@@ -25,7 +25,7 @@ pnpm add @sigx/actors-monitor
 ```ts
 import { DashboardState, httpSource } from '@sigx/actors-monitor';
 
-const state = new DashboardState({ source: httpSource({ url: '/admin/ops' }) });
+const state = new DashboardState({ source: httpSource({ url: location.origin, base: '/admin/ops' }) });
 state.start();
 // state.view.snapshot / .error / .partial — a signal your UI reads
 ```
@@ -90,7 +90,7 @@ both correct and are not the same fact.
 `ops()` sets **no CORS headers** and refuses to construct without a bearer secret outside dev.
 So a browser dashboard does not call it directly — it calls a **same-origin route of your own
 app**, which authenticates the operator and forwards to the host with the bearer attached
-server-side. `httpSource({ url: '/admin/ops' })` with **no** `secret` is the browser half;
+server-side. `httpSource({ url: location.origin, base: '/admin/ops' })` with **no** `secret` is the browser half;
 the nine-line server half is on the
 [ops endpoint page](/actors/docs/ops-endpoint#reaching-ops-from-a-browser).
 
