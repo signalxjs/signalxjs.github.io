@@ -7,7 +7,7 @@
  * collection packages (core, lynx, server, terminal) live in lib/modules.ts.
  */
 
-import { ACTORS_RELEASED, moduleById, type SigxModule } from '@/lib/modules';
+import { ACTORS_RELEASED, DEVTOOLS_RELEASED, moduleById, type SigxModule } from '@/lib/modules';
 import { VERSIONS } from '@/lib/versions.generated';
 
 export type PackageStatus = 'stable' | 'beta' | 'experimental';
@@ -140,7 +140,7 @@ const RAW_PACKAGES: SigxPackage[] = [
       tag: 'Deploy adapters for every platform',
       blurb: 'Ship your SSR app anywhere — one WinterCG fetch handler plus build adapters for Cloudflare Workers, Vercel and Netlify, and documented Node, Deno and Bun entries.' },
     { id: 'devtools', npm: '@sigx/devtools', title: 'DevTools', cat: 'tooling', target: 'foundation',
-      hue: 196, glyph: '⊙', status: 'beta', version: '0.1.0',
+      hue: 196, glyph: '⊙', status: 'beta', version: '0.0.1',
       tag: 'Inspect signals at runtime',
       blurb: 'A browser panel to trace the reactive graph, time-travel effects and inspect components.' },
 ];
@@ -165,9 +165,12 @@ declare const __SIGX_SHOW_UNRELEASED__: boolean | undefined;
  * ships. `command === 'serve'` in vite.config.ts is the signal that actually
  * distinguishes serving from building.
  */
-const SHOW_ACTORS =
-    ACTORS_RELEASED
-    || (typeof __SIGX_SHOW_UNRELEASED__ !== 'undefined' && __SIGX_SHOW_UNRELEASED__);
+const SHOW_UNRELEASED =
+    typeof __SIGX_SHOW_UNRELEASED__ !== 'undefined' && __SIGX_SHOW_UNRELEASED__;
+const SHOW_ACTORS = ACTORS_RELEASED || SHOW_UNRELEASED;
+
+/** Same gate for `@sigx/devtools`, which has not been published yet. */
+const SHOW_DEVTOOLS = DEVTOOLS_RELEASED || SHOW_UNRELEASED;
 
 /**
  * Registry with live npm versions overlaid (falls back to the literal).
@@ -193,10 +196,11 @@ export const PACKAGES: SigxPackage[] = RAW_PACKAGES.map((p) => ({
  * What drafts do NOT cover is a registry row rendering a tile that links to a
  * page the production build never emitted — hence this second list.
  *
- * See SHOW_ACTORS above, and ACTORS_RELEASED in lib/modules.ts.
+ * See SHOW_ACTORS / SHOW_DEVTOOLS above, and ACTORS_RELEASED /
+ * DEVTOOLS_RELEASED in lib/modules.ts.
  */
-export const PUBLIC_PACKAGES: SigxPackage[] =
-    PACKAGES.filter((p) => SHOW_ACTORS || p.id !== 'actors');
+export const PUBLIC_PACKAGES: SigxPackage[] = PACKAGES.filter((p) =>
+    (SHOW_ACTORS || p.id !== 'actors') && (SHOW_DEVTOOLS || p.id !== 'devtools'));
 
 export const CATEGORIES: { id: PackageCategory; label: string; hint: string }[] = [
     { id: 'core', label: 'Core', hint: 'Reactivity, routing & state' },
