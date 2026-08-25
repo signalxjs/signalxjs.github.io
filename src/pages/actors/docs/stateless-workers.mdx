@@ -41,6 +41,12 @@ isolate — received the call. No directory claim, no lookup, no routing, no `42
 nothing for a cluster to fence, migrate or rebalance. Both invariants are gated in CI:
 `directory_ops == 0`, pool ≤ cap.
 
+That locality is also what makes a worker the one thing a cluster can *target*: because it
+runs wherever the call lands, choosing the host is meaningful.
+[`members()` and `dispatchOn()` / `workerOn()`](/actors/docs/clustering#targeted-worker-calls-members-and-dispatchon)
+invoke a worker on a chosen member — every web-tier pod holding connections, say — in one
+attempt with no re-routing.
+
 **No identity, so no identity-bound surface.** `state`, `persistence`, `reminders`, `tasks:`,
 `subscriptions:`, `placement` and `reentrant` do not exist on `WorkerOptions` — passing one is
 a compile error. `ctx.state`, `ctx.save()` and friends are typed away by `WorkerContext` and

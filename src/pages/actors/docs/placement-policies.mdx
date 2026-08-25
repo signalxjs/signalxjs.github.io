@@ -93,6 +93,25 @@ stop.
 
 A throwing `attach` is contained, and `choose()` must keep working un-attached.
 
+## The `choose()` contract
+
+`choose()` receives a view **already narrowed** to the hosts that
+[register](/actors/docs/clustering#heterogeneous-clusters-registration-aware-placement) the
+actor's type, so every custom policy is registration-safe without doing anything. Three
+consequences to write against:
+
+- **The view is never empty.** An empty eligible set is the placement's problem, not the
+  policy's — it throws `ActorUnplaceableError` before `choose()` is called.
+- **`self` may not be in it.** A host can place types it does not register. This is why
+  `preferLocalPolicy()` on a non-registering host falls through to rendezvous over the
+  eligible view instead of answering `self` blindly.
+- **The answer must be a member of it.** A policy answering a host outside the view fails
+  the dispatch loudly, naming the policy. `self` is the one exception — it means "local", and
+  is guarded authoritatively by the fence, the claim and the registry.
+
+A homogeneous cluster pays nothing for the filtering: the narrowed view preserves object
+identity when nothing was removed.
+
 ## Precedence
 
 Highest first:
