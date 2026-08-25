@@ -1,0 +1,127 @@
+---
+title: Installation
+description: "Install @sigx/zero and a design system — @sigx/zero-basic or @sigx/zero-daisyui — and wire the two stylesheets and the theme registry"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+<p class="lede">`@sigx/zero` is the runtime. It renders anatomy and behavior and no styling,
+so you install it together with exactly one design system — a package that ships compiled
+CSS and a tiny runtime module. Two stylesheets and one function call is the whole setup.</p>
+
+## Install the runtime and a design system
+
+```bash
+pnpm add @sigx/zero @sigx/zero-basic
+```
+
+`@sigx/zero` peer-depends on `sigx` (and the core packages the umbrella brings). Pick one
+design system:
+
+| Package | Look | Themes |
+|---|---|---|
+| `@sigx/zero-basic` | Monograph — paper surfaces, hairline structure, one petrol ink. Documentation-grade calm. | `basic` (light), `basic-dark` |
+| `@sigx/zero-daisyui` | daisyUI 5's palette and component look, role for role. | `light`, `dark`, `dim`, `nord`, `sunset` |
+
+Both wire the same recommended vocabulary (eight colour roles, the `xs`–`xl` size ramp), so
+switching between them later changes no component code. To build a look of your own instead,
+see [Authoring a design system](/zero/docs/authoring/) — the kit is a dev dependency, never a
+runtime one.
+
+## Wire the stylesheets
+
+```ts
+// app entry
+import '@sigx/zero/css';               // layer order + structural token fallbacks
+import '@sigx/zero-basic/css';         // the design system: tokens + every recipe
+import { installThemes } from '@sigx/zero-basic';
+
+installThemes();                       // registers the design system's themes
+```
+
+`@sigx/zero/css` is the package's `css/base.css`: it declares the cascade layer order
+(`@layer zero.fallback, zero.tokens, zero.recipes, zero.structure`), design-system-neutral
+fallback values for the recommended tokens so an unstyled page is sane, and the
+`zero.structure` rule that keeps `hidden` parts hidden whatever a recipe says. Import it
+first. The design system's `/css` is its full compiled stylesheet — tokens, theme blocks and
+every recipe. Import order between the two does not matter for correctness (every compiled
+stylesheet restates the layer order), but base first is the convention.
+
+`installThemes()` hands the design system's theme declaration to zero's theme registry, so
+`themeController()`, `ThemeProvider` and a theme picker know which themes exist and which
+scheme each has. Token values never pass through JavaScript — they are in the CSS. See
+[Theming](/zero/docs/theming/).
+
+### Granular imports
+
+A design system also exports its tokens alone and one file per component:
+
+```ts
+import '@sigx/zero-basic/css/tokens';   // tokens + theme blocks only
+import '@sigx/zero-basic/css/tabs';     // one component's recipe
+import '@sigx/zero-basic/css/dialog';
+```
+
+Useful when a page uses three components and you would rather ship three recipes.
+
+## Use a component
+
+Every component is its own subpath, and is also re-exported from the package root:
+
+```tsx
+import { Dialog } from '@sigx/zero/dialog';
+import { component } from 'sigx';
+
+const Confirm = component(({ signal }) => {
+    const state = signal({ open: false });
+    return () => (
+        <Dialog.Root model={() => state.open}>
+            <Dialog.Trigger>Open</Dialog.Trigger>
+            <Dialog.Popup>
+                <Dialog.Title>Native top layer</Dialog.Title>
+                <Dialog.Close>Close</Dialog.Close>
+            </Dialog.Popup>
+        </Dialog.Root>
+    );
+});
+```
+
+The subpath import (`@sigx/zero/dialog`) is the tree-shaking-friendly form; the root import
+(`import { Dialog } from '@sigx/zero'`) is the same code.
+
+## Server rendering: SSR-safe ids
+
+Components mint ids for ARIA wiring (`aria-controls`, `aria-labelledby`, panel ids). On the
+server, register the zero plugin on the app so each request gets its own generator and the
+ids match on hydration:
+
+```ts
+import { zeroPlugin } from '@sigx/zero';
+
+app.use(zeroPlugin());
+```
+
+In a browser-only app the default generator is fine. See
+[Your first page](/zero/docs/quick-start/) for the full entry, including the first-paint
+theme script.
+
+## Typed vocabulary (optional)
+
+One side-effect import narrows every component's `color` / `size` / `variant` props to what
+the installed design system actually styles, and closes theme names on `setTheme`:
+
+```ts
+import '@sigx/zero-basic/register';
+```
+
+Without it, the props stay open unions with the recommended names autocompleting. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Next
+
+- [Your first page](/zero/docs/quick-start/)
+- [Components](/zero/docs/components/)
+- [Theming](/zero/docs/theming/)

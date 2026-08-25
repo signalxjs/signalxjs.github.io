@@ -1,0 +1,128 @@
+---
+title: Your first page
+description: "A complete zero entry — stylesheets, the theme registry, a first-paint theme script, SSR-safe ids and a theme toggle — in one small app"
+layout: docs
+category: Getting Started
+order: 30
+---
+
+# Your first page
+
+<p class="lede">A complete app entry with `@sigx/zero` and a design system: the two stylesheets,
+the theme registry, a first-paint script so the persisted theme applies before the first
+frame, SSR-safe ids, and a page that uses a dialog, tabs and a switch. Nothing here is
+styled by you — the design system draws all of it.</p>
+
+## The entry
+
+```tsx
+// src/main.tsx
+import { defineApp } from 'sigx';
+import { zeroPlugin } from '@sigx/zero';
+import { installThemes } from '@sigx/zero-basic';
+import '@sigx/zero/css';
+import '@sigx/zero-basic/css';
+import { App } from './App';
+
+installThemes();                          // basic / basic-dark into the registry
+
+defineApp(<App />)
+    .use(zeroPlugin())                    // per-request id generator (matters under SSR)
+    .mount(document.getElementById('app')!);
+```
+
+## The page
+
+```tsx
+// src/App.tsx
+import { component } from 'sigx';
+import { Dialog } from '@sigx/zero/dialog';
+import { Tabs } from '@sigx/zero/tabs';
+import { Switch } from '@sigx/zero/switch';
+import { Button } from '@sigx/zero/button';
+import { useTheme } from '@sigx/zero';
+
+export const App = component(({ signal }) => {
+    const state = signal({ tab: 'general', notify: true, confirm: false });
+    const theme = useTheme();
+
+    return () => (
+        <main>
+            <Button.Root variant="ghost" onClick={() => theme.toggle()}>
+                {theme.resolvedScheme() === 'dark' ? 'Light mode' : 'Dark mode'}
+            </Button.Root>
+
+            <Tabs.Root model={() => state.tab}>
+                <Tabs.List>
+                    <Tabs.Tab value="general">General</Tabs.Tab>
+                    <Tabs.Tab value="notifications">Notifications</Tabs.Tab>
+                </Tabs.List>
+                <Tabs.Panel value="general">
+                    <Dialog.Root model={() => state.confirm}>
+                        <Dialog.Trigger color="error" variant="outline">Delete workspace</Dialog.Trigger>
+                        <Dialog.Popup>
+                            <Dialog.Title>Delete this workspace?</Dialog.Title>
+                            <Dialog.Description>Everything in it goes with it.</Dialog.Description>
+                            <Dialog.Footer>
+                                <Dialog.Close>Keep it</Dialog.Close>
+                                <Button.Root color="error" onClick={destroy}>Delete</Button.Root>
+                            </Dialog.Footer>
+                        </Dialog.Popup>
+                    </Dialog.Root>
+                </Tabs.Panel>
+                <Tabs.Panel value="notifications">
+                    <Switch.Root model={() => state.notify} name="notify">
+                        Email me about mentions
+                    </Switch.Root>
+                </Tabs.Panel>
+            </Tabs.Root>
+        </main>
+    );
+});
+```
+
+Three things to notice:
+
+- **State is the model.** `model={() => state.tab}` is the whole binding — selecting a tab
+  writes `state.tab`, and writing `state.tab` selects the tab. The getter reads a signal
+  property directly; sigx tracks that read to know where to write back.
+  [Models](/zero/docs/models/) has the full convention.
+- **The dialog has no Portal.** `Dialog.Popup` renders a native `<dialog>` in place; opening
+  it lifts it into the top layer, and the platform traps focus, handles Escape and restores
+  focus on close.
+- **Variant axes are just attributes.** `color="error" variant="outline"` renders
+  `data-color="error" data-variant="outline"` on the trigger; the design system's compiled
+  CSS selects on them. Zero attaches no styling to any of it.
+
+## The first-paint theme script
+
+The system light/dark preference needs no JavaScript at all: the compiled CSS uses
+`light-dark()` with `color-scheme: light dark` on `:root`. An *explicit* choice the user
+made earlier is persisted in `localStorage`, and applying it before the first paint is one
+inline script in `<head>`:
+
+```tsx
+import { themeInitScript } from '@sigx/zero';
+
+// in your document template / SSR head:
+<script innerHTML={themeInitScript()} />
+```
+
+It reads the stored choice and stamps `data-theme` on `<html>` before anything renders.
+`themeController()` picks the same value up when the app boots. See
+[Theming](/zero/docs/theming/).
+
+## Server rendering
+
+Nothing above changes under `@sigx/server-renderer`. The popup renders closed in place,
+`<details>`-based components render their disclosure state, and form controls render real
+inputs that post before hydration. The one requirement is `app.use(zeroPlugin())`, so each
+request mints ids from its own counter and the client's ids line up with the markup it
+hydrates.
+
+## Next
+
+- [Components](/zero/docs/components/) — the full set, by tier.
+- [The anatomy contract](/zero/docs/anatomy-contract/) — what the attributes mean.
+- [Theming](/zero/docs/theming/) — themes, schemes, the controller and the provider.
+- [Authoring a design system](/zero/docs/authoring/) — when the shipped looks are not yours.

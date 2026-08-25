@@ -1,0 +1,137 @@
+---
+title: Lynx
+description: "How @sigx/zero's contract reaches Lynx — the class-name grammar (zx-<scope>__<part>, zx-s-/zx-f-/zx-a-/zx-m-/zx-o-/zx-p-/zx-theme-, zx-root), the DOM-free subpaths, and @sigx/zero-kit's lynx emit target with its dist/lynx artifacts, capability verdicts and per-target recipe sections"
+layout: docs
+category: Platforms
+order: 70
+---
+
+# Lynx
+
+<p class="lede">The anatomy contract is not web-shaped. On a platform whose style engine cannot
+select on attributes — Lynx has class, compound and descendant selectors only; no `[data-*]`,
+no pseudo-classes, no pseudo-elements — the same anatomy projects onto a **class grammar**,
+and the same design-system source compiles to a second target. One `tokens.ts` +
+`recipes.ts` skins the web app and the native app.</p>
+
+The native runtime is [`@sigx/lynx-zero`](/lynx/modules/zero/overview/), a Lynx module
+documented with the rest of the Lynx family. This page covers the parts of the contract and
+the kit that make it possible.
+
+## The class grammar
+
+`@sigx/zero/contract` exports the grammar as functions. On a class-only target the `data-*`
+attributes still *render* — they stay the machine-readable anatomy for tests and tooling —
+but every styling hook is a class composed by these:
+
+| Concept | Web selector | Class | Function |
+|---|---|---|---|
+| part | `[data-scope="tabs"][data-part="tab"]` | `zx-tabs__tab` | `partClass(scope, part)` |
+| state | `[data-state="open"]` | `zx-s-open` | `stateClass(state)` |
+| flag | `[data-disabled]` | `zx-f-disabled` | `flagClass(flag)` |
+| axis value | `[data-size="xs"]` | `zx-a-size-xs` | `axisClass(axis, value)` |
+| modifier | `[data-mod-block]` | `zx-m-block` | `modClass(name)` |
+| orientation | `[data-orientation="vertical"]` | `zx-o-vertical` | `orientationClass(value)` |
+| placement | `[data-placement="top"]` | `zx-p-top` | `placementClass(value)` |
+| theme | `[data-theme="dark"]` | `zx-theme-dark` | `themeClass(name)` |
+| token host | `:root` | `zx-root` | `HOST_CLASS` |
+
+State, flag and axis classes are deliberately scope-agnostic: semantics attach through the
+compound with the part class (`.zx-tabs__tab.zx-s-active`). `CLASS_GRAMMAR_VERSION` (`1`)
+stamps compiled artifacts so a runtime can refuse CSS emitted under a grammar it does not
+speak. The runtime derives an element's class list from the same inputs that produce its
+data-attributes; the kit's lynx target emits selectors from a parity-tested mirror of the same
+module. One definition, two readers, no drift.
+
+**The axis push-down rule.** On the web a non-carrier axis rule reaches a child part through
+an `@scope` donut. The grammar has no counterpart selector on purpose: axis and modifier
+classes appear on **every** part, stamped by the runtime from carrier context (nearest
+provider wins, which reproduces `@scope` proximity exactly), and the compiler emits axis
+rules as flat compounds on the styled part itself — never through a combinator. It also
+removes the `:not([data-size])` default twins: the runtime always stamps a concrete axis
+class, explicit or default.
+
+## The DOM-free subpaths
+
+A platform runtime imports the contract and the behaviors without `lib.dom`:
+
+| Subpath | What |
+|---|---|
+| `@sigx/zero/contract/core` | Everything `@sigx/zero/contract` exports except the two deliberately DOM-typed modules — the `asChild` `PartProps` bag and `renderAsChild` / `synthesizesClickFrom`. The vocabularies, the token contract, `defineAnatomy`, `variantAttrs`, the class grammar. |
+| `@sigx/zero/behaviors/core` | The platform-neutral behavior subset: controllable state, ids, the field context, option segmentation, and the list controller with its element type left open — a runtime that never mounts DOM elements registers `el: () => null` and gets the registration-order fallback, depth-first render order, which is visual order there. |
+| `@sigx/zero/theme/registry` | The theme-metadata registry alone (`registerThemes`, `pickThemeFor`, …), without the browser controller and provider. |
+| `@sigx/zero/testing` → `expectAnatomyElements` | The anatomy assertion over an `ElementLike` (`getAttribute` / `getAttributeNames` / `parent`), so a non-DOM test renderer holds components to the identical contract. |
+
+The whole portable surface compiles under `lib: ["es2022"]` in zero's own type tests, so a
+DOM type leaking into it fails zero's build, not a downstream platform's.
+
+## The lynx emit target
+
+```js
+await runStandardBuild({
+    designSystem,
+    manifest,
+    outDir,
+    targets: ['web', 'lynx'],
+});
+```
+
+`targets` defaults to `['web']`. `web` is not optional — every other target emits beside
+it. With `'lynx'` the build additionally writes:
+
+```
+dist/lynx/
+  tokens.css                 # every theme block a full restatement, colours baked to literals
+  components/<scope>.css     # class-grammar recipes
+  index.css
+  manifest.json              # the lynx manifest (lynx-manifest.schema.json), stamped with the grammar version
+```
+
+and folds a `lynx` section into `report.json`. `@sigx/zero-basic` and `@sigx/zero-daisyui`
+compile both targets from one source and export the results as `./lynx/index.css`,
+`./lynx/tokens.css` and `./lynx/manifest.json`.
+
+### Capability verdicts
+
+Every declaration gets one of three verdicts as it is projected:
+
+- **Translate.** Colours bake to literals with culori — there is no `oklch()`, `color-mix()`
+  or `light-dark()` on the target, so `light-dark(a, b)` picks the side the theme's
+  `colorScheme` names and `color-mix()` is evaluated in its colour space against the theme's
+  own baked colours; the `-soft` derivation is baked the same way. Shorthands the engine
+  mis-expands are expanded. Interaction states map to the runtime's own flag classes
+  (`focus-visible`, `pressed`).
+- **Drop, with a report entry.** `hover` has no pointer to translate to; pseudo-elements and
+  pseudo-classes have no counterpart. Each drop is recorded in `report.json` under
+  `lynx.dropped` with where, what and why.
+- **Reject.** The web-only `RUNTIME_PROPERTIES` (`--press-x`, `--slider-percent`, …) and an
+  unresolvable colour are errors — the author wrote a value, and silence would paint the
+  platform default instead.
+
+### Per-target recipe sections
+
+A recipe carries the shared styling, and `targets.web` / `targets.lynx` sections that are
+deep-merged over it for that target:
+
+```ts
+defineRecipe({
+    component: 'button',
+    parts: { root: { base: { /* shared */ } } },
+    targets: {
+        web:  { parts: { root: { selectors: { '&[data-press-animating]::after': { /* ripple */ } } } } },
+        lynx: { parts: { root: { states: { pressed: { opacity: 0.85 } } } } },
+    },
+});
+```
+
+The web-only runtime declarations (press ripples reading `--press-*`, `::backdrop` scrims)
+belong in `targets.web`; their Lynx replacements in `targets.lynx`. The shared `css` raw
+hatch is web spelling by definition: it is pasted into the web output and dropped from the
+lynx output with a report entry. A `targets.lynx.css` block is the lynx-spelled counterpart
+and is appended to the lynx output as written.
+
+### Text that must not scale
+
+Every `--text-<key>` also emits a `--text-fixed-<key>` alias. On the web the alias is pure
+indirection; a target with a runtime font scale materialises it as a literal. Recipes use
+the fixed alias for control chrome that must not grow with in-app text scaling.

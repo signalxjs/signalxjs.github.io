@@ -1,0 +1,145 @@
+---
+title: Vendor-named component APIs
+description: "A design system's api declaration (defineApi) and the generated ./components module it produces — zero's components under the vendor's own prop names, fully typed with no /register import — and the adapt() runtime behind it"
+layout: docs
+category: Styling
+order: 53
+---
+
+# Vendor-named component APIs
+
+<p class="lede">Zero's stance, stated once: visual and behavioral fidelity to a design language
+is guaranteed by the contract; API-surface fidelity is an adapter, not a contract change.
+The attributes a component renders (`data-color`, `data-variant`, `data-mod-*`) never change.
+A vendor's prop *names* — `kind`, `type`, `isIconOnly`, daisyUI's `wide` and `loading` — are
+restored one layer up, by a generated `./components` module the design system ships.</p>
+
+## Using a `./components` module
+
+```tsx
+import { Button, Table } from '@sigx/zero-daisyui/components';
+
+<Button wide loading variant="dash" color="primary">Save</Button>
+<Table.Root zebra hover>…</Table.Root>
+```
+
+Every prop is fully typed to what the design system wires — no `/register` import needed,
+nothing augments `ZeroVocabulary`. `<Button wide>` renders `data-mod-wide=""`;
+`variant="dash"` renders `data-variant="dash"`. Components the api does not touch are plain
+re-exports of zero's own (`Tabs`, `Dialog`, …), so one import path covers the whole library.
+
+`@sigx/zero-daisyui` is the shipped design system with an api: its `Button` takes daisy's
+six documented modifiers — `wide`, `block`, `square`, `circle`, `active`, `loading` — as flat
+booleans beside `color`, `size` and `variant` (`solid` \| `outline` \| `soft` \| `ghost` \|
+`dash` \| `link`), and its `Table.Root` takes `zebra` and `hover`. `loading` is paint: pair it
+with `disabled` yourself.
+
+## Register or components — one path per program
+
+| | `/register` | `./components` |
+|---|---|---|
+| Prop names | zero's own (`variant`, `mods`) | the vendor's (`kind`, `wide`) |
+| Mechanism | augments `ZeroVocabulary` program-wide | self-contained types, one module |
+| Coexistence | one design system per program | two design systems' modules can coexist |
+| Theme / token typing | yes | no |
+
+The register path narrows zero's own prop names; the components path delivers vendor names
+with the vocabulary untouched. Pick one per program.
+
+## Declaring an api
+
+A design system declares, beside its `tokens` and `recipes`, how zero's axis surfaces appear
+under its own names — with `defineApi` from `@sigx/zero-kit/define` (the `node:`-free
+subpath a design-system source module may import):
+
+```ts
+import { defineApi } from '@sigx/zero-kit/define';
+import { variants, modifiers } from './tokens.js';
+
+export const api = defineApi({ variants, modifiers }, {
+    variant: { as: 'kind', values: { 'danger-tertiary': 'danger--tertiary' } },
+    size: { values: { sm: 'small', md: 'medium' } },
+    modifiers: { 'icon-only': { as: 'hasIconOnly' } },
+    components: { button: { variant: { as: 'type' } } },
+});
+```
+
+- `as` renames a surface — Carbon's `kind`, Ant's `type`.
+- `values` respells individual members whose vendor spelling the attribute grammar cannot
+  hold: `kind="danger--tertiary"` renders `data-variant="danger-tertiary"`. The rendered
+  attribute keeps the zero spelling; only the prop surface respells.
+- `modifiers` map to flat vendor booleans.
+- All five surfaces map: `color`, `size`, `variant`, custom `axes` and `modifiers`.
+- `components` scopes an override to one component, *replacing* the design-system-wide entry
+  for the surfaces it names.
+
+Passing the vocabulary as the first argument (`{ variants, modifiers, axes, colors, sizes }`)
+narrows the declaration's literal types; `defineApi(api)` alone accepts the loose shape.
+
+### Validation
+
+`validateApi` runs inside `validateDesignSystem`. Mapped names must be valid identifiers
+(`API_PROP_PATTERN`); mapped values must exist in the declared vocabulary; and a
+design-system-wide rename may not shadow a component-specific Root prop —
+`api.variant = { as: 'name' }` would silently delete Select's `name`, so the validator rejects
+any design-system-wide mapping onto a prop in `RESERVED_PROPS_BY_SCOPE` and points at
+`api.components.<scope>`, where the same shadowing is a deliberate per-component decision
+(Ant's `type` over Button's native `type`, chosen for Button alone). The table is derived
+from zero's real `*RootProps` declarations.
+
+### Grades
+
+The conformance grade of each mapping derives mechanically from the declaration:
+`exact` (the same prop name as the contract), `renamed` (`as`), `reshaped` (a `values`
+respelling, or a boolean over a presence attribute), `unsupported` (no mapping). `apiGrade`
+and `modifierGrade` compute them; the coverage report's `api` section lists every vendor
+prop, where it routes, and its grade; the design-system manifest carries the routing under
+`api`. See [Validate and build](/zero/docs/validate-and-build/).
+
+## What the build emits
+
+When a design system declares an `api`, `writeArtifacts` writes two more files beside the
+register artifact:
+
+- `dist/components.d.ts` — self-contained vendor-named types. No `declare module`, no
+  augmentation, no `/register` import. Unwired axes are simply absent from the surface.
+- `dist/components.js` — data only: one `adapt(Base, spec)` call per component that routes
+  anything, a plain re-export otherwise.
+
+Add the subpath to the package's exports map:
+
+```json
+"./components": { "types": "./dist/components.d.ts", "import": "./dist/components.js" }
+```
+
+## `adapt` — the runtime, written once
+
+All behavior lives in `@sigx/zero/adapt`; the generated module may never contain logic.
+
+```ts
+import { adapt } from '@sigx/zero/adapt';
+import { Button as ZButton } from '@sigx/zero/button';
+
+export const Button = adapt(ZButton, {
+    props: {
+        kind: { axis: 'variant', values: { 'danger--tertiary': 'danger-tertiary' } },
+        hasIconOnly: { modifier: 'icon-only' },
+    },
+});
+```
+
+`adapt` delegates the base component's setup with a renaming view over its props — one
+component instance, so slots, events, models, refs and lifecycle pass through untouched, and
+every read of a routed prop lands on the tracking accessor inside whatever effect asked, so
+reactivity needs no extra machinery. A route is either an axis (`{ axis, values? }` —
+`color` / `size` / `variant`, or a custom axis folded into the `axes` bag) or a modifier
+(`{ modifier }`, folded into `mods`). `adapt` performs no validation: the spec is
+kit-generated and kit-validated, and the generated `components.d.ts` — instantiating the
+exported `Adapted<Base, Removed, Added>` and `AdaptedStatics<Base>` types — is the typed
+surface consumers see. A design system building its module by hand uses the same three
+exports.
+
+An ecosystem component that a design system covers is imported by the generated module from
+its owning package's root export, under the scope's Pascal-case name
+(`componentExportName('acme-stepper')` → `AcmeStepper`). See
+[Building your own component](/zero/docs/ecosystem-components/).

@@ -1,0 +1,74 @@
+---
+title: "Overview"
+description: "Tokens + recipes → plain layered CSS — the Zero Kit package for SignalX Zero (@sigx/zero-kit): what it does, setup and API."
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Zero Kit
+
+<p class="lede">The Node-only authoring kit for SignalX Zero design systems: typed tokens and
+per-part recipes, validated against the anatomy manifest and compiled to plain, layered CSS —
+plus the `sigx zero:build` / `zero:validate` CLI plugin, the artifact writers, the JSON
+Schemas and the design-system generation skill. Never a runtime dependency.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/zero-kit" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add -D @sigx/zero-kit @sigx/cli
+```
+
+`@sigx/cli` provides the `sigx` binary; the kit plugs its commands into it on install.
+
+## What it is for
+
+A design system for [`@sigx/zero`](/zero/docs/overview/) is data. The kit is everything that
+turns that data into a shipping package:
+
+- **The authoring surface** — `defineTokens`, `defineRecipe`, `defineDesignSystem`,
+  `defineApi`. Identity functions with typing, so recipes type-check against the declared
+  vocabulary. Importable from a browser bundle through `@sigx/zero-kit/define`, whose module
+  graph is `node:`-free by contract.
+- **Validation** — `validateDesignSystem` / `validateRecipes` / `validateApi`: token
+  completeness and WCAG contrast per theme, recipe structure against the anatomy manifest,
+  vocabulary membership, undeclared token references, physical-direction and literal-duration
+  lints, and injection guards on every interpolated string.
+- **The compiler** — `compileTokensCss` and `compileRecipeCss` behind `compileDesignSystem`:
+  four cascade layers, `:where(:root)` defaults with `light-dark()`, diff-only theme blocks,
+  `@property` registrations, and axis rules bounded by `@scope`.
+- **The artifacts** — `writeArtifacts`: `dist/css/*`, the self-validated design-system
+  `manifest.json`, `report.json`, the generated `/register` augmentation, and — when an
+  `api` is declared — the vendor-named `./components` module.
+- **The standard build** — `runStandardBuild` on `@sigx/zero-kit/build`: merge fragments,
+  validate, refuse to emit from an invalid source, compile, report, write. A package's
+  `build.mjs` is only its data, and the CLI calls the same function.
+- **The CLI plugin** — `sigx zero:validate` and `sigx zero:build`, discovered through the
+  package's `sigx-cli` field.
+- **The manifest tooling** — `mergeManifests` and the fragment contract for ecosystem
+  components; the JSON Schemas in `dist/schemas/`.
+- **The generation skill** — `skills/design-system/`: a brief pack of five worked style
+  briefs and the conformance fixtures for HeroUI, Material 3, Radix Themes, Ant Design and
+  Carbon.
+- **A second emit target** — `targets: ['web', 'lynx']` projects the same source onto the
+  class grammar `@sigx/lynx-zero` styles with.
+
+## Where the guides are
+
+The kit is documented in the [Authoring design systems](/zero/docs/authoring/) section of
+the Zero docs: [Tokens](/zero/docs/tokens/), [Recipes](/zero/docs/recipes/),
+[The compiled CSS](/zero/docs/compiled-css/), [Validate and build](/zero/docs/validate-and-build/),
+[Manifests and schemas](/zero/docs/manifests/), [Building your own component](/zero/docs/ecosystem-components/)
+and [Lynx](/zero/docs/lynx/). This package's pages cover [installation](/zero/packages/zero-kit/installation/)
+and the [export surface](/zero/packages/zero-kit/api/).
+
+## About
+
+`@sigx/zero-kit` is a Zero package — tokens + recipes → plain layered CSS. It is versioned
+in lockstep with the rest of the zero repo, so the runtime, the kit and every shipped design
+system always agree on the anatomy contract. The kit deliberately has no runtime dependency
+on `@sigx/zero`: the anatomy manifest is an input the caller supplies.
