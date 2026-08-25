@@ -1,0 +1,166 @@
+---
+title: "Toggle Group"
+description: "The @sigx/zero ToggleGroup component — a role=group of aria-pressed buttons under one string[] model, rendering the root / item anatomy with single or multiple selection and orientation-aware roving focus."
+layout: docs
+category: ["Components", "Actions & disclosure"]
+order: 103
+---
+
+# Toggle Group
+
+<p class="lede">A set of two-state buttons under one value model — text alignment, a view
+switcher, a filter chip row. The root is a `role="group"` and every item a native `<button>`
+with `aria-pressed`. The model is always `string[]`: `multiple` changes how a click writes it,
+never its shape, so switching a group from single to multiple selection is not a type
+migration.</p>
+
+## Import
+
+```tsx
+import { ToggleGroup } from '@sigx/zero/toggle-group';
+```
+
+`ToggleGroup` is a compound: `ToggleGroup.Root`, `ToggleGroup.Item`. It is also re-exported
+from the `@sigx/zero` root, together with `toggleGroupAnatomy` and `useToggleGroupContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { ToggleGroup } from '@sigx/zero/toggle-group';
+
+const Alignment = component(({ signal }) => {
+    const state = signal({ align: ['left'] });
+
+    return () => (
+        <ToggleGroup.Root model={() => state.align} label="Text alignment">
+            <ToggleGroup.Item value="left">Left</ToggleGroup.Item>
+            <ToggleGroup.Item value="center">Center</ToggleGroup.Item>
+            <ToggleGroup.Item value="right">Right</ToggleGroup.Item>
+            <ToggleGroup.Item value="justify" disabled>Justify</ToggleGroup.Item>
+        </ToggleGroup.Root>
+    );
+});
+```
+
+`model={() => state.align}` binds the array of pressed values both ways. Leave the model off
+and pass `defaultValue` to keep the state inside the component; `valueChange` fires either way.
+See [Models](/zero/docs/models/). `label` names the group (`aria-label`) — a row of
+"Left / Center / Right" buttons means nothing to a screen reader without it.
+
+### Single selection
+
+Without `multiple` at most one value is in the array: pressing an item replaces the array with
+`[value]`, and pressing the item that is already on empties it. Pass `deselectable={false}` to
+keep one item always on, the way a radio row behaves.
+
+```tsx
+<ToggleGroup.Root defaultValue={['grid']} deselectable={false} label="View">
+    <ToggleGroup.Item value="grid">Grid</ToggleGroup.Item>
+    <ToggleGroup.Item value="list">List</ToggleGroup.Item>
+</ToggleGroup.Root>
+```
+
+### Multiple selection
+
+```tsx
+<ToggleGroup.Root model={() => state.styles} multiple label="Text style">
+    <ToggleGroup.Item value="bold">B</ToggleGroup.Item>
+    <ToggleGroup.Item value="italic">I</ToggleGroup.Item>
+    <ToggleGroup.Item value="underline">U</ToggleGroup.Item>
+</ToggleGroup.Root>
+```
+
+Under `multiple` a press appends the value or filters it out; every item is independent.
+
+### Vertical groups
+
+```tsx
+<ToggleGroup.Root defaultValue={[]} orientation="vertical" label="Sidebar">
+```
+
+`orientation` renders as `data-orientation` on the root **and** on every item — the divider
+between items is directional CSS on the item, and a sibling selector cannot see the root — and
+switches the roving keys.
+
+### Rendering an item as your own element
+
+```tsx
+<ToggleGroup.Item value="docs" asChild>
+    {(p) => <span {...p}>Docs</span>}
+</ToggleGroup.Item>
+```
+
+With `asChild` the default slot receives the part's attribute bag; spread it so the anatomy,
+`aria-pressed`, the roving `tabIndex` and the handlers land on your element. The button
+contract is supplied by hand — `role="button"`, `aria-disabled` when disabled, and Enter /
+Space activation where the platform does not synthesise a click.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled` | `role="group"`, `aria-label` from `label`, `data-orientation`. Carries the variant axes. |
+| `item` | `button` | `on` \| `off` | `disabled`, `selected`, `focus-visible`, `pressed`, `press-animating` | `type="button"`, `aria-pressed`, `data-orientation`, roving `tabIndex`. Inside `root`. `asChild`. |
+
+Every part carries `data-scope="toggle-group"`. An item mirrors the standalone
+[`Toggle`](/zero/docs/components/toggle/)'s `on` / `off` contract so a design system can share
+fill styles between the two, and doubles the on-state as a `data-selected` presence flag —
+`[data-part="item"][data-selected]` composes with other flags where a `data-state` match
+cannot. `disabled` on the root disables every item; each item renders its own `data-disabled`.
+Items publish [press feedback](/zero/docs/behaviors/#press-feedback). See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `ToggleGroup.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string[]` | — | Two-way binding of the pressed values, in both selection modes. |
+| `defaultValue` | `string[]` | `[]` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: string[])` | — | Fires whenever the selection changes. |
+| `multiple` | `boolean` | `false` | Allow more than one item on at a time; a press appends or removes instead of replacing. |
+| `deselectable` | `boolean` | `true` | In single mode, pressing the on item turns it off. |
+| `loop` | `boolean` | `true` | Arrow keys wrap from the last item to the first. |
+| `label` | `string` | — | Accessible name of the `role="group"` container, rendered as `aria-label`. |
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Roving-key axis; rendered as `data-orientation` on root and items. |
+| `disabled` | `boolean` | `false` | Disables every item; renders `data-disabled` on the root. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `ToggleGroup.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | The value this item toggles in the model. |
+| `disabled` | `boolean` | `false` | Skipped by roving focus; renders `data-disabled` (and `aria-disabled` under `asChild`). |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| ArrowRight / ArrowLeft (horizontal), ArrowDown / ArrowUp (vertical) | Move focus to the next / previous enabled item without changing the selection. Mirrored under RTL. |
+| Home / End | First / last enabled item. |
+| Enter / Space / click | Toggle the focused item. |
+| Tab | Leaves the group. |
+
+Roving focus is pure navigation here — a toggle activates on click, Space or Enter, never on
+focus. One item is in the tab order: the first enabled item that is on, else the first enabled
+item. See [Behaviors](/zero/docs/behaviors/).
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles,
+defaulting to `primary`) and `size` (`xs`–`xl`) on toggle-group, so
+`<ToggleGroup.Root color="secondary" size="lg">` is styled in both. Neither wires a `variant`
+or any `mods` on the scope; under a design system's `/register` import those props are
+therefore absent. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[`Toggle`](/zero/docs/components/toggle/) for one standalone two-state button ·
+[`RadioGroup`](/zero/docs/components/radio-group/) for a form-participating exclusive choice ·
+[`Tabs`](/zero/docs/components/tabs/) when the selection switches a panel.

@@ -1,0 +1,143 @@
+---
+title: "Checkbox"
+description: "The @sigx/zero Checkbox component — a tri-state checkbox over a visually hidden native input, rendering root / control / indicator / label / hidden-input with checked, unchecked and indeterminate states."
+layout: docs
+category: ["Components", "Form controls"]
+order: 305
+---
+
+# Checkbox
+
+<p class="lede">A checkbox over a visually hidden native `<input type="checkbox">`. The native
+input gives form participation, labelling and the platform's keyboard behavior; the visible
+`control` and `indicator` are pure styling surfaces the design system paints. The boolean
+model carries checked; `indeterminate` is a separate visual state on top of it.</p>
+
+## Import
+
+```tsx
+import { Checkbox } from '@sigx/zero/checkbox';
+```
+
+`Checkbox` is a compound with a single member, `Checkbox.Root`. It is also re-exported from
+the `@sigx/zero` root, together with `checkboxAnatomy`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Checkbox } from '@sigx/zero/checkbox';
+
+const Terms = component(({ signal }) => {
+    const state = signal({ agreed: false });
+
+    return () => (
+        <Checkbox.Root model={() => state.agreed} name="terms" required color="primary">
+            I accept the terms
+        </Checkbox.Root>
+    );
+});
+```
+
+`model={() => state.agreed}` binds the checked state both ways — toggling writes
+`state.agreed`, and writing `state.agreed` toggles the box. Leave the model off and pass
+`defaultChecked` to keep the state inside the component; `checkedChange` fires either way. See
+[Models](/zero/docs/models/). The default slot is the label text; with no children the
+`label` part is not rendered.
+
+### Indeterminate
+
+```tsx
+<Checkbox.Root
+    model={() => state.all}
+    indeterminate={state.some && !state.all}
+>
+    Select all
+</Checkbox.Root>
+```
+
+`indeterminate` sets the native input's `indeterminate` property and puts every part in
+`data-state="indeterminate"`, regardless of the model. The model stays a boolean: a click
+on an indeterminate box writes the native toggle into the model, and the app decides when
+`indeterminate` turns off.
+
+### Inside a Field
+
+```tsx
+<Field.Root invalid={!!state.error}>
+    <Field.Label>Newsletter</Field.Label>
+    <Checkbox.Root model={() => state.subscribe}>Send me the monthly digest</Checkbox.Root>
+    <Field.Description>We never spam.</Field.Description>
+    <Field.Error>{state.error}</Field.Error>
+</Field.Root>
+```
+
+Inside a [`Field.Root`](/zero/docs/components/field/) the hidden input adopts the field's
+control id, its `disabled` / `invalid` / `required` flags and its `aria-describedby`. A
+prop set on the checkbox wins; the field supplies the rest.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `label` | `checked` \| `unchecked` \| `indeterminate` | `disabled`, `focus-visible`, `invalid`, `required` | The label row; the pointer target. Carries the variant axes. |
+| `hidden-input` | `input` | — | — | The native checkbox, visually hidden and focusable; carries `name`, `value`, `required`, `aria-invalid` and `aria-describedby`. Inside `root`. |
+| `control` | `span` | `checked` \| `unchecked` \| `indeterminate` | `disabled`, `focus-visible`, `invalid`, `pressed`, `press-animating` | The box a design system paints. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). Inside `root`. |
+| `indicator` | `span` | `checked` \| `unchecked` \| `indeterminate` | — | Empty; the design system draws the mark. Inside `control`. |
+| `label` | `span` | `checked` \| `unchecked` \| `indeterminate` | `disabled` | The label text; rendered only when the default slot is given. Inside `root`. |
+
+Every part carries `data-scope="checkbox"` and `data-part="<part>"`. The `hidden-input` is a
+real, styleable part: the native input renders so the box posts pre-hydration, and it is
+hidden with an inline clip rather than `display: none` so it stays focusable — a design
+system need not hide it again. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+The `control` carries the `invalid` flag as well as the root, because the box is what a
+design system paints and reaching it from the root would cost every recipe a descendant
+selector. Press feedback is cross-element: a press anywhere in the label row, or Space on
+the hidden input, lands on the `control` — the `--press-x` / `--press-y` coordinates are
+computed against the control's rect. The `indicator` renders empty, so recipes key on
+`[data-state="checked"]` and `[data-state="indeterminate"]` to draw the tick and the dash.
+
+## Props
+
+### `Checkbox.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the checked state. |
+| `defaultChecked` | `boolean` | `false` | Initial state when uncontrolled. |
+| `checkedChange` | event `(checked: boolean)` | — | Fires whenever the checked state changes. |
+| `indeterminate` | `boolean` | `false` | Sets the native `indeterminate` property and renders `data-state="indeterminate"`. |
+| `name` | `string` | — | Form field name on the hidden input. |
+| `value` | `string` | `'on'` | The value the hidden input posts while checked. |
+| `required` | `boolean` | `false` | Renders `required` and `data-required`; a wrapping Field's `required` also applies. |
+| `invalid` | `boolean` | `false` | Renders `aria-invalid` and `data-invalid` on root and control; a wrapping Field's `invalid` also applies. |
+| `disabled` | `boolean` | `false` | Renders `disabled` and `data-disabled`; a wrapping Field's `disabled` also applies. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| Space | Toggles, via the native input; the press lands on the control. |
+| Tab | Moves focus to and from the hidden input; `data-focus-visible` on root and control while keyboard-focused. |
+
+The platform owns the toggle; zero only mirrors the native `change` event into the model.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on checkbox, so `<Checkbox.Root color="success" size="lg">` is styled
+in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The mark is the design system's: a recipe draws the tick and the indeterminate dash on the
+`indicator` from its `data-state`, and the box's fill on the `control` from the `color` axis
+on the root.
+
+## Related
+
+[Switch](/zero/docs/components/switch/) · [Radio Group](/zero/docs/components/radio-group/) ·
+[Field](/zero/docs/components/field/) · [Toggle](/zero/docs/components/toggle/)

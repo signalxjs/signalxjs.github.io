@@ -1,0 +1,147 @@
+---
+title: "Field"
+description: "The @sigx/zero Field component — the wiring hub for a labelled form control, rendering root / label / description / error and handing its ids and disabled / invalid / required flags down to whichever control sits inside it."
+layout: docs
+category: ["Components", "Form controls"]
+order: 301
+---
+
+# Field
+
+<p class="lede">The wiring hub for a labelled form control. `Field.Root` mints one set of ids and
+publishes them, together with its `disabled` / `invalid` / `required` flags, through a
+context that every zero form control reads — so a `Field.Label` names the control, a
+`Field.Description` and `Field.Error` describe it, and the flags land on the control's own
+anatomy, without a single id written by hand.</p>
+
+## Import
+
+```tsx
+import { Field } from '@sigx/zero/field';
+```
+
+`Field` is a compound: `Field.Root`, `Field.Label`, `Field.Description`, `Field.Error`. It is
+also re-exported from the `@sigx/zero` root, together with `fieldAnatomy`. The context the
+controls read is a behavior, exported as `useFieldContext` from `@sigx/zero/behaviors`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Field } from '@sigx/zero/field';
+import { Input } from '@sigx/zero/input';
+
+const EmailField = component(({ signal }) => {
+    const state = signal({ email: '', error: '' });
+
+    return () => (
+        <Field.Root invalid={!!state.error} required>
+            <Field.Label>Email</Field.Label>
+            <Input.Root model={() => state.email} type="email" name="email">
+                <Input.Control>
+                    <Input.Input placeholder="you@example.com" />
+                </Input.Control>
+            </Input.Root>
+            <Field.Description>We never share it.</Field.Description>
+            {state.error ? <Field.Error>{state.error}</Field.Error> : null}
+        </Field.Root>
+    );
+});
+```
+
+The `Input.Root` inside carries no `invalid` or `required` of its own — it adopts the field's.
+Its `<input>` takes the field's control id, so the `Field.Label` `for` lands on it, and its
+`aria-describedby` points at the description and error ids. `Input.Label` is optional inside
+a Field for the same reason.
+
+### Wrapping a selection control
+
+```tsx
+<Field.Root disabled={busy()}>
+    <Field.Label>Notifications</Field.Label>
+    <Switch.Root model={() => state.enabled}>Email me about new replies</Switch.Root>
+    <Field.Description>You can change this at any time.</Field.Description>
+</Field.Root>
+```
+
+A Checkbox, Switch or RadioGroup inside a Field disables, invalidates and requires with it. A
+control's own prop wins when set; the field supplies the rest — every consuming control
+derives each flag as `!!props.x || field.x()`.
+
+### Standalone controls
+
+A control outside any `Field.Root` reads an inert context and wires its own ids: `Input`,
+`Textarea` and `NumberInput` mint an id for their `<input>` and their own `Label`, and
+`Checkbox` and `Switch` are `<label>` elements already. Field is the composition for the
+description-and-error case, not a requirement.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled`, `invalid`, `required` | Carries the variant axes. Provides the field context. |
+| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the field's control id; carries the field's label id. Inside `root`. |
+| `description` | `p` | — | — | Carries the description id, referenced by the control's `aria-describedby`. Inside `root`. |
+| `error` | `p` | — | `invalid` | `role="alert"`; carries the error id. Inside `root`. |
+
+Every part carries `data-scope="field"` and `data-part="<part>"`. The ids come from one
+SSR-safe base: `<base>-control`, `<base>-label`, `<base>-desc` and `<base>-error`. The
+control's `aria-describedby` always names both the description and the error id, so a
+`Field.Error` rendered later is announced without any re-wiring — the `role="alert"` on it
+announces the message the moment it appears. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+### The context
+
+`Field.Root` provides a `FieldContext` — `inert` (`true` only on the fallback a standalone
+control reads), `ids` (`control`, `label`, `description`, `error`), the `disabled()` /
+`invalid()` / `required()` accessors and `describedBy()`, the space-separated description
+and error ids. An ecosystem control that wants to sit inside a Field reads it through
+`useFieldContext` and adopts the ids and flags exactly as the built-in controls do.
+
+### Which controls consume it
+
+The controls that read the field context are `Checkbox`, `Combobox`, `FileUpload`, `Input`,
+`NativeSelect`, `NumberInput`, `RadioGroup`, `RatingGroup`, `Select`, `Slider`, `Switch` and
+`Textarea`. Each hands the field's control id to the element the label should name — the
+visible `<input>` for Input and NumberInput, the `<textarea>`, the hidden native input for
+Checkbox and Switch, the `<select>` for NativeSelect, the combobox `<input>`, the trigger
+`<button>` for Select and FileUpload, and the control for Slider and RatingGroup — so
+`Field.Label` names all of them, an options-driven Select's generated trigger included.
+`RadioGroup.Root` instead points its `aria-labelledby` at the field's label id, since a
+group has no single control to name.
+
+## Props
+
+### `Field.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `disabled` | `boolean` | `false` | Renders `data-disabled` on root and label; every consuming control inside disables. |
+| `invalid` | `boolean` | `false` | Renders `data-invalid` on root, label and error; consuming controls render `data-invalid` and `aria-invalid`. |
+| `required` | `boolean` | `false` | Renders `data-required` on root and label; consuming controls render `required`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+Field has no `model`: it holds no value. The value lives on the control inside it.
+
+### `Field.Label`, `Field.Description`, `Field.Error`
+
+Only `class`. Each renders its part around its children with the field's id on it.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on field, so `<Field.Root color="error" size="sm">` is styled in both —
+typically as the label and helper text colour, with the control inside keeping its own axes.
+Neither wires a `variant` or any `mods` on the scope; under a design system's `/register`
+import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[Input](/zero/docs/components/input/) · [Textarea](/zero/docs/components/textarea/) ·
+[Number Input](/zero/docs/components/number-input/) ·
+[Checkbox](/zero/docs/components/checkbox/) · [Switch](/zero/docs/components/switch/) ·
+[Radio Group](/zero/docs/components/radio-group/) ·
+[Accessibility](/zero/docs/accessibility/)

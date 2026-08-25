@@ -1,0 +1,120 @@
+---
+title: "Toggle"
+description: "The @sigx/zero Toggle component — one two-state native <button> carrying aria-pressed and data-state on|off, with a label prop for icon-only toggles and no form participation."
+layout: docs
+category: ["Components", "Actions & disclosure"]
+order: 102
+---
+
+# Toggle
+
+<p class="lede">A button with one bit of state. It renders a single native `<button>` whose
+pressed *mode* rides `data-state="on|off"` and reaches assistive technology as `aria-pressed`.
+A toggle is a mode you flip — bold, mute, grid view — not a value you submit: there is no
+hidden input, and a form-participating boolean is a [`Switch`](/zero/docs/components/switch/).</p>
+
+## Import
+
+```tsx
+import { Toggle } from '@sigx/zero/toggle';
+```
+
+`Toggle` is a compound with a single member, `Toggle.Root`. It is also re-exported from the
+`@sigx/zero` root, together with `toggleAnatomy`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Toggle } from '@sigx/zero/toggle';
+
+const Formatting = component(({ signal }) => {
+    const state = signal({ bold: false });
+
+    return () => (
+        <Toggle.Root model={() => state.bold} label="Bold" color="primary">
+            <BoldIcon />
+        </Toggle.Root>
+    );
+});
+```
+
+`model={() => state.bold}` binds the pressed state both ways — clicking the toggle writes
+`state.bold`, and writing `state.bold` presses or releases it. Leave the model off and pass
+`defaultPressed` to keep the state inside the component; `pressedChange` fires either way. See
+[Models](/zero/docs/models/).
+
+### Icon-only toggles
+
+```tsx
+<Toggle.Root defaultPressed label="Mute">
+    <SpeakerIcon />
+</Toggle.Root>
+```
+
+`label` renders as `aria-label`. A toggle whose only content is an icon has no accessible
+name without it, so treat `label` as required whenever the children carry no text.
+
+### Rendering as your own element
+
+```tsx
+<Toggle.Root model={() => state.starred} label="Star" asChild>
+    {(p) => <span {...p}><StarIcon /></span>}
+</Toggle.Root>
+```
+
+With `asChild` the default slot receives the part's attribute bag; spread it so the anatomy,
+`aria-pressed` and the handlers land on your element. A native `<button>` already has the
+button contract; an `asChild` element gets it supplied by hand — `role="button"`, a tab stop,
+Enter / Space activation where the platform does not synthesise a click, and
+`aria-disabled="true"` with the click suppressed while `disabled`.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `button` | `on` \| `off` | `disabled`, `focus-visible`, `pressed`, `press-animating` | `type="button"`, `aria-pressed`, `aria-label` from `label`. Carries the variant axes. `asChild`. |
+
+Every part carries `data-scope="toggle"` and `data-part="root"`. The state and the flag are
+different things: `data-state="on"` is the persistent mode, `data-pressed` is the runtime
+[press feedback](/zero/docs/behaviors/#press-feedback) while the pointer or key is down —
+together with `data-press-animating` and the `--press-x` / `--press-y` / `--press-r` custom
+properties. A design system that shares fill styles between Toggle and
+[`ToggleGroup`](/zero/docs/components/toggle-group/) items keys both on the same `on` / `off`
+selectors. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Toggle.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the pressed state. |
+| `defaultPressed` | `boolean` | `false` | Initial state when uncontrolled. |
+| `pressedChange` | event `(pressed: boolean)` | — | Fires whenever the pressed state changes. |
+| `label` | `string` | — | Accessible name, rendered as `aria-label`; required for icon-only toggles. |
+| `disabled` | `boolean` | `false` | Inert; renders `data-disabled` (and `aria-disabled` under `asChild`). |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| Enter / Space | Flip the pressed state. A held key flips once, not on every auto-repeat. |
+| Tab | The toggle is an ordinary tab stop. |
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on toggle, defaulting to `primary` and `md`, so
+`<Toggle.Root color="accent" size="sm">` is styled in both. Neither wires a `variant` or any
+`mods` on the scope; under a design system's `/register` import those props are therefore
+absent. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[`ToggleGroup`](/zero/docs/components/toggle-group/) for a set of toggles under one model ·
+[`Button`](/zero/docs/components/button/) for a button with no persistent mode ·
+[`Switch`](/zero/docs/components/switch/) for the form-participating boolean.

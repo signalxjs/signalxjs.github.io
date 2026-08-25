@@ -1,0 +1,195 @@
+---
+title: "Toast"
+description: "The @sigx/zero Toast component — transient notifications from an imperative queue, rendering the viewport / root / title / description / action / close anatomy on a popover=\"manual\" top layer with runtime-managed presence."
+layout: docs
+category: ["Components", "Overlays"]
+order: 206
+---
+
+# Toast
+
+<p class="lede">Transient notifications. A `Toast.Viewport` mounted once near the app root
+renders whatever the queue holds; `toast({ title })` from anywhere in browser code enqueues
+one. The viewport is a `popover="manual"` top layer — no z-index, no Portal, no light dismiss
+— and each toast is a `role="status"` (or `alert`) row that announces itself, times out,
+and stays in the DOM until its exit transition has played.</p>
+
+## Import
+
+```tsx
+import { Toast, toast, createToaster, useToaster } from '@sigx/zero/toast';
+```
+
+`Toast` is a compound: `Toast.Viewport`, `Toast.Root`, `Toast.Title`, `Toast.Description`,
+`Toast.Action`, `Toast.Close`. The subpath also exports the queue — `toast()`, `toaster()`,
+`createToaster()`, `useToaster` — and the `Toaster`, `ToasterOptions`, `ToastOptions`,
+`ToastData`, `ToastActionData`, `ToastRole` and `ToastPlacement` types. Everything is
+re-exported from the `@sigx/zero` root, together with `toastAnatomy`,
+`useToastViewportContext` and `useToastItemContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Toast, toast } from '@sigx/zero/toast';
+
+const App = component(() => () => (
+    <>
+        <main>…</main>
+        <Toast.Viewport placement="bottom-end" />
+    </>
+));
+
+// From an event handler, an effect, a store — anywhere that runs in the browser:
+toast({ title: 'Saved', color: 'success' });
+toast({ title: 'Upload failed', description: 'Try again.', color: 'error', role: 'alert', duration: Infinity });
+```
+
+With no children the viewport renders the stock composition for each toast: a `Root` with a
+`Title` and `Description` when set, an `Action` when `action` is given, and a `Close`.
+`toast()` returns the id; calling it again with the same `id` updates that toast in place.
+
+### The queue
+
+| Function | What it is |
+|---|---|
+| `toast(options)` | `toaster().create(options)` — the one-liner. Browser-only. |
+| `toaster()` | The lazy app-wide browser singleton. Throws under SSR. |
+| `createToaster(options)` | A factory for apps and tests: `duration` (default `5000` ms) and `max` (mounted cap, default `5`; extras queue FIFO and promote as slots free). |
+| `useToaster` | Injectable: a provided instance, else the singleton in the browser, else a fresh empty manager per resolution on the server — so requests never share toasts. |
+
+A `Toaster` exposes `toasts()` (mounted, oldest first), `count()` (mounted plus queued),
+`create`, `update`, `dismiss(id?)` (begin the exit; all toasts when no id), `remove(id?)`
+(drop with no exit), and `pause()` / `resume()`, which the viewport calls while the pointer or
+focus is inside it so a toast never disappears under the user's hand.
+
+`ToastOptions` is `id`, `title`, `description`, `color`, `role` (`'status'` announces politely
+— the default — `'alert'` interrupts), `duration` (ms; `Infinity` is sticky), `action`
+(`label` + optional `onClick`) and `data` (an app payload for custom slots).
+
+### Composing your own toast
+
+```tsx
+import { component } from 'sigx';
+import { Toast, createToaster } from '@sigx/zero/toast';
+
+const notifications = createToaster({ duration: 8000, max: 3 });
+
+const Notifications = component(() => () => (
+    <Toast.Viewport toaster={notifications} placement="top" label="Alerts">
+        {(t) => (
+            <Toast.Root toast={t} key={t.id}>
+                <Toast.Title>{t.title}</Toast.Title>
+                <Toast.Description>{t.description}</Toast.Description>
+                <Toast.Action onClick={() => t.action?.onClick?.()}>{t.action?.label}</Toast.Action>
+                <Toast.Close />
+            </Toast.Root>
+        )}
+    </Toast.Viewport>
+));
+```
+
+The viewport's default slot receives each `ToastData` and renders it through the same
+anatomy; `toaster` binds the viewport to a specific queue — the one to pass under SSR, where
+the singleton does not exist. `Toast.Root` takes the `toast` data and forwards its `color` to
+`data-color`; an explicit `color` prop on a composed Root wins over `toast({ color })`, and
+both flow through the same variant pass-through.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `viewport` | `ol` | — | — | `popover="manual"`, `role="region"`, `aria-label` (default "Notifications"), `tabIndex=-1`, `data-placement`. |
+| `root` | `li` | `open` \| `closed` | — | `role="status"` or `alert`, `aria-atomic`, `aria-labelledby` / `aria-describedby` while a Title / Description renders, `data-placement`, `--toast-index` / `--toast-count`. Carries the variant axes. Inside `viewport`. |
+| `title` | `div` | — | — | Inside `root`. |
+| `description` | `div` | — | — | Inside `root`. |
+| `action` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | The optional action. Inside `root`. `asChild`. |
+| `close` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | Dismisses the toast; `aria-label` from `label`. Inside `root`. `asChild`. |
+
+Placement is data: the viewport's `placement` — one of the six edge slots `top-start`, `top`,
+`top-end`, `bottom-start`, `bottom`, `bottom-end` — is echoed as `data-placement` on the
+viewport and on every root, so a recipe keys the slide direction per toast. Stacking is data
+too: each root publishes `--toast-index` (its position, oldest first) and `--toast-count`.
+Action and close publish [press feedback](/zero/docs/behaviors/#press-feedback). See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+**Presence is runtime-managed** — the one exception to zero's rule that presence is
+declarative CSS, because a toast must eventually unmount. A root mounts `closed`, flips to
+`open` a frame later so the closed styles are computed first and the transition plays, and
+after `dismiss()` flips back to `closed` and stays mounted until its longest transition or
+animation ends (instantly when there is none, reduced motion included). The viewport shows
+itself while the queue is non-empty and hides when it drains.
+
+## Props
+
+### `Toast.Viewport`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `placement` | `ToastPlacement` | `'bottom-end'` | Which edge slot the stack occupies; rendered as `data-placement` on viewport and roots. |
+| `label` | `string` | `'Notifications'` | Accessible name of the region. |
+| `toaster` | `Toaster` | the injected / singleton toaster | Bind to a specific queue. |
+| `class` | `string` | — | Extra classes. |
+
+The default slot receives `(toast: ToastData)` and replaces the stock composition.
+
+### `Toast.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `toast` | `ToastData` | required | The queue entry this root renders. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`; `color` defaults to the toast's own. |
+| `class` | `string` | — | Extra classes. |
+
+### `Toast.Title`, `Toast.Description`
+
+Only `class`.
+
+### `Toast.Action`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `click` | event `(e: MouseEvent)` | — | Fires on activation; not while disabled. |
+| `disabled` | `boolean` | `false` | Renders `data-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Toast.Close`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | `'Close'` | Accessible name, rendered as `aria-label` — the content is usually a glyph. |
+| `disabled` | `boolean` | `false` | Renders `data-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard and timing
+
+| Interaction | Action |
+|---|---|
+| Pointer or focus enters the viewport | Auto-dismiss timers pause, banking the time left. |
+| Pointer or focus leaves the viewport | Timers resume. |
+| Enter / Space on `Close` | Dismiss that toast. |
+| Enter / Space on `Action` | Run the action; the toast stays until dismissed or timed out. |
+
+Toasts are not modal and take no focus on arrival; the `region` is reachable by landmark
+navigation and each row is a live region, so a toast is announced when it appears.
+
+## In the shipped design systems
+
+`@sigx/zero-basic` and `@sigx/zero-daisyui` both wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on toast, so `toast({ color: 'success' })` and
+`<Toast.Root size="sm">` are styled in both. Neither wires a `variant` or any `mods` on the
+scope.
+
+Recipe guidance for the presence model: style the plain two-state transition between
+`[data-state="closed"]` and `[data-state="open"]` on `root` — never `@starting-style` or
+`transition-behavior: allow-discrete` on toast parts, because the runtime already sequences
+the enter frame and waits for the exit. Gate any `display` the recipe sets on the viewport
+behind `&:popover-open`, so a hidden viewport stays hidden and the platform's own
+`display: none` for a closed popover is not overridden.
+
+## Related
+
+[`Alert`](/zero/docs/components/alert/) for an inline, persistent message ·
+[`Dialog`](/zero/docs/components/dialog/) when the message needs a decision.

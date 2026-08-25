@@ -1,0 +1,149 @@
+---
+title: "Accordion"
+description: "The @sigx/zero Accordion component — exclusive or multiple disclosure over native <details> items, rendering the root / item / trigger / panel anatomy under one string[] model with multiple and collapsible options."
+layout: docs
+category: ["Components", "Actions & disclosure"]
+order: 106
+---
+
+# Accordion
+
+<p class="lede">A stack of disclosures under one model. Each item is a native `<details>` with
+its `<summary>` as the trigger, so the platform provides the semantics and the keyboard; zero
+adds the group rule — at most one open in single mode, any number under `multiple`, and
+`collapsible={false}` to keep at least one open. The model is the array of open item
+values.</p>
+
+## Import
+
+```tsx
+import { Accordion } from '@sigx/zero/accordion';
+```
+
+`Accordion` is a compound: `Accordion.Root`, `Accordion.Item`, `Accordion.Trigger`,
+`Accordion.Panel`. It is also re-exported from the `@sigx/zero` root, together with
+`accordionAnatomy` and `useAccordionContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Accordion } from '@sigx/zero/accordion';
+
+const Faq = component(({ signal }) => {
+    const state = signal({ open: ['shipping'] });
+
+    return () => (
+        <Accordion.Root model={() => state.open}>
+            <Accordion.Item value="shipping">
+                <Accordion.Trigger>How long does shipping take?</Accordion.Trigger>
+                <Accordion.Panel>…</Accordion.Panel>
+            </Accordion.Item>
+            <Accordion.Item value="returns">
+                <Accordion.Trigger>Can I return an order?</Accordion.Trigger>
+                <Accordion.Panel>…</Accordion.Panel>
+            </Accordion.Item>
+            <Accordion.Item value="legacy" disabled>
+                <Accordion.Trigger>Older orders</Accordion.Trigger>
+                <Accordion.Panel>…</Accordion.Panel>
+            </Accordion.Item>
+        </Accordion.Root>
+    );
+});
+```
+
+`model={() => state.open}` binds the open values both ways — activating a trigger writes
+`state.open`, and writing `state.open` opens and closes the items. Leave the model off and
+pass `defaultValue` to keep the state inside the component; `valueChange` fires either way. See
+[Models](/zero/docs/models/).
+
+### Multiple open items
+
+```tsx
+<Accordion.Root defaultValue={['a', 'b']} multiple>
+```
+
+Without `multiple` opening an item replaces the array with `[value]`, closing whichever item
+was open; under `multiple` it appends, and every item opens and closes independently.
+
+### Always one open
+
+```tsx
+<Accordion.Root defaultValue={['a']} collapsible={false}>
+```
+
+By default the open item can be closed again. `collapsible={false}` refuses to close the last
+open item — the trigger click is a no-op while it is the only one — which is the "exactly one
+section visible" layout.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | The group container. Carries the variant axes. |
+| `item` | `details` | `open` \| `closed` | `disabled` | The native `open` attribute is rendered from the model. Inside `root`. |
+| `trigger` | `summary` | `open` \| `closed` | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-expanded`, `aria-controls` → its panel, `aria-disabled`. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). Inside `item`. |
+| `panel` | `div` | `open` \| `closed` | — | Carries the id its trigger controls. Inside `item`. |
+
+Every part carries `data-scope="accordion"` and `data-part="<part>"`. The root has no states —
+open-ness is per item, so a design system styles `item`, `trigger` and `panel` on their
+`open` / `closed` selectors and uses the root for the box (border, radius, dividers between
+items). A `<summary>` has no `disabled` attribute, so a disabled trigger announces through
+`aria-disabled="true"` and stays a tab stop; `disabled` on the root disables every item. A
+closed `<details>` hides everything after its summary, so a `closed` rule on the panel never
+paints. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Accordion.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string[]` | — | Two-way binding of the open item values. |
+| `defaultValue` | `string[]` | `[]` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: string[])` | — | Fires whenever the set of open items changes. |
+| `multiple` | `boolean` | `false` | Allow more than one item open at a time. |
+| `collapsible` | `boolean` | `true` | Whether the last open item may be closed. |
+| `disabled` | `boolean` | `false` | Disables every item; each item and trigger renders `data-disabled`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Accordion.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | The value this item contributes to the model. |
+| `disabled` | `boolean` | `false` | Freezes this item; renders `data-disabled` on the item and its trigger. |
+| `class` | `string` | — | Extra classes on the `<details>`. |
+
+### `Accordion.Trigger`
+
+Only `class`. Renders the `summary` part around its children.
+
+### `Accordion.Panel`
+
+Only `class`. Renders the `panel` part around its children.
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| Enter / Space | Toggle the focused item (native `<summary>` activation, routed through the model and the group rule). |
+| Tab / Shift+Tab | Move between triggers; an open panel's content follows its trigger. |
+
+Every trigger is an ordinary tab stop — a `<summary>` is focusable by itself, and the
+component adds no roving arrow keys.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on accordion, so `<Accordion.Root color="primary" size="lg">` is styled
+in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[`Collapsible`](/zero/docs/components/collapsible/) for a single disclosure ·
+[`Tabs`](/zero/docs/components/tabs/) when exactly one section is visible and the headings sit
+in a row.

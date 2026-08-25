@@ -1,0 +1,140 @@
+---
+title: "Switch"
+description: "The @sigx/zero Switch component — an on/off toggle with role=switch over a visually hidden native checkbox, rendering root / control / thumb / label / hidden-input."
+layout: docs
+category: ["Components", "Form controls"]
+order: 306
+---
+
+# Switch
+
+<p class="lede">An on/off toggle over a visually hidden native `<input type="checkbox">` with
+`role="switch"`. The native input gives form participation, labelling and the platform's
+keyboard behavior; the visible `control` (the track) and `thumb` are pure styling surfaces.
+A switch is a form value — a mode you flip without one is a
+[`Toggle`](/zero/docs/components/toggle/).</p>
+
+## Import
+
+```tsx
+import { Switch } from '@sigx/zero/switch';
+```
+
+`Switch` is a compound with a single member, `Switch.Root`. It is also re-exported from the
+`@sigx/zero` root, together with `switchAnatomy`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Switch } from '@sigx/zero/switch';
+
+const Notifications = component(({ signal }) => {
+    const state = signal({ enabled: true });
+
+    return () => (
+        <Switch.Root model={() => state.enabled} name="notify" color="primary">
+            Notifications
+        </Switch.Root>
+    );
+});
+```
+
+`model={() => state.enabled}` binds the checked state both ways — flipping the switch writes
+`state.enabled`, and writing `state.enabled` flips it. Leave the model off and pass
+`defaultChecked` to keep the state inside the component; `checkedChange` fires either way. See
+[Models](/zero/docs/models/). The default slot is the label text; with no children the
+`label` part is not rendered.
+
+### Inside a Field
+
+```tsx
+<Field.Root disabled={saving()}>
+    <Field.Label>Two-factor authentication</Field.Label>
+    <Switch.Root model={() => state.twoFactor}>Require a code at sign-in</Switch.Root>
+    <Field.Description>Applies to every device.</Field.Description>
+</Field.Root>
+```
+
+Inside a [`Field.Root`](/zero/docs/components/field/) the hidden input adopts the field's
+control id and `aria-describedby`, and the switch's `disabled`, `invalid` and `required`
+each derive as the switch's own prop or the field's — the prop wins when set, the field
+supplies the rest.
+
+### Form value
+
+```tsx
+<Switch.Root model={() => state.marketing} name="marketing" value="yes">
+```
+
+The hidden input posts `value` (default `on`) under `name` while checked, and nothing while
+unchecked, exactly as a native checkbox does.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `label` | `checked` \| `unchecked` | `disabled`, `focus-visible`, `invalid`, `required` | The label row; the pointer target. Carries the variant axes. |
+| `hidden-input` | `input` | — | — | The native checkbox with `role="switch"`, visually hidden and focusable; carries `name`, `value`, `required`, `aria-invalid` and `aria-describedby`. Inside `root`. |
+| `control` | `span` | `checked` \| `unchecked` | `disabled`, `focus-visible`, `invalid`, `pressed`, `press-animating` | The track a design system paints. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). Inside `root`. |
+| `thumb` | `span` | `checked` \| `unchecked` | — | The knob; a recipe moves it on `data-state`. Inside `control`. |
+| `label` | `span` | `checked` \| `unchecked` | `disabled` | The label text; rendered only when the default slot is given. Inside `root`. |
+
+Every part carries `data-scope="switch"` and `data-part="<part>"`. The `hidden-input` is a
+real, styleable part: the native input renders so the switch posts pre-hydration, hidden
+with an inline clip rather than `display: none` so it stays focusable. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+The `control` declares the `invalid` flag as well as the root, matching
+[Checkbox](/zero/docs/components/checkbox/): the track is what a design system paints, and
+reaching it from the root would cost every recipe a descendant selector for a fact the
+control knows about itself. Press feedback is cross-element: a press anywhere in the label
+row, or Space on the hidden input, lands on the `control`, with the `--press-*` coordinates
+computed against the track's rect.
+
+## Props
+
+### `Switch.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the checked state. |
+| `defaultChecked` | `boolean` | `false` | Initial state when uncontrolled. |
+| `checkedChange` | event `(checked: boolean)` | — | Fires whenever the checked state changes. |
+| `name` | `string` | — | Form field name on the hidden input. |
+| `value` | `string` | `'on'` | The value the hidden input posts while checked. |
+| `required` | `boolean` | `false` | Renders `required` and `data-required`; a wrapping Field's `required` also applies. |
+| `invalid` | `boolean` | `false` | Renders `aria-invalid` and `data-invalid` on root and control; a wrapping Field's `invalid` also applies. |
+| `disabled` | `boolean` | `false` | Renders `disabled` and `data-disabled`; a wrapping Field's `disabled` also applies. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| Space | Toggles, via the native input; the press lands on the control. |
+| Tab | Moves focus to and from the hidden input; `data-focus-visible` on root and control while keyboard-focused. |
+
+The platform owns the toggle; zero only mirrors the native `change` event into the model. A
+screen reader announces the control as a switch that is on or off, from `role="switch"` and
+the native checked state.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on switch, and both default `color` to `primary`, so a bare
+`<Switch.Root>` is already tinted and `<Switch.Root color="success" size="sm">` is styled in
+both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The travel is the recipe's: a design system slides the `thumb` on `[data-state="checked"]`
+and fills the `control` from the `color` axis. Write the transition against a `--duration-*`
+token rather than a literal, so the motion honours `prefers-reduced-motion` — see
+[Theming](/zero/docs/theming/).
+
+## Related
+
+[Checkbox](/zero/docs/components/checkbox/) · [Toggle](/zero/docs/components/toggle/) ·
+[Field](/zero/docs/components/field/)

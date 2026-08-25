@@ -1,0 +1,141 @@
+---
+title: "Card"
+description: "The @sigx/zero Card component — a stateless surface with a conventional interior (root / header / title / description / body / footer), where the title is a real <h3> and every part below the root is optional."
+layout: docs
+category: ["Components", "Content"]
+order: 501
+---
+
+# Card
+
+<p class="lede">A surface with a conventional interior: a header holding a title and a
+description, a body, a footer. Card has no state, no context and mints no ids — it is the
+one content-tier component that is purely a styling container, so what zero contributes is
+the anatomy a design system selects on and a title that is a real heading.</p>
+
+## Import
+
+```tsx
+import { Card } from '@sigx/zero/card';
+```
+
+`Card` is a compound: `Card.Root`, `Card.Header`, `Card.Title`, `Card.Description`,
+`Card.Body`, `Card.Footer`. It is also re-exported from the `@sigx/zero` root, together with
+`cardAnatomy`. There is no context hook — a card has nothing to share with its parts.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Card } from '@sigx/zero/card';
+import { Button } from '@sigx/zero/button';
+
+const Report = component(({ signal }) => {
+    const state = signal({ updatedAgo: '4 minutes ago' });
+
+    return () => (
+        <Card.Root color="neutral">
+            <Card.Header>
+                <Card.Title>Monthly report</Card.Title>
+                <Card.Description>Updated {state.updatedAgo}</Card.Description>
+            </Card.Header>
+            <Card.Body>…</Card.Body>
+            <Card.Footer>
+                <Button.Root color="primary">Open</Button.Root>
+            </Card.Footer>
+        </Card.Root>
+    );
+});
+```
+
+There is no `model`: a card is not open, checked or selected, and nothing in it changes on
+its own. Whatever state the content has lives in the content.
+
+### A body-only card
+
+```tsx
+<Card.Root>
+    <Card.Body>Just a box with padding and a border.</Card.Body>
+</Card.Root>
+```
+
+Every part below `Card.Root` is optional. A card is often just `root` and `body`; a header
+with no title, or a footer with no header, are all fine.
+
+### When the outline differs
+
+```tsx
+<Card.Root>
+    <Card.Header>
+        <h2 data-scope="card" data-part="title">Quarterly figures</h2>
+    </Card.Header>
+    <Card.Body>…</Card.Body>
+</Card.Root>
+```
+
+`Card.Title` renders an `<h3>` — the level that sits under a page (`h1`) and a section
+(`h2`) without the consumer having to think, so a page of cards is navigable from a heading
+list. When your document outline needs a different level, render your own heading inside
+`Card.Header`; giving it the same `data-scope` / `data-part` pair keeps the design system's
+title recipe applying.
+
+### A card that needs a name
+
+Card wires no `aria-labelledby` from the root to the title: it would do nothing on a plain
+`div`, and giving the root a `role` to make it work would turn every card on a page into a
+landmark the reader has to walk past. A card that needs an accessible name is an
+`<article>` or a `<section>` you write around it; zero styles the inside.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | Carries the variant axes. |
+| `header` | `div` | — | — | The top band. Inside `root`. |
+| `title` | `h3` | — | — | A heading in the document outline. Inside `header`. |
+| `description` | `p` | — | — | Inside `header`. |
+| `body` | `div` | — | — | The main band. Inside `root`. |
+| `footer` | `div` | — | — | The action row. Inside `root`. |
+
+Every part carries `data-scope="card"` and `data-part="<part>"`; no part carries a
+`data-state`, and there are no flags. The axes ride `root` and cascade to the other parts
+through the compiled CSS, so only `Card.Root` takes them. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+### Card or Alert?
+
+A card and an [`Alert`](/zero/docs/components/alert/) look alike — a bordered, tinted box with
+a title and some text — and the line between them is `role="alert"`. An alert announces
+itself to assistive technology when it appears and can be dismissed; a card is a coloured box
+that says nothing. If nobody needs to be told about it, it is a card.
+
+## Props
+
+### `Card.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Card.Header`, `Card.Title`, `Card.Description`, `Card.Body`, `Card.Footer`
+
+Only `class`. Each renders its part around its children.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on card, so `<Card.Root color="info" size="sm">` is styled in both.
+Neither wires a `variant` or any `mods` on the scope; under a design system's `/register`
+import the `variant` prop is therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The root's tokens are `color`, `radius-box` and `size` — a card is a box-radius surface, the
+same `--radius-box` a [`Dialog`](/zero/docs/components/dialog/) popup and an
+[`Alert`](/zero/docs/components/alert/) use — and the title, description and body read the
+`text` ramp.
+
+## Related
+
+[Alert](/zero/docs/components/alert/) is the card that announces itself;
+[Skeleton](/zero/docs/components/skeleton/) holds a card's layout while its content loads.

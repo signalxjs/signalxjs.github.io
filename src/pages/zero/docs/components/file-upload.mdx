@@ -1,0 +1,183 @@
+---
+title: "File Upload"
+description: "The @sigx/zero FileUpload component — a File[] model over a real <input type=file>, with a trigger as the keyboard path, a pointer-only dropzone, and item / item-name / item-size / item-remove parts for the selected files."
+layout: docs
+category: ["Components", "Form controls"]
+order: 313
+---
+
+# File Upload
+
+<p class="lede">A `File[]` model over a real `<input type="file">`. The input is the form
+control — it holds `name`, `accept`, `multiple` and `required` and posts its `FileList`
+natively — while a real `<button>` trigger is the one keyboard path to the picker and a
+dropzone adds a pointer-only drop target. The selected files render as list items with the
+name, a human-readable size and a remove button.</p>
+
+## Import
+
+```tsx
+import { FileUpload } from '@sigx/zero/file-upload';
+```
+
+`FileUpload` is a compound: `FileUpload.Root`, `FileUpload.Label`, `FileUpload.Trigger`,
+`FileUpload.Dropzone`, `FileUpload.ItemGroup`, `FileUpload.Item`, `FileUpload.ItemName`,
+`FileUpload.ItemSize`, `FileUpload.ItemRemove`. It is also re-exported from the `@sigx/zero`
+root, together with `fileUploadAnatomy`, `useFileUploadContext` and the helpers `acceptsFile`
+and `formatBytes`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { FileUpload } from '@sigx/zero/file-upload';
+
+const Attachments = component(({ signal }) => {
+    const state = signal({ files: [] as File[] });
+
+    return () => (
+        <FileUpload.Root model={() => state.files} name="attachments" accept="image/*" multiple>
+            <FileUpload.Label>Attachments</FileUpload.Label>
+            <FileUpload.Dropzone>Drop images here, or</FileUpload.Dropzone>
+            <FileUpload.Trigger>Browse…</FileUpload.Trigger>
+            <FileUpload.ItemGroup>
+                {(files) => files.map((f) => (
+                    <FileUpload.Item file={f} key={f.name}>
+                        <FileUpload.ItemName />
+                        <FileUpload.ItemSize />
+                        <FileUpload.ItemRemove>×</FileUpload.ItemRemove>
+                    </FileUpload.Item>
+                ))}
+            </FileUpload.ItemGroup>
+        </FileUpload.Root>
+    );
+});
+```
+
+`model={() => state.files}` binds the selected files both ways; leave it off to keep the
+list inside the component, and listen to `filesChange` either way. See
+[Models](/zero/docs/models/). `FileUpload.ItemGroup`'s default slot receives the live
+`File[]`, and each `FileUpload.Item` takes the `File` it renders; `ItemName` and `ItemSize`
+read it from context, so they need no props.
+
+### Selection semantics
+
+With `multiple`, every selection or drop appends to the list, de-duplicated by name, size and
+`lastModified` — the tuple a browser uses to tell files apart. Without it, a new selection
+replaces the list. Drops are filtered by `accept` with the same rule the native picker applies
+(comma-separated extensions, exact MIME types, or `image/*` families), so the two ingestion
+paths agree. After a drop or a remove the input's own `FileList` is re-synced through
+`DataTransfer`, best-effort, so a form post sends what the list shows.
+
+### Inside a Field
+
+```tsx
+<Field.Root>
+    <Field.Label>Résumé</Field.Label>
+    <FileUpload.Root model={() => state.files} accept=".pdf" required>
+        <FileUpload.Trigger>Choose a PDF</FileUpload.Trigger>
+    </FileUpload.Root>
+    <Field.Description>PDF only, up to 5 MB.</Field.Description>
+</Field.Root>
+```
+
+The trigger owns the field's control id: it is the element a `Field.Label` points at and a
+label click focuses, and it announces the field's `aria-describedby` and `aria-invalid`. See
+[Field](/zero/docs/components/field/).
+
+### The helpers
+
+`acceptsFile(accept, file)` answers whether one file matches an `accept` string (no `accept`
+accepts everything). `formatBytes(size)` renders SI units — `1536` becomes `'1.5 kB'`, one
+decimal below 10 and none above — and is what `ItemSize` shows by default.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled`, `invalid`, `required`, `highlighted` | Carries the variant axes; `highlighted` while a drag hovers the dropzone. |
+| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the trigger. Inside `root`. |
+| `input` | `input` | — | — | `type="file"`; the form control, visually hidden, `tabIndex=-1`, `aria-hidden`. |
+| `trigger` | `button` | — | `disabled`, `invalid`, `focus-visible`, `pressed`, `press-animating` | The one keyboard path to the picker; carries the control id, `aria-describedby`, `aria-invalid`. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). |
+| `dropzone` | `div` | — | `disabled`, `highlighted` | Pointer-only: not focusable, no role; a click opens the picker. |
+| `item-group` | `ul` | — | — | The selected files. |
+| `item` | `li` | — | `disabled` | One selected file. Inside `item-group`. |
+| `item-name` | `span` | — | — | Defaults to the file's name. Inside `item`. |
+| `item-size` | `span` | — | — | Defaults to `formatBytes(file.size)`. Inside `item`. |
+| `item-remove` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-label` "Remove &lt;name&gt;". Publishes press feedback. Inside `item`. |
+
+Every part carries `data-scope="file-upload"` and `data-part="<part>"`. This scope has no
+states. Drag-over is the shared `highlighted` flag — the vocabulary's word for "the pointer is
+over this and it will act" — stamped on the dropzone and the root, so a recipe can lift the
+whole field while a drag hovers. The input is hidden by a functional inline style (the
+visually-hidden technique), not by a recipe, and stays out of the tab order: drag-and-drop
+has no keyboard path, and a focusable dropzone would be a second tab stop duplicating the
+trigger. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `FileUpload.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `File[]` | — | Two-way binding of the selected files. |
+| `filesChange` | event `(files: File[])` | — | Fires whenever the list changes. |
+| `accept` | `string` | — | The picker's `accept`; drops are filtered by the same rule. |
+| `multiple` | `boolean` | `false` | Append across selections instead of replacing. |
+| `name` | `string` | — | Form field name, rendered on the `<input type="file">`. |
+| `required` | `boolean` | `false` | Renders `required` on the input and `data-required`. |
+| `invalid` | `boolean` | `false` | Renders `data-invalid` and `aria-invalid` on the trigger. |
+| `disabled` | `boolean` | `false` | Inert; renders `data-disabled` on every part. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+The model starts as `[]` when uncontrolled. Field context (`disabled`, `invalid`, `required`,
+the control and label ids, `aria-describedby`) is merged with the props.
+
+### `FileUpload.Label`, `FileUpload.Trigger`, `FileUpload.Dropzone`
+
+Only `class`.
+
+### `FileUpload.ItemGroup`
+
+Only `class`. Its default slot receives the live `File[]`.
+
+### `FileUpload.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `file` | `File` | required | The file this row renders; provided to the item parts below it. |
+| `class` | `string` | — | Extra classes. |
+
+### `FileUpload.ItemName`, `FileUpload.ItemSize`
+
+Only `class`. Slot content replaces the default name / formatted size.
+
+### `FileUpload.ItemRemove`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | `"Remove <name>"` | `aria-label`; the file's name makes each button distinct. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| Tab | Reaches the trigger, then each item's remove button; the input and the dropzone are never tab stops. |
+| Enter / Space on the trigger | Open the native picker. |
+| Enter / Space on a remove button | Remove that file. |
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on file-upload, so `<FileUpload.Root color="primary" size="sm">` is
+styled in both. Neither wires a `variant` on the scope; under a design system's `/register`
+import the prop is therefore absent. Both style the trigger in the skin's button idiom, draw
+the dropzone's dashed well and its `highlighted` lift, and lay out the item rows. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[Button](/zero/docs/components/button/) for the trigger's press feedback,
+[Field](/zero/docs/components/field/) for labelling.

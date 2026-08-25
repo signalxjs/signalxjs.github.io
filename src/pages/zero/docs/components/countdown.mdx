@@ -1,0 +1,141 @@
+---
+title: "Countdown"
+description: "The @sigx/zero Countdown component — display-only digits composed from per-unit Value parts, each publishing --countdown-value and re-keying its digits on every tick so a recipe's enter animation plays once; the app owns the clock."
+layout: docs
+category: ["Components", "Rich behavior"]
+order: 604
+---
+
+# Countdown
+
+<p class="lede">Display-only digits. The app owns time — which clock, paused when, what
+happens at zero — and the component renders the `value` it is given: real digit text that
+assistive technology reads straight off the DOM, zero-padded to `digits` and clamped at 0.
+Each tick replaces the digits element, which is the hook a recipe's enter animation plays
+on.</p>
+
+## Import
+
+```tsx
+import { Countdown } from '@sigx/zero/countdown';
+```
+
+`Countdown` is a compound: `Countdown.Root`, `Countdown.Value`. It is also re-exported from
+the `@sigx/zero` root, together with `countdownAnatomy`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Countdown } from '@sigx/zero/countdown';
+
+const SaleTimer = component(({ signal, onMounted, onUnmounted }) => {
+    const state = signal({ remaining: 5400 });
+
+    onMounted(() => {
+        const id = setInterval(() => {
+            if (state.remaining > 0) state.remaining -= 1;
+        }, 1000);
+        onUnmounted(() => clearInterval(id));
+    });
+
+    return () => (
+        <Countdown.Root label="Time remaining">
+            <Countdown.Value value={Math.floor(state.remaining / 3600)} digits={2} />
+            :
+            <Countdown.Value value={Math.floor(state.remaining / 60) % 60} digits={2} />
+            :
+            <Countdown.Value value={state.remaining % 60} digits={2} />
+        </Countdown.Root>
+    );
+});
+```
+
+There is no `model` and no timer inside the component. Hours, minutes and seconds are
+separate `Value` parts; the separators between them are your own text. The interval lives
+in the app, started in `onMounted` so it never runs on the server.
+
+### Why the app owns time
+
+A timer is application logic: which clock it follows, whether it pauses, what fires at zero.
+It is also an SSR hazard — a ticking interval inside a component is shared mutable state,
+and server markup would render an instantly stale tick anyway. So the component renders a
+number, and "expired" is the app's word for `0`.
+
+### Naming the timer
+
+```tsx
+<Countdown.Root label="Time remaining">
+```
+
+With a `label` the root announces as `role="timer"` with that name. Without one the root
+carries no role: an unlabelled group of digits is already readable as text, and a nameless
+timer role is noise.
+
+### Padding and clamping
+
+```tsx
+<Countdown.Value value={7} digits={2} />   // renders "07"
+<Countdown.Value value={-3} />             // renders "0"
+<Countdown.Value value={4.9} />            // renders "4"
+```
+
+`digits` is the minimum digit count, zero-padded. The value is floored and clamped at zero
+— a countdown never goes negative.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `span` | — | — | `role="timer"` + `aria-label` while `label` is set. Carries the variant axes. |
+| `value` | `span` | — | — | One unit; publishes `--countdown-value`. Inside `root`. |
+| `digits` | `span` | — | — | The rendered text, keyed by its content. Inside `value`. |
+
+Every part carries `data-scope="countdown"` and `data-part="<part>"`. Each `value` publishes
+its clamped number as the `--countdown-value` custom property on its own element, so a
+recipe can drive a counter-based paint from it. The `digits` element is keyed by its text:
+when the text changes the runtime replaces the element rather than updating it, so an
+`animation` declared on the part plays once per tick — CSS owns the motion, the runtime
+owns nothing but the swap. There are no states and no flags: a countdown at 0 is the number
+0. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Countdown.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | — | Accessible name; with one the root announces as a timer. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Countdown.Value`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `number` | required | The number to display; floored and clamped at 0. |
+| `digits` | `number` | — | Minimum digit count, zero-padded. |
+| `class` | `string` | — | Extra classes. |
+
+`Value` renders the `digits` part itself; it has no slot.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the countdown root, so `<Countdown.Root color="primary" size="xl">`
+is styled in both. Neither wires a `variant` or any `mods` on the scope; under a design
+system's `/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The recipe gives `value` a fixed inline size in `ch` units and tabular figures so a tick
+never shifts the layout, and declares the enter animation on `digits` — a short translate
+or fade keyed to `--duration-fast`. Because the runtime replaces the element on every
+change, the animation replays without any class toggling. Under
+`prefers-reduced-motion: reduce` a recipe collapses it to a cut: the tokenised duration
+already drops to near zero, and a `reduced-motion` condition can set `animation: none`
+outright.
+
+## Related
+
+[Progress](/zero/docs/components/progress/) for the same "app owns the value" shape on a
+bar, [Skeleton](/zero/docs/components/skeleton/) for the digits before the clock is known.

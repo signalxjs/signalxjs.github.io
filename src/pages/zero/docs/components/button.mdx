@@ -1,0 +1,118 @@
+---
+title: "Button"
+description: "The @sigx/zero Button component — one native <button> part carrying the color / size / variant axes and press feedback, with no styling of its own."
+layout: docs
+category: ["Components", "Actions & disclosure"]
+order: 101
+---
+
+# Button
+
+<p class="lede">One part on a native `<button>`. There is no behavior to add — the platform
+already handles activation, form submission and `disabled` — so what zero adds is the
+anatomy: a stable selector carrying `data-color` / `data-size` / `data-variant`, which is
+where a design system puts its fill styles.</p>
+
+## Import
+
+```tsx
+import { Button } from '@sigx/zero/button';
+```
+
+`Button` is a compound with a single member, `Button.Root`. It is also re-exported from the
+`@sigx/zero` root, together with `buttonAnatomy`.
+
+## Usage
+
+```tsx
+import { Button } from '@sigx/zero/button';
+
+<Button.Root color="primary" variant="outline" size="lg" onClick={save}>
+    Save
+</Button.Root>
+```
+
+`type` defaults to `button`, not the platform's `submit` — a button inside a form does not
+post it unless you say `type="submit"`.
+
+### As a link
+
+```tsx
+<Button.Root asChild>
+    {(p) => <a href="/docs" {...p}>Docs</a>}
+</Button.Root>
+```
+
+With `asChild` the default slot receives the part's attribute bag; spread it so the anatomy
+lands on your element. A native `<button disabled>` is inert by itself; an `asChild` element
+is not, so a disabled `asChild` button gets `aria-disabled="true"` and its click is
+suppressed by the component.
+
+### The loading button
+
+Button stays behavior-free: there is no `loading` prop, because "busy" is a styling state
+the design system draws and a semantic the app owns. Compose it:
+
+```tsx
+<Button.Root
+    disabled={saving()}
+    mods={saving() ? { loading: true } : undefined}
+    onClick={save}
+>
+    Save
+</Button.Root>
+```
+
+`mods` renders the presence-only `data-mod-loading` attribute. A design system that declares
+the `loading` modifier — `@sigx/zero-daisyui` does — draws the spinner in pure CSS off
+`[data-mod-loading]`; under one that does not, the attribute matches nothing and the
+composition degrades to a plain disabled button. The accessible truth (`disabled` while the
+request is in flight) never depends on the paint. Announce long operations with your own
+live region, or a [`Spinner`](/zero/docs/components/spinner/) with a `label` beside the
+button, when the design draws nothing.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | Carries the variant axes. `asChild`. |
+
+A button has no machine states: it has nothing to be open or checked about, and a button
+with a persistent pressed *mode* is a [`Toggle`](/zero/docs/components/toggle/). `:active`
+remains available to recipes; `data-pressed` / `data-press-animating` and the `--press-x` /
+`--press-y` / `--press-r` custom properties are the runtime
+[press feedback](/zero/docs/behaviors/#press-feedback) on top of it — pointer-anchored,
+keyboard-parity, and able to outlive release so a one-shot ripple always plays out.
+
+## Props
+
+### `Button.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `type` | `'button' \| 'submit' \| 'reset'` | `'button'` | The native button type. |
+| `disabled` | `boolean` | `false` | Inert; renders `data-disabled` (and `aria-disabled` under `asChild`). |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+| `onClick` | `(e: MouseEvent) => void` | — | Click handler; not called while disabled. |
+| `onKeydown` / `onFocus` / `onBlur` | handlers | — | Compose with the component's own focus and press tracking. |
+
+Handlers are declared props rather than forwarded rest props — sigx passes no rest props, so
+`onClick` has to be part of the type to reach the element.
+
+## In the shipped design systems
+
+Button is the worked example of the two-axis composition: a design system routes `color`
+through a component token pair (`--btn-accent` and its content colour) that the `variant`
+rules read, so the two axes compose instead of multiplying into a rule per combination.
+
+| | `color` | `size` | `variant` | `mods` |
+|---|---|---|---|---|
+| `@sigx/zero-basic` | the eight recommended roles | `xs`–`xl` | `solid` (default) · `outline` · `soft` · `ghost` | — |
+| `@sigx/zero-daisyui` | the eight recommended roles | `xs`–`xl` | `solid` (default) · `outline` · `soft` · `ghost` · `dash` · `link` | `wide` · `block` · `square` · `circle` · `active` · `loading` |
+
+`@sigx/zero-daisyui` also ships the daisy-native surface:
+`import { Button } from '@sigx/zero-daisyui/components'` gives a single-import
+`<Button wide loading variant="dash" color="primary">` with the modifiers as flat booleans —
+see [Vendor-named component APIs](/zero/docs/vendor-apis/).

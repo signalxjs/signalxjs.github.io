@@ -1,0 +1,142 @@
+---
+title: "Progress"
+description: "The @sigx/zero Progress component — a determinate or indeterminate progress bar on role=\"progressbar\", rendering the progress anatomy (root / label / track / range / value-text) and publishing --progress-percent for the range."
+layout: docs
+category: ["Components", "Content"]
+order: 506
+---
+
+# Progress
+
+<p class="lede">A linear progress bar: a `range` inside a `track`, driven by one `value`.
+The root carries `role="progressbar"` with the ARIA value trio, every stateful part carries
+`loading | complete | indeterminate`, and the runtime publishes the fraction as
+`--progress-percent` so a design system can paint the fill from it. There is no model — the
+value is display-only.</p>
+
+## Import
+
+```tsx
+import { Progress } from '@sigx/zero/progress';
+```
+
+`Progress` is a compound: `Progress.Root`, `Progress.Label`, `Progress.Track`,
+`Progress.Range`, `Progress.ValueText`. It is also re-exported from the `@sigx/zero` root,
+together with `progressAnatomy` and `useProgressContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Progress } from '@sigx/zero/progress';
+
+const Upload = component(({ signal }) => {
+    const state = signal({ done: 62 });
+
+    return () => (
+        <Progress.Root value={state.done} color="primary">
+            <Progress.Label>Uploading…</Progress.Label>
+            <Progress.Track>
+                <Progress.Range />
+            </Progress.Track>
+            <Progress.ValueText />
+        </Progress.Root>
+    );
+});
+```
+
+`value` is a plain prop, not a `model`: nothing the user does to a progress bar changes it,
+so the app writes `state.done` and the bar follows. `Progress.ValueText` with no children
+renders the rounded percent (`62%`); give it children to render your own text.
+
+### Indeterminate
+
+```tsx
+<Progress.Root value={null}>
+    <Progress.Label>Connecting…</Progress.Label>
+    <Progress.Track><Progress.Range /></Progress.Track>
+</Progress.Root>
+```
+
+`value={null}` (or no `value` at all) is indeterminate: the root and range render
+`data-state="indeterminate"`, `aria-valuenow` is omitted, `--progress-percent` is not
+published and `ValueText` renders nothing. The design system animates the range.
+
+### A custom range
+
+```tsx
+<Progress.Root value={bytesSent} min={0} max={bytesTotal}>
+    <Progress.Label>Sending</Progress.Label>
+    <Progress.Track><Progress.Range /></Progress.Track>
+    <Progress.ValueText>{formatBytes(bytesSent)} of {formatBytes(bytesTotal)}</Progress.ValueText>
+</Progress.Root>
+```
+
+`min` and `max` default to `0` and `100`. The percent is `(value - min) / (max - min)`,
+clamped to 0–100; a degenerate range (`max <= min`) has nothing left to fill, so any present
+value reads as `100` and `complete`.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | `loading` \| `complete` \| `indeterminate` | — | `role="progressbar"`, `aria-valuemin` / `aria-valuemax` / `aria-valuenow`, `aria-labelledby`. Carries the variant axes. Publishes `--progress-percent`. |
+| `label` | `div` | — | — | The accessible name; its id is the root's `aria-labelledby`. Inside `root`. |
+| `track` | `div` | — | — | The channel. Inside `root`. |
+| `range` | `div` | `loading` \| `complete` \| `indeterminate` | — | The fill; inline `width` follows the percent. Inside `track`. |
+| `value-text` | `div` | — | — | Defaults to the rounded percent. Inside `root`. |
+
+Every part carries `data-scope="progress"` and `data-part="<part>"`. The state is derived:
+`indeterminate` when the value is `null`, `complete` at 100 percent, `loading` otherwise.
+When the value is present the root's inline style publishes
+`--progress-percent: <n>%`, and the range's inline `width` is set to the same percent — a
+recipe that paints the fill as a background or a transform reads the custom property
+instead of relying on the width. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+The root's `aria-labelledby` always points at the label's id; render a `Progress.Label` so
+the reference resolves, or the bar has no accessible name.
+
+## Props
+
+### `Progress.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `number \| null` | `null` | The current value; `null` is indeterminate. |
+| `min` | `number` | `0` | The lower bound; rendered as `aria-valuemin`. |
+| `max` | `number` | `100` | The upper bound; rendered as `aria-valuemax`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Progress.Label`, `Progress.Track`
+
+Only `class`. Each renders its part around its children.
+
+### `Progress.Range`
+
+Only `class`. Renders the `range` part; it takes no children.
+
+### `Progress.ValueText`
+
+Only `class`. Renders its children, or the rounded percent when it has none and the value
+is present.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on progress, so `<Progress.Root color="success" size="sm">` is styled
+in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import the `variant` prop is therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A recipe animates the `indeterminate` range in a loop, and a looping animation has to
+*stop* under `prefers-reduced-motion: reduce` — give the loop a literal duration and switch
+it off in the media query, rather than a `--duration-*` token, which collapses to
+near-zero under reduced motion and turns the sweep into a strobe. The track and range read
+`radius-selector`, so the bar rounds like a selector control.
+
+## Related
+
+[Radial Progress](/zero/docs/components/radial-progress/) is the same value model on a
+ring; [Spinner](/zero/docs/components/spinner/) is progress with no value at all;
+[Skeleton](/zero/docs/components/skeleton/) holds the layout while content loads.

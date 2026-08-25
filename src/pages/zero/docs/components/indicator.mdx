@@ -1,0 +1,139 @@
+---
+title: "Indicator"
+description: "The @sigx/zero Indicator component — a root / item pair that anchors a floating item to a corner or edge of whatever the root wraps, with data-placement stamped from an eight-slot logical subset."
+layout: docs
+category: ["Components", "Content"]
+order: 512
+---
+
+# Indicator
+
+<p class="lede">A wrapper that anchors a floating item to a corner or edge of whatever it
+wraps: the badge on the inbox button, the dot on the avatar. Two parts and no paint of its
+own — the root establishes the positioning box, the item declares its slot as
+`data-placement`, and the slots are logical (`start` / `end`, never `left` / `right`) so a
+recipe positions with `inset-inline-*` and RTL mirrors for free.</p>
+
+## Import
+
+```tsx
+import { Indicator } from '@sigx/zero/indicator';
+```
+
+`Indicator` is a compound: `Indicator.Root`, `Indicator.Item`. It is also re-exported from
+the `@sigx/zero` root, together with `indicatorAnatomy`. The `IndicatorPlacement` type —
+the union of the eight slots — is exported alongside `IndicatorRootProps` and
+`IndicatorItemProps`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Indicator } from '@sigx/zero/indicator';
+import { Badge } from '@sigx/zero/badge';
+import { Button } from '@sigx/zero/button';
+
+const Inbox = component(({ signal }) => {
+    const state = signal({ unread: 12 });
+
+    return () => (
+        <Indicator.Root>
+            {state.unread > 0 && (
+                <Indicator.Item>
+                    <Badge.Root color="error">{state.unread}</Badge.Root>
+                </Indicator.Item>
+            )}
+            <Button.Root>Inbox</Button.Root>
+        </Indicator.Root>
+    );
+});
+```
+
+Indicator takes no `model`: it has no state of its own. Whether the item is shown, and what
+it says, is the item's business — render it or leave it out. The root wraps the decorated
+content and the item; the item floats over the content to its declared slot.
+
+### Choosing a slot
+
+```tsx
+<Indicator.Root>
+    <Indicator.Item placement="bottom-end">
+        <Status.Root color="success" label="Online" />
+    </Indicator.Item>
+    <Avatar.Root>…</Avatar.Root>
+</Indicator.Root>
+```
+
+`placement` is one of eight slots — four corners, two edge midpoints and the two bare
+inline sides for the middle row:
+
+| | `start` | centre | `end` |
+|---|---|---|---|
+| top | `top-start` | `top` | `top-end` |
+| middle | `start` | — | `end` |
+| bottom | `bottom-start` | `bottom` | `bottom-end` |
+
+The default is `top-end`. There is no `middle-center`: an item centred on its content is an
+overlay, not an indicator. The item always renders `data-placement` — including for the
+default — so a recipe keys every slot the same way and never needs an "absent attribute"
+case.
+
+### What the item means
+
+The indicator adds no ARIA. What the item *means* is the item's job: a
+[`Badge`](/zero/docs/components/badge/) with a count announces its text, a
+[`Status`](/zero/docs/components/status/) dot announces its `label` or hides itself. Put
+the meaning on the content, not on the wrapper.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | The positioning box. Carries the variant axes. |
+| `item` | `span` | — | — | `data-placement`: `top-start` \| `top` \| `top-end` \| `start` \| `end` \| `bottom-start` \| `bottom` \| `bottom-end`. Inside `root`. |
+
+Every part carries `data-scope="indicator"` and `data-part="<part>"`. Neither part hints a
+token: the indicator paints nothing, it only positions. The placement subset is contract
+data rather than styling — a recipe keys each slot, and the anatomy validator rejects a
+placement that is not one of the eight. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Indicator.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes. |
+
+The default slot holds the decorated content and the item(s). Indicator has no `model`, no
+default-value prop and no change event.
+
+### `Indicator.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `placement` | `IndicatorPlacement` | `'top-end'` | Which of the eight slots the item floats to; rendered as `data-placement`. |
+| `class` | `string` | — | Extra classes. |
+
+The default slot is the floating content.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on the indicator root. Neither wires a `variant` or any `mods`;
+under a design system's `/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+An indicator recipe makes `root` the positioning context (`position: relative`,
+`display: inline-flex` or similar) and positions `item` absolutely by `data-placement`.
+Because every slot spells logically, the item rules use `inset-inline-start` /
+`inset-inline-end` with a translate to sit the item on the corner; nothing is flipped by
+hand for right-to-left scripts.
+
+## Related
+
+[`Badge`](/zero/docs/components/badge/) and [`Status`](/zero/docs/components/status/) are
+the usual items; [`Avatar`](/zero/docs/components/avatar/) and
+[`Button`](/zero/docs/components/button/) the usual content.

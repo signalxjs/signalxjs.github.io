@@ -1,0 +1,120 @@
+---
+title: "Status"
+description: "The @sigx/zero Status component — an empty presence dot on one <span>, with no states (online / busy / degraded ride the color axis) and an aria-hidden / role=\"img\" split decided by the label prop."
+layout: docs
+category: ["Components", "Content"]
+order: 511
+---
+
+# Status
+
+<p class="lede">A tiny presence dot: the smallest paint-only component there is. One empty
+`<span>` that the design system paints, with no states — "online", "busy" and "degraded"
+are colours of the same resting render, not a machine lifecycle. Its one decision is
+accessibility: decorative without a `label`, an image with one.</p>
+
+## Import
+
+```tsx
+import { Status } from '@sigx/zero/status';
+```
+
+`Status` is a compound with a single member, `Status.Root`. It is also re-exported from
+the `@sigx/zero` root, together with `statusAnatomy`. The props type is exported as
+`StatusRootProps`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Status } from '@sigx/zero/status';
+
+const Presence = component(({ signal }) => {
+    const state = signal({ online: true });
+
+    return () => (
+        <span>
+            <Status.Root color={state.online ? 'success' : 'neutral'} />
+            {state.online ? ' Online' : ' Offline'}
+        </span>
+    );
+});
+```
+
+Status takes no `model`. Which colour the dot shows is the app's vocabulary — it decides
+what "online" means and picks the role — so the state lives in the app and reaches the dot
+through `color`. Zero mints no `data-state` family for it: that would be styling wearing a
+contract costume.
+
+### Without a label — decoration
+
+```tsx
+<Status.Root color="success" /> Online
+```
+
+With no `label`, the dot renders `aria-hidden="true"`. The visible text beside it already
+carries the meaning, and announcing both would say everything twice.
+
+### With a label — the dot is the content
+
+```tsx
+<Status.Root color="error" label="Service degraded" />
+```
+
+With a `label`, the dot *is* the content, so it announces as `role="img"` with that name.
+It is deliberately not `role="status"`: that is a live region, and a static dot that
+announced itself on every render would be noise — while one that never changes would
+announce nothing at all.
+
+### Sizing
+
+```tsx
+<Status.Root color="warning" size="xs" />
+<Status.Root color="warning" size="lg" label="Rate limited" />
+```
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `span` | — | — | `aria-hidden="true"` without `label`; `role="img"` + `aria-label` with one. Carries the variant axes. Renders empty. |
+
+The part carries `data-scope="status"` and `data-part="root"`, and hints the `color` and
+`size` tokens. There is no `text` token: the dot never prints a glyph, which is why the
+contrast audit grades it on the non-text 3:1 indicator floor rather than the text one — an
+invisible presence dot is a real bug, the same as an invisible spinner. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+There is no `asChild` and no default slot: the element is an empty box for the design
+system's paint.
+
+## Props
+
+### `Status.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | — | Accessible name. Present: `role="img"` with this name. Absent: `aria-hidden`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes. |
+
+Status has no `model`, no default-value prop and no change event: it has no state to bind.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on status, so `<Status.Root color="success" size="sm">` is styled in
+both. Neither wires a `variant` or any `mods`; under a design system's `/register` import
+those props are therefore absent. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A status recipe is a filled circle on the `color` axis sized on the `size` axis. Because the
+part is empty, every colour role the skin wires must clear the 3:1 non-text floor against
+the surface it sits on — the audit checks each one. A pulsing "live" dot is a looping
+animation, so its duration is a literal rather than a `--duration-*` token and it stops
+(`animation: none`) under the `reduced-motion` condition.
+
+## Related
+
+[`Indicator`](/zero/docs/components/indicator/) anchors a status dot to the corner of an
+avatar; [`Badge`](/zero/docs/components/badge/) is the presence mark that carries text;
+[`Spinner`](/zero/docs/components/spinner/) is the empty mark that moves.
