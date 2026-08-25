@@ -3,7 +3,7 @@ import { defineSSGConfig } from '@sigx/ssg';
 // esbuild, so the relative .ts registry import works on every supported Node.
 // (scripts/generate-module-docs.mjs imports the registry directly and still
 // needs Node ≥22.18 — dev-only.)
-import { ACTORS_RELEASED, MODULES, moduleDocsCollection, moduleRoutePrefix, type ModuleParent } from './src/lib/modules.ts';
+import { ACTORS_RELEASED, DEVTOOLS_RELEASED, MODULES, moduleDocsCollection, moduleRoutePrefix, type ModuleParent } from './src/lib/modules.ts';
 import { qualifiedTitle, decodeTitleEntities, escapeTitle } from './src/lib/seo-title.ts';
 
 /**
@@ -392,7 +392,8 @@ export default defineSSGConfig({
             { title: 'CLI', collections: ['cli-docs'] },
             { title: 'Terminal UIs', collections: ['terminal-docs'] },
             { title: 'Terminal Packages', links: moduleLlmsLinks('terminal') },
-            { title: 'DevTools', collections: ['devtools-docs'] },
+            // Gated the same way: `@sigx/devtools` is unpublished and its pages are drafts.
+            ...(DEVTOOLS_RELEASED ? [{ title: 'DevTools', collections: ['devtools-docs'] }] : []),
             { title: 'Monaco Editor', collections: ['monaco-docs'] },
             { title: 'Lynx (native iOS & Android)', collections: ['lynx-docs'] },
             // ~45 one-liners instead of ~310 page links; each overview.md links

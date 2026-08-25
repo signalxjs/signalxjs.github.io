@@ -169,6 +169,10 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 > the llms.txt sections are gated in `ssg.config.ts`. Flipping it also moves the
 > `server` row's category, so the mega-menu changes exactly once.
 >
+> It is reused right now: `DEVTOOLS_RELEASED` (same file, `false`) hides
+> `/devtools/` the same way, because `@sigx/devtools` has never been published —
+> flip it to `true` and strip the drafts once the package is on npm.
+>
 > Two SSG constraints shaped that and will bite anyone reusing it: `draft` is only
 > honoured on statically-parsed **MDX** frontmatter — a `draft: true` in a `.tsx`
 > `export const meta` is ignored and the page ships — which is why the actors

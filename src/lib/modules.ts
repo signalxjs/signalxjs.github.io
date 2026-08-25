@@ -42,6 +42,19 @@ export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy' | 
  */
 export const ACTORS_RELEASED = true;
 
+/**
+ * Release gate for `@sigx/devtools` — the same machinery as ACTORS_RELEASED.
+ * The package has never been published, so `/devtools/` stays off every
+ * PUBLIC surface (mega-menu, home grid, ⌘K palette, package counts, llms.txt)
+ * and its pages carry `draft: true`. Dev still shows the area — see
+ * SHOW_DEVTOOLS in lib/family.ts.
+ *
+ * On publish day: flip to `true`, strip `draft: true` from
+ * src/pages/devtools/**, and convert src/pages/devtools/index.mdx back to the
+ * .tsx landing shell the other packages use.
+ */
+export const DEVTOOLS_RELEASED = false;
+
 export interface SigxModule {
     /** Stable id — also the route segment and collection infix. */
     id: string;

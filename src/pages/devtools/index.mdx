@@ -1,0 +1,25 @@
+---
+title: "SignalX DevTools - Inspect signals at runtime"
+description: "A browser panel to trace the reactive graph, time-travel effects and inspect components."
+layout: package
+draft: true
+---
+
+import { PackageLanding } from '@/components/PackageLanding';
+
+{/*
+  DevTools package landing. All content is data-driven from src/lib/family.ts
+  via <PackageLanding>.
+
+  MDX rather than .tsx (which every other landing uses) because @sigx/ssg only
+  honours `draft` on statically-parsed MDX frontmatter — a `draft: true` in a
+  .tsx `export const meta` is ignored and the page ships. Convert this back to
+  index.tsx when @sigx/devtools is published and the draft comes off.
+  See DEVTOOLS_RELEASED in src/lib/modules.ts.
+
+  Keep this comment BELOW the import: a `{...}` expression before the first
+  import makes the compiled page export something the `package` layout cannot
+  call as `slots.default()`, and the page renders blank with no build error.
+*/}
+
+<PackageLanding id="devtools" />
