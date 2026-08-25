@@ -71,6 +71,37 @@ record means the next activation mutates the copy your provider is still holding
 This is what makes `memoryStorage` correct without cloning on save while still cloning on
 load — a stored value never aliases live activation state.
 
+### `saveText` — the one-walk durable save
+
+```ts
+interface ActorStorage {
+    // …
+    saveText?(type: string, key: string, json: string, expectedEtag: string | null): Promise<string>;
+}
+```
+
+A durable save is otherwise two full walks of the same state: the host encodes to a
+JSON-safe tree, then the adapter runs `JSON.stringify` over that tree. When storage implements
+the optional `saveText`, the host emits the JSON text in **one** walk via
+`@sigx/serialize/stringify` and hands the adapter the string — measured at −38 to −44% on a
+500-row state against the two-walk pair (`@sigx/serialize` ≥ 0.15.6, the peer floor).
+
+Implementing it is a promise of **equivalence**, not merely of validity:
+`saveText(type, key, json, etag)` must be observably identical to
+`save(type, key, JSON.parse(json), etag)` — same compare-and-set, same
+`ActorStorageConflict` brand on a mismatch, and a later `load()` returns the same record
+either way. Implement `save` in terms of `saveText` so the two cannot drift.
+
+| Provider | `saveText` |
+|---|---|
+| `pgStorage`, `redisStorage`, `surrealStorage` | **implemented** — they want a string anyway |
+| `memoryStorage` | absent, deliberately — it stores the tree by reference |
+| `fileStorage` | absent, deliberately — the record is pretty-printed JSON |
+| `durableObjectStorage` | absent, deliberately — `storage.put` takes a structured value and the platform serializes it; a string would have to be parsed back on load |
+
+Absent is the right answer for an adapter that genuinely wants the tree. The host is correct
+either way; it keeps its encoded-tree path for exactly that case.
+
 ## Choosing one in production
 
 Two questions decide it.
@@ -109,11 +140,18 @@ registry.decorateStorage((inner) => ({
     },
     save: inner.save,
     clear: inner.clear,
+    ...(inner.saveText ? { saveText: inner.saveText.bind(inner) } : {}),
 }));
 ```
 
 Decorators chain, and the **last registered is outermost**. Encryption at rest, tenant
 prefixing and audit logging all fit here without the actor code knowing.
+
+**Forward every member you do not deliberately replace — `saveText` included, and forward it
+conditionally**, so an inner storage without it does not appear to have it. A decorator that
+returns a fixed three-method literal silently drops the one-walk save path: the host reverts
+to encoding a tree the adapter then re-walks, correct but slower, with nothing to say it
+happened. The built-in `metrics()` storage decoration forwards it this way.
 
 <div class="alert alert-warning not-prose my-4">
   <div>

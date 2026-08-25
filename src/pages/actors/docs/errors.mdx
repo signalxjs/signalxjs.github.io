@@ -34,6 +34,8 @@ try {
 | `ActorCallTimeoutError` | `call-timeout` | The call exceeded `callTimeoutMs`. | See the precision note below. |
 | `ActorWrongHostError` | `wrong-host` | The actor is placed on another host. | Normally handled for you by proxy or redirect. See [Locality routing](/actors/docs/locality-routing). |
 | `ActorUnreachableError` | `unreachable` | The owning host could not be reached. | Transient — a peer is down, restarting or partitioned. Retryable. |
+| `ActorUnplaceableError` | `unplaceable` | No **active** host [registers](/actors/docs/clustering#heterogeneous-clusters-registration-aware-placement) the actor type. Retried against a refreshed view; surfaces as the `cause` of the final `ActorActivationError`. | Add the type to some host's `defineActorApp({ actors })`, or check that the pods registering it are up. A pod mid-join looks exactly like this. |
+| `ActorWatchDeclarationError` | `watch-declaration` | A read declared [`watches: { m: { principalIndependent: true } }`](/actors/docs/live-reads#declaring-a-read-identity-blind-watches) consulted `ctx.principal` while serving a watch. Fails in every build and does not heal on re-subscribe or failover. | Remove the declaration — or, if the touch was only to authorize, move it to `authorize` / `methodAuthorize`. |
 | `ActorStorageConflict` | — | Raised by an `ActorStorage` implementation on an etag mismatch. | Surfaces as `state-conflict`. `isStorageConflict()` narrows it. |
 | `HostShutdownError` | `host-shutdown` | The host is draining. | Retry against the cluster, or let the client follow. |
 

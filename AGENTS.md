@@ -135,7 +135,7 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 | `lynx/` (`docs`, `modules`) | [`signalxjs/lynx`](https://github.com/signalxjs/lynx) | **Yes** — `parent: 'lynx'` rows (`@sigx/lynx`, `@sigx/lynx-*`) |
 | `server/` (`packages`) — a collection spanning two repos | [`signalxjs/core`](https://github.com/signalxjs/core) (`@sigx/server-renderer`, `@sigx/server`, `@sigx/resume`, `@sigx/serialize`) + [`signalxjs/ssr-islands`](https://github.com/signalxjs/ssr-islands) (`@sigx/ssr-islands`) | **Yes** — `parent: 'server'` rows (`server-renderer`, `ssr-islands`, `server`, `resume`, `serialize`); `ssr-islands` is versioned independently of the core four |
 | `deploy/` (`docs`, `packages`) | [`signalxjs/core`](https://github.com/signalxjs/core) | **Yes** — `parent: 'deploy'` rows (`@sigx/cloudflare`, `@sigx/vercel`, `@sigx/netlify`); all three ship in lockstep with the core release |
-| `actors/` (`docs`, `packages`) | [`signalxjs/actors`](https://github.com/signalxjs/actors) | **Yes** — `parent: 'actors'` rows (`@sigx/actors` + `-redis`, `-pg`, `-surreal`, `-k8s`, `-tcp`, `-ws`, `-cloudflare`, `-cli`, `-otel`); all ten publish in lockstep, anchored on `@sigx/actors` in `scripts/fetch-versions.mjs` (the prefix match covers new satellites automatically) |
+| `actors/` (`docs`, `packages`) | [`signalxjs/actors`](https://github.com/signalxjs/actors) | **Yes** — `parent: 'actors'` rows (`@sigx/actors` + `-redis`, `-pg`, `-surreal`, `-k8s`, `-tcp`, `-ws`, `-cloudflare`, `-cli`, `-otel`, `-monitor`, `-dashboard`); all twelve publish in lockstep, anchored on `@sigx/actors` in `scripts/fetch-versions.mjs` (the prefix match covers new satellites automatically) |
 | `store/` | [`signalxjs/store`](https://github.com/signalxjs/store) | No — hand-written guide/API pages |
 | `router/` (`api`, `docs`) | [`signalxjs/router`](https://github.com/signalxjs/router) | No |
 | `ssg/` | [`signalxjs/ssg`](https://github.com/signalxjs/ssg) | No |
@@ -154,7 +154,7 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 `@sigx/lynx*`; and `signalxjs/terminal` publishes `@sigx/terminal`,
 `@sigx/runtime-terminal`, `@sigx/terminal-zero`, `@sigx/terminal-ui`,
 `@sigx/terminal-dev` and `@sigx/args`; and `signalxjs/actors` publishes
-`@sigx/actors` plus its nine satellites. The authoritative package lists are
+`@sigx/actors` plus its eleven satellites. The authoritative package lists are
 `src/lib/modules.ts` (core + lynx + server + terminal + deploy + actors) and the
 `@sigx/*` entries in `package.json` (what the site builds against).
 

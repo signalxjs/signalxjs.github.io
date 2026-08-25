@@ -112,6 +112,35 @@ turned away before serving a byte); calls started and failed; subscriptions open
 `maxConnectionMs`) — plus three live gauges summed across open sessions (`open`, `inFlight`,
 `subscriptions`) and a connection-lifetime histogram, `null` until there is data.
 
+Four more fields describe live delivery:
+
+| Field | What it counts |
+|---|---|
+| `deliveries` | `{i,v}` frames pushed for a live **subscription** — not call results, not stream chunks |
+| `deliveryBytes` | outbound bytes for those frames, as UTF-16 code units — exact for ASCII, under-reports otherwise, deliberately: no UTF-8 pass on the hot path |
+| `throttleQuantized` | subscriptions whose requested [`throttleMs`](/actors/docs/live-reads#ask-for-a-slower-delivery-window) the server's policy rounded |
+| `bufferedBytes` | the **host's** own send-buffer depth, summed across open sessions — `number \| null` |
+
+**`deliveries` is the number to watch.** A delivery is ~77% socket write, one write syscall
+per subscriber, so it is what a fan-out host's cost is proportional to. Pair it with `open`
+and `subscriptions`: the same subscription count on fewer connections measured 6–10× cheaper
+per delivery, so **subscriptions per connection** is a ratio worth showing.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong><code>bufferedBytes: null</code> is not zero.</strong> It means no open session
+    could report one — a custom adapter that does not supply the seam, or no open sessions at
+    all. Reporting it as 0 would say "the hosts are not buffering", which is a claim nobody has
+    measured. Same rule <code>lifetimeMs</code> follows.
+  </div>
+</div>
+
+It is a gauge, and it is polled: a burst between two scrapes is invisible, so it under-reports
+peaks the way `open` does. The Node adapter supplies it automatically from the socket's
+`bufferedAmount`; a custom adapter passes `bufferedBytes()` to
+[`createActorSocketSession`](/actors/docs/socket-sessions) if its transport can report a queue
+depth, or accepts that the host cannot report its own backpressure.
+
 `stats.digest()` is the mergeable form, in the same log-linear layout as every other
 histogram, so a fleet-wide view merges the way [cluster stats](/actors/docs/cluster-stats)
 does.
