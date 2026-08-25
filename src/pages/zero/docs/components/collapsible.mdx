@@ -1,0 +1,123 @@
+---
+title: "Collapsible"
+description: "The @sigx/zero Collapsible component — a single disclosure on native <details> / <summary>, rendering the root / trigger / panel anatomy with the model in charge of the open state."
+layout: docs
+category: ["Components", "Actions & disclosure"]
+order: 105
+---
+
+# Collapsible
+
+<p class="lede">A disclosure built on the native `<details>` element: the root *is* the
+`<details>`, the trigger is its `<summary>`, and the panel is the content it reveals. The
+platform gives keyboard interaction, semantics and zero-JS toggling of server-rendered markup;
+zero keeps one `model` in charge by intercepting the summary click and rendering `open` from
+state.</p>
+
+## Import
+
+```tsx
+import { Collapsible } from '@sigx/zero/collapsible';
+```
+
+`Collapsible` is a compound: `Collapsible.Root`, `Collapsible.Trigger`, `Collapsible.Panel`.
+It is also re-exported from the `@sigx/zero` root, together with `collapsibleAnatomy` and
+`useCollapsibleContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Collapsible } from '@sigx/zero/collapsible';
+
+const Advanced = component(({ signal }) => {
+    const state = signal({ open: false });
+
+    return () => (
+        <Collapsible.Root model={() => state.open}>
+            <Collapsible.Trigger>Advanced options</Collapsible.Trigger>
+            <Collapsible.Panel>…</Collapsible.Panel>
+        </Collapsible.Root>
+    );
+});
+```
+
+`model={() => state.open}` binds the open state both ways — activating the trigger writes
+`state.open`, and writing `state.open` opens or closes the details. Leave the model off and
+pass `defaultOpen` to keep the state inside the component; `openChange` fires either way. See
+[Models](/zero/docs/models/).
+
+### Uncontrolled, open by default
+
+```tsx
+<Collapsible.Root defaultOpen>
+    <Collapsible.Trigger>Show less</Collapsible.Trigger>
+    <Collapsible.Panel>…</Collapsible.Panel>
+</Collapsible.Root>
+```
+
+### Disabled
+
+```tsx
+<Collapsible.Root defaultOpen disabled>
+```
+
+`disabled` on the root freezes the current state: the trigger's click is ignored and every part
+renders `data-disabled`. A `<summary>` has no `disabled` attribute of its own, so the trigger
+announces it through `aria-disabled="true"` and stays a tab stop.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `details` | `open` \| `closed` | `disabled` | The native `open` attribute is rendered from the model. Carries the variant axes. |
+| `trigger` | `summary` | `open` \| `closed` | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-expanded`, `aria-controls` → the panel, `aria-disabled`. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). Inside `root`. |
+| `panel` | `div` | `open` \| `closed` | — | Carries the id the trigger controls. Inside `root`. |
+
+Every part carries `data-scope="collapsible"` and `data-part="<part>"`. The `<summary>`
+conveys expansion natively in most assistive technology; the explicit `aria-expanded` /
+`aria-controls` pair covers the rest. A closed `<details>` hides everything after its summary,
+so a `closed` rule on the panel never paints — a design system animates the `open` transition
+on `panel` and styles the trigger's `open` / `closed` states (the chevron). Ids are SSR-safe
+and stable across hydration. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Collapsible.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the open state. |
+| `defaultOpen` | `boolean` | `false` | Initial state when uncontrolled. |
+| `openChange` | event `(open: boolean)` | — | Fires whenever the open state changes. |
+| `disabled` | `boolean` | `false` | The trigger ignores activation; renders `data-disabled` on root and trigger. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the `<details>`. |
+
+### `Collapsible.Trigger`
+
+Only `class`. Renders the `summary` part around its children.
+
+### `Collapsible.Panel`
+
+Only `class`. Renders the `panel` part around its children.
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| Enter / Space | Toggle the disclosure (native `<summary>` activation, routed through the model). |
+| Tab | The trigger is an ordinary tab stop; the panel's content follows while open. |
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on collapsible, so `<Collapsible.Root color="neutral" size="sm">` is
+styled in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[`Accordion`](/zero/docs/components/accordion/) for several disclosures under one model, with
+exclusive or multiple opening.

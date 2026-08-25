@@ -96,6 +96,11 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                                 <Icon name="cube" size={15} /> Browse packages
                             </SxLink>
                         )}
+                        {pkg.id === 'zero' && (
+                            <SxLink to="/zero/packages" class={`sx-btn ${docs ? 'sx-btn-outline' : 'sx-btn-primary'}`}>
+                                <Icon name="cube" size={15} /> Browse packages
+                            </SxLink>
+                        )}
                         {api && (
                             <SxLink to={api} class="sx-btn sx-btn-outline">
                                 API reference
@@ -209,6 +214,18 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         </div>
                         <div class="lynx-mod-row">
                             {modulesByParent('actors').filter((m) => !m.aliasFor).map(moduleCard)}
+                        </div>
+                    </>
+                )}
+                {pkg.id === 'zero' && (
+                    <>
+                        <div class="section-label">
+                            <span class="sl-text">Authoring kit & design systems</span>
+                            <span class="sl-line" />
+                            <span class="sl-note">@sigx/zero is the runtime — add one design system beside it, or compile your own</span>
+                        </div>
+                        <div class="lynx-mod-row">
+                            {modulesByParent('zero').filter((m) => !m.aliasFor).map(moduleCard)}
                         </div>
                     </>
                 )}

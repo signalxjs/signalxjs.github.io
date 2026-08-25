@@ -1,0 +1,299 @@
+---
+title: "Menu"
+description: "The @sigx/zero Menu component — the APG menu button on the popover attribute, rendering trigger / popup / item / checkbox-item / radio-item / item-indicator / sub-trigger / sub-popup / context-trigger / group / group-label / separator with a select event, context menus and nested submenus."
+layout: docs
+category: ["Components", "Overlays"]
+order: 205
+---
+
+# Menu
+
+<p class="lede">The WAI-ARIA menu button: a trigger that opens a `role="menu"` of actions,
+with arrow-key navigation, typeahead and a `select` event that carries the chosen value. The
+popup is `popover="auto"`, so the top layer, light dismiss and Escape come from the platform.
+The same anatomy serves checkable items, a right-click context menu and submenus nested to
+any depth.</p>
+
+## Import
+
+```tsx
+import { Menu } from '@sigx/zero/menu';
+```
+
+`Menu` is a compound: `Menu.Root`, `Menu.Trigger`, `Menu.ContextTrigger`, `Menu.Popup`,
+`Menu.Item`, `Menu.CheckboxItem`, `Menu.RadioGroup`, `Menu.RadioItem`, `Menu.Sub`,
+`Menu.SubTrigger`, `Menu.SubPopup`, `Menu.Group`, `Menu.GroupLabel`, `Menu.Separator`. It is
+also re-exported from the `@sigx/zero` root, together with `menuAnatomy`, `useMenuContext`,
+`useMenuSubContext` and `useMenuRadioGroupContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Menu } from '@sigx/zero/menu';
+
+const Actions = component(({ signal }) => {
+    const state = signal({ open: false });
+
+    return () => (
+        <Menu.Root model={() => state.open} onSelect={(value) => act(value)}>
+            <Menu.Trigger color="neutral">Actions</Menu.Trigger>
+            <Menu.Popup>
+                <Menu.Item value="rename">Rename</Menu.Item>
+                <Menu.Item value="duplicate">Duplicate</Menu.Item>
+                <Menu.Separator />
+                <Menu.Item value="delete">Delete…</Menu.Item>
+            </Menu.Popup>
+        </Menu.Root>
+    );
+});
+```
+
+`model={() => state.open}` binds the open state both ways; leave it off and the menu manages
+it, with `openChange` reporting each change. Activating an item emits `select` with its
+`value` and, by default, closes the menu (`closeOnSelect`). `Menu.Root` renders no element of
+its own — it only provides context. On open, focus lands on the first enabled item; on close
+it returns to the trigger. See [Models](/zero/docs/models/).
+
+### Checkbox and radio items
+
+```tsx
+<Menu.Popup>
+    <Menu.CheckboxItem value="statusbar" model={() => state.statusbar}>Status bar</Menu.CheckboxItem>
+    <Menu.CheckboxItem value="minimap" model={() => state.minimap}>Minimap</Menu.CheckboxItem>
+    <Menu.Separator />
+    <Menu.RadioGroup model={() => state.sortBy}>
+        <Menu.GroupLabel>Sort by</Menu.GroupLabel>
+        <Menu.RadioItem value="name">Name</Menu.RadioItem>
+        <Menu.RadioItem value="date">Date</Menu.RadioItem>
+    </Menu.RadioGroup>
+</Menu.Popup>
+```
+
+`Menu.CheckboxItem` is an APG `menuitemcheckbox` with a per-item boolean model;
+`Menu.RadioGroup` holds one string model over its `Menu.RadioItem`s (`menuitemradio`) and
+renders the same labelled `group` part `Menu.Group` does. Both carry `data-state`
+`checked` / `unchecked` and `aria-checked`, emit the root's `select` alongside their own model
+events, and — unlike plain items — leave the menu **open** by default so several options can
+be set in one visit; `closeOnSelect` on the item opts back into closing. Each auto-renders an
+`item-indicator` part mirroring its checked state; zero leaves it empty and the design system
+draws the mark. Under `asChild` only your element renders, so bring your own mark there.
+
+### Groups
+
+```tsx
+<Menu.Group>
+    <Menu.GroupLabel>Export</Menu.GroupLabel>
+    <Menu.Item value="pdf">PDF</Menu.Item>
+    <Menu.Item value="csv">CSV</Menu.Item>
+</Menu.Group>
+```
+
+A group is `role="group"`, named by its `GroupLabel` while one is rendered. Labels never
+register as items, so arrow keys and typeahead walk straight through group boundaries.
+
+### Context menu
+
+```tsx
+<Menu.Root onSelect={(value) => act(value)}>
+    <Menu.ContextTrigger>
+        <div class="canvas">Right-click me</div>
+    </Menu.ContextTrigger>
+    <Menu.Popup>…</Menu.Popup>
+</Menu.Root>
+```
+
+`Menu.ContextTrigger` wraps any surface. A right-click (or an Android long-press) opens the
+same popup at the pointer through a virtual anchor — deferred past the gesture, since an
+`auto` popover opened mid-gesture would be light-dismissed by its own `pointerup`. Shift+F10
+or the ContextMenu key, from the surface or any focused descendant, opens it anchored to the
+surface's rect. A second right-click while open repositions in place; the last opener —
+`Trigger` or `ContextTrigger` — wins the anchor. A context-menu-only composition has no
+visible trigger, so the popup carries no `aria-labelledby` in that case. iOS fires no native
+`contextmenu` event: pair `-webkit-touch-callout: none` with your own long-press recognizer.
+
+### Submenus
+
+```tsx
+<Menu.Popup>
+    <Menu.Item value="copy">Copy</Menu.Item>
+    <Menu.Sub>
+        <Menu.SubTrigger>Share</Menu.SubTrigger>
+        <Menu.SubPopup>
+            <Menu.Item value="email">Email</Menu.Item>
+            <Menu.Item value="link">Copy link</Menu.Item>
+        </Menu.SubPopup>
+    </Menu.Sub>
+</Menu.Popup>
+```
+
+`Menu.Sub` shadows the menu context for its subtree, so `Item`, `Group` and `Separator` work
+unchanged inside a `SubPopup` and `select` bubbles to the root. The sub-trigger is an item of
+the parent level for roving and typeahead; hover opens the submenu after `openDelay` without
+moving focus, leaving closes it after `closeDelay`, and roving to a different parent item
+closes it. The nested `popover="auto"` is a DOM descendant of the parent popup, so the
+platform provides the stacking: opening a child keeps ancestors open, Escape closes only the
+innermost, light dismiss closes the chain, and opening a sibling closes the other.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `trigger` | `button` | `open` \| `closed` | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-haspopup="menu"`, `aria-expanded`, `aria-controls`. Carries the variant axes. `asChild`. |
+| `popup` | `div` | `open` \| `closed` | — | `popover="auto"`, `role="menu"`, `data-placement` (resolved), `aria-labelledby` → the trigger while one renders. |
+| `item` | `div` | — | `disabled`, `highlighted`, `pressed`, `press-animating` | `role="menuitem"`, `tabIndex=-1`, `aria-disabled`. Inside `popup`. `asChild`. |
+| `checkbox-item` | `div` | `checked` \| `unchecked` | `disabled`, `highlighted`, `pressed`, `press-animating` | `role="menuitemcheckbox"`, `aria-checked`. Inside `popup`. `asChild`. |
+| `radio-item` | `div` | `checked` \| `unchecked` | `disabled`, `highlighted`, `pressed`, `press-animating` | `role="menuitemradio"`, `aria-checked`. Inside `popup`. `asChild`. |
+| `item-indicator` | `span` | `checked` \| `unchecked` | — | Auto-rendered inside a checkbox or radio item, `aria-hidden`; empty — the design system draws the mark. |
+| `sub-trigger` | `div` | `open` \| `closed` | `disabled`, `highlighted`, `pressed`, `press-animating` | `role="menuitem"`, `aria-haspopup="menu"`, `aria-expanded`, `aria-controls`. Inside `popup`. `asChild`. |
+| `sub-popup` | `div` | `open` \| `closed` | — | `popover="auto"`, `role="menu"`, `data-placement` (resolved), `aria-labelledby` → its sub-trigger. Inside `popup`. |
+| `context-trigger` | `div` | `open` \| `closed` | `disabled`, `focus-visible` | `aria-haspopup="menu"`, `aria-controls`; no `aria-expanded` (invalid on a generic). `asChild`. |
+| `group` | `div` | — | — | `role="group"`, `aria-labelledby` while a label renders. Inside `popup`. |
+| `group-label` | `div` | — | — | Inside `group`. |
+| `separator` | `div` | — | — | `role="separator"`. Inside `popup`. |
+
+Menu's Root renders a fragment, so there is no `root` part. The **trigger** is the carrier
+part: the variant axes live on `Menu.Trigger`, and a design system's axis rules for the scope
+anchor there. The popup is a top-layer sibling of the trigger, so colour styles the trigger,
+never the popup.
+
+Items are flags-only by contract — `data-highlighted` follows focus, and hover moves focus so
+the two never disagree. The stateful items and the sub-trigger are distinct parts precisely
+because they carry a `data-state` the plain item is without: a recipe keys the mark on
+`[data-state="checked"]` and keeps a sub-trigger visually active with `[data-state="open"]`
+after focus has moved into its submenu. `sub-popup` is its own part so a side-attached submenu
+can animate on its own axis. The context trigger tracks the surface's *own* focus — never a
+descendant's — and carries `focus-visible` so a design system has somewhere to hang a ring
+when the consumer makes the surface a tab stop; no shipped design system paints one. Trigger
+and every item publish [press feedback](/zero/docs/behaviors/#press-feedback). See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Menu.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the open state. |
+| `openChange` | event `(open: boolean)` | — | Fires whenever the open state changes. |
+| `select` | event `(value: string)` | — | Fires when an item is activated, from any depth. |
+| `closeOnSelect` | `boolean` | `true` | Close after a plain `Item` is activated; checkbox and radio items decide for themselves. |
+| `placement` | `Placement` | `'bottom-start'` | Preferred side and alignment; the resolved value renders as `data-placement` on the popup. |
+| `offset` | `number` | `4` | Gap between the anchor and the popup, in px. |
+| `positionStrategy` | `PositionStrategy` | fixed-coordinates | Replaces the positioning implementation. |
+
+### `Menu.Trigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `disabled` | `boolean` | `false` | Renders `data-disabled`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/) for the scope, rendered on the trigger. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Menu.ContextTrigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `disabled` | `boolean` | `false` | Right-click and the keyboard shortcuts do nothing; renders `data-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Menu.Popup`, `Menu.SubPopup`, `Menu.Group`, `Menu.GroupLabel`, `Menu.Separator`
+
+Only `class`.
+
+### `Menu.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | Emitted by `select` on activation. |
+| `textValue` | `string` | the item's text | What typeahead matches against. |
+| `disabled` | `boolean` | `false` | Skipped by roving focus; renders `data-disabled` and `aria-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Menu.CheckboxItem`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | Emitted by `select` on activation. |
+| `model` | `boolean` | — | Two-way binding of the checked state. |
+| `defaultChecked` | `boolean` | `false` | Initial state when uncontrolled. |
+| `checkedChange` | event `(checked: boolean)` | — | Fires whenever the checked state changes. |
+| `closeOnSelect` | `boolean` | `false` | Close the menu when this item toggles. |
+| `textValue` | `string` | the item's text | What typeahead matches against. |
+| `disabled` | `boolean` | `false` | Renders `data-disabled` and `aria-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot; no `item-indicator` is rendered. |
+| `class` | `string` | — | Extra classes. |
+
+### `Menu.RadioGroup`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Two-way binding of the checked item's `value`. |
+| `defaultValue` | `string` | `''` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: string)` | — | Fires whenever the selection changes. |
+| `class` | `string` | — | Extra classes on the `group` part. |
+
+### `Menu.RadioItem`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | Written to the group's model on activation; emitted by `select`. |
+| `closeOnSelect` | `boolean` | `false` | Close the menu when this item is chosen. |
+| `textValue` | `string` | the item's text | What typeahead matches against. |
+| `disabled` | `boolean` | `false` | Renders `data-disabled` and `aria-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot; no `item-indicator` is rendered. |
+| `class` | `string` | — | Extra classes. |
+
+### `Menu.Sub`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the submenu's open state. |
+| `openChange` | event `(open: boolean)` | — | Fires whenever the submenu opens or closes. |
+| `placement` | `Placement` | `'right-start'` (`'left-start'` under RTL) | Preferred side and alignment of the sub-popup. |
+| `offset` | `number` | `4` | Gap between the sub-trigger and the sub-popup, in px. |
+| `positionStrategy` | `PositionStrategy` | fixed-coordinates | Replaces the positioning implementation. |
+| `openDelay` | `number` | `100` | Hover intent before opening, in ms. |
+| `closeDelay` | `number` | `300` | Delay before closing after the pointer leaves, in ms. |
+
+### `Menu.SubTrigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | the sub's id | Identity in the parent list for roving and typeahead; never emitted by `select`. |
+| `textValue` | `string` | the item's text | What typeahead matches against. |
+| `disabled` | `boolean` | `false` | Renders `data-disabled` and `aria-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| Enter / Space / click on the trigger | Toggle the menu. |
+| ArrowDown on a closed trigger | Open the menu. |
+| ArrowDown / ArrowUp | Move focus to the next / previous enabled item. |
+| Home / End | First / last enabled item. |
+| Printable characters | Typeahead on item text (or `textValue`). |
+| Enter / Space | Activate the focused item. |
+| ArrowRight (ArrowLeft under RTL), Enter, Space on a sub-trigger | Open the submenu and focus its first item. |
+| ArrowLeft (ArrowRight under RTL) inside a submenu | Close it and return focus to the sub-trigger. |
+| Shift+F10 / ContextMenu on a context-trigger surface | Open anchored to the surface. |
+| Escape | Close the innermost open menu (native popover); focus returns to the opener. |
+
+## In the shipped design systems
+
+`@sigx/zero-basic` and `@sigx/zero-daisyui` both wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the menu **trigger**, in each skin's own button idiom. Neither wires
+a `variant` or any `mods` on the scope. The popup, items, indicator, sub-trigger, sub-popup,
+group label and separator are styled by every shipped design system — the highlight on
+`[data-highlighted]`, the mark on `item-indicator[data-state="checked"]` and the `open` state
+on the sub-trigger. The context trigger is the consumer's own content and ships unstyled.
+
+## Related
+
+[`Popover`](/zero/docs/components/popover/) for an anchored surface of arbitrary content ·
+[`Select`](/zero/docs/components/select/) when the list picks a form value rather than an action.

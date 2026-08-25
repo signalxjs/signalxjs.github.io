@@ -1,0 +1,144 @@
+---
+title: "Tooltip"
+description: "The @sigx/zero Tooltip component — a hover- and focus-intent label on popover=\"manual\", rendering the trigger / popup anatomy with openDelay, closeDelay and placement, and an Escape that dismisses from anywhere."
+layout: docs
+category: ["Components", "Overlays"]
+order: 204
+---
+
+# Tooltip
+
+<p class="lede">A short label that appears on hover or focus and describes its trigger. The
+popup is a `role="tooltip"` on `popover="manual"` — the top layer without light dismiss,
+because a tooltip closes when the pointer or focus leaves, never because the user clicked
+elsewhere — and the trigger references it through `aria-describedby` while it is open.</p>
+
+## Import
+
+```tsx
+import { Tooltip } from '@sigx/zero/tooltip';
+```
+
+`Tooltip` is a compound: `Tooltip.Root`, `Tooltip.Trigger`, `Tooltip.Popup`. It is also
+re-exported from the `@sigx/zero` root, together with `tooltipAnatomy` and
+`useTooltipContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Tooltip } from '@sigx/zero/tooltip';
+
+const SaveButton = component(({ signal }) => {
+    const state = signal({ hint: false });
+
+    return () => (
+        <Tooltip.Root model={() => state.hint} placement="top">
+            <Tooltip.Trigger asChild>
+                {(p) => <button type="button" {...p} onClick={save}>Save</button>}
+            </Tooltip.Trigger>
+            <Tooltip.Popup>Save the document</Tooltip.Popup>
+        </Tooltip.Root>
+    );
+});
+```
+
+`model={() => state.hint}` binds the open state both ways; the usual composition leaves it
+off and lets hover and focus drive the tooltip, with `openChange` reporting each change. There
+is no `defaultOpen` — a tooltip starts closed. See [Models](/zero/docs/models/).
+
+`Tooltip.Root` renders no element of its own — it only provides context. The tooltip opens
+immediately on focus and after `openDelay` on hover; it closes on blur or pointer-leave after
+`closeDelay`. Moving the pointer onto the popup itself keeps it open.
+
+### Delays
+
+```tsx
+<Tooltip.Root openDelay={300} closeDelay={100}>
+```
+
+`openDelay` is the hover intent — focus opens at once regardless. A non-zero `closeDelay`
+lets the pointer cross the gap between trigger and popup without the tooltip flickering.
+
+### Placement
+
+```tsx
+<Tooltip.Root placement="bottom-start" offset={8}>
+```
+
+`placement` accepts the fourteen placement names; the position behavior flips when there is
+no room and stamps the resolved value as `data-placement` on the popup. `offset` is the gap in
+px, and `positionStrategy` swaps the positioning implementation. See
+[Positioning](/zero/docs/behaviors/#positioning).
+
+### The trigger is the described element
+
+`Tooltip.Trigger` renders a real `<button>` so that keyboard users can reach the description.
+It is a plain hover / focus surface: it carries the `open` / `closed` state and the `disabled`
+flag, and **no press feedback and no `focus-visible` flag** — a tooltip describes the element
+it wraps rather than acting. The common composition is therefore `asChild` around your actual
+control, as above, so the anatomy lands on the element that already has its own press states.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `trigger` | `button` | `open` \| `closed` | `disabled` | `aria-describedby` → the popup while open. The anchor. Carries the variant axes. `asChild`. |
+| `popup` | `div` | `open` \| `closed` | — | `popover="manual"`, `role="tooltip"`, `data-placement` (resolved). |
+
+Tooltip's Root renders a fragment, so there is no `root` part. The **trigger** is the carrier
+part: the variant axes live on `Tooltip.Trigger`, and a design system's axis rules for the
+scope anchor there. Because the trigger declares only `disabled`, a design system author
+should reuse their overlay-trigger shape for it — not the pressed / press-animating states of
+their button recipe, which will never match here. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Tooltip.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the open state. |
+| `openChange` | event `(open: boolean)` | — | Fires whenever the open state changes. |
+| `openDelay` | `number` | `600` | Hover intent before opening, in ms; focus opens immediately. |
+| `closeDelay` | `number` | `0` | Delay before closing after pointer-leave or blur, in ms. |
+| `placement` | `Placement` | `'top'` | Preferred side and alignment; the resolved value renders as `data-placement` on the popup. |
+| `offset` | `number` | `6` | Gap between the trigger and the popup, in px. |
+| `positionStrategy` | `PositionStrategy` | fixed-coordinates | Replaces the positioning implementation. |
+
+### `Tooltip.Trigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `disabled` | `boolean` | `false` | Renders `data-disabled` and the native `disabled` attribute. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/) for the scope, rendered on the trigger. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Tooltip.Popup`
+
+Only `class`.
+
+## Keyboard and dismissal
+
+| Interaction | Action |
+|---|---|
+| Focus the trigger | Opens immediately. |
+| Blur the trigger | Closes after `closeDelay`. |
+| Escape | Closes wherever focus is — a document-level listener covers hover-opened tooltips too — and clears any pending hover-open so it cannot reappear. |
+| Click outside | Not a dismissal; the tooltip is `popover="manual"`. |
+
+Escape never moves focus; the tooltip closes and the user stays where they were.
+
+## In the shipped design systems
+
+`@sigx/zero-basic` and `@sigx/zero-daisyui` both wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the tooltip **trigger**. Neither wires a `variant` or any `mods` on
+the scope. The popup is styled by every shipped design system, including the `open` / `closed`
+transition and a placement-keyed arrow.
+
+## Related
+
+[`Popover`](/zero/docs/components/popover/) when the surface holds interactive content ·
+[`Kbd`](/zero/docs/components/kbd/) for showing the shortcut a tooltip describes.

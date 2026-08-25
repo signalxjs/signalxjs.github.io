@@ -1,0 +1,152 @@
+---
+title: "Breadcrumbs"
+description: "The @sigx/zero Breadcrumbs component — the APG breadcrumb trail as a labelled <nav> around an ordered list, rendering root / list / item / link / separator with the current link marked aria-current=\"page\"."
+layout: docs
+category: ["Components", "Navigation"]
+order: 402
+---
+
+# Breadcrumbs
+
+<p class="lede">The trail from the hierarchy's root to the page the user is on. A `<nav>`
+landmark named "Breadcrumb" wraps an `<ol>` — order is the meaning — and the link for the
+current page carries `aria-current="page"`. There is no behavior: links navigate, the browser
+does the rest, and the separator is punctuation for the eye that the ear never hears.</p>
+
+## Import
+
+```tsx
+import { Breadcrumbs } from '@sigx/zero/breadcrumbs';
+```
+
+`Breadcrumbs` is a compound: `Breadcrumbs.Root`, `Breadcrumbs.List`, `Breadcrumbs.Item`,
+`Breadcrumbs.Link`, `Breadcrumbs.Separator`. It is also re-exported from the `@sigx/zero`
+root, together with `breadcrumbsAnatomy`.
+
+## Usage
+
+```tsx
+import { Breadcrumbs } from '@sigx/zero/breadcrumbs';
+
+<Breadcrumbs.Root>
+    <Breadcrumbs.List>
+        <Breadcrumbs.Item>
+            <Breadcrumbs.Link href="/">Home</Breadcrumbs.Link>
+            <Breadcrumbs.Separator />
+        </Breadcrumbs.Item>
+        <Breadcrumbs.Item>
+            <Breadcrumbs.Link href="/docs">Docs</Breadcrumbs.Link>
+            <Breadcrumbs.Separator />
+        </Breadcrumbs.Item>
+        <Breadcrumbs.Item>
+            <Breadcrumbs.Link href="/docs/anatomy" current>Anatomy</Breadcrumbs.Link>
+        </Breadcrumbs.Item>
+    </Breadcrumbs.List>
+</Breadcrumbs.Root>
+```
+
+The separator sits **inside** the item, after its link, so the `<ol>` keeps only `<li>`
+children. The last item has no separator: the trail ends at the current page.
+
+### The current page
+
+```tsx
+<Breadcrumbs.Link href="/docs/anatomy" current>Anatomy</Breadcrumbs.Link>
+```
+
+`current` marks the page the user is on. The link renders `aria-current="page"` and
+`data-state="active"`; every other link renders `data-state="inactive"`. The current page is
+a *state*, not a flag — the same activation pair tabs use for the selected tab — so a design
+system styles `[data-state="active"]` on the link, and the one `active` link per trail is the
+contract.
+
+### A localised landmark name
+
+```tsx
+<Breadcrumbs.Root label="Brödsmulor">
+```
+
+`label` is the `aria-label` on the `<nav>`. It defaults to `"Breadcrumb"`, the APG name;
+pass the translation when the page is not in English.
+
+### A custom separator
+
+```tsx
+<Breadcrumbs.Separator>›</Breadcrumbs.Separator>
+```
+
+The separator's default slot replaces the `/` glyph. It stays `aria-hidden` whatever you put
+in it — the list structure already separates the items for assistive technology. A design
+system that wants its own mark can also hide the glyph and paint one with CSS.
+
+### Rendering a link as your own element
+
+```tsx
+<Breadcrumbs.Link href="/docs" asChild>
+    {(p) => <RouterLink {...p}>Docs</RouterLink>}
+</Breadcrumbs.Link>
+```
+
+With `asChild` the default slot receives the part's attribute bag — `href`, `data-state`,
+`aria-current` — and you spread it onto the element you render, so a router link keeps its
+destination without restating it.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `nav` | — | — | `aria-label` from `label`. Carries the variant axes. |
+| `list` | `ol` | — | — | The ordered trail. Inside `root`. |
+| `item` | `li` | — | — | One crumb. Inside `list`. |
+| `link` | `a` | `active` \| `inactive` | — | `aria-current="page"` when `active`. `asChild`. |
+| `separator` | `span` | — | — | `aria-hidden` punctuation after the link, inside `item`. Default glyph `/`. |
+
+Every part carries `data-scope="breadcrumbs"` and `data-part="<part>"`. There is no
+`disabled` flag on a link: an anchor that must not navigate is an anchor you do not render as
+a link — put the text in the item directly. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Breadcrumbs.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | `'Breadcrumb'` | Accessible name of the navigation landmark. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Breadcrumbs.List`, `Breadcrumbs.Item`
+
+Only `class`.
+
+### `Breadcrumbs.Link`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `href` | `string` | — | The link destination; part of the `asChild` bag. |
+| `current` | `boolean` | `false` | This is the page the user is on: `aria-current="page"` + `data-state="active"`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Breadcrumbs.Separator`
+
+Only `class`. The default slot replaces the `/` glyph.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the breadcrumbs root, so `<Breadcrumbs.Root size="sm">` is styled
+in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A recipe lays the list out as an inline flex row, colours the `inactive` links as links and
+the `active` one as plain text, and tints the separator. Because the separator is a real
+element with a replaceable glyph, a design system that prefers a chevron or an SVG can set
+the glyph's `font-size: 0` and draw its own mark on the part.
+
+## Related
+
+[Navbar](/zero/docs/components/navbar/) for the bar the trail usually sits under,
+[Pagination](/zero/docs/components/pagination/) for the other navigation landmark zero ships.

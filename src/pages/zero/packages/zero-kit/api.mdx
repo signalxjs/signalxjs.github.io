@@ -1,0 +1,97 @@
+---
+title: "API reference"
+description: "API reference for @sigx/zero-kit — every export of the SignalX Zero Kit package."
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/zero-kit` <PkgVersion npm="@sigx/zero-kit" />, by subpath.</p>
+
+## `@sigx/zero-kit/define` — the authoring surface
+
+| Export | What it is |
+|---|---|
+| `defineTokens(input)` | Identity with typing for a `TokensInput` — narrows the declared roles and system tokens so themes and recipes type-check against them. See [Tokens](/zero/docs/tokens/). |
+| `defineRecipe(recipe)` | Identity with typing for a `RecipeInput`. See [Recipes](/zero/docs/recipes/). |
+| `defineDesignSystem(input)` | Identity with typing for a `DesignSystemInput` — `name`, `tokens`, `recipes`, optional `api`. |
+| `defineApi(vocabulary?, api)` | Declare a vendor-named prop surface, narrowed to the vocabulary when one is passed. See [Vendor-named component APIs](/zero/docs/vendor-apis/). |
+| Types | `TokensInput`, `ThemeInput`, `ThemeColors`, `ThemeSystem`, `SystemTokens`, `TypographyDecl`, `RolesDecl`, `ScopeVocabulary`, `CustomTokenDecl`, `TokenValue`, `RecipeInput`, `PartStyles`, `CssProps`, `RecipeContext`, `DesignSystemInput`, `DesignSystemApi`, `DesignSystemApiFor`, `AxisApi`, `AxisApiFor`, `ModifierApi`, `ScopeApiOverride`, `ApiVocabulary`. |
+
+Its module graph is `node:`-free by contract, so a design-system source module may
+value-import it.
+
+## `@sigx/zero-kit/build`
+
+| Export | What it is |
+|---|---|
+| `runStandardBuild(options)` | Merge fragments → validate → throw after printing every issue on failure → compile → build the report → write the artifacts. Options: `designSystem`, `manifest` (`{ components }`), `fragments?`, `outDir`, `targets?` (default `['web']`), `logger?`. Returns `{ result, written }`. |
+| `BUILD_TARGETS`, `BuildTarget` | `['web', 'lynx']`. |
+| Types | `StandardBuildOptions`, `StandardBuildResult`, `StandardBuildLogger`. |
+
+## `@sigx/zero-kit` — the Node-only barrel
+
+Everything in `/define` and `/build`, plus:
+
+### Validation
+
+| Export | What it is |
+|---|---|
+| `validateDesignSystem(ds, manifest)` | The whole validation: tokens, contrast, recipes, api. Returns a `ValidationResult` (`ok`, `errors`, `warnings` — each a `ValidationIssue` with `level`, `where`, `message`). |
+| `validateRecipes(…)`, `validateApi(api, vocabulary, options?)` | The recipe and api halves on their own. |
+| `tokenVocabulary(tokens)` | The resolved `TokenVocabulary` — every custom property the tokens will emit. |
+
+### Compilation
+
+| Export | What it is |
+|---|---|
+| `compileDesignSystem(ds, manifest)` | Tokens + recipes → a `CompiledDesignSystem`: the CSS per target, the compiled themes, the per-scope `CompiledComponentAxes` harvest, `externalScopes`. |
+| `compileTokensCss(…)`, `compileRecipeCss(…)` | The two web compilers. |
+| `generateTypeScale(scale)` | The modular `--text-*` ramp from `{ base, ratio }`. Type `TypeScale`. |
+| `compileRegisterDts(…)`, `compileRegisterJs(…)` | The `/register` artifact. |
+| `compileComponentsDts(…)`, `compileComponentsJs(…)`, `componentExportName(scope)` | The vendor-named `./components` artifact and the Pascal-case export convention. |
+| `axisClaims`, `offeredFor`, `undeclaredAxes` | The shared predicates the report and the register artifact read, so they cannot disagree. |
+
+### Reports and conformance
+
+| Export | What it is |
+|---|---|
+| `buildReport(compiled, ds, manifest, result?)`, `formatReport(report)` | The coverage report as data and as lines. `REPORT_SCHEMA_URL`. Types `DesignSystemReport`, `ComponentReport`, `StyledComponentReport`, `UnstyledComponentReport`, `AxisReport`, `AxisStatus`, `AxisDivergence`, `CoverageSplit`, `PartReport`, `ThemeContrastReport`, `ApiSurfaceReport`. |
+| `conformanceRows(…)`, `reportRows(…)`, `formatConformanceMatrix(…)` | The conformance matrix from fixtures and reports. Types `ConformanceFixtureInput`, `ConformanceRow`, `ConformanceSource`, `ConformanceVocabulary`, `SurfaceKind`. |
+| `apiGrade(entry)`, `modifierGrade(entry)`, `deriveComponentApi(…)`, `scopeApi(api, scope)` | Api grading and per-scope resolution. Types `ConformanceGrade`, `MappedGrade`, `CompiledApiRoute`, `CompiledComponentApi`. `API_PROP_PATTERN`, `RESERVED_PROPS_BY_SCOPE`. |
+
+### Artifacts and manifests
+
+| Export | What it is |
+|---|---|
+| `writeArtifacts(compiled, outDir, report?)` | Write every artifact; self-validates the design-system manifest against its schema first. Returns the paths written. |
+| `buildDsManifest(compiled)`, `DS_MANIFEST_VERSION`, `DesignSystemManifest` | The design-system manifest. |
+| `mergeManifests(base, ...fragments)`, `FRAGMENT_VERSION`, `ManifestFragment` | Ecosystem fragments. See [Manifests and schemas](/zero/docs/manifests/). |
+
+### The contract (the kit's own copies, parity-tested against `@sigx/zero`)
+
+`RECOMMENDED_ROLE_LIST`, `DEFAULT_ROLES`, `SIZE_SCALE_LIST`, `BASE_SURFACE_TOKEN_LIST`,
+`LAYER_ORDER_STATEMENT`, `TOKEN_CATEGORIES`, `TOKEN_KEY_PATTERN`, `TEXT_FIXED_PREFIX`,
+`ROLE_NAME_PATTERN`, `RESERVED_ROLE_NAMES`, `INTERACTION_STATES`, `VARIANT_AXES`,
+`RESERVED_AXES`, `RUNTIME_PROPERTIES`, `MEDIUM_PROPERTIES`, `tokenProperty`,
+`carrierPart(component)`, `defaultSwatch(roles)`, `resolveRoles`, `systemNodeAt`,
+`requiredColorTokens`, `contrastPairs`; types `RoleDecl`, `RecommendedRole`,
+`RecommendedSize`, `SizeScale`, `BaseSurfaceToken`, `TokenCategory`, `TokenCategoryId`,
+`TokenCategoryShape`, `TokenSyntax`, `ManifestPart`, `ManifestComponent`, `ZeroManifest`.
+
+`BUILTIN_CONDITIONS` is the map of named `at` conditions to their preludes.
+
+## `@sigx/zero-kit/plugin`
+
+The `sigx` CLI plugin — `zero:validate` and `zero:build` with the `validate` / `build`
+aliases. Loaded by the CLI through the package's `sigx-cli` field. See
+[Validate and build](/zero/docs/validate-and-build/).
+
+## Also in the package
+
+`dist/schemas/*.schema.json` — the seven [JSON Schemas](/zero/docs/schemas/) — and
+`skills/design-system/` — the generation skill with its brief pack and conformance fixtures.

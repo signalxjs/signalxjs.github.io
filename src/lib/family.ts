@@ -113,6 +113,13 @@ const RAW_PACKAGES: SigxPackage[] = [
       blurb: 'The reactive model, rendered to the terminal — flexbox layout, input and a cell renderer.' },
 
     // ---- Web: UI ----
+    // `zero` is a collection with a real runtime package: `@sigx/zero` is the
+    // component foundation, and zero-kit / zero-basic / zero-daisyui are the
+    // authoring kit and the two shipped design systems that skin it.
+    { id: 'zero', npm: '@sigx/zero', title: 'Zero', cat: 'ui', target: 'web', kind: 'collection',
+      hue: 305, glyph: '◌', status: 'beta', version: '0.2.0-beta.1',
+      tag: 'Unstyled components + generatable design systems',
+      blurb: 'Headless, accessible compound components that render a stable, machine-readable anatomy and no styling — and design systems as pure data, compiled to plain layered CSS. Swap the whole look of an app with one import; generate a new one against the published manifest.' },
     { id: 'daisyui', npm: '@sigx/daisyui', title: 'DaisyUI', cat: 'ui', target: 'web', kind: 'component-library',
       hue: 24, glyph: '❂', status: 'stable', version: '0.12.1',
       tag: 'Themed component library',
@@ -273,7 +280,8 @@ export function packageForCollection(collection?: string | null): SigxPackage | 
 /**
  * Resolve a sub-package/module from a module collection name
  * (`lynx-mod-<id>-docs` / `core-pkg-<id>-docs` / `server-pkg-<id>-docs` /
- * `terminal-pkg-<id>-docs` / `deploy-pkg-<id>-docs` / `actors-pkg-<id>-docs` —
+ * `terminal-pkg-<id>-docs` / `deploy-pkg-<id>-docs` / `actors-pkg-<id>-docs` /
+ * `zero-pkg-<id>-docs` —
  * see lib/modules.ts).
  * The `-mod-`/`-pkg-` infix keeps these unambiguous against top-level
  * collections (`core-api` vs a core sub-package named `api`), while
@@ -281,7 +289,7 @@ export function packageForCollection(collection?: string | null): SigxPackage | 
  */
 export function moduleForCollection(collection?: string | null): SigxModule | undefined {
     if (!collection) return undefined;
-    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg|terminal-pkg|deploy-pkg|actors-pkg)-(.+?)-(?:docs|api)$/);
+    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg|terminal-pkg|deploy-pkg|actors-pkg|zero-pkg)-(.+?)-(?:docs|api)$/);
     return m ? moduleById[m[1]] : undefined;
 }
 

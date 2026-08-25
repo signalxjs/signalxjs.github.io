@@ -1,0 +1,240 @@
+---
+title: Recipes
+description: "RecipeInput for @sigx/zero-kit — per-part base / states / selectors / at styles against a component's anatomy, component tokens, variants on any axis, modifiers, compound variants, defaults, keyframes, skipStates, per-target sections, and the authoring rules the validator and the shipped design systems hold to"
+layout: docs
+category: Authoring design systems
+order: 62
+---
+
+# Recipes
+
+<p class="lede">A recipe is the styling of one component: for each part the anatomy declares,
+what to paint in its base rendering, in each of its states and flags, and under conditions;
+plus how the scope's variant axes and modifiers change it. Recipes are written against the
+anatomy manifest and validated against it — an unknown part, state or token reference is a
+build error, not a stylesheet that silently renders nothing.</p>
+
+## Shape
+
+```ts
+import { defineRecipe } from '@sigx/zero-kit/define';
+
+export const tabs = defineRecipe({
+    component: 'tabs',
+    tokens: { '--tabs-ink': 'var(--color-primary)' },     // component tokens on the carrier
+    parts: {
+        list: { base: { display: 'flex', gap: 'var(--space-xs)' } },
+        tab: {
+            base: { padding: '0.5rem 1rem', color: 'var(--color-base-content)' },
+            states: {
+                active: { color: 'var(--tabs-ink)', boxShadow: 'inset 0 -2px 0 var(--tabs-ink)' },
+                'focus-visible': { outline: '2px solid var(--tabs-ink)', outlineOffset: '2px' },
+                disabled: { opacity: 'var(--disabled-opacity)' },
+                hover: { background: 'var(--color-base-200)' },
+            },
+            selectors: { '&[data-pressed]': { transition: 'none' } },
+            at: { 'reduced-motion': { base: { transition: 'none' } } },
+        },
+    },
+    variants: {
+        color: { primary: { root: { base: { '--tabs-ink': 'var(--color-primary)' } } }, /* … */ },
+        size: { sm: { tab: { base: { fontSize: 'var(--text-xs)' } } }, /* … */ },
+    },
+    defaultVariants: { color: 'primary', size: 'md' },
+});
+```
+
+### `parts.<part>`
+
+| Key | What |
+|---|---|
+| `base` | Declarations on the part itself — camelCase property names, string or number values. |
+| `states` | Keyed by the part's declared `data-state` values and flags (`disabled`, `focus-visible`, …), plus the interaction states `hover`, `focus`, `focus-visible` and `active`, which compile to real pseudo-classes (`:hover:not([data-disabled])`, `:active:not([data-disabled])`). |
+| `selectors` | Raw nested selectors with `&` for the part — `'&[data-pressed]'`, `'&::before'`, `'&:not(:has(> *))'`. Pseudo-elements compose here. |
+| `at` | Conditional styles, keyed by a declared breakpoint, a built-in condition or a raw `@` prelude; each value is itself a `PartStyles`, so conditions nest and compose. |
+
+### Conditions
+
+`at` keys resolve, in order of lookup, to a declared breakpoint
+(`@media (min-width: …)`), a built-in name, or a raw `@`-prefixed prelude
+(`@container (…)`, `@supports (…)`). The built-ins:
+
+| Name | Prelude |
+|---|---|
+| `reduced-motion` | `@media (prefers-reduced-motion: reduce)` |
+| `hover-none` | `@media (hover: none)` |
+| `prefers-dark` | `@media (prefers-color-scheme: dark)` — the *system* preference, not a `[data-theme]` dark theme |
+| `forced-colors` | `@media (forced-colors: active)` |
+| `print` | `@media print` |
+| `starting-style` | `@starting-style` — the entry half of a presence transition |
+
+Author mobile-first: breakpoints are `min-width`, and declaration order is emission order.
+Because `variants` hold the same `PartStyles` shape, an `at` inside a variant is a
+responsive variant with nothing extra.
+
+### `tokens`
+
+Component tokens — custom properties declared on the carrier part (`--btn-accent`,
+`--tabs-ink`) that the part rules read. Keys must be `--kebab-case`. They are how two axes
+compose instead of multiplying: `color` sets the accent pair, `variant` decides how the
+accent is used, and eight roles plus four variants cost twelve rules rather than
+thirty-two.
+
+### `variants`, `defaultVariants`, `modifiers`, `compoundVariants`
+
+```ts
+variants: {
+    color: { primary: { root: { base: { '--btn-accent': 'var(--color-primary)' } } }, /* … */ },
+    variant: {
+        solid:   { root: { base: { background: 'var(--btn-accent)', color: 'var(--btn-on-accent)' } } },
+        outline: { root: { base: { borderColor: 'var(--btn-accent)', color: 'var(--btn-ink)' } } },
+    },
+    density: { compact: { root: { base: { paddingBlock: 'var(--space-2xs)' } } } },   // a custom axis
+},
+defaultVariants: { color: 'primary', variant: 'solid', size: 'md' },
+modifiers: {
+    block: { root: { base: { width: '100%' } } },
+},
+compoundVariants: [
+    { match: { variant: 'outline', color: 'neutral' }, parts: { root: { base: { color: 'var(--color-base-content)' } } } },
+    { match: { variant: 'solid', block: true }, parts: { /* … */ } },   // `true` names a modifier
+],
+```
+
+- `variants` is keyed by axis — `color`, `size`, `variant`, or any axis declared in
+  `tokens.axes` — then by value, then by part. Values must be in the declared vocabulary
+  (and in the scope's own `tokens.scopes` set); the recipe's colour axis should be derived
+  from the declared roles rather than retyped, and wired on every component that has one.
+- `defaultVariants` are CSS-only defaults: the values applied when the attribute is absent.
+  They are validated against the recipe itself. A single-axis rule whose value is the default
+  is emitted twice — `[data-variant="solid"]` and `:not([data-variant])`.
+- `modifiers` are keyed by declared modifier name; they compile to `[data-mod-<name>]` rules.
+  There is no default for a modifier — absence is its default.
+- `compoundVariants` match several axes at once. A `match` value of `true` names a modifier's
+  presence. A compound honours `defaultVariants` (each matched axis contributes
+  `:not([attr])` as well when the value is that axis's default); matching an axis the recipe
+  never wires is an error, matching a value the axis does not wire is a warning.
+
+### The rest
+
+| Key | What |
+|---|---|
+| `keyframes` | Named `@keyframes` bodies, emitted outside the layer. Names may not be CSS-global keywords such as `none`. |
+| `css` | A raw CSS escape hatch appended to the recipe's output. Still linted for physical direction. |
+| `skipStates` | Per part, states you deliberately do not style. It silences the coverage warning *and* waives the state-legibility guard — one field, two claims: "this state is deliberately indistinguishable from its siblings". |
+| `targets` | Per-target sections (`web`, `lynx`), deep-merged over the shared recipe for that target — where web-only runtime declarations and their Lynx replacements live. See [Lynx](/zero/docs/lynx/). |
+
+## What a recipe may reference
+
+- Every custom property the design system's tokens emit — `var(--color-primary)`,
+  `var(--space-md)`, `var(--radius-field)` — and its own `tokens`. An undeclared reference
+  (`var(--color-brnad)`) is an error naming the nearest declared token.
+- The **runtime properties** zero publishes on parts, with no declaration: `--press-x`,
+  `--press-y`, `--press-r`, `--progress-percent`, `--slider-percent`, `--diff-percent` and
+  `--countdown-value` (`RUNTIME_PROPERTIES`). Toast's `--toast-index` / `--toast-count` are
+  published the same way.
+- The **medium property** `--print-ink` (`MEDIUM_PROPERTIES`) — see [Print](#print).
+
+## Authoring rules
+
+These are the rules the shipped design systems hold to, and most are checked by the
+validator or the kit's own test gates.
+
+### Never defeat `hidden`
+
+A part listed in the anatomy's `hiddenIn` is hidden by the runtime with the `hidden`
+attribute, and the `zero.structure` layer enforces it — so a `display: flex` on
+`tree-view.branch-content` or `avatar.image` is inert in those states rather than dangerous.
+Still, write it under a guard so the intent is visible:
+
+```ts
+image: { selectors: { '&:not([hidden])': { display: 'block' } } },
+```
+
+### Motion references tokens; loops stop
+
+Write `transition: background var(--duration-fast) var(--ease-standard)`, never a literal
+duration: every declared `--duration-*` collapses to `0.01ms` under reduced motion, so
+referencing the token is what makes a recipe honour the preference (a hardcoded `0.2s` opts
+out, and the validator warns on `transition` shorthands with literal durations). A **looping**
+animation — Skeleton, Spinner, an indeterminate Progress sweep — is the exception: a loop at
+~0 s strobes rather than stops, so give it a literal duration and `animation: none` under
+`reduced-motion`.
+
+### Press feedback
+
+Interactive parts publish `data-pressed`, `data-press-animating` and `--press-x` /
+`--press-y` / `--press-r` (see [Behaviors](/zero/docs/behaviors/#press-feedback)). A
+pointer-anchored one-shot effect is a `[data-press-animating]` rule with a keyframes
+animation reading the coordinates; a centred halo is a `[data-pressed]` rule. Checkable
+controls surface the press on their visible control (`switch.control`,
+`checkbox.control`, `radio-group.item-control`), so a descendant selector from the root is
+never needed. The tooltip trigger publishes no press feedback — reuse your overlay
+trigger's *shape* there, not its press states.
+
+### State indicators are drawn geometry
+
+A checkbox tick, a radio dot, a rating star is geometry the recipe draws — a background, a
+border, a clip — not a typeset glyph, so its weight is the design system's and it
+interpolates between states instead of popping. Every declared state must render
+differently (the state-legibility guard reads the compiled CSS), and background-painted
+geometry needs a glyph fallback under `forced-colors` and `print`. A fractional state (a
+half rating) is the exception: no glyph can say "half", so it keeps its geometry and
+re-sources the paint.
+
+Where zero renders default slot content it renders a **bare text node**, never a wrapper
+(`RatingGroup.Item`'s `★` / `☆`); a consumer's own symbol arrives as an **element**. That
+difference is what CSS selects on — `&:not(:has(> *))` picks the default, `&:has(*)` the
+override — and how a design system decides whether to draw its own mark or leave the
+consumer's alone.
+
+### Print
+
+Paper is not theme-aware. `print-color-adjust: economy` — the browser default — drops
+background paint, so a mark drawn as a background comes back as a glyph, and that glyph needs
+an ink that is dark whatever the page's `color-scheme` is. Every theme-carried candidate is
+white on one side or the other: `--color-base-content` and `CanvasText` under a dark theme,
+an on-accent ink under a light one over a fill that did not print. `@sigx/zero/css` therefore
+declares `--print-ink: black` — a fact about the medium, not a design decision. A recipe
+references it freely under `at.print`; a design system may override it and never has to
+declare it.
+
+### Write direction logically
+
+Use `inset-inline-start`, `margin-inline-*`, `border-inline-*` and the logical corner radii
+wherever a logical property exists, so the whole design system mirrors under `dir="rtl"`.
+The validator warns on physical properties that have a logical twin — in part declarations,
+`@keyframes` bodies and the `css` hatch — with three reasoned exemptions: centring
+(`left: 50%` with a half-width pull-back), a physically measured value (`left: var(--press-x)`),
+and parts that rotate (a rotated `border-left` is a stroke of a drawn glyph). `transform` has
+no logical form: put the sign in a custom property and rebind it under
+`:where(:dir(rtl), [dir="rtl"], [dir="rtl"] *)`. Half a conversion — a logical anchor with a
+physical travel — is worse than neither half.
+
+### Button-element parts get an `appearance`
+
+Every part the manifest declares `element: 'button'` must carry an `appearance` declaration
+in its unconditional rule, in every design system — otherwise it falls through to raw browser
+chrome. The tooltip trigger, the dialog close and the pagination triggers are the ones most
+easily forgotten.
+
+### Overlays and presence
+
+Style the plain two-state transition on `open` / `closed`. Dialog and Drawer backdrops are
+`parts.backdrop`, projected onto `::backdrop`. Toast presence is runtime-managed — roots
+mount `closed`, flip `open` a frame later, and stay mounted after dismissal until the longest
+transition or animation ends — so never use `@starting-style` or `allow-discrete` on toast
+parts, and gate any viewport `display` behind `&:popover-open`.
+
+### Anchor rules where they can match
+
+Axis and modifier rules for a part whose declared `parent` chain does not reach the carrier
+can never match — the four rootless scopes render their popups as top-layer siblings of the
+trigger — and the validator errors on them. Style the trigger for those scopes.
+
+## Validation
+
+`sigx zero:validate` checks all of the above that can be checked statically — parts and
+states against the manifest, token references, vocabulary membership, compound consistency,
+selector-injection guards on every interpolated string — and `--report` tells you what the
+recipes cover. See [Validate and build](/zero/docs/validate-and-build/).

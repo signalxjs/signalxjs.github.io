@@ -1,0 +1,52 @@
+---
+title: "API reference"
+description: "API reference for @sigx/zero-basic — every export of the SignalX Zero Basic package."
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/zero-basic` <PkgVersion npm="@sigx/zero-basic" />.</p>
+
+## Runtime module
+
+| Export | What it is |
+|---|---|
+| `installThemes()` | Hands `tokens` to `registerThemes` — registers `basic` and `basic-dark` with their schemes, pairing and derived swatches. The only thing an app calls. |
+| `tokens` | The `TokensInput` declaration — roles, sizes, variants, modifiers, scopes, breakpoints, `system`, `systemDark`, the two themes. |
+| `recipes` | The `RecipeInput[]` — one recipe per zero component. |
+| `designSystem` | `{ name: 'basic', tokens, recipes }` — the `DesignSystemInput` the build compiles. |
+
+## Stylesheets
+
+| Subpath | Contents |
+|---|---|
+| `./css` | `dist/css/index.css` — the layer-order statement, tokens and every recipe. |
+| `./css/tokens` | `dist/css/tokens.css`. |
+| `./css/*` | `dist/css/components/<scope>.css`. |
+| `./lynx/index.css`, `./lynx/tokens.css` | The class-grammar projection. |
+
+## Generated artifacts
+
+| Subpath | Contents |
+|---|---|
+| `./register` | `register.d.ts` — augments `ZeroVocabulary` with `theme: 'basic' \| 'basic-dark'`, `breakpoint: 'sm' \| 'md' \| 'lg'`, every emitted custom property, the token keys per category, and one entry per scope; `register.js` is empty. |
+| `./manifest.json` | The design-system manifest (`manifestVersion: 1`). |
+| `./report.json` | The coverage report. |
+| `./lynx/manifest.json` | The Lynx manifest. |
+
+## The wired surface
+
+| Scope | `color` | `size` | `variant` | `mods` |
+|---|---|---|---|---|
+| every scope | the eight recommended roles | `xs`–`xl` | — | — |
+| `button` | ✓ | ✓ | `solid` (default) · `outline` · `soft` · `ghost` | — |
+| `select` | ✓ | ✓ | `outline` (default) · `soft` · `ghost` | — |
+| `badge` | ✓ | ✓ | `solid` · `soft` (default) · `outline` | — |
+| `table` | ✓ | ✓ | — | `zebra` · `hover` |
+
+The manifest's `components` record is the authoritative version of this table.

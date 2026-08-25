@@ -1,0 +1,155 @@
+---
+title: "Avatar"
+description: "The @sigx/zero Avatar component — an image with a graceful fallback, rendering the avatar anatomy (root / image / fallback) where every part mirrors the load status as data-state and the runtime swaps the two faces by presence."
+layout: docs
+category: ["Components", "Content"]
+order: 505
+---
+
+# Avatar
+
+<p class="lede">An image with graceful fallback. Every part mirrors the image's load status
+as `data-state="loading|loaded|error"`, and the runtime hides whichever face is not the
+current one — the fallback once the image has loaded, the image once it has failed. There
+is no model: the status is read from the `<img>` element itself.</p>
+
+## Import
+
+```tsx
+import { Avatar } from '@sigx/zero/avatar';
+```
+
+`Avatar` is a compound: `Avatar.Root`, `Avatar.Image`, `Avatar.Fallback`. It is also
+re-exported from the `@sigx/zero` root, together with `avatarAnatomy`, `useAvatarContext`
+and the `AvatarStatus` type (`'loading' | 'loaded' | 'error'`).
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Avatar } from '@sigx/zero/avatar';
+import type { AvatarStatus } from '@sigx/zero/avatar';
+
+const Author = component(({ signal }) => {
+    const state = signal({ status: 'loading' as AvatarStatus });
+
+    return () => (
+        <Avatar.Root size="md" statusChange={(s) => { state.status = s; }}>
+            <Avatar.Image src="/me.png" alt="Andreas Ekdahl" />
+            <Avatar.Fallback>AE</Avatar.Fallback>
+        </Avatar.Root>
+    );
+});
+```
+
+`Avatar.Image` takes the `src`; `Avatar.Fallback` is what shows until the image reports in
+and what stays if it never does. The `alt` is required — once loaded, the image is the
+avatar's only accessible representation, because the fallback is hidden. Pass `alt=""`
+only for an avatar that is genuinely decorative next to a visible name.
+
+### No image at all
+
+```tsx
+<Avatar.Root>
+    <Avatar.Fallback>?</Avatar.Fallback>
+</Avatar.Root>
+```
+
+A missing `src` resolves to `error`, and so does an `Avatar.Image` with no `src` — the
+fallback shows and the image is hidden. Changing `src` later puts the avatar back into
+`loading` (or `error`, if the new value is empty) until the new image settles.
+
+### Rendering the image as your own element
+
+```tsx
+<Avatar.Image src={url} alt={name} asChild>
+    {(p) => <img {...p} loading="lazy" decoding="async" />}
+</Avatar.Image>
+```
+
+With `asChild` the default slot receives the part's attribute bag — `src`, `alt`, the
+`onLoad` / `onError` handlers, the `hidden` and `aria-hidden` toggles and the `ref` the
+component probes. Spread it so the load status can be read off your element.
+
+### Server rendering
+
+Server markup always renders `loading`: the status resolves on mount, a microtask after the
+render, so the fallback is what paints until the image reports in. An image the browser has
+cached settles before hydration attaches the handlers, and the mounted element is the probe
+for that case — a complete image with pixels is `loaded`, a complete image with none is one
+whose error already fired.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `span` | `loading` \| `loaded` \| `error` | — | Carries the variant axes. |
+| `image` | `img` | `loading` \| `loaded` \| `error` | — | `aria-hidden` until `loaded`. Hidden in `error` (`hiddenIn`). `asChild`. |
+| `fallback` | `span` | `loading` \| `loaded` \| `error` | — | Hidden in `loaded` (`hiddenIn`). Inside `root`. |
+
+Every part carries `data-scope="avatar"` and `data-part="<part>"`, and all three carry the
+same `data-state`. The two representations swap by presence, not by paint: the runtime sets
+`hidden` on the image while `error` (it would render the broken-image glyph) and on the
+fallback once `loaded`. Until the image is what the avatar shows, the fallback is the one
+accessible representation, so the image is `aria-hidden` in `loading` and `error` —
+otherwise assistive technology would announce the initials *and* the alt. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Avatar.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `statusChange` | event `(status: AvatarStatus)` | — | Fires whenever the load status changes. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+There is no `model`: the status is display-only, derived from the image, and `statusChange`
+is how the app observes it.
+
+### `Avatar.Image`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `src` | `string` | — | The image URL; absent or empty resolves to `error`. |
+| `alt` | `string` | required | The accessible name once loaded. `""` for a decorative avatar beside a visible name. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Avatar.Fallback`
+
+Only `class`. Renders the `fallback` part around its children — initials, an icon, a
+placeholder.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on avatar, so `<Avatar.Root color="primary" size="lg">` is styled in
+both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import the `variant` prop is therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+Because the runtime toggles `hidden` on `image` and `fallback`, a recipe must not set
+`display` on either part unconditionally — `display: flex` on the fallback would override
+the `hidden` attribute's `display: none` and show the initials over a loaded photo. Style
+`&:not([hidden])` instead:
+
+```css
+[data-scope="avatar"][data-part="fallback"]:not([hidden]) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+```
+
+A recipe that styles `loading` and `error` identically on the fallback is correct — in both
+the fallback is the face — and the anatomy's `hiddenIn` is what lets the design-system
+tooling accept that. The root's tokens are `color`, `radius-selector` and `size`: an avatar
+rounds like a selector control, and `size` sets the box.
+
+## Related
+
+[Skeleton](/zero/docs/components/skeleton/) is the other component that holds a shape while
+something arrives; [Badge](/zero/docs/components/badge/) and
+[Status](/zero/docs/components/status/) are what usually sit in an avatar's corner.

@@ -1,0 +1,121 @@
+---
+title: The compiled CSS
+description: "What @sigx/zero-kit emits — the four cascade layers, :where(:root) specificity, diff-only theme blocks, @property registrations, the @scope donut that bounds axis rules, default mirroring, emission order, reduced motion and the interpolation guards"
+layout: docs
+category: Authoring design systems
+order: 63
+---
+
+# The compiled CSS
+
+<p class="lede">The compiler turns tokens and recipes into plain CSS with no runtime: four
+cascade layers, deliberately low specificity, per-theme diff blocks, and axis rules bounded
+by `@scope`. Knowing the shape explains why app CSS always wins, why nested instances of one
+component do not leak into each other, and why the order of the output is a correctness
+concern rather than taste.</p>
+
+## Four layers, one statement
+
+```css
+@layer zero.fallback, zero.tokens, zero.recipes, zero.structure;
+```
+
+| Layer | Contents |
+|---|---|
+| `zero.fallback` | `@sigx/zero/css` only: design-system-neutral structural token defaults (radius, size and text ramps, durations, `--print-ink`, …) so an unstyled page is sane. |
+| `zero.tokens` | The compiled design-system tokens: `:where(:root)` defaults, the `prefers-color-scheme: dark` block, one block per theme, the reduced-motion block. |
+| `zero.recipes` | All compiled recipe CSS, plus base.css's few structural necessities (the `<details>` marker removal, `cursor: not-allowed`). |
+| `zero.structure` | One rule: `[data-scope][data-part][hidden]:not([hidden="until-found" i]) { display: none }`. |
+
+The statement is declared in `@sigx/zero/css` **and** emitted atop every compiled
+`tokens.css`, because the *first* mention of a layer fixes its position: a design-system
+stylesheet parsed before base.css would otherwise create `zero.tokens` first and leave the
+fallbacks above it. Restating the order is idempotent; relying on load order is not.
+
+`zero.structure` exists because `[hidden]` otherwise relies on the UA sheet — the weakest
+declaration in the document — and any unconditional `display` in a recipe defeats it. A
+*later layer* rather than higher specificity (compound selectors can reach (0,8,0)), and
+never `!important`, which would also outrank the consumer's unlayered app CSS. The consumer
+always wins.
+
+## Specificity is designed
+
+Root token defaults are emitted as `:where(:root)` — specificity (0,0,0) — so any
+`[data-theme="x"]` block at (0,1,0) beats them regardless of source order, a nested
+`data-theme` re-themes its subtree by inheritance, and unlayered app CSS beats everything.
+
+Theme blocks are **diff-only** — only what diverges from `:root` — with two deliberate
+exceptions restated per theme: scheme-divergent non-colour values (or a `data-theme="light"`
+island under a system-dark root would inherit the dark value), and tokens whose values
+*reference colour properties* — `var()` in a custom property substitutes where **declared**,
+not where used, so a `--shadow-md: … var(--color-primary)` declared only at `:root` would
+capture `:root`'s primary forever.
+
+`@property` registrations are per design system, emitted above the layers in each compiled
+`tokens.css`: every declared colour role (typed `<color>`, so theme switches animate) plus
+declared customs carrying a `syntax`. `-soft` is unregistered because its value can be
+`color-mix()`, invalid as an `initial-value`.
+
+## Axis rules and the `@scope` donut
+
+Axis rules are anchored on the **carrier part** — `root`, else the first declared part; the
+trigger for the four rootless scopes. For the carrier itself the rule is flat:
+
+```css
+[data-scope="button"][data-part="root"][data-variant="outline"] { … }
+```
+
+For any other part the attribute is on an *ancestor*, and a bare descendant selector is
+unbounded — card-in-card would let the outer instance's axis rules reach the inner one, with
+source order rather than proximity deciding. The compiler therefore emits a **donut scope**:
+
+```css
+@scope ([data-scope="tabs"][data-part="root"][data-size="xs"]) to ([data-scope="tabs"][data-part="root"]) {
+    [data-scope="tabs"][data-part="tab"] { font-size: var(--text-xs); padding: 0.25rem 0.5rem; }
+}
+```
+
+The lower bound is any nested same-scope carrier — its subtree leaves the scope. Two CSS
+facts make this correct: scoping proximity outranks source order, so each part resolves to
+its *nearest* carrier; and an unscoped rule counts as infinitely distant, so the axis
+refinement still beats the flat base rules.
+
+**Defaults are mirrored onto absence.** A single-axis rule whose value is the recipe's
+default is emitted twice: `[attr="v"]` and `:not([attr])`. Compound variants take the same
+treatment as a cross product — without it, a compound naming a defaulted axis would match
+nothing, since the attribute is simply absent. Compound rules are emitted separately rather
+than comma-joined, because part-style emission appends pseudo-element suffixes and `&`
+substitutions that would bind only to the last selector of a list.
+
+## Emission order
+
+At-rules add no specificity, so conditional buckets are emitted in a fixed tier order — raw
+conditions, preference queries, breakpoints, reduced-motion, `@starting-style` — with
+reduced-motion late so an accessibility override is never overwritten by a wider viewport,
+and `@starting-style` after the open-state rules it interpolates from. `print` sorts with the
+preference queries: after the flat rules it refines, before any breakpoint. The same prelude
+reached at two different tiers (a raw `@media (min-width: 640px)` beside a declared `sm`) is
+a hard error, because its position would otherwise depend on visit order.
+
+Everything lands inside `@layer zero.recipes`; `@keyframes` are emitted outside the layer.
+
+## Reduced motion
+
+Every *declared* duration key collapses to `0.01ms` under `prefers-reduced-motion: reduce` —
+not `0ms`, because a zero duration suppresses the `transitionend` / `animationend` events
+presence and exit coordination wait on. The block's selector is `:root, [data-theme]` at
+(0,1,0), emitted last inside the layer, so it ties-and-wins against every theme block.
+`@sigx/zero/css` carries the same block for the recommended durations only; a design system's
+own keys are neutralised by its compiled `tokens.css`, the only place that knows their names.
+
+## Interpolation guards
+
+Every point where an authored string is spliced into emitted CSS is validated, and the
+policy is a hard error rather than escaping: axis names and values (a value carrying `"`
+would close the attribute selector early and emit a second, unrelated selector); property
+names and a break-out check on declaration values (`x;} [data-scope]{color` would restyle
+every scoped element); pseudo-element projections; `@keyframes` names (a keyframes named
+`none` would capture `animation: none`); theme names into `[data-theme="…"]`; token keys; and
+fragment package specifiers (selector injection and path traversal both). A recipe that needs
+`content: '";"'` is asked to spell it differently, because an escape hatch here is an
+injection surface.

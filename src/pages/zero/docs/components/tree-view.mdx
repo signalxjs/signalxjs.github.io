@@ -1,0 +1,191 @@
+---
+title: "Tree View"
+description: "The @sigx/zero TreeView component — the APG tree pattern with a selected-value model and a model:expandedValues named model, walking visible nodes with the arrow keys and keeping collapsed subtrees mounted but hidden."
+layout: docs
+category: ["Components", "Navigation"]
+order: 405
+---
+
+# Tree View
+
+<p class="lede">The WAI-ARIA tree pattern: a `role="tree"` of `treeitem` nodes, leaves as
+items and branches wrapping a `role="group"` subtree. Selection and expansion are separate
+acts on separate models — the unnamed `model` is the selected value, `model:expandedValues`
+the set of open branches — and the keyboard walks only the nodes that are visible.</p>
+
+## Import
+
+```tsx
+import { TreeView } from '@sigx/zero/tree-view';
+```
+
+`TreeView` is a compound: `TreeView.Root`, `TreeView.Label`, `TreeView.Tree`,
+`TreeView.Item`, `TreeView.Branch`, `TreeView.BranchTrigger`, `TreeView.BranchIndicator`,
+`TreeView.BranchContent`. It is also re-exported from the `@sigx/zero` root, together with
+`treeViewAnatomy`, `useTreeViewContext` and `useTreeBranchContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { TreeView } from '@sigx/zero/tree-view';
+
+const Files = component(({ signal }) => {
+    const state = signal({ selected: 'README.md', expanded: ['src'] });
+
+    return () => (
+        <TreeView.Root model={() => state.selected} model:expandedValues={() => state.expanded}>
+            <TreeView.Label>Files</TreeView.Label>
+            <TreeView.Tree>
+                <TreeView.Branch value="src">
+                    <TreeView.BranchTrigger>
+                        <TreeView.BranchIndicator />
+                        src
+                    </TreeView.BranchTrigger>
+                    <TreeView.BranchContent>
+                        <TreeView.Item value="src/index.ts">index.ts</TreeView.Item>
+                        <TreeView.Item value="src/app.tsx">app.tsx</TreeView.Item>
+                    </TreeView.BranchContent>
+                </TreeView.Branch>
+                <TreeView.Item value="README.md">README.md</TreeView.Item>
+            </TreeView.Tree>
+        </TreeView.Root>
+    );
+});
+```
+
+`model={() => state.selected}` binds the selected node's `value` both ways;
+`model:expandedValues={() => state.expanded}` binds the array of open branch values. Leave
+either off and pass `defaultValue` / `defaultExpandedValues` to keep that state inside the
+component; `valueChange` and `expandedChange` fire either way. See
+[Models](/zero/docs/models/) for the named-models convention.
+
+The `Label` names the tree: `TreeView.Tree` renders `aria-labelledby` pointing at it.
+Branches nest to any depth — a `Branch` inside a `BranchContent` is a level deeper, and
+`aria-level` is computed for every node from that nesting.
+
+### Selecting a branch
+
+A branch is a `treeitem` too: Enter or Space on a focused branch selects it, exactly as on a
+leaf, and its `branch` and `branch-trigger` parts carry `data-selected`. Clicking the
+trigger row *toggles* expansion without selecting — pointer and keyboard both keep the two
+acts apart.
+
+### Rendering a node as your own element
+
+```tsx
+<TreeView.Item value="README.md" asChild>
+    {(p) => <a href="/files/README.md" {...p}>README.md</a>}
+</TreeView.Item>
+```
+
+`Item` and `BranchTrigger` accept `asChild`; the default slot receives the part's attribute
+bag, and spreading it puts the role, `tabIndex`, ARIA and keyboard wiring on your element.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled` | Carries the variant axes. |
+| `label` | `div` | — | — | The tree's accessible name. Inside `root`. |
+| `tree` | `div` | — | — | `role="tree"`, `aria-labelledby` the label. Inside `root`. |
+| `item` | `div` | — | `selected`, `disabled`, `focus-visible`, `pressed`, `press-animating` | A leaf: `role="treeitem"`, `aria-selected`, `aria-level`. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). `asChild`. |
+| `branch` | `div` | `open` \| `closed` | `selected`, `disabled` | The branch `treeitem` element: `aria-expanded`, `aria-selected`, `aria-level`; owns focus. |
+| `branch-trigger` | `div` | `open` \| `closed` | `selected`, `disabled`, `focus-visible`, `pressed`, `press-animating` | The clickable row; mirrors the branch's state and focus. `asChild`. |
+| `branch-indicator` | `span` | `open` \| `closed` | — | `aria-hidden` glyph, default `›`. Inside `branch-trigger`. |
+| `branch-content` | `div` | `open` \| `closed` | — | `role="group"` holding the subtree. Hidden in `closed` (`hiddenIn`). |
+
+Every part carries `data-scope="tree-view"` and `data-part="<part>"`. The **branch** is the
+`treeitem` element because it wraps its group — that is where `aria-expanded` and
+`aria-level` sit in the APG shape, and it is the element that takes focus. The
+**branch-trigger** mirrors the branch's `data-state`, `data-selected` and
+`data-focus-visible` so a recipe rings the row, never the whole subtree. There is no
+`aria-posinset` / `aria-setsize`: the full tree is in the DOM under proper `role="group"`
+nesting, so assistive technology computes them. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+A collapsed `branch-content` gets the `hidden` attribute from the runtime — its nodes keep
+their registration and simply stop being visible to navigation — so
+`[data-state="closed"]` on that part can never paint.
+
+## Props
+
+### `TreeView.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Two-way binding of the selected node's `value`. |
+| `defaultValue` | `string` | — | Initial selection when uncontrolled. |
+| `valueChange` | event `(value: string)` | — | Fires whenever the selection changes. |
+| `model:expandedValues` | `string[]` | — | Two-way binding of the open branches' values. |
+| `defaultExpandedValues` | `string[]` | `[]` | Initial open branches when uncontrolled. |
+| `expandedChange` | event `(values: string[])` | — | Fires whenever a branch opens or closes. |
+| `disabled` | `boolean` | `false` | Disables every node; renders `data-disabled`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `TreeView.Label`, `TreeView.Tree`, `TreeView.BranchIndicator`, `TreeView.BranchContent`
+
+Only `class`. The indicator's default slot replaces the `›` glyph.
+
+### `TreeView.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | The value this leaf selects. |
+| `disabled` | `boolean` | `false` | Skipped by roving focus; renders `data-disabled`, `aria-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `TreeView.Branch`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | The branch's value — selectable, and the key in `expandedValues`. |
+| `disabled` | `boolean` | `false` | Skipped by roving focus; renders `data-disabled`, `aria-disabled`. |
+| `class` | `string` | — | Extra classes. |
+
+### `TreeView.BranchTrigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| ArrowDown / ArrowUp | Move focus to the next / previous visible enabled node. |
+| Home / End | First / last visible enabled node. |
+| ArrowRight (ArrowLeft under RTL) | On a closed branch, expand it; on an open branch, move focus to its first enabled child. |
+| ArrowLeft (ArrowRight under RTL) | On an open branch, collapse it; otherwise move focus to the parent branch. |
+| Enter / Space | Select the focused node — expansion is unchanged. |
+| Printable characters | Typeahead to the next visible node whose accessible text starts with the typed prefix. |
+
+One tab stop: the selected node while it is visible and enabled, otherwise the first visible
+enabled node — a selection hidden under a collapsed branch never leaves the tree unreachable.
+Typeahead matches a branch by the visible text of its trigger row, skipping `aria-hidden`
+decoration, so the default `›` indicator never shadows the label the user reads. Selection is
+single.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the tree-view root, so `<TreeView.Root color="primary" size="sm">`
+is styled in both. Neither wires a `variant` or any `mods` on the scope; under a design
+system's `/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A recipe rule that every design system must follow: never set `display` on
+`branch-content` unconditionally. The `hidden` attribute is what collapses the subtree, and
+the `zero.structure` layer enforces it, so an unconditional `display: block` (or `flex`,
+`grid`) on the part would fight the runtime and leave a closed branch open. Write the layout
+as `&:not([hidden])` — the same rule as [Avatar](/zero/docs/components/avatar/)'s hidden
+parts.
+
+## Related
+
+[Accordion](/zero/docs/components/accordion/) for open / closed sections without a
+selection model, [Menu](/zero/docs/components/menu/) for the other nested-navigation
+composite.

@@ -1,0 +1,152 @@
+---
+title: "Native Select"
+description: "The @sigx/zero NativeSelect component — a real <select> in zero anatomy (root / control / indicator), with an options array that renders real <option> and <optgroup> elements and a placeholder-driven flag."
+layout: docs
+category: ["Components", "Form controls"]
+order: 309
+---
+
+# Native Select
+
+<p class="lede">A real `<select>` wrapped in zero anatomy. The platform owns the popup, the
+keyboard and the accessibility tree — mobile wheels, the OS-native picker, form restoration —
+and zero owns the styleable wrapper: a carrier span, the `<select>` itself, and a replacement
+chevron for recipes that set `appearance: none`.</p>
+
+## Import
+
+```tsx
+import { NativeSelect } from '@sigx/zero/native-select';
+```
+
+`NativeSelect` is a compound with a single member, `NativeSelect.Root`; `<NativeSelect>` is
+also callable directly. It is also re-exported from the `@sigx/zero` root, together with
+`nativeSelectAnatomy`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { NativeSelect } from '@sigx/zero/native-select';
+
+const PetPicker = component(({ signal }) => {
+    const state = signal({ pet: '' });
+
+    return () => (
+        <NativeSelect.Root
+            model={() => state.pet}
+            placeholder="Pick a pet…"
+            name="pet"
+            options={[
+                { value: 'cat', label: 'Cat' },
+                { value: 'dog', label: 'Dog' },
+                { value: 'parrot', label: 'Parrot', group: 'Birds' },
+            ]}
+        />
+    );
+});
+```
+
+`model={() => state.pet}` binds the selected value both ways — a change in the picker writes
+`state.pet`, and writing `state.pet` selects the option. Leave the model off and pass
+`defaultValue` to keep the state inside the component; `valueChange` fires either way. See
+[Models](/zero/docs/models/).
+
+`options` renders real `<option>` elements, and a real `<optgroup>` per distinct `group` in
+first-appearance order, with `label` defaulting to `value` — the same array shape and
+grouping walk as [Select](/zero/docs/components/select/)'s sugar.
+
+### The placeholder
+
+`placeholder` renders as the conventional disabled empty first option, and drives the
+`data-placeholder` flag while the value is empty — what lets a recipe grey the resting text
+without inventing a state for it.
+
+Without a placeholder, "nothing chosen" is not representable: a `<select>` with no empty
+option always has a value (the platform rests on, and posts, the first option). An empty model
+is therefore coerced to the control's actual value on mount, so the model and the posted
+value stay one truth. Represent "nothing chosen yet" with `placeholder`.
+
+### Hand-written options
+
+```tsx
+<NativeSelect.Root model={() => state.pet} placeholder="Pick a pet…">
+    <option value="cat">Cat</option>
+    <optgroup label="Birds">
+        <option value="parrot">Parrot</option>
+    </optgroup>
+</NativeSelect.Root>
+```
+
+Slot children win entirely over `options` when both are given — never merged.
+
+### Inside a Field
+
+```tsx
+<Field.Root>
+    <Field.Label>Pet</Field.Label>
+    <NativeSelect.Root model={() => state.pet} placeholder="Pick a pet…" options={pets} />
+    <Field.Description>Used on your profile.</Field.Description>
+</Field.Root>
+```
+
+A `<select>` is labelable, so `Field.Label` names it through `for`: the control adopts the
+field's control id, its `disabled` / `invalid` / `required` flags and `aria-describedby`.
+See [Field](/zero/docs/components/field/).
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `span` | — | `disabled`, `invalid`, `required`, `placeholder`, `focus-visible` | Carries the variant axes; the chevron overlays it. |
+| `control` | `select` | — | `disabled`, `invalid`, `required`, `placeholder`, `focus-visible` | The form control: carries `name`, `disabled`, `required`, `aria-invalid`, `aria-describedby`. Inside `root`. |
+| `indicator` | `span` | — | — | `aria-hidden`; the replacement chevron, defaulting to a chevron glyph. Inside `root`. |
+
+Every part carries `data-scope="native-select"` and `data-part="<part>"`. There is no
+`data-state` anywhere on this scope: the platform renders the popup, so open / closed never
+exists in zero's DOM — everything is a flag, and the same five flags are stamped on both
+`root` and `control`. There is no hidden input either: the visible `<select>` is the form
+control and carries `name`. Recipes set `appearance: none` on `control`, draw the well
+(border, padding, focus ring) there, and paint the `indicator` in the place of the platform
+arrow. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `NativeSelect.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Two-way binding of the selected option's `value`. |
+| `defaultValue` | `string` | `''` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: string)` | — | Fires whenever the selection changes. |
+| `options` | `ReadonlyArray<OptionInput>` | — | `{ value, label?, disabled?, group? }[]`; rendered as real `<option>` / `<optgroup>` elements when there are no slot children. |
+| `placeholder` | `string` | — | Rendered as the disabled empty first option; drives `data-placeholder` while the value is empty. |
+| `name` | `string` | — | Form field name, rendered on the `<select>`. |
+| `required` | `boolean` | `false` | Renders `required` and `data-required`. |
+| `invalid` | `boolean` | `false` | Renders `aria-invalid` and `data-invalid`. |
+| `disabled` | `boolean` | `false` | Renders `disabled` and `data-disabled`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+Field context (`disabled`, `invalid`, `required`, `aria-describedby`, the control id) is
+merged with the props.
+
+## Keyboard
+
+The platform's own: the `<select>` opens and navigates natively, and nothing is added or
+intercepted. Focus rings draw off `data-focus-visible`, mirrored onto the root so a recipe
+can ring the wrapper.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on native-select, so `<NativeSelect.Root color="primary" size="sm">`
+is styled in both. Neither wires a `variant` on the scope; under a design system's
+`/register` import the prop is therefore absent. Both set `appearance: none` on the
+control and paint the indicator as the chevron. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[Select](/zero/docs/components/select/) for a styleable listbox,
+[Field](/zero/docs/components/field/) for labelling.

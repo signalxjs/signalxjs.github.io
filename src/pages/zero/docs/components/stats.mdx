@@ -1,0 +1,135 @@
+---
+title: "Stats"
+description: "The @sigx/zero Stats component — a row or column of figures with their labels (root / item / title / value / desc / figure), a pure styling container where both root and item carry data-orientation."
+layout: docs
+category: ["Components", "Content"]
+order: 513
+---
+
+# Stats
+
+<p class="lede">A row (or column) of figures with their labels: revenue, signups, uptime.
+Card's cousin — purely a styling container with a conventional interior, no state, no ids,
+no ARIA. The one piece of wiring is orientation: the root provides it and every item
+mirrors it, so a recipe can draw the divider between items.</p>
+
+## Import
+
+```tsx
+import { Stats } from '@sigx/zero/stats';
+```
+
+`Stats` is a compound: `Stats.Root`, `Stats.Item`, `Stats.Title`, `Stats.Value`,
+`Stats.Desc`, `Stats.Figure`. It is also re-exported from the `@sigx/zero` root, together
+with `statsAnatomy` and `useStatsContext`. The props types are exported as
+`StatsRootProps` and `StatsPartProps`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Stats } from '@sigx/zero/stats';
+
+const Overview = component(({ signal }) => {
+    const state = signal({ revenue: 12930, delta: 8, signups: 412 });
+
+    return () => (
+        <Stats.Root>
+            <Stats.Item>
+                <Stats.Figure><RevenueIcon /></Stats.Figure>
+                <Stats.Title>Total revenue</Stats.Title>
+                <Stats.Value>${state.revenue.toLocaleString()}</Stats.Value>
+                <Stats.Desc>+{state.delta}% month over month</Stats.Desc>
+            </Stats.Item>
+            <Stats.Item>
+                <Stats.Title>Signups</Stats.Title>
+                <Stats.Value>{state.signups}</Stats.Value>
+            </Stats.Item>
+        </Stats.Root>
+    );
+});
+```
+
+Stats takes no `model`: the figures are content, and the app's signals flow into the bands
+as text. Each `Stats.Item` is one stat; `Title`, `Value`, `Desc` are its text bands and
+`Figure` is the icon or avatar slot. Every band below `Item` is optional, and their order
+in the markup is yours.
+
+### Vertical stats
+
+```tsx
+<Stats.Root orientation="vertical">
+    <Stats.Item>…</Stats.Item>
+    <Stats.Item>…</Stats.Item>
+</Stats.Root>
+```
+
+`orientation` renders as `data-orientation` on the root **and on every item**. The
+between-item divider is directional CSS on the item (`item + item`), and a sibling selector
+cannot reach up to the root — so the item carries the axis too. Descendants read it from
+`useStatsContext`.
+
+### Colouring a stat
+
+```tsx
+<Stats.Root color="primary" size="lg">
+```
+
+The variant axes live on the root. A recipe routes `color` to the value band or the
+figure — the tokens each part hints say which parts are expected to take it.
+
+### Landmarks are yours
+
+Stats adds no ARIA. A stat block that should be a landmark is a `<section>` with a heading
+that the consumer writes around the root; a value that updates live is a live region the
+consumer declares.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | Carries the variant axes and `data-orientation`. |
+| `item` | `div` | — | — | One stat. Carries `data-orientation`. Inside `root`. |
+| `title` | `div` | — | — | The label band. Inside `item`. Optional. |
+| `value` | `div` | — | — | The figure band. Inside `item`. Optional. |
+| `desc` | `div` | — | — | The secondary line. Inside `item`. Optional. |
+| `figure` | `div` | — | — | The icon / avatar slot. Inside `item`. Optional. |
+
+Every part carries `data-scope="stats"` and `data-part="<part>"`. Token hints: `root` takes
+`color`, `radius-box` and `size`; `item` and `figure` take `color`; `title` and `desc` take
+`color` and `text`; `value` takes `color`, `text` and `size` — the value is the band the
+`size` axis is expected to scale. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Stats.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Layout axis; rendered as `data-orientation` on root and items. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes. |
+
+Stats has no `model`, no default-value prop and no change event: it has no state to bind.
+
+### `Stats.Item`, `Stats.Title`, `Stats.Value`, `Stats.Desc`, `Stats.Figure`
+
+Only `class`. Each renders its part around the default slot; `Item` additionally mirrors
+the root's `data-orientation`.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on stats, so `<Stats.Root color="primary" size="lg">` is styled in
+both. Neither wires a `variant` or any `mods`; under a design system's `/register` import
+those props are therefore absent. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A stats recipe lays the root out as a flex row or column by `data-orientation`, and draws
+the seam on `item + item` — a border on the inline-start side when horizontal, on the
+block-start side when vertical — reading the axis from the item's own attribute.
+
+## Related
+
+[`Card`](/zero/docs/components/card/) is the same kind of styling container with a
+header / body / footer interior; [`Avatar`](/zero/docs/components/avatar/) is a common
+`Figure`.
