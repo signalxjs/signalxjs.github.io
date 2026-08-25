@@ -1,0 +1,118 @@
+---
+title: "API reference"
+description: "Exports of @sigx/actors-dashboard — ActorsDashboard and its props, mountActorsDashboard, the six panels, panelState, the stylesheet and the drawing parts"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/actors-dashboard` <PkgVersion npm="@sigx/actors-dashboard" />.</p>
+
+One entry. `DashboardState`, `httpSource` and the `MonitorSource` type are re-exported from
+[`@sigx/actors-monitor`](/actors/packages/actors-monitor/api) as a convenience; the data layer
+stays that package's.
+
+## `ActorsDashboard`
+
+The whole dashboard — tab strip, status line, and a `DashboardState` it owns for its lifetime
+and stops on unmount.
+
+```ts
+interface ActorsDashboardProps {
+    source: MonitorSource;        // almost always httpSource({ url: '/your/ops/proxy' })
+    intervalMs?: number;          // 1000
+    history?: number;             // sparkline samples, 60
+    tab?: TabId;                  // 'overview' | 'hosts' | 'actors' | 'cluster' | 'health'
+    styles?: boolean;             // inject the stylesheet; default true
+    theme?: 'light' | 'dark';     // force a palette instead of prefers-color-scheme
+}
+```
+
+> **Do not pass an ops `secret` from browser code.** `source` should point at a same-origin
+> route of your own app that attaches the bearer server-side — see
+> [the ops endpoint](/actors/docs/ops-endpoint#reaching-ops-from-a-browser).
+
+The status line always shows the age of the last successful poll, and turns `warn` once it
+exceeds three intervals: stale data that still looks live is the failure a browser tab left
+open overnight would otherwise introduce.
+
+## `mountActorsDashboard(element, options)`
+
+```ts
+function mountActorsDashboard(element: Element, options: ActorsDashboardProps): Promise<() => void>;
+```
+
+Renders the dashboard into a page that is not a sigx app, importing
+`@sigx/runtime-dom/platform` dynamically. Resolves to the unmount function — call it when the
+page tears the dashboard down, or it keeps polling for the life of the tab.
+
+## Panels
+
+```ts
+interface PanelProps { state: DashboardState }
+
+OverviewPanel, HostsPanel, HostPanel, ActorsPanel, ClusterPanel, HealthPanel
+```
+
+Each is a `component()` taking `{ state }`, so a portal can embed one table instead of the
+shell. `HostPanel` renders the drill-down for `state.view.focus`; `HostsPanel` renders the
+list and opens one on pick.
+
+### `panelState(props): DashboardState`
+
+The `DashboardState` behind a panel's props, **unwrapped** with `toRaw`. Every shipped panel
+starts with it, and a panel you write must too: props arrive through a reactive proxy, and
+`DashboardState`, `Series` and `RateTracker` hold `#private` fields, so a method call on the
+proxied state throws. Unwrapping costs no reactivity — panels track `state.view`, which is a
+signal in its own right.
+
+## Styles
+
+```ts
+const actorsDashboardCss: string;
+function injectStyles(doc?: Document): void;   // idempotent; no-op without a document
+```
+
+Every colour and metric is a `--sigx-actors-*` custom property:
+
+| Token | Meaning |
+|---|---|
+| `--sigx-actors-bg`, `-panel`, `-border`, `-text`, `-dim` | surfaces and text |
+| `--sigx-actors-accent` | selection, focus rings |
+| `--sigx-actors-ok`, `-warn`, `-danger` | tones — `warn` and `danger` are never confusable |
+| `--sigx-actors-gap` | the colour of "no reading"; deliberately not the series colour dimmed |
+| `--sigx-actors-radius`, `-gap-sm`, `-gap-md`, `-gap-lg` | metrics |
+| `--sigx-actors-font`, `-mono` | type |
+
+Override them on any ancestor. A dark palette applies under `prefers-color-scheme: dark`
+and under `theme="dark"`.
+
+## Parts
+
+For a portal drawing a panel of its own against the same vocabulary:
+
+```ts
+type Tone = 'ok' | 'warn' | 'danger' | 'dim';
+
+Alerts({ alerts: readonly Alert[] })
+Section({ title, lines: readonly string[], tone? })
+DetailList({ rows: readonly DetailRow[] })          // { label, value, tone? }
+DataTable<T>({ columns: readonly Column<T>[], rows, tone?, onPick?, pickLabel?, emptyText, caption? })
+Sparkline({ values: readonly Rate[], tone? })       // a null draws a BREAK, not a zero
+Series({ label, values: readonly Rate[], value: string, tone? })
+Bars({ points: readonly PercentilePoint[], ceiling, format, tone?, emptyText })
+ShardGrid({ shards: readonly ShardStatus[], emptyText })
+```
+
+`Column<T>` is `{ key, header, value: (row) => string, numeric? }`. `Sparkline` is the one
+most worth reusing: it breaks on a gap, which is the rule a hand-rolled one gets wrong first.
+
+## Next steps
+
+- [Overview](/actors/packages/actors-dashboard/overview) — the drop-in, the proxy, theming.
+- [Installation](/actors/packages/actors-dashboard/installation) — mounting and writing a panel.
+- [`@sigx/actors-monitor`](/actors/packages/actors-monitor/api) — the types these render.

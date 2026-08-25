@@ -1,0 +1,164 @@
+---
+title: "API reference"
+description: "Exports of @sigx/actors-monitor — httpSource, MonitorSnapshot, DashboardState, RateTracker, alertLines, shardStates, percentilePoints and the /format subpath"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/actors-monitor` <PkgVersion npm="@sigx/actors-monitor" />.</p>
+
+Two entries: `@sigx/actors-monitor` (everything below) and `@sigx/actors-monitor/format`
+(the display formatters, also re-exported as `format`).
+
+## Sources
+
+### `httpSource(options): MonitorSource`
+
+```ts
+interface HttpSourceOptions {
+    url: string;          // origin of the host's mount, or of your proxy
+    secret?: string;      // the ops({ secret }) bearer — server-side only
+    base?: string;        // '/_sigx/ops'
+    timeoutMs?: number;   // 5000
+    fetch?: typeof globalThis.fetch;
+}
+```
+
+Rejects with `OpsRequestError` — `{ status: number | null }` — when a request fails.
+
+### `MonitorSource`
+
+```ts
+interface MonitorSource {
+    readonly kind: 'embedded' | 'http';
+    readonly label: string;   // shown in the UI, so it is never ambiguous WHAT is watched
+    snapshot(signal?: AbortSignal, options?: SnapshotOptions): Promise<MonitorSnapshot>;
+    close(): Promise<void>;
+}
+interface SnapshotOptions {
+    detail?: boolean;   // per-host actor lists and recent errors — O(activations) on every host
+    hostId?: string;    // limit the expensive parts to one host
+}
+```
+
+`hostViewFromReport(report)` folds a cluster `HostReport` into a `HostView`.
+
+## The snapshot
+
+```ts
+interface MonitorSnapshot {
+    at: number;
+    hosts: readonly HostView[];
+    cluster: ClusterView | null;              // null on a single-node host — not an error
+    metrics: ActorMetricsSnapshot | null;     // the POLLED host's own metrics, not the cluster's
+    activations: readonly ActivationInfo[] | null;
+    health: HealthStatus | null;
+    partial: boolean;                         // a member did not answer: every total is a LOWER BOUND
+}
+```
+
+`HostView` carries one host's `stats`, `counters`, `reminderShards`, `membershipVersion`,
+`transports`, `metrics`, `health` and `activations` — each of the last four `null` when the
+host reported none. `ClusterView` carries `from`, `view`, `totals` (with
+`totals.metrics.hosts` as the denominator), `reminderShards` and `unreachable[]`.
+
+## The poll loop
+
+### `DashboardState`
+
+```ts
+new DashboardState({ source, intervalMs?: 1000, history?: 60 })
+
+state.view: DashboardView      // { snapshot, error, paused, intervalMs, lastOk, polls, focus }
+state.calls / failures / queued / activations: Series
+
+state.start(): void            // idempotent
+state.stop(): Promise<void>    // aborts the in-flight poll, closes the source
+state.togglePause(): void
+state.focus(hostId: string | null): void   // opens a detail poll, or closes it
+state.nudgeInterval(factor: number): void  // clamped to [MIN_INTERVAL_MS, MAX_INTERVAL_MS]
+```
+
+`DEFAULT_INTERVAL_MS` (1000), `MIN_INTERVAL_MS` (200), `MAX_INTERVAL_MS` (60 000) and
+`clampInterval(ms)` are exported alongside.
+
+`DashboardState`, `Series` and `RateTracker` hold `#private` fields. If one reaches you
+through a reactive proxy — component props in a sigx renderer — unwrap it with `toRaw` before
+calling methods on it; [`@sigx/actors-dashboard`](/actors/packages/actors-dashboard/api)
+exports `panelState` for exactly that.
+
+## Rates
+
+```ts
+type Rate = number | null;
+interface RateSample { at: number; value: number }
+
+rateBetween(previous: RateSample, current: RateSample): Rate
+```
+
+> **`null` when the counter moved backwards, or when no time passed.** A reset or a restart
+> makes the previous total meaningless, so the interval reports a **gap** rather than a
+> negative rate or an enormous positive one.
+
+`RateTracker` tracks several named counters — `observe(series, at, value): Rate`,
+`lastWasReset(series, at, value)`, `forget(series)`, `retain(keep)`. It holds only the
+previous reading per series: the instantaneous rate is what a dashboard wants, and a running
+average would smooth away the spike you opened it to look at. The first reading of a series
+is always `null`.
+
+`Series` is a fixed-capacity ring of `Rate` values for a sparkline — `push`, `values()`,
+`peak()`, `latest()`, `clear()`. A gap is stored as `null` and must be drawn as a break, not
+a zero.
+
+## Alerts and scope
+
+```ts
+alertLines(view: DashboardView): Alert[]          // what is wrong, worst first
+interface Alert { text: string; tone: 'danger' | 'warn' }
+
+scopeOf(snapshot): string       // 'this host' | 'cluster · N host(s)'
+polledLabel(view): string       // the host whose OWN numbers these are
+coverageNote(snapshot): string | null   // why cluster totals might be a lower bound
+hostTone(status): 'danger' | 'warn' | 'dim' | null   // fenced / leaving / other / fine
+```
+
+## Reminder shards
+
+```ts
+type ShardState = 'claimed' | 'unclaimed' | 'split';
+shardStates(shards): ShardStatus[]      // { label, state, claimants }
+unclaimedShards(shards): string[]       // nothing is ticking these reminders
+splitShards(shards): string[]           // two claimants: membership views diverged
+```
+
+Three states, three meanings. One claimant is healthy. *None* means those reminders are not
+firing, and nothing else in the system surfaces it. *Two or more* means views have diverged —
+safe, because the per-shard etag CAS keeps delivery at-most-once, but worth knowing.
+
+## Histograms
+
+```ts
+percentilePoints(snapshot: HistogramSnapshot | null | undefined): PercentilePoint[]
+percentileCeiling(snapshots: readonly (HistogramSnapshot | null | undefined)[]): number
+```
+
+`percentilePoints` returns p50 / p90 / p99, or **three nulls** for an absent or empty
+histogram — never three zeroes. `percentileCeiling` is the largest value across a set, for a
+shared axis; `0` means "draw no bars".
+
+## `@sigx/actors-monitor/format`
+
+`count(n)`, `durationMs(ms)`, `uptime(ms)`, `rate(value)`, `gauge(value)`,
+`percent(numerator, denominator)`, `ellipsis(text, width)` — the display formatters both
+renderers use. `rate(null)` and `gauge(null)` render a gap marker, not `0`.
+
+## Next steps
+
+- [Overview](/actors/packages/actors-monitor/overview) — the four rules.
+- [Installation](/actors/packages/actors-monitor/installation) — sources and the proxy.
+- [`@sigx/actors-dashboard`](/actors/packages/actors-dashboard/api) — the components over this.

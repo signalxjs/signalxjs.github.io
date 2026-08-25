@@ -1,0 +1,126 @@
+---
+title: "Installation"
+description: "Choosing a MonitorSource, running the poll loop with DashboardState, and the rules for writing a renderer over @sigx/actors-monitor"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">A source, a state, and a renderer that reads <code>state.view</code>. The
+first two are here; the third is yours.</p>
+
+## Install
+
+```bash
+pnpm add @sigx/actors-monitor
+```
+
+`@sigx/reactivity` is the one runtime peer. `@sigx/actors` is optional and types-only, so
+this installs cleanly into an admin portal that has no actor runtime of its own.
+
+## Pick a source
+
+**`httpSource`** polls a running host's [`ops()`](/actors/docs/ops-endpoint) endpoint with
+two GETs — `/_sigx/ops` and `/_sigx/ops/cluster`. It loads no user code and holds no host,
+so it is the mode for anything you did not just start yourself.
+
+```ts
+import { httpSource } from '@sigx/actors-monitor';
+
+// Server-side (Node, a CLI, a worker): the bearer may be supplied here.
+const source = httpSource({ url: 'http://actors-host:7311', secret: process.env.SIGX_OPS_SECRET });
+
+// Browser: a same-origin route of YOUR app, and no secret — see below.
+const source = httpSource({ url: location.origin, base: '/admin/ops' });
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `url` | — | origin of the host's mount (or of your proxy) |
+| `secret` | — | the `ops({ secret })` bearer — **server-side only** |
+| `base` | `/_sigx/ops` | path prefix, matching `ops({ base })` |
+| `timeoutMs` | `5000` | per-request budget |
+| `fetch` | `globalThis.fetch` | injectable for tests |
+
+A failed request rejects with `OpsRequestError`, carrying the HTTP `status` (or `null` for a
+transport failure) — a 401 means the host answered and rejected the secret, a 404 that it
+serves no ops endpoint. Neither is a reachability problem, and the message says which.
+
+**`embeddedSource`** loads your app module in-process and **starts a real host**. It lives
+only in [`@sigx/actors-cli/source`](/actors/packages/actors-cli/api), because it
+dynamic-imports user code and needs Node — a bundler following `@sigx/actors-monitor` cannot
+reach it at all.
+
+## The same-origin proxy
+
+`ops()` sets no CORS headers and refuses to construct without a bearer secret outside dev.
+A browser therefore cannot call it cross-origin, and must not be handed the secret to try.
+Point `httpSource` at a route of your own app that authenticates the operator and forwards
+with the bearer attached server-side:
+
+```js
+// GET /admin/ops         → the host snapshot
+// GET /admin/ops/cluster → the fan-out
+if (url.pathname.startsWith('/admin/ops')) {
+    if (!(await isOperator(request))) return new Response('no', { status: 403 });
+    return fetch(HOST_ORIGIN + url.pathname.replace('/admin', '/_sigx/ops') + url.search, {
+        headers: { authorization: `Bearer ${process.env.OPS_SECRET}` }
+    });
+}
+```
+
+Forward the sub-path **and** the query verbatim — `httpSource` appends `/cluster` and
+`?detail=1&host=…` itself, and a proxy that drops either breaks the cluster view or the
+per-host drill-down with no error anywhere. The full discussion, and the two ways the proxy
+fails silently, is on the [ops endpoint page](/actors/docs/ops-endpoint#reaching-ops-from-a-browser).
+
+## Run the poll loop
+
+```ts
+import { DashboardState, httpSource } from '@sigx/actors-monitor';
+
+const state = new DashboardState({ source, intervalMs: 1000, history: 60 });
+state.start();
+// …
+await state.stop();   // aborts the in-flight poll and closes the source
+```
+
+`state.view` is one deep signal — `{ snapshot, error, paused, intervalMs, lastOk, polls,
+focus }` — and `state.calls`, `state.failures`, `state.queued` and `state.activations` are
+the derived `Series` a sparkline reads. Three behaviours are already decided so you do not
+have to re-decide them:
+
+- **The last good snapshot survives a failed poll.** `error` is set and cleared by the next
+  success; `snapshot` is kept, because a dashboard that blanks the moment a host hiccups
+  destroys exactly the context you need to understand the hiccup. Show `lastOk`'s age so
+  stale data never looks live.
+- **Back-pressure abandons, never queues.** A poll still in flight when the next tick fires is
+  aborted rather than stacked behind a slow host.
+- **A drill-down changes what is requested.** `state.focus(hostId)` switches the poll to
+  `{ detail: true, hostId }` and polls immediately; `focus(null)` closes it. A detail poll
+  makes that host walk its activation table, so nobody should pay for a panel that is closed.
+
+`intervalMs` is clamped to 200 ms – 60 s; `nudgeInterval(factor)` steps it and
+`togglePause()` pauses without stopping.
+
+## Writing a renderer
+
+1. Take a `MonitorSource`, or a `DashboardState` built over one. Do not poll `ops()`
+   yourself.
+2. Use `alertLines`, `scopeOf`, `polledLabel`, `coverageNote`, `shardStates` and
+   `percentilePoints` as given, and map their severities into your own vocabulary — the
+   mapping is about ten lines.
+3. Anything you find yourself deriving that is about *actors* rather than about *drawing*
+   belongs in the monitor, not in your renderer.
+
+The two shipped renderers are the worked examples:
+[`@sigx/actors-cli`](/actors/packages/actors-cli/overview) for a terminal and
+[`@sigx/actors-dashboard`](/actors/packages/actors-dashboard/overview) for a browser.
+
+## Next steps
+
+- [API reference](/actors/packages/actors-monitor/api) — every export.
+- [The ops endpoint](/actors/docs/ops-endpoint) — what is being polled.
+- [Cluster stats](/actors/docs/cluster-stats) — `partial`, and why latency merges rather than averages.

@@ -1,0 +1,118 @@
+---
+title: "Overview"
+description: "The web dashboard for @sigx/actors — hosts, actors, latency, errors and cluster topology as embeddable sigx components, over a same-origin ops proxy"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Dashboard
+
+<p class="lede">The five tabs <code>sigx actors top</code> has, in a browser: Overview, Hosts
+(with a per-host drill-down), Actors, Cluster and Health — as sigx components you drop into
+your own admin portal.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/actors-dashboard" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/actors-dashboard @sigx/actors-monitor
+```
+
+```tsx
+import { ActorsDashboard } from '@sigx/actors-dashboard';
+import { httpSource } from '@sigx/actors-monitor';
+
+<ActorsDashboard source={httpSource({ url: '/admin/ops' })} />
+```
+
+That is the whole integration. The component owns a `DashboardState` for its lifetime, polls
+once a second, and stops on unmount — which matters more in a browser than in a terminal,
+because a single-page app that navigates away from an unstopped dashboard leaves it polling
+the cluster forever.
+
+Peers: `@sigx/actors`, `@sigx/runtime-core`, `@sigx/runtime-dom` and `@sigx/reactivity`.
+The one real dependency is [`@sigx/actors-monitor`](/actors/packages/actors-monitor/overview),
+which decides what every number means; this package renders its verdicts and re-derives none
+of them. That is what keeps it from disagreeing with the CLI: same data layer, two renderers.
+
+## `/admin/ops` is a route of your app, not the host's
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>Never put the ops secret in the browser.</strong> <code>ops()</code> sets no CORS
+    headers and refuses to construct without a bearer secret outside dev — it reports your
+    actor type names, traffic shape and cluster topology, and the activation list carries actor
+    <em>keys</em>, which are user data. Work around the CORS block by passing
+    <code>secret</code> to <code>httpSource</code> in browser code and you have published your
+    cluster topology to every visitor, and nothing in the browser will tell you.
+  </div>
+</div>
+
+So the browser calls a **same-origin route of your own app**, which authenticates the operator
+however your app already does and forwards to the host with the bearer attached server-side.
+The server half is about nine lines:
+
+```js
+// GET /admin/ops         → the host snapshot
+// GET /admin/ops/cluster → the fan-out
+if (url.pathname === '/admin/ops' || url.pathname.startsWith('/admin/ops/')) {
+    if (!(await isOperator(request))) return new Response('no', { status: 403 });
+    return fetch(HOST_ORIGIN + url.pathname.replace('/admin/ops', '/_sigx/ops') + url.search, {
+        headers: { authorization: `Bearer ${process.env.OPS_SECRET}` }
+    });
+}
+```
+
+Forward the sub-path **and** the query verbatim, and match the mount exactly — both failure
+modes are silent, and both are spelled out on the
+[ops endpoint page](/actors/docs/ops-endpoint#reaching-ops-from-a-browser).
+
+## Embed one panel, not the shell
+
+An admin portal that wants one table — a tenant's hosts, say — builds the state itself and
+renders the panel it needs. Every panel is exported standalone and takes `{ state }`:
+
+```tsx
+import { DashboardState, HostsPanel, httpSource } from '@sigx/actors-dashboard';
+
+const state = new DashboardState({ source: httpSource({ url: '/admin/ops' }) });
+state.start();
+
+<HostsPanel state={state} />
+```
+
+`OverviewPanel`, `HostsPanel`, `HostPanel`, `ActorsPanel`, `ClusterPanel` and `HealthPanel`
+compose in any order over one state. Stop the state yourself when the page tears down.
+
+## Theming
+
+Styling is self-contained and arrives with the component — nothing to import, no CSS
+framework. Every colour and metric is a `--sigx-actors-*` custom property, so a portal
+restyles it by overriding tokens on any ancestor, without overriding a single rule:
+
+```css
+.my-portal {
+    --sigx-actors-accent: #7c3aed;
+    --sigx-actors-font: Inter, system-ui, sans-serif;
+}
+```
+
+It follows `prefers-color-scheme`; `theme="light"` or `"dark"` forces a palette. For a strict
+CSP or a build that extracts CSS, pass `styles={false}` and ship the exported
+`actorsDashboardCss` yourself.
+
+Two tokens carry meaning rather than decoration. `--sigx-actors-danger` and
+`--sigx-actors-warn` are never confusable, because an unclaimed reminder shard is an incident
+and a doubly-claimed one is a divergence. And `--sigx-actors-gap` is the colour of "no
+reading": a counter reset must look like missing data, not like quiet traffic.
+
+## Next steps
+
+- [Installation](/actors/packages/actors-dashboard/installation) — mounting outside a sigx app, and writing your own panel.
+- [API reference](/actors/packages/actors-dashboard/api) — props, panels and the drawing parts.
+- [`@sigx/actors-monitor`](/actors/packages/actors-monitor/overview) — the data layer underneath.
+- [The CLI](/actors/packages/actors-cli/overview) — the same five tabs in a terminal.

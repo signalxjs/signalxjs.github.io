@@ -77,8 +77,66 @@ responder rather than trusted from the query.
 > is a deliberate act, over an authenticated channel, and it is worth knowing what your keys
 > contain before you do.
 
+## Reaching `ops()` from a browser
+
+Two facts drive everything here:
+
+- **`ops()` sets no CORS headers.** A browser cannot call it cross-origin at all, however the
+  fetch is configured.
+- **It refuses to construct without a bearer secret outside `__DEV__`**, because it reports
+  actor type names, traffic shape and cluster topology — and the activation list carries actor
+  **keys**, which are user data.
+
+The conclusion follows: the browser calls a **same-origin route of your own app**, which
+authenticates the operator however the app already does and forwards to the host with the
+bearer attached **server-side**. The secret never reaches the client.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    Work around the CORS block by putting the secret in browser code and you have published
+    your cluster topology to every visitor — and nothing in the browser will tell you.
+  </div>
+</div>
+
+The whole server half:
+
+```js
+// GET /admin/ops         → the host snapshot
+// GET /admin/ops/cluster → the fan-out
+if (url.pathname === '/admin/ops' || url.pathname.startsWith('/admin/ops/')) {
+    if (!(await isOperator(request))) return new Response('no', { status: 403 });
+    return fetch(HOST_ORIGIN + url.pathname.replace('/admin/ops', '/_sigx/ops') + url.search, {
+        headers: { authorization: `Bearer ${process.env.OPS_SECRET}` }
+    });
+}
+```
+
+and the browser half is `httpSource({ url: location.origin, base: '/admin/ops' })` from
+[`@sigx/actors-monitor`](/actors/packages/actors-monitor/overview) — with **no** `secret` —
+or `<ActorsDashboard source={…} />` from
+[`@sigx/actors-dashboard`](/actors/packages/actors-dashboard/overview) over it.
+
+Two details fail silently and are worth getting right the first time:
+
+- **Forward the sub-path and the query verbatim.** `httpSource` appends `/cluster` and
+  `?detail=1&host=…` itself. A proxy that drops the path turns the cluster view into a 404;
+  one that drops the query leaves every per-host drill-down waiting for a detail poll forever,
+  with no error anywhere.
+- **Match the mount exactly**, or a `/` or `?` after it. `startsWith('/ops')` also matches
+  `/opsummary`, and forwards your bearer to a URL nobody meant to build.
+
+Forward the method too — `ops()` serves `GET` and `HEAD` and answers 405 to anything else —
+and pass through `www-authenticate` and `allow`, which carry the diagnosis when a poll fails:
+a 401 from the host means the proxy's secret is stale, not that the host is down.
+
+In a cluster, the proxy needs any **one** surviving host — the fan-out reaches the rest — so
+a list of candidate origins tried in order is more robust than a single address. The
+`examples/dashboard` directory of the actors repo has the production-shaped version, with
+its tests.
+
 ## Next steps
 
 - [Cluster stats](/actors/docs/cluster-stats) — the fleet-wide view.
 - [The CLI](/actors/packages/actors-cli/overview) — a terminal dashboard over this endpoint.
+- [The web dashboard](/actors/packages/actors-dashboard/overview) — the same five tabs in a browser.
 - [Observability](/actors/docs/observability) — Prometheus alongside it.

@@ -1,0 +1,133 @@
+---
+title: "Installation"
+description: "Rendering the dashboard inside a sigx app or mounting it into any page, the ops proxy it needs, and writing a panel of your own with panelState"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Install both packages, put a same-origin ops route in front of your host, and
+render the component.</p>
+
+## Install
+
+```bash
+pnpm add @sigx/actors-dashboard @sigx/actors-monitor
+```
+
+npm ≥ 7 and pnpm ≥ 8 install the peers — `@sigx/actors`, `@sigx/runtime-core`,
+`@sigx/runtime-dom`, `@sigx/reactivity` — automatically. Yarn Classic, or a project running
+`auto-install-peers=false`, does not; if the app fails with
+`Cannot find package '@sigx/actors'`, add it explicitly:
+
+```bash
+pnpm add @sigx/actors
+```
+
+`@sigx/actors` is needed because the host drill-down decodes that host's own latency
+histogram with core's percentile walk rather than reimplementing it — duplicating the walk is
+how a cluster-wide p99 quietly stops matching the per-host one. It is WinterCG-clean and
+zero-dependency, so it tree-shakes to the walk itself.
+
+## The ops proxy first
+
+The dashboard reads [`ops()`](/actors/docs/ops-endpoint), which sets no CORS headers and
+carries a mandatory bearer secret outside dev. Put a route on **your** app that checks the
+operator and forwards with the bearer attached server-side, then point the dashboard at that
+route with no secret. The proxy, and the two ways it fails silently, are on the
+[ops endpoint page](/actors/docs/ops-endpoint#reaching-ops-from-a-browser). Without it the
+first poll fails, and the dashboard says so in a banner rather than rendering "connecting…"
+forever.
+
+## In a sigx app
+
+```tsx
+import { component } from 'sigx';
+import { ActorsDashboard } from '@sigx/actors-dashboard';
+import { httpSource } from '@sigx/actors-monitor';
+
+export const AdminActors = component(() => () => (
+    <ActorsDashboard source={httpSource({ url: location.origin, base: '/admin/ops' })} tab="hosts" />
+));
+```
+
+Render it like any component. Its platform is already registered, and mounting a second app
+inside one is not what anybody wants.
+
+## In any other page
+
+`mountActorsDashboard(element, options)` is the escape hatch for an admin portal built on
+something else, or a plain page with no app at all:
+
+```ts
+import { mountActorsDashboard } from '@sigx/actors-dashboard';
+import { httpSource } from '@sigx/actors-monitor';
+
+const unmount = await mountActorsDashboard(document.querySelector('#actors')!, {
+    source: httpSource({ url: location.origin, base: '/admin/ops' }),
+});
+
+// later, when the page tears the dashboard down:
+unmount();
+```
+
+It resolves to the unmount function — **call it**. The poll loop is stopped by the component's
+own unmount hook, and dropping the element without unmounting leaves it polling the cluster
+for the lifetime of the tab. `@sigx/runtime-dom/platform` is imported dynamically inside this
+one function, which is what lets the package's main entry import cleanly in bare Node and
+during SSR.
+
+## Nothing touches `document` at module scope
+
+The stylesheet is injected from inside the component, on first render, and is idempotent. That
+is why the package can be imported on a server: SSR and a plain `node -e "import(...)"` both
+see a module with no DOM in it.
+
+## Writing your own panel
+
+The parts a panel is drawn with — `Sparkline`, `Bars`, `DataTable`, `DetailList`, `Alerts`,
+`Section`, `ShardGrid` — are exported for a portal building one of its own against the same
+vocabulary. Two rules make it work:
+
+**Call `panelState(ctx.props)` first.** Props arrive through a reactive proxy, and
+`DashboardState`, `Series` and `RateTracker` hold `#private` fields. A `#`-field read resolves
+against the receiver, so `state.calls.values()` on the proxied state throws
+`Cannot read private member #values from an object whose class did not declare it`.
+`panelState` is `toRaw` — it costs no reactivity, because a panel tracks `state.view` (a
+signal in its own right), not the state object.
+
+**Make it a `component()`, not a plain function returning JSX.** Both render, but only the
+first gets a reactive scope of its own. Without one, every snapshot re-renders the whole shell
+around it — tab strip included — once a second, and keyboard focus does not survive that.
+
+```tsx
+import { component } from '@sigx/runtime-core';
+import { panelState, Section, Series, type PanelProps } from '@sigx/actors-dashboard';
+import { alertLines, format } from '@sigx/actors-monitor';
+
+export const QueuePanel = component<PanelProps>((ctx) => {
+    const state = panelState(ctx.props);
+    return () => {
+        const snapshot = state.view.snapshot;
+        if (!snapshot) return <p>connecting…</p>;
+        return (
+            <>
+                <Series label="queued" values={state.queued.values()} value={format.gauge(state.queued.latest())} />
+                <Section title="alerts" lines={alertLines(state.view).map((a) => a.text)} tone="warn" />
+            </>
+        );
+    };
+});
+```
+
+Anything the panel would *decide* — what is wrong, what a number is about, whether a shard
+state is an incident — comes from [`@sigx/actors-monitor`](/actors/packages/actors-monitor/api)
+and is not re-derived in the panel.
+
+## Next steps
+
+- [API reference](/actors/packages/actors-dashboard/api) — props, panels and parts.
+- [Overview](/actors/packages/actors-dashboard/overview) — theming and the one-panel embed.
+- [The ops endpoint](/actors/docs/ops-endpoint) — what the proxy forwards to.
