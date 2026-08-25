@@ -1,0 +1,75 @@
+---
+title: Window
+description: MockupWindow frames content in a desktop window with a title bar
+layout: docs
+category: ["Components", "Mockup"]
+order: 730
+---
+
+# Window
+
+MockupWindow wraps content in a desktop-window frame with the three title-bar
+dots. The content area is centred with padding on a `base-200` background. It
+is also available as `Mockup.Window`.
+
+## Import
+
+```tsx
+import { MockupWindow } from '@sigx/daisyui';
+// or
+import { Mockup } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { MockupWindow } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <MockupWindow>
+            Hello!
+        </MockupWindow>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Framing a Component
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Mockup, Card, Button, Text } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Mockup.Window class="bg-base-300">
+            <Card class="w-72">
+                <Card.Body>
+                    <Card.Title>Desktop app</Card.Title>
+                    <Text size="sm">A card rendered inside a window mockup.</Text>
+                    <Card.Actions class="justify-end">
+                        <Button variant="primary" size="sm">OK</Button>
+                    </Card.Actions>
+                </Card.Body>
+            </Card>
+        </Mockup.Window>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `class` | `string` | - | Additional CSS classes on the frame |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Window content |

@@ -1,0 +1,115 @@
+---
+title: Footer
+description: Footer is a page footer area for links, copyright and site navigation
+layout: docs
+category: ["Components", "Layout"]
+order: 630
+---
+
+# Footer
+
+Footer renders a `<footer>` styled as a DaisyUI footer: centred content on a
+`base-200` background with generous padding. Group links in `<nav>` elements
+with a `footer-title` heading to get DaisyUI's column layout.
+
+## Import
+
+```tsx
+import { Footer } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Footer, Text } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Footer rounded="box">
+            <Text size="sm">Copyright © 2026 — All rights reserved by SignalX</Text>
+        </Footer>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Link Columns
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Footer, Link } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Footer rounded="box">
+            <nav>
+                <h6 class="footer-title">Framework</h6>
+                <Link href="#" hover>Signals</Link>
+                <Link href="#" hover>Components</Link>
+                <Link href="#" hover>Router</Link>
+            </nav>
+            <nav>
+                <h6 class="footer-title">Company</h6>
+                <Link href="#" hover>About</Link>
+                <Link href="#" hover>Blog</Link>
+                <Link href="#" hover>Contact</Link>
+            </nav>
+            <nav>
+                <h6 class="footer-title">Legal</h6>
+                <Link href="#" hover>Terms of use</Link>
+                <Link href="#" hover>Privacy policy</Link>
+            </nav>
+        </Footer>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Coloured
+
+`background` and `padding` replace the defaults; a theme colour brings its
+matching content colour with it.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Footer, Text, Col } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Col gap="3">
+            <Footer background="neutral" padding="4" rounded="box">
+                <Text size="sm">Neutral footer with padding 4</Text>
+            </Footer>
+            <Footer background="primary" padding="6" rounded="box">
+                <Text size="sm">Primary footer with padding 6</Text>
+            </Footer>
+        </Col>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+Footer accepts the shared box styling props.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `center` | `boolean` | `false` | Vertically centre items (`items-center`) |
+| `background` | `BackgroundColor` | `'base-200'` | Theme background; sets the matching content colour |
+| `padding` | `Spacing` | `'10'` | Padding — a scale value or `{ x, y, top, … }` |
+| `margin` | `Spacing` | - | Margin |
+| `rounded` | `RadiusValue \| boolean` | - | Border radius; `true` is the theme box radius |
+| `width` | `SizeValue` | - | Width preset or CSS length |
+| `height` | `SizeValue` | - | Height preset or CSS length |
+| `class` | `string` | - | Additional CSS classes |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Footer content |
