@@ -108,6 +108,14 @@ serializeArg(obj);                // contains "[Circular]"
 
 This is a debug-only, auto-linked module — keep it under `devDependencies` so it is stripped from release builds along with its permissions. The on-device QR scanner needs camera access; the autolinker adds `NSCameraUsageDescription` to `Info.plist` ("Used to scan QR codes from the dev server.") and `android.permission.CAMERA` to the Android manifest. Native dev features — the dev menu, QR scanner, error overlay, perf HUD, shake-to-open, devtool wiring and in-place remote reload — are set up by `sigx prebuild` and are not part of the JS surface.
 
+## The performance HUD
+
+Open the dev menu (shake the device) and toggle **Performance HUD**. The overlay shows **`Lynx mem`** and **`Nodes`** — the Lynx engine's own memory attribution and element-node count, from `LynxMemoryUsageQuery`, polled every 5 s and only while the overlay is visible (the engine offers no push channel for memory). Requires Lynx ≥ 4.0.1 (the CLI templates pin it). The display is identical on iOS and Android, down to the number formatting, and the toggle persists across relaunches on both platforms.
+
+The HUD is also wired to Lynx 4.0's typed performance observer for eight timing metrics — `FCP`, `FMP`, `Bundle`, `JS core`, `Pipeline`, `MTS`, `Layout`, `UI flush` — and **those eight currently render nothing**: the observer never fires in a sigx-lynx app, on either platform. That is a Lynx-side problem (signalxjs/lynx#982, raised upstream as lynx-family/lynx#8405), not a configuration mistake on your side. Metrics that have not arrived are omitted rather than shown as `0.0ms`, so the HUD looks sparse by design. The same silence applies to `lynx.performance.createObserver` in app code — see [Observability](/lynx/modules/observability/usage/#what-the-lynx-performance-api-delivers).
+
+Numbers from a development build are not real numbers — main-thread costs are inflated by orders of magnitude there. Branch on [`__DEV_BUILD__`](/lynx/modules/plugin/api/#build-time-defines) before presenting a measurement.
+
 ## See also
 
 - [Installation](/lynx/modules/dev-client/installation) for project setup.

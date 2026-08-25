@@ -95,6 +95,20 @@ Notes:
 - **Device support.** `ios.supportsTablet` toggles iPad support (Xcode's device family); `ios.requiresFullScreen` opts the iPad out of multitasking — only then may it follow the phone's orientation lock, otherwise iPad apps must allow all four orientations. `android.features` emits `<uses-feature>` manifest entries (`{ name, required }`) to declare hardware your app uses.
 - **Cleartext HTTP is debug-only.** Prebuild emits an Android network-security config that blocks cleartext (non-HTTPS) traffic in release builds and permits it only in the debug source set, so use `https://` for production endpoints.
 
+### Orientation
+
+`orientation` declares the set of interface orientations the native hosts allow — `'portrait'` (the default) or `'landscape'` lock to that axis; `'all'` supports every orientation including upside-down portrait (iOS: all four `UIInterfaceOrientation*`; Android: `fullSensor`); `'default'` is the platform default (iOS: portrait + both landscapes; Android: `unspecified`). Override per platform under `android.orientation` / `ios.orientation`. It is rendered into `android:screenOrientation` and `UISupportedInterfaceOrientations`; existing projects pick a change up on the next `sigx prebuild`.
+
+```ts
+export default defineLynxConfig({
+    name: 'My App',
+    orientation: 'default',          // let the app rotate; runtime lock per screen
+    ios: { requiresFullScreen: true }, // iPad follows the same set (otherwise all four)
+});
+```
+
+Any value that allows more than one orientation means the app handles rotation **in place** — no Activity recreation, no bundle reload, app state preserved. Layout follows it through `useScreen()` / `useOrientation()` and CSS `@media (orientation: …)` queries, and a screen can narrow the set at runtime with `Orientation.lock()` / `useOrientationLock()` — but only *within* what this config declares: the build-time config is the ceiling, and a runtime lock outside it rejects. See [Screen metrics and orientation](/lynx/modules/core/api/#screen-metrics-and-orientation). On iPad, multitasking-capable apps must support all four orientations, so the lock only applies there with `ios.requiresFullScreen: true`.
+
 ### Native config passthrough
 
 Most native settings have a dedicated config field, but when an SDK needs a key the CLI doesn't model directly, typed escape hatches merge arbitrary values into the rendered native projects on every prebuild — so a custom key survives without post-prebuild patching:
@@ -185,6 +199,16 @@ sigx prebuild --embed-bundle   # also bake the built JS bundle in (release pipel
 
 Prebuild has a **fingerprint-based fast path**: it skips work when its inputs are unchanged. Editing `signalx.config.ts` or the post-hook script re-triggers it; `--clean` forces a full re-render regardless.
 
+### The native engine
+
+The templates pin the Lynx engine at **4.0.1** on both platforms (PrimJS pinned explicitly at 4.0.0, the exact build Lynx 4.0.1 declares). That pin is the supported engine version for this release: the CSS at-rules, the engine memory query, `maxSnapCount` and the other 4.0 capabilities the modules rely on need it. When a release moves the pin, the upgrade is a **store-release-level** change:
+
+1. Run `sigx prebuild --clean` — a plain `sigx prebuild` can take the fast path and leave the old engine in place.
+2. Ship a new binary through the stores.
+3. Only once the new binary is live, publish fresh OTA updates. The engine version is folded into the [OTA runtime fingerprint](/lynx/modules/updates/usage/#runtime-version-compatibility), so every update published against the previous host is invalidated by the bump, and the new binary will not accept them.
+
+On iOS, XElement 4.0.1's default subspecs include `BlurView` and `WebView`, which the templates take by default, so the binary grows slightly.
+
 ### `--embed-bundle` for external release pipelines
 
 A plain `prebuild` seeds a **0-byte iOS placeholder** (and nothing on Android). That is deliberate: the native loaders treat a non-empty `main.lynx.bundle` as "load this" regardless of build configuration, so an always-embedded bundle would stop dev and sandbox builds from falling through to the dev server and `DevHomeScreen`.
@@ -200,6 +224,10 @@ xcodebuild archive …            # fastlane, Xcode Cloud, gradle bundleRelease,
 It copies `dist/main.lynx.bundle` over the native project's bundle slot, and mirrors any **async chunks** from dynamic `import()` into the project so the production resource fetchers can serve them locally. The stale chunk subtree is removed first — hashes change every build, and leftovers would ship dead code and grow the project unboundedly.
 
 It **throws** when the built bundle is missing or empty rather than no-op'ing: you asked to embed, so silently baking the placeholder again would produce an archive that looks fine and loads nothing. Run `sigx build` first.
+
+**Run the two as a pair, in that order, every time.** Embedding is a build-output copy, not a generation step: it does not participate in prebuild's fingerprint fast path, so it never skips — but it can only copy what `sigx build` last produced. Embedding a bundle you did not just build is the failure this guards against, and it does not present as a failure: there is no crash and no error, the app launches and runs the *older* code, and it reads as "my change didn't work" rather than "my build is broken".
+
+To verify an archive, compare `shasum dist/main.lynx.bundle` against the bundle extracted from it. Grepping the archive for a newly added symbol does **not** work — minification renames it. `sigx run:android --release` / `sigx run:ios --release` perform this check automatically and refuse to package on a mismatch; a hand-rolled pipeline should do the same.
 
 Because prebuild re-renders managed native files pristine each time, a `prebuild.post` hook that patches them must anchor on template text and fail loudly when the anchor is missing:
 

@@ -64,6 +64,35 @@ Use `callSync` only for native methods that genuinely return synchronously. Use 
 
 Note the `callAsync` contract: it expects a node-style callback that receives **only a success value**, not `(err, res)`. There is no native-side error channel in this signature, so `callAsync` only rejects if the synchronous invocation itself throws. If your native method needs to report errors, return a result object the wrapper can inspect rather than relying on a rejected Promise.
 
+## Events and native failures
+
+Two more pieces of the wrapping pattern. A native module reports its own failure by **resolving** `{ error }` — `callAsync` only rejects when the synchronous bridge call throws — so pass every result through `unwrapNative` (or `unwrapNativeVoid` for void methods) to turn that envelope into a `SigxError` with `code: 'native_error'`. And subscribe to native event channels through `subscribeNative`, which returns an unsubscribe function, tolerates payloads that arrive as JSON strings, contains a throwing listener, and is a silent no-op off-device.
+
+```ts
+import { callAsync, unwrapNative, subscribeNative, isSigxError } from '@sigx/lynx-core';
+
+export async function takePicture(opts: CaptureOptions): Promise<{ uri: string }> {
+  const raw = await callAsync<{ uri?: string; error?: string }>('Camera', 'takePicture', opts);
+  return unwrapNative('lynx-camera', 'takePicture', raw) as { uri: string };
+}
+
+export function subscribeBatteryLevel(cb: (e: { level: number }) => void): () => void {
+  return subscribeNative('__sigxBattery', cb, {
+    namespace: 'battery',
+    validate: (raw): raw is { level: number } =>
+      typeof (raw as { level?: unknown })?.level === 'number',
+  });
+}
+
+// Callers branch on `code`, never on the message.
+try {
+  await takePicture({});
+} catch (e) {
+  if (isSigxError(e) && e.code === 'native_error') console.warn(e.cause);
+  else throw e;
+}
+```
+
 ## Feature detection and guarding
 
 `guardModule` throws a multi-line, actionable error when a module is not linked — it names the package to install and points at `sigx prebuild`. Call it at the top of each public function so the failure is loud and early.

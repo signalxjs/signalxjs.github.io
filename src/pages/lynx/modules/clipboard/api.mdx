@@ -26,7 +26,7 @@ A singleton object providing system clipboard access — `UIPasteboard` on iOS, 
 
 ```ts
 const Clipboard: {
-    readonly setString: (text: string) => void;
+    readonly setString: (text: string) => Promise<void>;
     readonly getString: () => Promise<string>;
     readonly hasString: () => Promise<boolean>;
     readonly isAvailable: () => boolean;
@@ -39,19 +39,26 @@ const Clipboard: {
 
 ### `Clipboard.setString`
 
-Synchronously writes a string to the system clipboard.
+Writes a string to the system clipboard.
 
 ```ts
-setString(text: string): void
+setString(text: string): Promise<void>
 ```
 
 **Parameters**
 
-- `text` — the string to place on the clipboard. `null` or `undefined` is coerced to an empty string natively.
+- `text` — the string to place on the clipboard. Pass `''` to clear it; `null` or `undefined` is coerced to an empty string natively.
 
-**Returns:** `void`. The call crosses the bridge synchronously (`callSync`) and returns immediately.
+**Returns:** a promise that resolves once the native write has completed, and **rejects when the write fails** with a `SigxError` (`code: 'native_error'`, message `[@sigx/lynx-clipboard] setString failed: …`). Android's `setPrimaryClip` genuinely can fail — a clip over the binder transaction limit throws — so `await` the call wherever a silent no-op would be a bug.
 
 **Platform:** iOS, Android. On Android the clip is labelled `sigx-lynx-go`.
+
+## Not provided
+
+Two requests come up often enough to answer here:
+
+- **A URL slot.** iOS has a dedicated `UIPasteboard.url`; Android has no equivalent. Write the URL as text with `setString(url)`.
+- **A clipboard change listener.** iOS has no clipboard-change notification at all, and polling `getString` fires the "Pasted from …" toast on every read.
 
 ### `Clipboard.getString`
 

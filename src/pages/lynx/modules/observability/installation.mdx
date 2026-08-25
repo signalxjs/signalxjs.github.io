@@ -1,0 +1,43 @@
+---
+title: "Installation"
+description: "Install and configure @sigx/lynx-observability, the Observability module for SignalX Lynx."
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-observability` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-observability
+```
+
+## Native setup
+
+The package ships native code for `Memory`, so re-run prebuild after installing:
+
+```bash
+sigx prebuild
+```
+
+`sigx prebuild` auto-discovers the package and registers its native module on both platforms. No permissions, `Info.plist` strings or manifest entries are needed.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    Adding native sources changes the app's <strong>OTA runtime fingerprint</strong>. After installing: run <code>sigx prebuild</code>, cut a store release, and republish your update bundles once the new binary is live — see <a href="/lynx/modules/updates/usage/#runtime-version-compatibility">runtime-version compatibility</a>.
+  </div>
+</div>
+
+`Memory` requires **Lynx ≥ 4.0.1** — the engine the CLI's native templates pin. An older engine pin fails at native compile time with an unhelpful message rather than a clear one.
+
+## Verify
+
+```tsx
+import { Memory } from '@sigx/lynx-observability';
+
+console.log(Memory.isAvailable()); // true once the native module is linked
+```

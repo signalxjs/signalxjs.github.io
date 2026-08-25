@@ -27,6 +27,16 @@ import {
   OS,
   select,
   DeviceInfo,
+  subscribeNative,
+  unwrapNative,
+  unwrapNativeVoid,
+  SigxError,
+  isSigxError,
+  useScreen,
+  useScreenMT,
+  useOrientation,
+  readGlobalScreen,
+  Orientation,
 } from '@sigx/lynx-core';
 import type {
   PermissionStatus,
@@ -36,6 +46,11 @@ import type {
   DeviceInfoResult,
   IosDeviceInfo,
   AndroidDeviceInfo,
+  SubscribeNativeOptions,
+  ScreenMetrics,
+  ScreenOrientation,
+  CoarseOrientation,
+  OrientationLock,
 } from '@sigx/lynx-core';
 ```
 
@@ -134,6 +149,202 @@ Encodes an `ArrayBuffer` or typed-array view to base64 for native transport. Hon
 - **`buf`** — an `ArrayBuffer`, `Uint8Array`, or any `ArrayBufferView`.
 - **Returns** — the base64-encoded string.
 - **Platform** — iOS and Android.
+
+## The module contract
+
+Three helpers every `@sigx/lynx-*` package uses to talk to the native side. Use them when writing your own native module rather than hand-rolling an emitter shim or an `{ error }` unwrap — they carry the edge cases that only show up on a device.
+
+### subscribeNative
+
+```ts
+export function subscribeNative<T = unknown>(
+  channel: string,
+  cb: (event: T) => void,
+  options?: SubscribeNativeOptions<T>,
+): () => void
+
+export interface SubscribeNativeOptions<T> {
+  /** Payload guard — events failing it are dropped rather than delivered as a malformed `T`. */
+  validate?: (raw: unknown) => raw is T;
+  /** Namespace for the "listener threw" diagnostic. Defaults to the channel name. */
+  namespace?: string;
+}
+```
+
+Subscribes to a native event channel on the runtime's `GlobalEventEmitter`. It handles the emitter lookup, a payload that arrives as a JSON *string* rather than an object, and a listener that throws (contained and reported through the logger, so one listener's bug cannot unsubscribe the others). Off-device — web preview, SSR, tests — it is a silent no-op returning a no-op disposer, so a package can subscribe unconditionally without branching on availability.
+
+- **`channel`** — the emitter channel name, for example `'__sigxAppState'`.
+- **`cb`** — called with each valid payload.
+- **`options.validate`** — a type guard; payloads that fail it are dropped.
+- **`options.namespace`** — tags the diagnostic; pass the package's own namespace so the warning is greppable.
+- **Returns** — an unsubscribe function, never a `{ remove() }` object, so it is directly usable as an effect cleanup. Calling it more than once is a no-op.
+- **Platform** — iOS and Android; no-op elsewhere.
+
+### unwrapNative
+
+```ts
+export function unwrapNative<T>(pkg: string, action: string, raw: T): T
+export function unwrapNativeVoid(pkg: string, action: string, raw: unknown): void
+```
+
+[`callAsync`](#callasync) rejects only when the *synchronous* bridge call throws; a native module reports its own failure by **resolving** `{ error: string }`. `unwrapNative` turns that envelope into a rejection: it throws a [`SigxError`](#sigxerror) with `code: 'native_error'`, the message `[@sigx/lynx-<pkg>] <action> failed: <cause>` and the raw payload on `cause`, and otherwise returns `raw` unchanged. `unwrapNativeVoid` is the same for methods whose success payload is nothing.
+
+```ts
+const raw = await callAsync<{ uri?: string; error?: string }>('Camera', 'takePicture', opts);
+const { uri } = unwrapNative('lynx-camera', 'takePicture', raw);
+```
+
+- **`pkg`** — the package short name without the scope, for example `'lynx-camera'`.
+- **`action`** — what was attempted, for the message — usually the method name.
+- **`raw`** — whatever the bridge resolved.
+- **Platform** — iOS and Android.
+
+### SigxError
+
+```ts
+export class SigxError extends Error {
+  /** Stable, machine-readable discriminant — branch on this, not the message. */
+  readonly code: string;
+  /** The `@sigx/lynx-*` package that raised it. */
+  readonly package: string;
+  /** The underlying value — usually the raw native payload. */
+  readonly cause?: unknown;
+  constructor(pkg: string, code: string, message: string, options?: { cause?: unknown });
+}
+
+export function isSigxError(e: unknown): e is SigxError
+```
+
+The error base for anything a caller might branch on. `code` is stable; the message is for humans and may change. `isSigxError` narrows `unknown` in a `catch` block. `instanceof` works after transpilation (the constructor restores the prototype).
+
+```ts
+try {
+  await Clipboard.setString(text);
+} catch (e) {
+  if (isSigxError(e) && e.code === 'native_error') showToast('Copy failed');
+  else throw e;
+}
+```
+
+- **Platform** — iOS, Android and web.
+
+## Screen metrics and orientation
+
+Live screen metrics that follow rotation, split-screen resize and foldable unfold, plus the runtime orientation lock. All of these are re-exported from `@sigx/lynx`.
+
+`Platform.pixelWidth` / `pixelHeight` are a **load-time device snapshot** and deliberately do not follow rotation — they describe the device. Anything that feeds layout should read `useScreen()` instead.
+
+### useScreen
+
+```ts
+export function useScreen(): Computed<ScreenMetrics>
+```
+
+Background-thread reactive screen metrics. Read `.value` in render or effects and the component re-renders on rotation, split-screen resize or foldable unfold.
+
+```tsx
+const screen = useScreen();
+return () => <view class={screen.value.isLandscape ? 'flex-row' : 'flex-col'} />;
+```
+
+- **Returns** — a stable `Computed<ScreenMetrics>`. Off-device it resolves to a typical-phone fallback.
+- **Platform** — iOS, Android and web (via the `@sigx/lynx-web-host` bridge).
+
+### useOrientation
+
+```ts
+export function useOrientation(): Computed<CoarseOrientation>  // 'portrait' | 'landscape'
+```
+
+The coarse read for code that only branches portrait/landscape and should not re-run when the width alone moves.
+
+### useScreenMT
+
+```ts
+export function useScreenMT(): ScreenMetrics
+```
+
+Synchronous screen metrics for `'main thread'` worklet bodies. Reads the global directly with no subscription, so a gesture handler measures against the *current* viewport on every invocation.
+
+### readGlobalScreen
+
+```ts
+export function readGlobalScreen(): ScreenMetrics | null
+```
+
+Raw synchronous read of `lynx.__globalProps.screen`. Works on **both** threads — `lynx.SystemInfo` is empty on the background thread, but `__globalProps` is mirrored onto both, which makes this the background-safe screen-size accessor. Returns `null` before the publisher has populated (early cold start) or outside a Lynx host; prefer `useScreen` / `useScreenMT` when you just want a usable number.
+
+### ScreenMetrics
+
+```ts
+export interface ScreenMetrics {
+  /** Logical viewport width (dp on Android, pt on iOS). */
+  width: number;
+  /** Logical viewport height. */
+  height: number;
+  /** Logical-to-physical multiplier (`density` / `UIScreen.scale`). */
+  scale: number;
+  /** Fine-grained interface orientation. */
+  orientation: ScreenOrientation;
+  /** `true` for either landscape orientation — the common branch. */
+  isLandscape: boolean;
+}
+
+export type ScreenOrientation = 'portrait' | 'portrait-upside-down' | 'landscape-left' | 'landscape-right';
+export type CoarseOrientation = 'portrait' | 'landscape';
+```
+
+`landscape-left` / `landscape-right` name the direction the device was rotated (iOS `UIInterfaceOrientationLandscapeLeft/Right`, Android `Surface.ROTATION_90/270`). Type-only exports.
+
+### Orientation
+
+```ts
+const Orientation: {
+  /** Request an orientation lock. Rejects if `to` isn't in the app's declared set. */
+  lock(to: OrientationLock): Promise<void>;
+  /** Release the runtime lock, restoring the build-time configured set. */
+  unlock(): Promise<void>;
+  /** Feature-detect the native module without throwing. */
+  isAvailable(): boolean;
+};
+
+export type OrientationLock =
+  | 'portrait'
+  | 'portrait-upside-down'
+  | 'landscape'          // either landscape; the device may still flip between them
+  | 'landscape-left'
+  | 'landscape-right'
+  | 'all'                // every orientation, including upside-down portrait
+  | 'default';           // release the runtime lock — same as unlock()
+```
+
+The runtime orientation lock, served by core's own `SigxCore` native module.
+
+**The build-time config is the ceiling.** `signalx.config.ts`'s [`orientation`](/lynx/modules/cli/usage/#orientation) (default `'portrait'`) is written into `android:screenOrientation` and iOS's `UISupportedInterfaceOrientations`, and the OS will not rotate outside that set no matter what you ask for at runtime. Requesting an orientation the app did not declare **rejects** with a message naming the config change — it is a build misconfiguration, not a runtime condition to handle. Set `orientation: 'default'` (portrait + both landscapes) or `'all'` to make runtime locking meaningful.
+
+On iOS 15 a lock takes effect at the next physical rotation rather than snapping immediately — forcing rotation needs `requestGeometryUpdate`, which is iOS 16+. Raise `ios.deploymentTarget` to `'16.0'` for the immediate flip. On web, `lock()` is degraded (it needs the Screen Orientation API plus fullscreen) and rejects where unsupported.
+
+```ts
+import { Orientation } from '@sigx/lynx';
+
+await Orientation.lock('landscape');   // video player
+await Orientation.unlock();            // back to the configured set
+```
+
+Prefer `useOrientationLock(to)` from `@sigx/lynx` when the lock should last exactly as long as one screen is mounted — it locks on mount and, on unmount, restores the next holder down or unlocks when it was the last, so popping a landscape screen off another landscape-locked one keeps the lock:
+
+```tsx
+import { useOrientationLock } from '@sigx/lynx';
+
+const Player = component(() => {
+  useOrientationLock('landscape');
+  return () => <Video src={src} />;
+});
+```
+
+Sheet detents (`@sigx/lynx-sheet`) and navigation transition geometry (`@sigx/lynx-navigation`) follow rotation automatically.
+
+- **Platform** — iOS and Android; degraded on web.
 
 ## Platform
 

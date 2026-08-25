@@ -1,0 +1,279 @@
+---
+title: "API reference"
+description: "API reference for @sigx/lynx-observability — every export of the SignalX Lynx Observability module."
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-observability` <PkgVersion npm="@sigx/lynx-observability" />.</p>
+
+The package has a single entry point. Everything below is imported from `@sigx/lynx-observability`.
+
+```ts
+import {
+  initObservability,
+  installErrorCapture,
+  toError,
+  createHttpSink,
+  Memory,
+} from '@sigx/lynx-observability';
+import type {
+  ObservabilityOptions,
+  ErrorCaptureOptions,
+  HttpSink,
+  HttpSinkOptions,
+  MemoryCollectionStatus,
+  MemoryInstanceUsage,
+  MemoryQueryOptions,
+  MemoryReportingOptions,
+  MemoryUsageSnapshot,
+} from '@sigx/lynx-observability';
+```
+
+## Functions
+
+### initObservability
+
+```ts
+export function initObservability(opts?: ObservabilityOptions): void
+```
+
+One-call setup: sets the global log level, adds an HTTP sink, installs error capture and starts memory reporting, each only when its option is present. Call it once in your app entry; `@sigx/lynx-plugin` calls it for you in release builds when `signalx.config.ts` declares `logging.production`.
+
+- **Platform** — iOS, Android and web.
+
+### installErrorCapture
+
+```ts
+export function installErrorCapture(opts?: ErrorCaptureOptions): () => void
+```
+
+Registers `lynx.onError` plus the `globalThis` `error` / `unhandledrejection` handlers, normalises whatever was thrown with [`toError`](#toerror), and logs it at `error` level under the `uncaught` namespace with the `Error` in `fields`. Idempotent; returns an uninstall function.
+
+- **Platform** — iOS, Android and web (the `globalThis` handlers).
+
+### toError
+
+```ts
+export function toError(input: unknown): Error
+```
+
+The normalisation helper — turns any thrown value into an `Error` — exported for reuse.
+
+### createHttpSink
+
+```ts
+export function createHttpSink(opts: HttpSinkOptions): HttpSink
+```
+
+A batching `LogTransport` that POSTs `{ records: [...] }` as JSON. Pass it to `addTransport` from `@sigx/lynx`. Has a `.flush()` for graceful shutdown. On web the POST goes through `@sigx/lynx-http`.
+
+- **Platform** — iOS, Android and web.
+
+## Memory
+
+```ts
+const Memory: {
+  query(options?: MemoryQueryOptions): Promise<MemoryUsageSnapshot>;
+  startReporting(options?: MemoryReportingOptions): () => void;
+  isAvailable(): boolean;
+};
+```
+
+Engine memory telemetry, served by the package's own native module. Requires Lynx ≥ 4.0.1 and a `sigx prebuild` after installing.
+
+### Memory.query
+
+```ts
+query(options?: MemoryQueryOptions): Promise<MemoryUsageSnapshot>
+```
+
+Takes one **process-global** reading covering every LynxView. Throws when the native module is not linked, and rejects with a `SigxError` (`code: 'native_error'`) when the engine reports a failure. A `collectionStatus` of `'timeout'` is **not** an error — the promise resolves with a partial result.
+
+- **`options.timeoutMs`** — how long the engine waits for every instance, in ms. Omit (or pass `<= 0`) for the engine default of 2000 ms.
+- **Platform** — iOS and Android. On web it rejects with a `SigxError` (`code: 'unsupported'`).
+
+### Memory.startReporting
+
+```ts
+startReporting(options?: MemoryReportingOptions): () => void
+```
+
+Samples on a timer and logs each reading under the `memory` namespace, so readings reach the `sigx dev` terminal and any configured sink without extra wiring. Also settable declaratively as `logging.production.memory` in `signalx.config.ts`. Returns an unsubscribe; calling it twice is a no-op.
+
+**No-ops instead of throwing** when the native module is not linked (it logs one `debug` line), and skips the query entirely when nothing would be emitted at its level — so with the release default `logging.level: 'warn'`, default `info` readings are neither logged nor collected. An `onReading` hook bypasses that gate.
+
+- **Platform** — iOS and Android; a no-op returning a no-op disposer on web.
+
+### Memory.isAvailable
+
+```ts
+isAvailable(): boolean
+```
+
+Whether the native module is linked into this build. `false` on web.
+
+## Types
+
+### ObservabilityOptions
+
+```ts
+export interface ObservabilityOptions {
+  /** Override the global log level (e.g. 'warn' in production). */
+  level?: LogLevelName;
+  /** Remote sink to forward records to. Omit for error-capture only. */
+  sink?: HttpSinkOptions;
+  /** Capture uncaught errors / unhandled rejections. Default true. */
+  captureErrors?: boolean;
+  /** Options for installErrorCapture (e.g. an extra onError hook). */
+  errorCapture?: ErrorCaptureOptions;
+  /** Periodic engine memory readings. Presence enables it — `{}` is "on, with the defaults". */
+  memory?: MemoryReportingOptions;
+}
+```
+
+The options of [`initObservability`](#initobservability) and the shape of `logging.production` in `signalx.config.ts`.
+
+### ErrorCaptureOptions
+
+```ts
+export interface ErrorCaptureOptions {
+  /** Extra callback invoked with the normalized Error for each captured error. */
+  onError?: (error: Error) => void;
+}
+```
+
+### HttpSinkOptions
+
+```ts
+export interface HttpSinkOptions {
+  /** Endpoint that receives POST { records: WireRecord[] }. */
+  url: string;
+  /** Extra headers (e.g. auth). content-type: application/json is set for you. */
+  headers?: Record<string, string>;
+  /** Flush once the buffer reaches this many records. Default 20. */
+  batchSize?: number;
+  /** Flush at most this often (ms) while records trickle in. Default 5000. */
+  flushIntervalMs?: number;
+  /** Keep this fraction (0–1) of non-error records; errors are always kept. Default 1. */
+  sampleRate?: number;
+  /** Only send records at or above this level. Default 'info'. */
+  minLevel?: LogLevelName;
+  /** Namespaces to drop. Default ['http'] (prevents the sink's own POSTs feeding back). */
+  excludeNamespaces?: string[];
+}
+
+export type HttpSink = LogTransport & { flush(): void };
+```
+
+Each wire record is `{ level, namespace, msg, fields, ts }`.
+
+### MemoryQueryOptions
+
+```ts
+export interface MemoryQueryOptions {
+  /** How long the engine waits for every instance to report, in ms. Omit or <= 0 for the engine default (2000). */
+  timeoutMs?: number;
+}
+```
+
+A short timeout does not fail; it returns a partial result with `collectionStatus: 'timeout'`.
+
+### MemoryReportingOptions
+
+```ts
+export interface MemoryReportingOptions extends MemoryQueryOptions {
+  /** Gap between the END of one reading and the start of the next, in ms. Default 60000. */
+  intervalMs?: number;
+  /** Level the reading is logged at. Default 'info'. */
+  level?: Exclude<LogLevelName, 'silent'>;
+  /** Take a reading straight away rather than waiting one interval. Default true. */
+  immediate?: boolean;
+  /** How many per-instance rows ride along in the record. Default 5; 0 omits them. */
+  maxInstances?: number;
+  /** Extra callback per reading (analytics, a HUD, …). Throwing won't stop the loop. */
+  onReading?: (snapshot: MemoryUsageSnapshot) => void;
+}
+```
+
+`'silent'` is a threshold, not a level — omit the `memory` block to turn reporting off. `maxInstances` caps record size on an app with many LynxViews; the engine sorts by size, so the top N are the interesting ones.
+
+### MemoryUsageSnapshot
+
+```ts
+export interface MemoryUsageSnapshot {
+  /** 'timeout' means every aggregate below is a PARTIAL sum over completedInstanceCount of expectedInstanceCount. */
+  collectionStatus: MemoryCollectionStatus;
+  /** Wall-clock start of the collection, in ms. */
+  collectionStartMs: number;
+  /** How long the collection actually took, in ms. */
+  collectionDurationMs: number;
+  /** The timeout the engine applied, in ms. */
+  collectionTimeoutMs: number;
+  /** Live instances snapshotted when the request started. */
+  expectedInstanceCount: number;
+  /** Instances that reported in time and are included below. */
+  completedInstanceCount: number;
+  /** Lynx-attributed total. Excludes appBytes; shared runtimes counted once. */
+  totalBytes: number;
+  /** The app's whole physical footprint when the result was built. */
+  appBytes: number;
+  /** totalBytes / appBytes, or 0 when the engine couldn't sample appBytes. */
+  ratioToApp: number;
+  /** Element-tree bytes summed over completed instances. */
+  elementBytes: number;
+  /** Element nodes summed over completed instances. */
+  elementNodeCount: number;
+  /** Platform UI bytes summed over completed instances. */
+  viewBytes: number;
+  /** Main-thread runtime heap summed over completed instances. */
+  mainThreadRuntimeBytes: number;
+  /** Background runtime heap, with shared runtime groups deduplicated. */
+  backgroundThreadRuntimeBytes: number;
+  /** Completed instances, sorted by totalBytes descending. */
+  instances: MemoryInstanceUsage[];
+}
+
+export type MemoryCollectionStatus = 'completed' | 'timeout' | 'unknown';
+```
+
+Every field is defaulted, so a partially populated engine result produces zeroes rather than `NaN`. `'unknown'` is what a future engine enum member degrades to. Runtime heaps are sampled without forcing a GC. See [Usage](/lynx/modules/observability/usage/#reading-a-snapshot-correctly) for per-platform field coverage.
+
+### MemoryInstanceUsage
+
+```ts
+export interface MemoryInstanceUsage {
+  /** null when the instance was never fully attached (native reports -1). */
+  instanceId: number | null;
+  /** Engine-side page identity — a debugging label, not a key. */
+  pageId: string;
+  /** Template URL captured when this instance's fetcher completed. */
+  url: string;
+  /** elementBytes + viewBytes + both runtime figures, for this instance. */
+  totalBytes: number;
+  /** Element-tree memory from the native element manager. */
+  elementBytes: number;
+  /** Element node count — the context that makes elementBytes readable. */
+  elementNodeCount: number;
+  /** Platform UI memory (LynxUIOwner on iOS, the UI owner on Android). */
+  viewBytes: number;
+  /** Main-thread runtime heap. */
+  mainThreadRuntimeBytes: number;
+  /** Background-thread runtime heap. */
+  backgroundThreadRuntimeBytes: number;
+  /** Background runtime group. Instances sharing a non-empty group share one runtime. */
+  btsRuntimeGroupId: string;
+}
+```
+
+Because instances sharing a `btsRuntimeGroupId` share one background runtime and the global total counts those bytes once, summing `backgroundThreadRuntimeBytes` across instances can exceed the global figure — by design.
+
+## See also
+
+- [Usage](/lynx/modules/observability/usage) — setup patterns and how to read a snapshot.
+- [Overview](/lynx/modules/observability/overview) — what the package is and where it fits.

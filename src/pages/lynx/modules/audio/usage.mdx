@@ -124,6 +124,32 @@ async function logProgress(handle: Awaited<ReturnType<typeof Audio.play>>) {
 }
 ```
 
+## Surviving a phone call
+
+A call, an alarm or another app can take the audio session at any moment. Subscribe once — the subscription is session-wide, not per handle — and decide what each interruption means for your content. On `'began'`, stop a live recording so the partial file is kept; on `'ended'`, resume playback only if you want to and the system advises it.
+
+```ts
+import { Audio } from '@sigx/lynx-audio';
+
+const off = Audio.subscribeInterruptions(async (e) => {
+  if (e.type === 'began') {
+    if (recording) {
+      const { uri } = await recording.stop();   // salvage the partial take
+      saveDraft(uri);
+      recording = null;
+    }
+    player?.pause();
+  } else if (e.shouldResume) {
+    player?.resume();
+  }
+});
+
+// later, when the screen unmounts
+off();
+```
+
+A permanent loss arrives as `'began'` with no matching `'ended'`, so never hold state waiting for one. On Android, a ducking request also surfaces as `'began'` — the app, not the platform, decides whether to duck or pause.
+
 ## Notes
 
 - **`seek` is in seconds; status is in milliseconds.** `handle.seek(2.5)` jumps to 2.5 seconds, while `positionMs` / `durationMs` are reported in milliseconds.

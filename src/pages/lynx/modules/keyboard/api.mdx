@@ -162,6 +162,16 @@ export function useKeyboardLiftSV(
 - `duration` — tween duration in seconds (lynx-motion convention). Defaults to `0.25`.
 - **Returns** — a `SharedValue<number>` tracking the lift, animatable on the main thread.
 
+### rememberedKeyboardLift
+
+The most recently observed keyboard lift, or `0` if the keyboard has never been shown this session. Seed a keyboard-sized panel (an emoji picker, an attachment tray) from this instead of a flat fallback, so it opens at the height the keyboard will occupy.
+
+```ts
+export function rememberedKeyboardLift(): number
+```
+
+- **Returns** — the last lift in dp (logical px), recorded whenever `useKeyboardLift` / `useKeyboardLiftSV` compute a lift with the default `discountBottomInset` and no `offset`.
+
 ## Types
 
 ### KeyboardAvoidingBehavior
