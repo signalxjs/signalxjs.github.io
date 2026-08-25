@@ -26,20 +26,20 @@ commands appear, by checking that the project depends on `@sigx/actors`.
 
 ## `@sigx/actors-cli/source`
 
-The renderer-free data layer, for anyone building another front end over the same data.
+The renderer-free data layer lives in
+[`@sigx/actors-monitor`](/actors/packages/actors-monitor/api) — browser-safe, no `@sigx/cli`
+or `@sigx/terminal` peer — and anyone building another front end should import it from there.
+This subpath **re-exports** it for convenience, and holds the one half that could never move:
 
 | Export | Role |
 |---|---|
-| `httpSource(options)` | poll a running host's ops endpoint |
-| `embeddedSource(options)` | load an app module in-process |
-| `hostViewFromReport(report)` | a `HostReport` → `HostView` |
-| `rateBetween(a, b)` | derive a rate from two samples |
-| `RateTracker` | stateful rate tracking |
-| `* as format` | the display formatters the dashboard uses |
+| `embeddedSource(options)` | load an app module in-process — **only here**; it dynamic-imports user code and **starts a real host** |
+| `EmbeddedSourceError`, `EmbeddedSourceOptions` | its error and options |
+| `httpSource`, `OpsRequestError`, `hostViewFromReport`, `rateBetween`, `RateTracker`, `Series`, `format` and the `MonitorSource` / `MonitorSnapshot` / `HostView` / `ClusterView` types | re-exported from `@sigx/actors-monitor` |
 
-Types: `MonitorSource`, `MonitorSnapshot`, `HostView`, `ClusterView`, `HttpSourceOptions`,
-`EmbeddedSourceOptions`, `Series`, `Rate`, `RateSample`. Errors: `OpsRequestError`,
-`EmbeddedSourceError`.
+Keeping `embeddedSource` behind this subpath while the shared layer is a separate package is
+a stronger split than any subpath could be: a bundler following `@sigx/actors-monitor` cannot
+reach it at all.
 
 ## The counter-reset rule
 
@@ -49,7 +49,9 @@ Types: `MonitorSource`, `MonitorSnapshot`, `HostView`, `ClusterView`, `HttpSourc
 Computing `(now - then) / dt` across that boundary produces a large negative or wildly wrong
 rate, which on a graph looks like an incident that did not happen.
 
-`rateBetween` returns nothing for a decreasing pair. If you build your own, do the same.
+`rateBetween` returns `null` for a decreasing pair. If you build your own, do the same — or
+better, do not build your own; the rule and its siblings are on the
+[monitor package page](/actors/packages/actors-monitor/overview).
 
 ## Next steps
 

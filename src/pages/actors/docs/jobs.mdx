@@ -63,10 +63,36 @@ const JobProgress = component<{ runId: string }>(({ props }) => {
 });
 ```
 
+### Throttle the feed for consumers that redraw
+
+`watch({ throttleMs })` coalesces per subscriber: at most one `JobInfo` per window, leading
+edge plus a trailing emit taken fresh, so a watcher is never staler than the window. It
+forwards `ctx.changes()`'s throttle exactly, validation included.
+
+```ts
+for await (const info of actor(SecuritySync, runId).watch({ throttleMs: 250 })) render(info);
+```
+
+Set it whenever the consumer **redraws rather than accumulates** — a progress bar, a status
+tile. An unthrottled watcher costs one whole-state snapshot per mutating turn, and a job that
+reports progress per step over state that grows through the run pays that on every step: on
+such a job the unthrottled feed measured at about 2.5× the per-step cost, and the throttled
+one at the unwatched floor.
+
+It never loses the end of the run. A window still owing an emit when the actor deactivates is
+flushed, so a throttled watcher always sees the terminal `JobInfo` before the feed ends.
+Omitting the option keeps one `JobInfo` per mutating turn.
+
 ## What the layer decides for you
 
 **The state machine.** `status()` and `watch()` return `JobInfo` — never the checkpoint, which
 is private, and never the result, which is fetched once via `result()`.
+
+**Reads cost O(1), not O(state).** `status()`, `JobControl.info`, the `onSettled` argument and
+the info returned by `start`/`cancel`/`resume` are built from live state without cloning the
+whole record. `JobInfo.progress` on that path is a shallow copy of its declared all-primitive
+shape; the `watch()` feed is a full snapshot. A job checkpointing a growing table keeps
+its status reads flat however large the state gets.
 
 ```mermaid title="Job lifecycle"
 stateDiagram-v2

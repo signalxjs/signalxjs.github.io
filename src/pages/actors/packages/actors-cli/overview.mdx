@@ -44,6 +44,14 @@ histograms, the whole activation list, the cluster placement itself.
 loads no user code and holds no host, so it is the mode for anything you did not just start
 yourself. `--url` wins over a local module.
 
+## The same five tabs, in a browser
+
+The dashboard's five tabs — Overview, Hosts, Actors, Cluster, Health — draw the data layer in
+[`@sigx/actors-monitor`](/actors/packages/actors-monitor/overview), and
+[`@sigx/actors-dashboard`](/actors/packages/actors-dashboard/overview) draws the same layer in
+a browser as embeddable sigx components. One data layer, two renderers: the numbers agree
+because neither derives them.
+
 ## Why the commands might not be there
 
 The `sigx` binary discovers plugins from the **dependencies of the project you run it in**. It
@@ -69,5 +77,6 @@ pnpm --filter my-app exec sigx actors top
 ## Next steps
 
 - [Installation](/actors/packages/actors-cli/installation) — flags, exit codes and the app-module convention.
-- [API reference](/actors/packages/actors-cli/api) — the `/source` data layer.
+- [API reference](/actors/packages/actors-cli/api) — the `/source` subpath and `embeddedSource`.
+- [`@sigx/actors-dashboard`](/actors/packages/actors-dashboard/overview) — the web rendering.
 - [The ops endpoint](/actors/docs/ops-endpoint) — what HTTP mode reads.
