@@ -24,6 +24,8 @@ import type {
   PlayerStatus,
   RecordingResult,
   MeterSample,
+  AudioInterruption,
+  AudioInterruptionListener,
   PermissionResponse,
 } from '@sigx/lynx-audio';
 ```
@@ -43,6 +45,7 @@ const Audio: {
   startRecording(options?: RecordOptions): Promise<RecordingHandle>;
   requestPermission(): Promise<PermissionResponse>;
   getPermissionStatus(): Promise<PermissionResponse>;
+  subscribeInterruptions(cb: AudioInterruptionListener): () => void;
   isAvailable(): boolean;
 };
 ```
@@ -117,6 +120,33 @@ getPermissionStatus(): Promise<PermissionResponse>
 - **Returns** — a `Promise<`[`PermissionResponse`](#permissionresponse)`>` for the current status.
 
 Platform notes: never shows a dialog. iOS maps the record permission to `{ status: 'granted' | 'denied' | 'undetermined', canAskAgain }`; an `'undetermined'` status yields `canAskAgain: true`. iOS and Android.
+
+### `Audio.subscribeInterruptions`
+
+Subscribes to audio-session interruptions — a phone call, an alarm, another app taking the session.
+
+```ts
+subscribeInterruptions(cb: (event: AudioInterruption) => void): () => void
+```
+
+- **`cb`** — called with each [`AudioInterruption`](#audiointerruption).
+- **Returns** — an unsubscribe function; calling it twice is a no-op.
+
+The subscription is **session-wide, not per handle**: an interruption is a fact about the session, and a recorder torn down *by* the interruption would miss a per-id event. A permanent loss reports `'began'` with no matching `'ended'` — the session is not coming back on its own, so never block waiting for one. Off-device the call is a safe no-op, so it can be made unconditionally.
+
+The canonical use is salvaging a partial recording on `'began'`:
+
+```ts
+const off = Audio.subscribeInterruptions(async (e) => {
+  if (e.type === 'began') {
+    const { uri } = await rec.stop();   // keep what was recorded so far
+  } else if (e.shouldResume) {
+    player.resume();
+  }
+});
+```
+
+Platform notes: iOS observes `AVAudioSession.interruptionNotification`. Android uses `AudioManager` audio focus — `AUDIOFOCUS_LOSS`, `AUDIOFOCUS_LOSS_TRANSIENT` and `AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK` all surface as `'began'` (a ducking request is reported rather than silently ducked, because only the app knows whether ducking or pausing suits its content — and a recording cannot duck), `AUDIOFOCUS_GAIN` as `'ended'`. iOS and Android.
 
 ### `Audio.isAvailable`
 
@@ -290,6 +320,25 @@ interface MeterSample {
 - **`avg`** — average power, linear `0..1`.
 
 Platform notes: on Android, `MediaRecorder` exposes only `maxAmplitude` (peak since last read), so `peak` and `avg` report the same value there. Consumers needing one envelope value typically use `peak`. iOS and Android.
+
+### `AudioInterruption`
+
+```ts
+export interface AudioInterruption {
+  /** 'began' when audio was taken away, 'ended' when it came back. */
+  type: 'began' | 'ended';
+  /**
+   * Whether the system considers it appropriate to start again. Only
+   * meaningful on 'ended', and advice rather than permission — the app
+   * still decides.
+   */
+  shouldResume: boolean;
+}
+
+export type AudioInterruptionListener = (event: AudioInterruption) => void;
+```
+
+The event delivered to [`Audio.subscribeInterruptions`](#audiosubscribeinterruptions). `shouldResume` is advice, not permission.
 
 ### `PermissionResponse`
 

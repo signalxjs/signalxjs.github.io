@@ -21,7 +21,7 @@ import { PkgVersion } from '@/components/PkgVersion';
 | `ListProps<T>` | type | Props of `List`, generic over the item type. |
 | `ListRef` | type | The `mtRef` type — a main-thread ref to the native element. |
 | `ListType` | type | `'single' \| 'flow' \| 'waterfall'`. |
-| `ListItemSnap` | type | `'start' \| 'center' \| 'end' \| 'none'`. |
+| `ListItemSnap` | type | `'start' \| 'center' \| 'end' \| { factor?: number; offset?: number; maxSnapCount?: number }` — see [`itemSnap`](#itemsnap). |
 | `ScrollAlign` | type | `'top' \| 'bottom' \| 'middle'`. |
 | `ScrollToIndexOptions` | type | Options for `ListMethods.scrollToIndex`. |
 
@@ -46,7 +46,7 @@ element type `T` of `items`.
 | `horizontal` | `boolean` | Horizontal scrolling. |
 | `numColumns` | `number` | Grid columns (`span-count`). |
 | `listType` | `ListType` | Layout mode: `single` (default), `flow`, `waterfall`. |
-| `itemSnap` | `ListItemSnap` | Paginated snap: `start` / `center` / `end` / `none`. |
+| `itemSnap` | `ListItemSnap` | Paginated snap: the alignment shorthand `'start'` / `'center'` / `'end'`, or `{ factor, offset, maxSnapCount }`. Omit the prop to disable snapping. See [below](#itemsnap). |
 | `onEndReachedThreshold` | `number` | Items-from-end at which `onEndReached` fires. |
 | `onStartReachedThreshold` | `number` | Items-from-start at which `onStartReached` fires. |
 | `loadingMore` | `boolean` | Show a trailing loading cell (infinite scroll). |
@@ -133,6 +133,30 @@ relayout's re-pin.
 
 The handle must be identity-stable — build it once, outside render.
 
+## `itemSnap`
+
+Snaps cells into place when a paginated scroll settles — the native `item-snap` contract, which both platforms read as a dictionary.
+
+```ts
+type ListItemSnap = 'start' | 'center' | 'end' | {
+  /** Where the item settles, as a fraction of the viewport: 0 start, 0.5 centre, 1 end. Default 0. */
+  factor?: number;
+  /** Pixel offset from the alignment line. Default 0. */
+  offset?: number;
+  /** How many items a single fling may cross (Lynx 4.0+). Default 1. */
+  maxSnapCount?: number;
+};
+```
+
+The shorthand maps to `factor` `0` / `0.5` / `1`. A `factor` outside `[0, 1]` is corrected to `0` and a `maxSnapCount` below `1` to `1` — what native does — with a dev-build warning. `maxSnapCount` is a **bound, not a forced distance**: a slow fling still moves one page; a fast one may page up to that many. Hosts older than Lynx 4.0 ignore it. To disable snapping, omit the prop — an absent `item-snap` is what native means by "no paging".
+
+```tsx
+<List horizontal itemSnap="center" … />
+<List horizontal itemSnap={{ factor: 0, offset: 16, maxSnapCount: 3 }} … />
+```
+
+Sticky section headers (`sticky-top` / `sticky-bottom`) use the engine's sticky layout; `pluginSigxLynx({ enableNewSticky: true })` opts into Lynx 4.0's new implementation, which changes where and when a header pins — see the [plugin's page-config flags](/lynx/modules/plugin/api/#page-config-flags).
+
 ## `bottomInset`
 
 The recycler keeps `bottomInset` pixels of its bottom viewport clear. It is applied
@@ -148,7 +172,11 @@ const lift = useKeyboardLiftSV();
 
 In chat mode the newest item stays anchored *above* the inset via same-frame native
 compensation, and at-bottom detection becomes inset-aware — so a compensation
-scroll cannot falsely release the pin or fire a spurious `endReached`.
+scroll cannot falsely release the pin or fire a spurious `endReached`. The native
+compensation is gated on the list being pinned at the bottom, which is why the
+first paint of a chat thread lands on the newest message on both platforms: the
+pin is established before the inset is applied. No `paddingBottom` workaround is
+needed on either platform.
 
 <div class="alert alert-warning not-prose my-4">
   <div>

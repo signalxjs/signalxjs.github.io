@@ -39,6 +39,20 @@ pnpm add @sigx/lynx-appearance
 sigx prebuild   # auto-links the native module
 ```
 
+## Dark mode in CSS
+
+The native publisher also drives the Lynx engine's own colour scheme, so `@media (prefers-color-scheme: dark)` in app CSS resolves correctly on the first frame and re-resolves on a live flip — no JS round trip, no signal read. Use it next to the hook for anything that is purely presentational:
+
+```css
+.card { background-color: #ffffff; color: #111111; }
+
+@media (prefers-color-scheme: dark) {
+  .card { background-color: #1c1c1e; color: #f2f2f7; }
+}
+```
+
+Requirements: a Lynx ≥ 4.0 host (the CLI templates pin 4.0.1) with the plugin's `enableCSSRule` on (the default). Live foreground flips need iOS 17+. On Android an OS scheme flip recreates the Activity unless the host adds `uiMode` to the Activity's `configChanges`. The web target does not carry `@media` rules into the bundle — keep the JS hook for web. See the [styling guide](/lynx/docs/styling/#at-rules-media-supports-font-face) for the other at-rules.
+
 ## Keeping the system bars in sync with the theme
 
 The most common task is tinting the status and navigation bars so their icons stay legible against your current theme. Read the scheme, then call `setSystemBarsStyle` inside an effect so the bars re-apply whenever the system flips.

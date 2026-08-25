@@ -292,6 +292,8 @@ export type Platform = 'android' | 'ios';
 export type Orientation = 'portrait' | 'landscape' | 'all' | 'default';
 ```
 
+The build-time orientation set. `'portrait'` / `'landscape'` lock to that axis; `'all'` is every orientation including upside-down portrait; `'default'` is the platform default (iOS: portrait + both landscapes; Android: `unspecified`). Overridable per platform under `android.orientation` / `ios.orientation`. Runtime locks (`Orientation.lock()` in `@sigx/lynx-core`) can only narrow this set — see [Orientation](/lynx/modules/cli/usage/#orientation).
+
 ### PlistValue
 
 A value allowed in the `ios.infoPlist` passthrough (and the module-manifest equivalent) — mirrors the `Info.plist` value types.

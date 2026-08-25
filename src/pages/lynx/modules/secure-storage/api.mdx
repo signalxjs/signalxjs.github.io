@@ -29,37 +29,37 @@ The single exported object. Its shape:
 
 ```ts
 const SecureStorage: {
-  set(key: string, value: string, opts?: SecureStorageSetOptions): Promise<void>;
-  get(key: string, opts?: SecureStorageGetOptions): Promise<string | null>;
-  delete(key: string): Promise<void>;
+  setItem(key: string, value: string, opts?: SecureStorageSetOptions): Promise<void>;
+  getItem(key: string, opts?: SecureStorageGetOptions): Promise<string | null>;
+  removeItem(key: string): Promise<void>;
   clear(): Promise<void>;
   hasKey(key: string): Promise<boolean>;
   isAvailable(): boolean;
 };
 ```
 
-Encrypted at-rest key-value storage backed by the iOS Keychain and, on Android, the Keystore plus EncryptedSharedPreferences. Platform: both. Every method except `isAvailable` returns a Promise and rejects on native failure, with messages prefixed `[@sigx/lynx-secure-storage]`.
+Encrypted at-rest key-value storage backed by the iOS Keychain and, on Android, the Keystore plus EncryptedSharedPreferences. The CRUD vocabulary (`setItem` / `getItem` / `removeItem` / `clear`) is the same as [`@sigx/lynx-storage`](/lynx/modules/storage/api/), so code can swap between the two by durability need without renaming calls. Platform: both. Every method except `isAvailable` returns a Promise and rejects on native failure, with messages prefixed `[@sigx/lynx-secure-storage]`.
 
 ## Methods
 
-### SecureStorage.set
+### SecureStorage.setItem
 
 ```ts
-set(key: string, value: string, opts?: SecureStorageSetOptions): Promise<void>
+setItem(key: string, value: string, opts?: SecureStorageSetOptions): Promise<void>
 ```
 
 Store an encrypted string, overwriting any existing value for `key`.
 
 - **`key`** — non-empty string. Throws if empty or non-string.
 - **`value`** — the string to encrypt. Throws if non-string.
-- **`opts`** — optional [`SecureStorageSetOptions`](#securestoragesetoptions). With `requireBiometric: true`, every future `get` of this key prompts for biometrics; `set` itself never prompts.
+- **`opts`** — optional [`SecureStorageSetOptions`](#securestoragesetoptions). With `requireBiometric: true`, every future `getItem` of this key prompts for biometrics; `setItem` itself never prompts.
 - **Returns** — `Promise<void>` that resolves on success and rejects on a native error.
 - **Platform** — both.
 
-### SecureStorage.get
+### SecureStorage.getItem
 
 ```ts
-get(key: string, opts?: SecureStorageGetOptions): Promise<string | null>
+getItem(key: string, opts?: SecureStorageGetOptions): Promise<string | null>
 ```
 
 Read an encrypted string.
@@ -69,10 +69,10 @@ Read an encrypted string.
 - **Returns** — `Promise<string | null>`: the decrypted value, or `null` if the key is absent. Rejects on a native error such as a cancelled biometric prompt (`userCancel`) or failed authentication (`authenticationFailed`).
 - **Platform** — both.
 
-### SecureStorage.delete
+### SecureStorage.removeItem
 
 ```ts
-delete(key: string): Promise<void>
+removeItem(key: string): Promise<void>
 ```
 
 Delete a single key. A missing key is treated as success (no-op).
@@ -123,7 +123,7 @@ Synchronous (non-Promise) check of whether the native module is wired into the c
 interface SecureStorageSetOptions {
   /**
    * When true, the OS requires biometric authentication on every
-   * subsequent `get` of this key.
+   * subsequent `getItem` of this key.
    * - iOS: stored with kSecAccessControlBiometryCurrentSet.
    * - Android: key generated with setUserAuthenticationRequired(true).
    */
@@ -131,7 +131,7 @@ interface SecureStorageSetOptions {
 }
 ```
 
-Options for [`set`](#securestorageset). `requireBiometric` gates this individual key behind the OS biometric prompt on read. Platform: both.
+Options for [`setItem`](#securestoragesetitem). `requireBiometric` gates this individual key behind the OS biometric prompt on read. Platform: both.
 
 ### SecureStorageGetOptions
 
@@ -146,7 +146,7 @@ interface SecureStorageGetOptions {
 }
 ```
 
-Options for [`get`](#securestorageget). `biometricPrompt` supplies the strings shown on the OS prompt for biometric-gated keys. Platform: both.
+Options for [`getItem`](#securestoragegetitem). `biometricPrompt` supplies the strings shown on the OS prompt for biometric-gated keys. Platform: both.
 
 ### SecureStorageBiometricPrompt
 

@@ -89,6 +89,26 @@ expect(getByText('5')).toBeTruthy();
 
 If you mutate signals outside of `act`, call `waitForUpdate` before asserting to let pending effects and scheduled renderer commits complete.
 
+### Waiting for something you cannot count
+
+`act` and `waitForUpdate` advance a **fixed** one turn — right for a signal write or a synchronous effect. Anything whose turn count you cannot know — a dynamic `import()`, chained effects, a deferred callback — needs `waitFor`, which polls until a condition holds. A condition that throws counts as "not yet", so the `getBy*` queries slot straight in; on timeout the query's own error is rethrown, naming what was missing and printing the tree.
+
+```tsx
+import { render, waitFor, getByType, findByText, within } from '@sigx/lynx-testing';
+
+const { container } = render(<Picker />);
+
+// however many turns the lazy load actually takes (default timeout 1000 ms);
+// getByType throws until the node exists, which waitFor treats as "not yet"
+const tabBar = await waitFor(() => getByType(container, 'tab-bar'));
+
+// the same thing as one call — findBy* are standalone exports taking the container
+const row = await findByText(container, 'Smileys');
+expect(within(row).queryByText('😀')).toBeTruthy();
+```
+
+Writing `for (let i = 0; i < 5; i++) await act(…)` or sleeping 60 ms is a guess that holds until the CI runner is busy; reach for `waitFor` instead.
+
 ## Touch and gesture events
 
 `fireEvent` exposes touch, scroll, input and long-press helpers. Build normalized touch points with `touch` and pass them through `touches` / `changedTouches`.

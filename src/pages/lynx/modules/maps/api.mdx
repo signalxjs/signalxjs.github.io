@@ -108,7 +108,7 @@ export interface MapRegion {
 ```
 
 - **`latitude`** / **`longitude`** — the center point of the viewport.
-- **`latitudeDelta`** / **`longitudeDelta`** — the span in degrees visible above/below and left/right of the center.
+- **`latitudeDelta`** / **`longitudeDelta`** — the span in degrees visible above/below and left/right of the center. The two are **not** honoured uniformly: iOS applies both (as an `MKCoordinateSpan`) and drops a `region` that is missing *either* delta outright; Android derives a Google Maps zoom level from `longitudeDelta` alone and ignores `latitudeDelta`, because fitting both deltas would need the view's pixel dimensions. Always pass all four fields, and size the viewport by `longitudeDelta` if it must match across platforms.
 
 ### `MapCoordinate`
 

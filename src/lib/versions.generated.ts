@@ -59,6 +59,7 @@ export const VERSIONS: Record<string, string> = {
     "@sigx/lynx-navigation": "0.27.0",
     "@sigx/lynx-network": "0.27.0",
     "@sigx/lynx-notifications": "0.27.0",
+    "@sigx/lynx-observability": "0.27.0",
     "@sigx/lynx-permissions": "0.27.0",
     "@sigx/lynx-plugin": "0.27.0",
     "@sigx/lynx-richtext": "0.27.0",

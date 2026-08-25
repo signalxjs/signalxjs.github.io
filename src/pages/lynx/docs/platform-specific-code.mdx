@@ -72,13 +72,27 @@ if (__BACKGROUND__) {
 
 Use them to keep layer-specific setup out of the layer that will never run it. They apply to **app code** — a packaged dist does not get the per-layer fold.
 
+### `__DEV_BUILD__`
+
+A third define splits by **build tier**: `true` in a development build, `false` in a release build. Use it — **not** the bare `__DEV__` — to ask "is this a development build". `__DEV__` expands to a `process.env` expression that throws in the Lynx background runtime; `__DEV_BUILD__` is resolved in Node at build time, so it works at runtime and tree-shakes out of a release bundle.
+
+```tsx
+if (__DEV_BUILD__) {
+  // dev-only: main-thread costs are inflated by orders of magnitude here,
+  // so refuse to present a measurement as a real number
+  showBanner('DEV BUILD — NOT REAL NUMBERS');
+}
+```
+
+A fourth, `__SIGX_CSS_RULE__`, says whether `@media` / `@supports` rules reach this bundle's binary. The full list lives on the [plugin's build-time defines](/lynx/modules/plugin/api/#build-time-defines).
+
 To type the defines, reference the client types once at your source root (`env.d.ts`):
 
 ```ts
 /// <reference types="@sigx/lynx/client" />
 ```
 
-That declares `__WEB__` and `__NATIVE__` as `boolean` so they typecheck everywhere.
+That declares `__WEB__`, `__NATIVE__`, `__MAIN_THREAD__`, `__BACKGROUND__`, `__DEV_BUILD__` and `__SIGX_CSS_RULE__` as `boolean` so they typecheck everywhere.
 
 ## Build-time: file-extension resolution
 

@@ -1,0 +1,139 @@
+---
+title: "Usage"
+description: "Using Observability in a SignalX Lynx app — error capture, sinks and engine memory telemetry with @sigx/lynx-observability."
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Observability
+
+<p class="lede">Error capture, sinks & memory — the essentials.</p>
+
+## Declarative setup
+
+Declare it in `signalx.config.ts` and it auto-wires in **release** builds — no code in your app entry. `@sigx/lynx-plugin` prepends the init for you; installing the package is all that is needed. (Dev uses the console streamer; observability auto-wiring is release-only.)
+
+```ts
+// signalx.config.ts
+export default defineLynxConfig({
+    name: 'my-app',
+    logging: {
+        level: 'warn',                      // logger level (dev defaults to 'debug', release to 'warn')
+        namespaces: { disabled: ['http'] }, // silence namespaces at startup
+        production: {
+            sink: { url: 'https://logs.example.com/ingest', headers: { 'x-api-key': KEY }, sampleRate: 0.25 },
+            captureErrors: true,            // default
+            memory: { intervalMs: 60_000 }, // periodic engine memory readings; omit to leave off
+        },
+    },
+});
+```
+
+## Imperative setup
+
+Or wire it yourself, once in your app entry:
+
+```ts
+import { initObservability } from '@sigx/lynx-observability';
+
+initObservability({
+    level: 'warn',
+    captureErrors: true,              // default — catch uncaught errors / rejections
+    sink: {
+        url: 'https://logs.example.com/ingest',
+        headers: { 'x-api-key': API_KEY },
+        sampleRate: 0.25,             // keep 25% of non-error records; errors always kept
+    },
+});
+```
+
+The pieces compose individually too — `installErrorCapture()` and `createHttpSink()` are exported for custom setups:
+
+```ts
+import { addTransport } from '@sigx/lynx';
+import { createHttpSink, installErrorCapture } from '@sigx/lynx-observability';
+
+addTransport(createHttpSink({ url, minLevel: 'info' }));
+const uninstall = installErrorCapture({ onError: (e) => myAnalytics.track('crash', e.message) });
+```
+
+## Adapting a provider
+
+There is no vendor coupling — any provider is a `LogTransport`. Errors arrive as `error`-level records with the `Error` in `fields`, so an adapter can split exceptions from breadcrumbs:
+
+```ts
+import * as Sentry from '@sentry/browser'; // your app's dep, not ours
+import { addTransport, type LogRecord } from '@sigx/lynx';
+import { installErrorCapture } from '@sigx/lynx-observability';
+
+Sentry.init({ dsn: SENTRY_DSN });
+addTransport((r: LogRecord) => {
+    const err = r.fields.find((f) => f instanceof Error) as Error | undefined;
+    if (r.level.name === 'error' && err) Sentry.captureException(err);
+    else Sentry.addBreadcrumb({ category: r.namespace, message: r.msg, level: r.level.name });
+});
+installErrorCapture();
+```
+
+The HTTP sink's wire format is `POST { records: [{ level, namespace, msg, fields, ts }] }` as JSON.
+
+## Engine memory
+
+Ask what the Lynx engine is holding right now:
+
+```ts
+import { Memory } from '@sigx/lynx-observability';
+
+const m = await Memory.query();
+console.log(`${(m.totalBytes / 1e6).toFixed(1)} MB of ${(m.appBytes / 1e6).toFixed(1)} MB app`);
+for (const i of m.instances) {
+    console.log(`  ${i.url}: ${i.elementNodeCount} nodes, ${(i.elementBytes / 1e6).toFixed(1)} MB`);
+}
+```
+
+A reading is **process-global**: one query covers every LynxView in the app, and the per-instance rows (sorted by `totalBytes` descending) tell you which one is holding what. **`elementBytes` against `elementNodeCount` is the pairing worth watching** — bytes alone do not tell you whether you have a leak or just a big screen; the node count does. It is what turns "the screen went blank" into "we're mounting 12,000 nodes".
+
+### Sampling on a timer
+
+```ts
+const stop = Memory.startReporting({ intervalMs: 60_000 });
+```
+
+Each reading is logged under the `memory` namespace, so it shows up in the `sigx dev` terminal in development and reaches your sink in production with no extra wiring. `intervalMs` is the gap between the **end** of one reading and the start of the next, not a fixed period — a query can take the full engine timeout, and overlapping process-global collections would be worse than a late reading. Unlike `Memory.query()`, `startReporting()` **no-ops rather than throwing** when the native module is not linked (it logs one `debug` line): it is ambient telemetry that often starts before app code runs, so a throw would take down an app that merely forgot `sigx prebuild`.
+
+In a release build the global log level defaults to `warn`, so default `info` readings are dropped — and then not even collected. If you want memory in production, either raise `logging.level` to `'info'` or set the reading's own `level: 'warn'`. An `onReading` hook bypasses the gate.
+
+### Reading a snapshot correctly
+
+- **A `'timeout'` status is a partial result, not an error.** `query()` resolves. Every aggregate is then a partial sum over `completedInstanceCount` of `expectedInstanceCount`, so compare the two before trusting a delta — a smaller total may just mean one instance did not report.
+- **Per-instance bytes can sum to more than `totalBytes`, by design.** Instances sharing a `btsRuntimeGroupId` share one background runtime, and the global figure counts it once.
+- **Field coverage differs by platform.** Measured on release builds (Lynx 4.0.1):
+
+  | Field | Android | iOS |
+  |---|---|---|
+  | `totalBytes`, `appBytes`, `ratioToApp` | yes | yes |
+  | `elementBytes`, `elementNodeCount` | yes | yes |
+  | `mainThreadRuntimeBytes` | yes | yes |
+  | `backgroundThreadRuntimeBytes` | yes | reported `0` |
+  | `viewBytes` | reported `0` | yes |
+  | `url` | empty string | full bundle path |
+
+  Compare a platform against itself over time, not against the other one. `totalBytes`, `elementBytes` and `elementNodeCount` — the three that matter most for diagnosing a runaway element tree — are solid on both.
+- **Web is unsupported.** `Memory.query()` rejects with a `SigxError` (`code: 'unsupported'`), `startReporting()` is a no-op and `isAvailable()` returns `false`. It deliberately does *not* fall back to Chromium's `performance.memory`, which is JS-heap-only and would put a confidently wrong number in a dashboard.
+
+### What the Lynx performance API delivers
+
+Nothing, in a sigx-lynx app. Lynx does emit a `memory` performance entry, and `MemoryUsageEntry` is declared in `@lynx-js/types`, so `lynx.performance.createObserver(...).observe(['memory'])` type-checks — but the engine sends that entry to **platform observers only**, never to the JS runtimes, which is why this package needs native code at all. The same is true of every other entry type and of `addTimingListener`: the background-thread `PerformanceObserver` delivers no entries on either platform (device-verified; signalxjs/lynx#982). There is no first-paint / FCP story to build on yet; if you reach for the raw API, expect silence rather than assuming you have held it wrong.
+
+## Notes
+
+- `lynx.onError` is background-thread only upstream; main-thread error capture may need a separate path in the future.
+- For readable stack traces in release builds, upload your source maps to your provider.
+- The engine's per-view-class memory records (`viewDetail`) are not surfaced — the aggregate plus `elementNodeCount` is what the diagnosis needs.
+
+## See also
+
+- [API reference](/lynx/modules/observability/api) — every export with signatures.
+- [Dev Client](/lynx/modules/dev-client/usage/#the-performance-hud) — the on-device perf HUD shows the same engine memory figures.
+- [OTA Updates](/lynx/modules/updates/usage/#runtime-version-compatibility) — why installing this package needs a store release.

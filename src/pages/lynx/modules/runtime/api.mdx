@@ -419,7 +419,13 @@ function useDerivedValue<R extends DerivedReducerName>(
   sources: ReadonlyArray<SharedValue<number>>,
   reducer: R,
   params?: DerivedReducerParams[R],
+  opts?: DerivedValueOptions,
 ): SharedValue<number>;
+
+interface DerivedValueOptions {
+  /** Publish each fold back to the background thread. Default `true`. */
+  bridge?: boolean;
+}
 ```
 
 Built-in reducers: `max`, `min`, `sum`, and `scale` (`sources[0] * factor + offset`). Register your own on the main thread with `registerReducer` from `@sigx/lynx-runtime-main`.
@@ -441,7 +447,84 @@ const px = useDerivedValue([progress], 'scale', { factor: travelPx });
 
 **Treat the result as read-only.** It is not frozen, but the derive owns the value: any write is overwritten on the next recompute. Drive it through its sources.
 
-`useDerivedValueReactive(accessor)` is the variant for a runtime-reactive factor — the accessor runs in an `effect` and re-registers on the **same** derived SV when sources or params change, so consumers never rebind. Returning `null` holds the last registration.
+**`{ bridge: false }` for per-frame values.** The background mirror is not free: every fold dispatches an MT→BG event, so a derived value that changes per frame by construction — a gesture delta, a scroll offset — emits ~60–100 dispatches a second for a reader that does not exist. That alone can trip the engine's dispatch limiter (`ContextProxy::DispatchEvent called too frequently`, error 204) and red-box mid-gesture. Pass `{ bridge: false }` whenever the derived value is consumed **only** by main-thread bindings (`useAnimatedStyle`, `useAnimatedMethod`). The SV still exists and still folds every frame on the main thread; only the BG publish is skipped, so reading `.value` on the background thread stays safe but always returns the initial value.
+
+```tsx
+const dragPx = useDerivedValue([progress], 'scale', { factor: travelPx }, { bridge: false });
+useAnimatedStyle(cardRef, dragPx, 'translateX');
+```
+
+`useDerivedValueReactive(accessor, opts?)` is the variant for a runtime-reactive factor — the accessor runs in an `effect` and re-registers on the **same** derived SV when sources or params change, so consumers never rebind. Returning `null` holds the last registration. It takes the same `DerivedValueOptions`.
+
+### useFrameCallback
+
+Runs a `'main thread'` worklet once per display frame — the per-frame API for a physics simulation, a game loop, an inertial settle, or a custom easing that has to see every frame. Also re-exported from the `@sigx/lynx` umbrella.
+
+```ts
+function useFrameCallback(
+  worklet: (frame: FrameInfo) => void,
+  options?: FrameCallbackOptions,
+): FrameCallback;
+
+interface FrameCallbackOptions {
+  /** Start ticking as soon as the registration lands on the MT. Default `false`. */
+  autostart?: boolean;
+}
+
+interface FrameCallback {
+  /** Begin ticking. Idempotent. Call from the background thread. */
+  start(): void;
+  /** Stop ticking. Idempotent; does not unregister. Call from the background thread. */
+  stop(): void;
+  /** Unregister permanently. Idempotent; called automatically on unmount. */
+  dispose(): void;
+}
+
+interface FrameInfo {
+  /** `Date.now()` sampled once per frame and shared by every callback in it. */
+  timestamp: number;
+  /** Milliseconds since this run started. `0` on the run's first frame. */
+  timeSinceFirstFrame: number;
+  /** Milliseconds since this callback's previous frame. `0` on a run's first frame; clamped `>= 0`. */
+  timeSincePreviousFrame: number;
+  /** 1-based, reset on every inactive → active transition. */
+  frameNumber: number;
+}
+```
+
+The callback is registered once and driven by the main thread; it does not start until `start()` (or `autostart: true`). One shared `requestAnimationFrame` chain drives every registered callback, so N callbacks cost one host call per frame, all see the same `timestamp`, and the frame closes with a single element-tree flush. It ticks at the **display's** refresh rate — a 120 Hz device gets 120 ticks a second, not 60 — so size a timestep from `timeSincePreviousFrame`, never a constant. All timings derive from `Date.now()` deltas (there is no `performance.now()` on the main thread), so expect ~1 ms granularity: fine for driving an integrator, not a basis for sub-millisecond measurement. A callback that throws is contained and rate-logged, not auto-stopped. `dispose()` runs automatically on unmount; call it yourself for a module-scope loop.
+
+```tsx
+const pos = useSharedValue(0);
+const vel = useMainThreadRef({ v: 0 });
+
+const sim = useFrameCallback((frame) => {
+  'main thread';
+  const dt = frame.timeSincePreviousFrame / 1000;
+  vel.current.v *= 0.94;
+  pos.current.value += vel.current.v * dt;
+  if (Math.abs(vel.current.v) < 1) stopFrameCallback(sim);   // MT → MT
+});
+
+const fling = Gesture.Pan()
+  .onBegin(() => { 'main thread'; })
+  .onEnd(() => {
+    'main thread';
+    vel.current.v = releaseVelocity;
+    startFrameCallback(sim);                                  // same frame, no round trip
+  });
+
+useAnimatedStyle(elRef, pos, 'translateX');
+```
+
+### startFrameCallback / stopFrameCallback
+
+```ts
+function startFrameCallback(fc: FrameCallback): void;   // 'main thread'
+function stopFrameCallback(fc: FrameCallback): void;    // 'main thread'
+```
+
+Start or stop a frame callback from **inside another main-thread worklet** — a gesture's `onEnd`, a tap handler, or the frame callback itself. This is why activation is decoupled from registration: a flick's release velocity exists on the main thread, and the simulation should be running in that same frame rather than after a background round trip. Both are themselves `'main thread'` worklets: calling them from background code throws (the same contract as `measureViewportRect`). From the background thread use `fc.start()` / `fc.stop()` instead.
 
 ### useAnimatedValue
 

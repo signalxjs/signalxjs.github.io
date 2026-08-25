@@ -19,8 +19,8 @@ Import the named `Clipboard` export and call its methods directly.
 ```ts
 import { Clipboard } from '@sigx/lynx-clipboard';
 
-// Write — synchronous, returns immediately
-Clipboard.setString('Hello, world!');
+// Write — asynchronous, rejects if the native write fails
+await Clipboard.setString('Hello, world!');
 
 // Read — asynchronous, resolves to "" when empty
 const text = await Clipboard.getString();
@@ -29,11 +29,11 @@ const text = await Clipboard.getString();
 const isPopulated = await Clipboard.hasString();
 ```
 
-`setString` is synchronous; `getString` and `hasString` cross the native bridge asynchronously and return promises. Neither read rejects on an empty clipboard — `getString` resolves to `""` and `hasString` resolves to `false`.
+All three cross the native bridge asynchronously and return promises. `setString` rejects with a `SigxError` (`code: 'native_error'`) when the platform refuses the write — on Android a clip over the binder transaction limit does — so `await` it and handle the rejection. Neither read rejects on an empty clipboard — `getString` resolves to `""` and `hasString` resolves to `false`.
 
 ## Copy on tap
 
-The common case: copy a value when the user taps a button. `setString` is fire-and-forget, so no `await` is needed.
+The common case: copy a value when the user taps a button. Flip the "Copied!" state only after the promise resolves, so a failed write does not claim success.
 
 ```tsx
 import { Clipboard } from '@sigx/lynx-clipboard';
@@ -42,9 +42,14 @@ import { signal } from '@sigx/lynx';
 function CopyButton({ value }: { value: string }) {
   const copied = signal(false);
 
-  const onTap = () => {
-    Clipboard.setString(value);
-    copied.set(true);
+  const onTap = async () => {
+    try {
+      await Clipboard.setString(value);
+      copied.set(true);
+    } catch (err) {
+      // SigxError with code 'native_error' — the platform refused the write
+      console.warn('copy failed', err);
+    }
   };
 
   return (
@@ -118,7 +123,7 @@ If the native module is not linked into the current build, `isAvailable` returns
 import { Clipboard } from '@sigx/lynx-clipboard';
 
 if (Clipboard.isAvailable()) {
-  Clipboard.setString('ready');
+  await Clipboard.setString('ready');
 } else {
   // Module not linked — run `sigx prebuild` and rebuild the app.
 }
