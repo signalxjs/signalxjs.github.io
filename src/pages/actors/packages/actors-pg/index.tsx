@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Postgres",
-    description: "Postgres — module overview",
+    description: "Membership, directory, storage & reminders on Postgres — the Postgres package for SignalX (@sigx/actors-pg).",
     layout: 'default',
     sidebar: false,
 };

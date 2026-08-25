@@ -63,7 +63,7 @@ export default defineSSGConfig({
         // purpose: "SignalX"/"sigx" collides with unrelated projects, so the
         // fallback description must say what this actually is.
         description:
-            'SignalX (sigx) — a fine-grained reactive TypeScript framework with signals, TSX components, typed server functions and actors. One core for web, native (Lynx) and terminal apps.',
+            'SignalX (sigx) — a fine-grained reactive TypeScript framework: signals, TSX components, no virtual DOM, server functions and actors. Web, native and terminal.',
         // origin only — the SSG appends Vite's `base` for sitemap and
         // canonical URLs, so site.url must NOT include it.
         url: 'https://sigx.dev',

@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Kubernetes",
-    description: "Kubernetes — module overview",
+    description: "Host liveness on coordination.k8s.io Leases — the Kubernetes package for SignalX (@sigx/actors-k8s).",
     layout: 'default',
     sidebar: false,
 };

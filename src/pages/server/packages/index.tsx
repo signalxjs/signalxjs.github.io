@@ -18,6 +18,6 @@ export default ServerPackageCatalog;
 
 export const meta = {
     title: 'Server packages - SSR, RPC, resume & serialize for SignalX',
-    description: 'Browse the server-side packages — @sigx/server-renderer (streaming SSR & hydration), @sigx/ssr-islands (client:* selective hydration), @sigx/server (type-safe server functions), @sigx/resume (resumable boundary refresh) and @sigx/serialize (the boundary codec).',
+    description: 'Browse the SignalX server packages — @sigx/server-renderer (streaming SSR), @sigx/ssr-islands, @sigx/server (server functions), @sigx/resume, @sigx/serialize.',
     layout: 'package',
 };

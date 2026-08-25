@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "CLI",
-    description: "CLI — module overview",
+    description: "sigx actors — a terminal dashboard — the CLI package for SignalX (@sigx/actors-cli).",
     layout: 'default',
     sidebar: false,
 };

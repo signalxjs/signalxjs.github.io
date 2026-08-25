@@ -18,7 +18,7 @@ const Landing = component(() => {
 export default Landing;
 
 export const meta = {
-    title: 'SignalX Server - Streaming SSR & island hydration',
-    description: 'Render to a stream on the server and hydrate selectively with client:* directives.',
+    title: 'SignalX Server — Streaming SSR, islands and server functions',
+    description: 'Server-side rendering for SignalX: stream HTML, hydrate selectively with client:* islands, resume state at the boundary and call typed server functions.',
     layout: 'package',
 };

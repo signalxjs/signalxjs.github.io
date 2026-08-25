@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "OpenTelemetry",
-    description: "OpenTelemetry — module overview",
+    description: "Prometheus exposition & OTel traces — the OpenTelemetry package for SignalX (@sigx/actors-otel).",
     layout: 'default',
     sidebar: false,
 };
