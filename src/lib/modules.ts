@@ -655,6 +655,18 @@ export const COMPONENT_CATALOGS: Record<string, { cat: string; items: string[] }
         { cat: 'Sheet', items: ['BottomSheet'] },
         { cat: 'Parts', items: ['Backdrop'] },
     ],
+    // @sigx/zero — the 51 scopes of the anatomy manifest, tiered the way the
+    // library groups them. Names slugify to the scope ("Toggle Group" →
+    // "toggle-group"), which is also the page filename under
+    // src/pages/zero/docs/components/.
+    zero: [
+        { cat: 'Actions & disclosure', items: ['Button', 'Toggle', 'Toggle Group', 'Tabs', 'Collapsible', 'Accordion'] },
+        { cat: 'Overlays', items: ['Dialog', 'Drawer', 'Popover', 'Tooltip', 'Menu', 'Toast'] },
+        { cat: 'Form controls', items: ['Field', 'Input', 'Textarea', 'Number Input', 'Checkbox', 'Switch', 'Radio Group', 'Select', 'Native Select', 'Combobox', 'Slider', 'Rating Group', 'File Upload'] },
+        { cat: 'Navigation', items: ['Navbar', 'Breadcrumbs', 'Pagination', 'Steps', 'Tree View'] },
+        { cat: 'Content', items: ['Card', 'Alert', 'Badge', 'Divider', 'Avatar', 'Progress', 'Radial Progress', 'Skeleton', 'Spinner', 'Kbd', 'Status', 'Indicator', 'Stats', 'Timeline', 'Chat', 'Join'] },
+        { cat: 'Rich behavior', items: ['Table', 'Carousel', 'Swap', 'Countdown', 'Diff'] },
+    ],
 };
 
 export const moduleById: Record<string, SigxModule> =

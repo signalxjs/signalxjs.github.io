@@ -221,6 +221,14 @@ export default defineSSGConfig({
                 'Authoring design systems',
                 'Platforms',
                 'Components',
+                // The component tiers — sub-groups under Components, in the order
+                // the library tiers them rather than alphabetically.
+                'Actions & disclosure',
+                'Overlays',
+                'Form controls',
+                'Navigation',
+                'Content',
+                'Rich behavior',
                 'Reference',
             ],
         },
