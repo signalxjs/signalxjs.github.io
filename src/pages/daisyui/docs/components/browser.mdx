@@ -1,0 +1,96 @@
+---
+title: Browser
+description: MockupBrowser frames content in a browser window with a URL bar
+layout: docs
+category: ["Components", "Mockup"]
+order: 700
+---
+
+# Browser
+
+MockupBrowser wraps content in a browser-window frame: a toolbar with a URL
+field above whatever you place inside. Use it to show a site or screenshot in
+context. It is also available as `Mockup.Browser`.
+
+## Import
+
+```tsx
+import { MockupBrowser } from '@sigx/daisyui';
+// or
+import { Mockup } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { MockupBrowser } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <MockupBrowser url="https://sigx.dev">
+            <div class="grid place-content-center h-40 bg-base-200">Hello!</div>
+        </MockupBrowser>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Default URL
+
+Without `url` the toolbar shows `https://example.com`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Mockup } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Mockup.Browser class="bg-base-300">
+            <div class="grid place-content-center h-40">Content</div>
+        </Mockup.Browser>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Framing a Layout
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { MockupBrowser, Navbar, Button } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <MockupBrowser url="https://sigx.dev/daisyui/">
+            <Navbar
+                background="base-200"
+                slots={{
+                    start: () => <span class="px-2 font-semibold">sigx</span>,
+                    end: () => <Button size="sm" variant="primary">Get started</Button>,
+                }}
+            />
+            <div class="grid place-content-center h-40 bg-base-100">
+                <p class="text-2xl font-bold">Components, in a browser frame</p>
+            </div>
+        </MockupBrowser>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `url` | `string` | `'https://example.com'` | Text shown in the URL bar |
+| `class` | `string` | - | Additional CSS classes on the frame |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Page content rendered under the toolbar |

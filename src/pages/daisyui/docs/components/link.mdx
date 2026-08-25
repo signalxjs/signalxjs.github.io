@@ -1,0 +1,133 @@
+---
+title: Link
+description: Link is a styled anchor with theme colours and a hover-only underline option
+layout: docs
+category: ["Components", "Navigation"]
+order: 306
+---
+
+# Link
+
+Link renders an `<a>` with DaisyUI's `link` styling: underlined by default,
+tinted with any theme colour, and optionally underlined only on hover.
+
+## Import
+
+```tsx
+import { Link } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Link, Text } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Text>
+            Read the <Link href="/daisyui/docs/getting-started/">getting started guide</Link> first.
+        </Text>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Colors
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Link, Row } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Row gap="4" wrap>
+            <Link href="#">Default</Link>
+            <Link href="#" color="primary">Primary</Link>
+            <Link href="#" color="secondary">Secondary</Link>
+            <Link href="#" color="accent">Accent</Link>
+            <Link href="#" color="neutral">Neutral</Link>
+            <Link href="#" color="info">Info</Link>
+            <Link href="#" color="success">Success</Link>
+            <Link href="#" color="warning">Warning</Link>
+            <Link href="#" color="error">Error</Link>
+        </Row>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Hover Underline
+
+With `hover`, the underline only appears when the pointer is over the link.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Link, Row } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Row gap="4">
+            <Link href="#" hover>Hover me</Link>
+            <Link href="#" hover color="primary">Hover me too</Link>
+        </Row>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Click Handler
+
+`onClick` receives the native `MouseEvent`, so you can prevent the default
+navigation and handle it yourself.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Link, Card, Text } from '@sigx/daisyui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ clicks: 0 });
+
+    return () => (
+        <Card>
+            <Card.Body class="space-y-2">
+                <Link
+                    href="#"
+                    color="primary"
+                    hover
+                    onClick={(e) => { e.preventDefault(); state.clicks++; }}
+                >
+                    Count a click
+                </Link>
+                <Text size="sm" class="opacity-70">Clicked {state.clicks} times</Text>
+            </Card.Body>
+        </Card>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `href` | `string` | - | Anchor target |
+| `color` | `'primary' \| 'secondary' \| 'accent' \| 'neutral' \| 'info' \| 'success' \| 'warning' \| 'error'` | - | Theme colour |
+| `hover` | `boolean` | `false` | Show the underline only on hover |
+| `class` | `string` | - | Additional CSS classes |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Link content |
+
+## Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onClick` | `(e: MouseEvent) => void` | Fired when the link is clicked |

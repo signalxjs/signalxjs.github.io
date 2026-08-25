@@ -1,0 +1,90 @@
+---
+title: Label
+description: Label is a small caption for form controls
+layout: docs
+category: ["Components", "Data Input"]
+order: 546
+---
+
+# Label
+
+Label renders a `<p class="label">` — DaisyUI's muted caption text — for
+describing a control or adding a hint below it. It is the building block
+`FormField` uses for its label and hint; reach for it directly when you
+compose a field by hand inside a `Fieldset`.
+
+## Import
+
+```tsx
+import { Label } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Label, Input, Fieldset } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Fieldset class="w-xs">
+            <Fieldset.Legend>Display name</Fieldset.Legend>
+            <Input placeholder="Ada Lovelace" />
+            <Label>Shown on your public profile</Label>
+        </Fieldset>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Above and Below
+
+A Label works as a caption before the control as well as a hint after it.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Label, Input, Col } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Col gap="1" class="w-xs">
+            <Label>Email</Label>
+            <Input type="email" placeholder="you@example.com" />
+            <Label>We never share it</Label>
+        </Col>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Custom Classes
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Label, Input, Col } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Col gap="1" class="w-xs">
+            <Input placeholder="Username" color="error" />
+            <Label class="text-error">That name is taken</Label>
+        </Col>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `class` | `string` | - | Additional CSS classes |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Label text |

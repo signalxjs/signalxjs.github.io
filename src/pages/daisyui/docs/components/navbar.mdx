@@ -1,0 +1,125 @@
+---
+title: Navbar
+description: Navbar is a top bar with start, center and end regions
+layout: docs
+category: ["Components", "Navigation"]
+order: 307
+---
+
+# Navbar
+
+Navbar lays out a horizontal bar with three named regions — `start`, `center`
+and `end` — each rendered only when you fill its slot. The bar takes the
+`base-100` background unless you pass your own.
+
+## Import
+
+```tsx
+import { Navbar } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Navbar, Button } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Navbar
+            rounded="box"
+            class="shadow-sm"
+            slots={{
+                start: () => <Button variant="ghost" class="text-xl">sigx</Button>,
+                end: () => <Button variant="primary" size="sm">Login</Button>,
+            }}
+        />
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Three Regions
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Navbar, Button, Menu } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Navbar
+            background="base-200"
+            rounded="box"
+            slots={{
+                start: () => <Button variant="ghost" class="text-xl">Brand</Button>,
+                center: () => (
+                    <Menu horizontal>
+                        <Menu.Item>Docs</Menu.Item>
+                        <Menu.Item>Blog</Menu.Item>
+                        <Menu.Item>About</Menu.Item>
+                    </Menu>
+                ),
+                end: () => <Button variant="ghost" circle>⚙</Button>,
+            }}
+        />
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Coloured Navbar
+
+`background` accepts any theme colour and applies the matching content colour.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Navbar, Button, Col } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    const bar = (background: 'primary' | 'neutral' | 'base-300') => (
+        <Navbar
+            background={background}
+            rounded="box"
+            slots={{
+                start: () => <span class="text-lg font-semibold px-2">{background}</span>,
+                end: () => <Button variant="ghost" size="sm">Action</Button>,
+            }}
+        />
+    );
+
+    return () => (
+        <Col gap="3">
+            {bar('primary')}
+            {bar('neutral')}
+            {bar('base-300')}
+        </Col>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+Navbar accepts the shared box styling props, so chrome is set with props rather
+than utility classes.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `background` | `BackgroundColor` | `'base-100'` | Theme background (`base-100` … `error`); sets the matching content colour |
+| `padding` | `Spacing` | - | Padding — a scale value or `{ x, y, top, … }` |
+| `margin` | `Spacing` | - | Margin |
+| `rounded` | `RadiusValue \| boolean` | - | Border radius; `true` is the theme box radius |
+| `width` | `SizeValue` | - | Width preset (`full`, `1/2`, …) or a CSS length |
+| `height` | `SizeValue` | - | Height preset or CSS length |
+| `class` | `string` | - | Additional CSS classes |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `start` | Left region (`navbar-start`) |
+| `center` | Middle region (`navbar-center`) |
+| `end` | Right region (`navbar-end`) |

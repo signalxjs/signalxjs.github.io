@@ -1,0 +1,116 @@
+---
+title: Divider
+description: Divider separates content with a line and optional text
+layout: docs
+category: ["Components", "Layout"]
+order: 620
+---
+
+# Divider
+
+Divider draws a horizontal rule between stacked content, optionally with a
+label in the middle. Set `vertical` to draw a vertical line between items laid
+out in a row.
+
+## Import
+
+```tsx
+import { Divider } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Divider, Col, Card } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Col>
+            <Card background="base-200" class="h-20 items-center justify-center">content</Card>
+            <Divider />
+            <Card background="base-200" class="h-20 items-center justify-center">content</Card>
+        </Col>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## With Text
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Divider, Col, Button } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Col class="w-xs">
+            <Button variant="primary">Sign in with email</Button>
+            <Divider>OR</Divider>
+            <Button outline>Continue with GitHub</Button>
+        </Col>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Vertical
+
+`vertical` is for horizontal layouts: the line runs top to bottom between
+items in a `Row`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Divider, Row, Card } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Row class="w-full">
+            <Card background="base-200" class="h-20 grow items-center justify-center">left</Card>
+            <Divider vertical>OR</Divider>
+            <Card background="base-200" class="h-20 grow items-center justify-center">right</Card>
+        </Row>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Colours and Alignment
+
+DaisyUI's modifier classes pass straight through `class`: `divider-primary`
+and friends colour the line, `divider-start` / `divider-end` move the label.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Divider, Col } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <Col class="w-full">
+            <Divider class="divider-primary">Primary</Divider>
+            <Divider class="divider-secondary">Secondary</Divider>
+            <Divider class="divider-accent">Accent</Divider>
+            <Divider class="divider-start">Start</Divider>
+            <Divider class="divider-end">End</Divider>
+        </Col>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `vertical` | `boolean` | `false` | Draw a vertical line for use inside a horizontal flex container |
+| `class` | `string` | - | Additional CSS classes |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Optional text shown in the middle of the line |

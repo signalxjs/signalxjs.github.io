@@ -1,0 +1,119 @@
+---
+title: Pagination
+description: Pagination renders a joined row of page buttons with automatic ellipsis
+layout: docs
+category: ["Components", "Navigation"]
+order: 308
+---
+
+# Pagination
+
+Pagination renders page-number buttons as a joined button group. Up to seven
+pages are shown in full; beyond that the component keeps the first and last
+page, the current page and its neighbours, and collapses the rest into `...`.
+
+## Import
+
+```tsx
+import { Pagination } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+`currentPage` is controlled: keep it in a signal and update it from `onChange`.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Pagination, Text, Col } from '@sigx/daisyui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ page: 1 });
+
+    return () => (
+        <Col gap="3" align="start">
+            <Pagination
+                currentPage={state.page}
+                totalPages={5}
+                onChange={(page) => state.page = page}
+            />
+            <Text size="sm" class="opacity-70">Page {state.page} of 5</Text>
+        </Col>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Many Pages
+
+With more than seven pages the row collapses around the current page.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Pagination, Text, Col } from '@sigx/daisyui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ page: 12 });
+
+    return () => (
+        <Col gap="3" align="start">
+            <Pagination
+                currentPage={state.page}
+                totalPages={40}
+                onChange={(page) => state.page = page}
+            />
+            <Text size="sm" class="opacity-70">Page {state.page} of 40</Text>
+        </Col>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Paging a List
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Pagination, Card, Col } from '@sigx/daisyui';
+
+const items = Array.from({ length: 23 }, (_, i) => `Item ${i + 1}`);
+const perPage = 5;
+
+const Demo = component(({ signal }) => {
+    const state = signal({ page: 1 });
+    const pageItems = () => items.slice((state.page - 1) * perPage, state.page * perPage);
+
+    return () => (
+        <Card>
+            <Card.Body>
+                <Col gap="1" class="min-h-36">
+                    {pageItems().map((item) => <div class="py-1 border-b border-base-200">{item}</div>)}
+                </Col>
+                <Card.Actions class="justify-center">
+                    <Pagination
+                        currentPage={state.page}
+                        totalPages={Math.ceil(items.length / perPage)}
+                        onChange={(page) => state.page = page}
+                    />
+                </Card.Actions>
+            </Card.Body>
+        </Card>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `currentPage` | `number` | - | The active page (1-based) |
+| `totalPages` | `number` | - | Total number of pages |
+| `class` | `string` | - | Additional CSS classes on the `join` wrapper |
+
+## Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onChange` | `(page: number) => void` | Fired with the page number when a page button is clicked |
