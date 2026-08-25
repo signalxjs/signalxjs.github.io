@@ -45,6 +45,7 @@ import { useTheme } from '@sigx/zero';
 export const App = component(({ signal }) => {
     const state = signal({ tab: 'general', notify: true, confirm: false });
     const theme = useTheme();
+    const destroy = () => { state.confirm = false; };   // your delete call goes here
 
     return () => (
         <main>
