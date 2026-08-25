@@ -67,6 +67,7 @@ const anchorFor = (npm) =>
         : TERMINAL_MEMBERS.has(npm) ? '@sigx/terminal'
         : npm === '@sigx/lynx' || npm.startsWith('@sigx/lynx-') ? '@sigx/lynx'
         : npm === '@sigx/actors' || npm.startsWith('@sigx/actors-') ? '@sigx/actors'
+        : npm === '@sigx/zero' || npm.startsWith('@sigx/zero-') ? '@sigx/zero'
             : npm;
 
 // ---- Ensure the manifest exists before importing the registry ----

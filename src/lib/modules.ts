@@ -20,7 +20,7 @@
 import type { PackageStatus } from './family';
 import { VERSIONS } from './versions.generated.ts';
 
-export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy' | 'actors';
+export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy' | 'actors' | 'zero';
 
 /**
  * Release gate for the actors line. `false` keeps `/actors/` off every PUBLIC
@@ -118,6 +118,11 @@ export const MODULE_CATEGORIES: Record<ModuleParent, { id: string; label: string
         { id: 'client', label: 'Client transports' },
         { id: 'platforms', label: 'Platform backends' },
         { id: 'tooling', label: 'Tooling & observability' },
+    ],
+    zero: [
+        { id: 'runtime', label: 'Runtime' },
+        { id: 'authoring', label: 'Authoring' },
+        { id: 'skins', label: 'Design systems' },
     ],
 };
 
@@ -531,6 +536,31 @@ const RAW_MODULES: SigxModule[] = [
       hue: 300, glyph: '⌁', status: 'experimental', version: '0.9.2', role: 'Exporters',
       tag: 'Prometheus exposition & OTel traces',
       blurb: 'Scrape-ready Prometheus text on an OTel-free entry, plus spans that join across hosts through the propagated traceparent. Labels are type and method — never actor keys.' },
+
+    // ============ Zero (@sigx/zero*) — lockstep-versioned ============
+    // zero is a collection like actors: signalxjs/zero publishes all four in
+    // lockstep, and `@sigx/zero` is the runtime you install. A design system
+    // (zero-basic, zero-daisyui, or one you compile with zero-kit) is a
+    // separate CSS artifact you add beside it. The runtime row's id is
+    // `zero-runtime` rather than `zero` because `moduleById` is one flat map
+    // and the lynx module `@sigx/lynx-zero` already owns the `zero` key; the
+    // row is an alias, so the id never becomes a URL.
+    { id: 'zero-runtime', parent: 'zero', npm: '@sigx/zero', name: 'Zero', category: 'runtime',
+      hue: 305, glyph: '◌', status: 'beta', version: '0.2.0-beta.1', role: 'Runtime', aliasFor: 'zero',
+      tag: 'Unstyled, accessible compound components',
+      blurb: 'The package you install — 51 headless compound components rendering a stable data-scope / data-part / data-state anatomy, the behaviors they are built from, the theme engine and the anatomy manifest.' },
+    { id: 'zero-kit', parent: 'zero', npm: '@sigx/zero-kit', name: 'Zero Kit', category: 'authoring',
+      hue: 264, glyph: '⌘', status: 'beta', version: '0.2.0-beta.1', role: 'Authoring kit',
+      tag: 'Tokens + recipes → plain layered CSS',
+      blurb: 'The Node-only authoring kit: defineTokens / defineRecipe / defineDesignSystem, the compiler that turns them into layered CSS against the anatomy manifest, the sigx zero:build / zero:validate CLI plugin, the JSON Schemas and the design-system generation skill.' },
+    { id: 'zero-basic', parent: 'zero', npm: '@sigx/zero-basic', name: 'Zero Basic', category: 'skins',
+      hue: 205, glyph: '▢', status: 'beta', version: '0.2.0-beta.1', role: 'Design system',
+      tag: 'The neutral starter design system',
+      blurb: 'Monograph — paper surfaces, hairline structure and one petrol ink. Readable defaults so an app looks sane on day one, and the reference input for generating a design system of your own.' },
+    { id: 'zero-daisyui', parent: 'zero', npm: '@sigx/zero-daisyui', name: 'Zero DaisyUI', category: 'skins',
+      hue: 24, glyph: '❂', status: 'beta', version: '0.2.0-beta.1', role: 'Design system',
+      tag: 'daisyUI’s look as pure tokens + recipes',
+      blurb: 'daisyUI 5’s palette and component look compiled to plain CSS over the zero anatomy — five themes, no Tailwind, no plugin — plus a generated daisy-native ./components module with daisy’s own prop names.' },
 ];
 
 /** Registry with live npm versions overlaid (falls back to the literal). */
@@ -643,6 +673,7 @@ export const moduleRoutePrefix = (m: SigxModule): string =>
         : m.parent === 'terminal' ? `/terminal/packages/${m.id}`
         : m.parent === 'deploy' ? `/deploy/packages/${m.id}`
         : m.parent === 'actors' ? `/actors/packages/${m.id}`
+        : m.parent === 'zero' ? `/zero/packages/${m.id}`
         : `/core/packages/${m.id}`;
 
 /**
@@ -659,4 +690,5 @@ export const moduleDocsCollection = (m: SigxModule): string | undefined =>
         : m.parent === 'terminal' ? `terminal-pkg-${m.id}-docs`
         : m.parent === 'deploy' ? `deploy-pkg-${m.id}-docs`
         : m.parent === 'actors' ? `actors-pkg-${m.id}-docs`
+        : m.parent === 'zero' ? `zero-pkg-${m.id}-docs`
         : `core-pkg-${m.id}-docs`;

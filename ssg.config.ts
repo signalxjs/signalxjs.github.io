@@ -206,6 +206,24 @@ export default defineSSGConfig({
                 'Reference',
             ],
         },
+        // `zero` is a collection — zero-kit and the two shipped design systems
+        // are documented via the `zero-pkg-*` collections injected by
+        // `...moduleCollections` below. This collection holds everything about
+        // `@sigx/zero` itself: the contract, the behaviors, theming and variant
+        // axes, the design-system authoring guides, and one page per component.
+        'zero-docs': {
+            path: '/zero/docs',
+            showDrafts: 'dev',
+            sectionOrder: [
+                'Getting Started',
+                'Concepts',
+                'Styling',
+                'Authoring design systems',
+                'Platforms',
+                'Components',
+                'Reference',
+            ],
+        },
         'cli-docs': {
             path: '/cli/docs',
             showDrafts: 'dev',
@@ -376,6 +394,8 @@ export default defineSSGConfig({
             { title: 'Internationalization', collections: ['i18n-docs'] },
             { title: 'Mermaid Diagrams', collections: ['mermaid-docs'] },
             { title: 'daisyUI Components', collections: ['daisyui-docs', 'daisyui-api'] },
+            { title: 'Zero (unstyled components + design systems)', collections: ['zero-docs'] },
+            { title: 'Zero Packages (authoring kit & design systems)', links: moduleLlmsLinks('zero') },
             { title: 'Static Site Generation', collections: ['ssg-docs'] },
             { title: 'Server (SSR, server functions, resume & serialize)', links: moduleLlmsLinks('server') },
             { title: 'Vite Plugin', collections: ['vite-docs'] },
@@ -402,7 +422,7 @@ export default defineSSGConfig({
         ],
         // Keep llms-full.txt ingestible in one context window — the lynx module
         // bodies are indexed above and individually fetchable as .md instead.
-        full: { exclude: ['/lynx/modules/**'] },
+        full: { exclude: ['/lynx/modules/**', '/zero/docs/components/**'] },
         // Per-area sub-indexes for consumers that only need one area.
         areas: {
             '/core': {
