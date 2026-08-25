@@ -1,6 +1,6 @@
 ---
 title: "API reference"
-description: "Serialize — defineTypeHandler, encodeWithHandlers, reviveWithHandlers, TypeHandler and the built-ins"
+description: "Serialize — defineTypeHandler, encodeWithHandlers, reviveWithHandlers, stringifyWithHandlers, TypeHandler and the built-ins"
 layout: module-docs
 category: "Reference"
 order: 40
@@ -10,7 +10,7 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 # API reference
 
-<p class="lede">Exports of `@sigx/serialize` <PkgVersion npm="@sigx/serialize" />. A single entry point — no subpaths.</p>
+<p class="lede">Exports of `@sigx/serialize` <PkgVersion npm="@sigx/serialize" />. The root entry carries the codec; two opt-in subpaths — [`/bytes`](#binary-sigxserializebytes) and [`/stringify`](#stringify-sigxserializestringify) — cost nothing unless imported.</p>
 
 ## defineTypeHandler
 
@@ -123,3 +123,28 @@ It round-trips `Uint8Array` (Node's `Buffer` included — it revives as a plain 
 Opt-in rather than built-in, deliberately. The root entry is bundled by `@sigx/server/client`'s dependency-free stubs under a 1 KB budget with no ignore list possible, so a built-in `$bytes` would tax every client bundle — and would quietly start admitting binary into the SSR state blob.
 
 Registering it silences the lossy-value dev warning for exactly the types it claims. `Blob` and `File` stay out of scope because the codec is synchronous, and `SharedArrayBuffer` and `Float16Array` keep warning.
+
+## Stringify — `@sigx/serialize/stringify`
+
+An **opt-in** subpath exporting the encode half's string-producing sibling:
+
+```ts
+import { stringifyWithHandlers } from '@sigx/serialize/stringify';
+
+function stringifyWithHandlers(value: unknown, handlers?: readonly TypeHandler[]): string | undefined;
+```
+
+It produces exactly `JSON.stringify(encodeWithHandlers(value, handlers))` — byte for byte, throw for throw — in a **single walk**, never building the intermediate tree. Reach for it whenever the destination is a *string*: a storage adapter's `save`, an RPC body, an SSR state blob. `encodeWithHandlers` stays the right call when the caller wants the tree (it is what `@sigx/server`'s wire envelope and `@sigx/resume`'s boundary records consume).
+
+```ts
+stringifyWithHandlers({ at: new Date(5), n: 7n });
+// {"at":{"$date":5},"n":{"$bigint":"7"}}
+```
+
+Reading it back is unchanged — `reviveWithHandlers(JSON.parse(wire), handlers)`. There is no revive-from-string counterpart; that path is not hot.
+
+- **Return type mirrors `JSON.stringify`:** `undefined` only for a top-level symbol or function. An *explicit* `undefined` — including one returned by a `toJSON` — is tagged `$undef` and survives, the opposite of plain JSON.
+- **Parity is the contract**, not "what `JSON.stringify` would do": a boxed `new Number(5)` encodes to `{}`, a sole `$`-key gains the `$esc` wrap, `toJSON` is called with no arguments, cycles throw `TypeError('Converting circular structure to JSON')`, and the 256-level [depth cap](#depth-cap) applies. The dev-only [lossy-value warning](#the-dev-warning-for-lossy-values) fires identically.
+- **One documented divergence:** runs of plain-JSON nodes — consecutive scalars, scalar-valued plain rows, and rows whose only codec hits are built-in scalar-payload leaves such as a `Date` per row — are handed to the native serializer as one batch. Each such property is read once to classify it and once to emit it, so a *side-effecting getter* is evaluated twice where `encodeWithHandlers` evaluates it once. A deterministic getter is unaffected.
+
+Opt-in for the same reason as `/bytes`: the root entry is size-budgeted at 1 KB and bundled into `@sigx/server/client`'s dependency-free stubs, so a server-side emitter must not tax every client bundle. `@sigx/server-renderer`'s own `stringifyWithHandlers` export delegates to this walk, so SSR state blobs are emitted in one pass as well.
