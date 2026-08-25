@@ -1,0 +1,109 @@
+---
+title: API reference
+description: "Every export subpath of @sigx/zero — the component subpaths, the root re-exports, /anatomy, /contract and /contract/core, /behaviors and /behaviors/core, /theme and /theme/registry, /adapt, /testing, /css and /manifest.json"
+layout: docs
+category: Reference
+order: 80
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/zero` <PkgVersion npm="@sigx/zero" />, by subpath. Every
+component is its own subpath, and the root re-exports all of them together with the
+contract, the behaviors and the theme engine.</p>
+
+## Component subpaths
+
+`@sigx/zero/<scope>` for each of the 51 scopes — `@sigx/zero/button`, `@sigx/zero/tabs`,
+`@sigx/zero/dialog`, `@sigx/zero/radio-group`, `@sigx/zero/tree-view`, … Each exports the
+compound (`Tabs`, with `Tabs.Root`, `Tabs.List`, …), its `xAnatomy`, the `XRootProps` /
+`XPartProps` types, and where the component has one, its `useXContext` injectable. The
+[component pages](/zero/docs/components/) list each one. Toast additionally exports
+`createToaster`, `toaster`, `toast` and `useToaster`; FileUpload exports `acceptsFile` and
+`formatBytes`; Pagination exports `paginationRow`.
+
+## `@sigx/zero` (root)
+
+Everything below, plus every component. Also `anatomies` — the closed registry of all 51
+anatomies — and the `ZeroAnatomies` / `ZeroScope` types.
+
+## `@sigx/zero/anatomy`
+
+`anatomies`, `ZeroScope`, and `defineAnatomy` — every component's parts × states × flags ×
+token hints as typed objects with a `selector(part, state?)` builder and `toJSON()`. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## `@sigx/zero/contract`
+
+| Export | What |
+|---|---|
+| `defineAnatomy(scope, parts, options?)` | Declare an anatomy. Types: `Anatomy`, `AnatomyJSON`, `PartSpec`, `PartJSON`, `PartPseudo`, `TokenHint`. |
+| `FLAG_VOCABULARY`, `STATE_VOCABULARY`, `STATE_NAMES`, `STATE_SYNONYMS`, `PLACEMENT_VOCABULARY` | The governed vocabularies. Types: `FlagName`, `Orientation`, `PlacementName`. |
+| `dataAttr(bool)`, `stateAttr(bool, on, off)` | Render a presence flag / pick a state value. |
+| `variantAttrs(props)` | The single pass-through from `color` / `size` / `variant` / `axes` / `mods` to `data-*`, with the reserved-name guards. `RESERVED_AXES`, `VARIANT_AXES`, `MOD_ATTR_PREFIX`. |
+| `renderAsChild(slot, bag)`, `synthesizesClickFrom(target, key)` | The `asChild` helpers. |
+| `WithClass`, `WithDisabled`, `WithColor`, `WithSize`, `WithVariant`, `WithAxes`, `WithMods`, `WithVariantAxes<S>`, `WithVariantAxesOpen<S>`, `WithOrientation`, `WithAsChild`, `PartProps` | The prop fragments components compose. |
+| `ZeroVocabulary`, `ColorValueFor<S>`, `SizeScaleFor<S>`, `VariantValueFor<S>`, `AxesFor<S>`, `ModsFor<S>`, `ZeroThemeName`, `ZeroThemeNameOrCustom`, `ZeroProperty`, `ZeroBreakpoint`, `ZeroTokenCategory`, `TokenKeyFor<C>` | The augmentation seam and its resolvers. `cssVar(name)`, `token(category, key)`. |
+| `RECOMMENDED_ROLE_LIST`, `BASE_SURFACE_TOKEN_LIST`, `SIZE_SCALE_LIST`, `TOKEN_CATEGORIES`, `TOKEN_KEY_PATTERN`, `TEXT_FIXED_PREFIX`, `CSS_COLOR_KEYWORDS`, `ROLE_NAME_PATTERN`, `tokenProperty`, `resolveColorToken`, `defaultSwatch` | The token contract. Types: `SizeScale`, `RecommendedSize`, `RecommendedRole`, `BaseSurfaceToken`, `ColorValue`, `BackgroundValue`, `TokenCategory`, `TokenCategoryId`, `TokenCategoryShape`, `TokenSyntax`. |
+| `CLASS_GRAMMAR_VERSION`, `HOST_CLASS`, `partClass`, `stateClass`, `flagClass`, `axisClass`, `modClass`, `orientationClass`, `placementClass`, `themeClass` | The class grammar. See [Lynx](/zero/docs/lynx/). |
+
+`@sigx/zero/contract/core` is the same surface without the DOM-typed `PartProps` bag and
+the `asChild` helpers — importable without `lib.dom`.
+
+## `@sigx/zero/behaviors`
+
+| Export | What |
+|---|---|
+| `createControllableState(getModel, default, onChange?)` | The `model` primitive. Type `ControllableState<T>`. |
+| `createId(prefix?)`, `useIdGenerator`, `zeroPlugin()` | SSR-safe ids. Type `IdGenerator`. |
+| `createListController()`, `moveHighlight`, `optionText` | Item registration. Types `ListItem`, `ListController`, `HighlightStep`. |
+| `createRovingKeydown(options)` | Roving focus. Type `RovingOptions`. |
+| `createTypeahead(options)` | First-character typeahead. Type `TypeaheadOptions`. |
+| `createTreeController({ isExpanded })` | Hierarchical registration. Types `TreeItem`, `TreeController`. |
+| `createDismissable(options)` | Outside-press and Escape layering. Type `DismissableOptions`. |
+| `createAnchorPosition(input)`, `fixedPositionStrategy`, `pointAnchor(x, y, size?)` | Positioning. Types `Placement`, `PositionOptions`, `PositionStrategy`, `AnchorPositionInput`, `AnchorPositionHandle`, `PositionAnchor`, `VirtualAnchor`. |
+| `createPressFeedback(options)` | Press feedback. Types `PressFeedbackOptions`, `PressFeedbackHandlers`. |
+| `createSpinPress(options)` | Hold-to-repeat. Types `SpinPressOptions`, `SpinPressHandlers`. |
+| `isFocusVisible(el)`, `createFocusRestore(isOpen)`, `focusFirst(container)`, `getTabbables(container)` | Focus. |
+| `useFieldContext`, `provideFieldContext(ctx)` | The Field context. Type `FieldContext`. |
+| `segmentOptions(options)` | Option grouping. Types `OptionInput`, `OptionSegment`. |
+
+`@sigx/zero/behaviors/core` is the platform-neutral subset: controllable state, ids, the
+field context, option segmentation and the list controller with an open element type. See
+[Behaviors](/zero/docs/behaviors/).
+
+## `@sigx/zero/theme`
+
+| Export | What |
+|---|---|
+| `registerThemes(source)`, `registerTheme(info)`, `clearThemes()`, `getTheme(name)`, `listThemes()`, `pairOf(name)`, `pickThemeFor(scheme)` | The registry. Types `ThemeSource`, `ThemeInfo`. |
+| `createThemeController(options?)`, `themeController()`, `useTheme`, `DEFAULT_STORAGE_KEY` | The controller. Types `ThemeController`, `ThemeControllerOptions`. |
+| `ThemeProvider`, `ThemeScope` | The provider and the `data-theme` island. Types `ThemeProviderProps`, `ThemeScopeProps`. |
+| `themeInitScript(options?)` | The first-paint inline script. |
+
+`@sigx/zero/theme/registry` is the registry alone, DOM-free. See [Theming](/zero/docs/theming/).
+
+## `@sigx/zero/adapt`
+
+`adapt(Base, spec)` and the `Adapted<Base, Removed, Added>` / `AdaptedStatics<Base>` types
+— the runtime behind a design system's generated `./components` module. Types `AdaptRoute`,
+`AdaptSpec`. See [Vendor-named component APIs](/zero/docs/vendor-apis/).
+
+## `@sigx/zero/testing`
+
+`expectAnatomy(container, anatomy, options?)` and `expectAnatomyElements(elements, anatomy,
+options?)` with the `ExpectAnatomyOptions` and `ElementLike` types. See
+[Building your own component](/zero/docs/ecosystem-components/).
+
+## `@sigx/zero/css`
+
+`css/base.css` — the layer-order statement, the structural fallbacks, `--print-ink`, the
+reduced-motion block for the recommended durations, and the `zero.structure` rule. See
+[The compiled CSS](/zero/docs/compiled-css/).
+
+## `@sigx/zero/manifest.json`
+
+The anatomy manifest. See [Manifests and schemas](/zero/docs/manifests/). The package also
+ships `llms.txt`, the compact specification for language models.

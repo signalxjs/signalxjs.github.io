@@ -1,0 +1,121 @@
+---
+title: Accessibility
+description: "How @sigx/zero components get their accessibility — native elements first, APG keyboard patterns, presence-aware labelling, universal Escape, label props for glyph-only controls, Field integration, and what stays the app's job"
+layout: docs
+category: Concepts
+order: 43
+---
+
+# Accessibility
+
+<p class="lede">Zero's first move is always the platform: a native `<dialog>`, `<details>`,
+`<select>`, `<button>` or `<input>` brings its semantics, keyboard behavior and form
+participation for free, and zero adds the anatomy and the wiring the platform leaves out.
+Where the platform has no primitive — a listbox, a tree, a menu — the components implement
+the WAI-ARIA Authoring Practices patterns. This page collects the rules that hold across the
+library; every [component page](/zero/docs/components/) has the specifics.</p>
+
+## Native elements first
+
+| Component | Platform primitive | What it buys |
+|---|---|---|
+| Dialog, Drawer | `<dialog>` + `showModal()` | Top layer, focus trap, Escape, inert background, focus restore. No Portal. |
+| Popover, Menu, Tooltip, Select, Combobox, Toast | the `popover` attribute | Top layer without z-index management; light dismiss where wanted (`auto`) or not (`manual`). |
+| Collapsible, Accordion | `<details>` / `<summary>` | Disclosure with no JavaScript at all — it works before hydration and under resumable SSR. |
+| Checkbox, Switch, RadioGroup, RatingGroup, NumberInput, Slider (scalar) | a real `<input>`, visually hidden or not | Form posting before hydration, native keyboard, platform labelling. |
+| Input, Textarea, NativeSelect, FileUpload | the visible element *is* the control | `name` on the real element; nothing to keep in sync. |
+| Table | `<table>` / `<caption>` / `<thead>` / `<th>` … | The elements are the semantics; no `asChild` anywhere. |
+| Breadcrumbs, Timeline | `<nav>` + `<ol>`, `<ul>` + `<li>` | Order and list semantics AT already walks. |
+| Kbd, Divider | `<kbd>`, `role="separator"` | The element is the meaning. |
+
+A `hidden-input` part is a real, styleable part. Design systems hide it visually while
+keeping it focusable, rather than `display: none` — the platform's Space, Tab and form
+behavior stay attached to it.
+
+## Keyboard patterns
+
+Tabs, Menu, Select, Combobox, RadioGroup, ToggleGroup, Steps, TreeView and the composed
+Slider implement the APG pattern for their role: roving `tabindex` with one tab stop per
+composite, arrow keys that follow `orientation` and mirror under RTL, Home / End, and
+first-character typeahead where the pattern has it. Each component page has the key table.
+Two decisions worth knowing:
+
+- **Selection and focus are separate acts where APG says so.** ToggleGroup, Steps and
+  TreeView rove focus with the arrows without changing the selection; Enter / Space / click
+  select. Tabs selects on focus under `activationMode="automatic"` and separates the two
+  under `manual`.
+- **Pagination items are ordinary buttons.** There is no APG pagination pattern; each page
+  is its own meaningful tab stop.
+
+## Escape is universal
+
+Escape dismisses every overlay from anywhere. A tooltip closes on Escape even when focus is
+elsewhere (WCAG 2.1 SC 1.4.13). A modal `<dialog>` closes through its native `cancel` event;
+a non-modal one, whose element fires no `cancel`, falls back to zero's dismiss layer. Menu
+submenus close one level per Escape. `dismissible={false}` turns it off where a flow must
+complete.
+
+## Labelling is presence-aware
+
+An overlay references its `Title` and `Description` ids only while those parts are actually
+rendered, so omitting a title never leaves a dangling `aria-labelledby` (which would suppress
+the accessible-name fallback). Menu's root popup is labelled by its trigger; `Menu.Group` and
+`Select.Group` are named by their `GroupLabel` while one is rendered. Drawer takes a `label`
+prop as the `aria-label` fallback for the common navigation drawer with no visible heading.
+
+Controls whose content is a glyph carry a default name and a `label` prop to override it:
+`Alert.Close` and `Toast.Close` default to `"Close"`; `Spinner` defaults to `"Loading"`;
+`Toggle` and `Swap` take `label` for icon-only use; `Status` is `aria-hidden` without a
+`label` and `role="img"` with one; `Carousel.Root` *requires* a `label`, because a nameless
+region is an axe violation. `RatingGroup` names each item through
+`itemLabel={(index, count) => …}` so the names localise.
+
+`Select.Trigger` takes a `label` prop for a Select used outside a Field: `role="combobox"`
+prohibits name-from-content, so the value text inside the trigger can never name it.
+
+## Field integration
+
+Inside a [`Field.Root`](/zero/docs/components/field/), a control adopts the field's control
+id — so `Field.Label` names it — and its `disabled`, `invalid` and `required` flags, and
+announces the field's description and error through `aria-describedby`. Input, Textarea,
+NumberInput, Checkbox, Switch, RadioGroup, Select, NativeSelect, Combobox, RatingGroup and
+FileUpload all consume the context. This is the wiring a raw `<input>` never gets, and the
+main reason the text-field components exist.
+
+## Live regions
+
+`Alert.Root` is `role="alert"`: a live region announces *changes*, so a server-rendered
+alert is silent at load and one inserted later is announced. Toast roots are `role="status"`
+(or `alert`) inside a `role="region"` viewport. Skeleton sets `aria-busy` while loading.
+A transcript of `Chat` rows that needs log semantics is a `role="log"` container the app
+writes around them — a single message row carries no ARIA of its own.
+
+## Reduced motion and forced colors
+
+Every declared `--duration-*` token collapses to `0.01ms` under
+`prefers-reduced-motion: reduce` — so a recipe that references the token honours the
+preference automatically, and a hardcoded `0.2s` opts out. Looping animations (Skeleton,
+Spinner, indeterminate Progress) are the exception: they must *stop* rather than speed up,
+so their recipes use a literal duration and `animation: none` under the `reduced-motion`
+condition. State indicators drawn as background geometry carry a glyph fallback under
+`forced-colors` and `print` (the [`--print-ink`](/zero/docs/recipes/#print) property is the ink
+it draws with). See [Recipes](/zero/docs/recipes/).
+
+## What stays the app's job
+
+- The accessible name of a `Button.Root` with only an icon inside — give it `aria-label`
+  through your own markup, or visible text.
+- Announcing a long-running operation. The
+  [loading button](/zero/docs/components/button/#the-loading-button) composition keeps the
+  control `disabled`; announce progress with a live region or a labelled `Spinner`.
+- The `<nav>` around a `Navbar`'s link set — the bar itself is a `<header>` banner landmark
+  because it holds non-navigation content too.
+- Writing a `Table.Caption`. It is the table's accessible name.
+
+## Verification
+
+The shipped design systems are audited with axe-core across every playground page
+(serious and critical WCAG A/AA failures are hard errors), a contrast audit measures every
+state combination of every skin and theme against a 3:1 floor for text and indicator paint,
+and the `expectAnatomy` assertion holds every rendered part to the
+[contract](/zero/docs/anatomy-contract/).

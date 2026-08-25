@@ -1,0 +1,124 @@
+---
+title: "Divider"
+description: "The @sigx/zero Divider component — one non-focusable role=\"separator\" part with a horizontal or vertical orientation, rendering data-orientation and aria-orientation (vertical only) with no styling."
+layout: docs
+category: ["Components", "Content"]
+order: 504
+---
+
+# Divider
+
+<p class="lede">A rule between things, with the semantics the platform already has for one:
+`role="separator"` on a single `div`, plus `aria-orientation` when it stands upright. It is
+the non-focusable flavour of the role — the focusable one is for split-pane handles that can
+be moved, and this one cannot.</p>
+
+## Import
+
+```tsx
+import { Divider } from '@sigx/zero/divider';
+```
+
+`Divider` is a compound with a single member, `Divider.Root`; `<Divider>` is also callable
+directly. It is also re-exported from the `@sigx/zero` root, together with
+`dividerAnatomy`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Divider } from '@sigx/zero/divider';
+
+const Toolbar = component(({ signal }) => {
+    const state = signal({ stacked: false });
+
+    return () => (
+        <div>
+            <button type="button">Cut</button>
+            <button type="button">Copy</button>
+            <Divider.Root orientation={state.stacked ? 'horizontal' : 'vertical'} />
+            <button type="button">Paste</button>
+        </div>
+    );
+});
+```
+
+There is no `model` and no children: a divider is a rule, and the only thing that varies
+about it is which way it runs.
+
+### Vertical
+
+```tsx
+<Divider.Root orientation="vertical" />
+```
+
+`orientation` renders as `data-orientation` on the root either way, and as
+`aria-orientation="vertical"` only for `vertical` — horizontal is the role's own default,
+and restating a default is how two sources of truth start.
+
+### A captioned section break
+
+A divider with words in the middle of it is a layout pattern, not a separator: the ARIA
+role has no text alternative, so Divider has no label part. Write the caption as your own
+element and put a divider on either side of it, or style the text with the design system's
+typography and skip the separator role altogether.
+
+### Inside a card
+
+```tsx
+<Card.Root>
+    <Card.Body>Summary</Card.Body>
+    <Divider.Root />
+    <Card.Body>Details</Card.Body>
+</Card.Root>
+```
+
+A divider is a plain element in the flow; it renders nothing but the rule, so it sits
+between any two siblings. `role="separator"` tells assistive technology the content on
+either side is distinct, and the reader is not stopped on it because it is not focusable.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | `role="separator"`, `data-orientation`, `aria-orientation` (vertical only). Carries the variant axes. |
+
+One part, no states, no flags. The scope declares `orientation`, so every rule a design
+system writes for it can narrow on `[data-orientation="vertical"]`. The root is not focusable
+and has no `tabindex` — a separator that can be moved is a different widget. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+This is the standalone divider. A [`Menu`](/zero/docs/components/menu/) has its own
+`separator` part, which belongs to the menu's anatomy and carries the menu's chrome.
+
+## Props
+
+### `Divider.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Which way the rule runs; rendered as `data-orientation`, and as `aria-orientation` when vertical. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes. |
+
+Divider has no children and no `asChild`: there is nothing to put inside a rule, and the
+`div` with its role is the whole element.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on divider, so `<Divider.Root color="neutral" size="sm">` is styled in
+both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import the `variant` prop is therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A recipe paints the rule as a border or a background on the root and switches its
+thickness axis on `[data-orientation="vertical"]`; `size` is the natural place for the
+weight of the line and the space around it. A vertical divider needs a height from its
+container (a flex row's `align-self: stretch`, for instance) — the component sets no
+dimensions of its own.
+
+## Related
+
+[Card](/zero/docs/components/card/) and [Navbar](/zero/docs/components/navbar/) are the
+layout containers a divider most often sits inside.

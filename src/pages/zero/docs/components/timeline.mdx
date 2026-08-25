@@ -1,0 +1,156 @@
+---
+title: "Timeline"
+description: "The @sigx/zero Timeline component — an ordered list of events along an axis (root / item / marker / connector / content), vertical by default, with aria-hidden decoration parts and content that declares its side of the axis as data-placement."
+layout: docs
+category: ["Components", "Content"]
+order: 514
+---
+
+# Timeline
+
+<p class="lede">Events along an axis, as a real `<ul>` / `<li>` list — assistive tech
+announces "list, N items" and walks it, which is the whole accessibility story. Everything
+else is geometry for recipes: a marker on the axis, a connector toward the next item, and a
+content box that declares which side of the axis it sits on.</p>
+
+## Import
+
+```tsx
+import { Timeline } from '@sigx/zero/timeline';
+```
+
+`Timeline` is a compound: `Timeline.Root`, `Timeline.Item`, `Timeline.Marker`,
+`Timeline.Connector`, `Timeline.Content`. It is also re-exported from the `@sigx/zero`
+root, together with `timelineAnatomy` and `useTimelineContext`. The `TimelinePlacement`
+type (`'start' | 'end'`) is exported alongside `TimelineRootProps`, `TimelinePartProps`
+and `TimelineContentProps`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Timeline } from '@sigx/zero/timeline';
+
+const Releases = component(({ signal }) => {
+    const state = signal({
+        events: [
+            { version: 'v1.0', note: 'First release' },
+            { version: 'v2.0', note: 'Compound components' },
+        ],
+    });
+
+    return () => (
+        <Timeline.Root>
+            {state.events.map((event, i) => (
+                <Timeline.Item>
+                    <Timeline.Marker />
+                    <Timeline.Content>
+                        <strong>{event.version}</strong> {event.note}
+                    </Timeline.Content>
+                    {i < state.events.length - 1 && <Timeline.Connector />}
+                </Timeline.Item>
+            ))}
+        </Timeline.Root>
+    );
+});
+```
+
+Timeline takes no `model`: the events are content. Each `Timeline.Item` is one event — a
+`Marker` (the dot or icon on the axis), a `Content` box, and a `Connector` (the line
+segment from this item's marker toward the next). Leave the connector off the last item.
+
+### Horizontal timeline
+
+```tsx
+<Timeline.Root orientation="horizontal">
+    <Timeline.Item>…</Timeline.Item>
+</Timeline.Root>
+```
+
+The default is `vertical` — a feed of events grows downward; the horizontal process strip
+is the variation. `orientation` renders as `data-orientation` on the root, every item, every
+connector and every content box. Descendants read it from `useTimelineContext`.
+
+### Alternating sides
+
+```tsx
+<Timeline.Item>
+    <Timeline.Marker>★</Timeline.Marker>
+    <Timeline.Content placement="start">v2.0 shipped</Timeline.Content>
+</Timeline.Item>
+```
+
+`placement` on `Content` declares which side of the axis the box sits on, from the logical
+`start` / `end` pair; the default is `end`. Because it is per-item contract data, an
+alternating layout is per-item markup rather than `nth-child` guesswork, and it mirrors
+under right-to-left scripts without a rule being flipped. On a vertical timeline `start` is
+the inline-start side; on a horizontal one it is the block-start side — which is why the
+content box carries `data-orientation` as well as `data-placement`.
+
+### Decoration stays silent
+
+`Marker` and `Connector` render `aria-hidden="true"`. The reader gets each event from the
+content text, and hearing "star" between two of them is noise, not information. Put
+anything a reader needs inside `Content`.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `ul` | — | — | Carries the variant axes and `data-orientation`. |
+| `item` | `li` | — | — | One event. Carries `data-orientation`. Inside `root`. |
+| `marker` | `div` | — | — | `aria-hidden="true"`. The dot / icon on the axis. Inside `item`. |
+| `connector` | `div` | — | — | `aria-hidden="true"`. Carries `data-orientation`. Inside `item`. |
+| `content` | `div` | — | — | `data-placement`: `start` \| `end`. Carries `data-orientation`. Inside `item`. |
+
+Every part carries `data-scope="timeline"` and `data-part="<part>"`. Token hints: `root`
+and `marker` take `color` and `size`; `connector` takes `color`; `content` takes `color`,
+`radius-box` and `text`; `item` hints none. The marker is a paint part — an empty element by
+default — so the contrast audit grades it on the non-text indicator floor. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Timeline.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `orientation` | `'horizontal' \| 'vertical'` | `'vertical'` | Layout axis; rendered as `data-orientation` on root, item, connector and content. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes. |
+
+Timeline has no `model`, no default-value prop and no change event: it has no state to
+bind.
+
+### `Timeline.Item`, `Timeline.Marker`
+
+Only `class`. Each renders its part around the default slot; `Item` mirrors the root's
+`data-orientation`.
+
+### `Timeline.Connector`
+
+Only `class`. Renders empty, mirroring the root's `data-orientation`.
+
+### `Timeline.Content`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `placement` | `TimelinePlacement` | `'end'` | Which side of the axis the box sits on; rendered as `data-placement`. |
+| `class` | `string` | — | Extra classes. |
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on the timeline root. Neither wires a `variant` or any `mods`; under
+a design system's `/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A timeline recipe composes side × axis on the parts that carry both: the content box's
+inline or block offset comes from `[data-placement]` narrowed by `[data-orientation]`, and
+the connector's length runs along the block axis when vertical and the inline axis when
+horizontal. The marker's fill on the `color` axis must clear the 3:1 non-text floor.
+
+## Related
+
+[`Steps`](/zero/docs/components/steps/) is the sequence with a completion state per item;
+Timeline is the sequence that only records.

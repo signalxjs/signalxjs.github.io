@@ -1,0 +1,108 @@
+---
+title: "Overview"
+description: "daisyUI's look as pure tokens + recipes — the Zero DaisyUI package for SignalX Zero (@sigx/zero-daisyui): what it does, setup and API."
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Zero DaisyUI
+
+<p class="lede">daisyUI's token values and component look, expressed as pure tokens + recipes
+over the zero anatomy. No Tailwind, no daisyUI plugin — the whole design system is compiled
+CSS — with five themes and a daisy-native, fully typed `./components` surface.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/zero-daisyui" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/zero @sigx/zero-daisyui
+```
+
+```ts
+import '@sigx/zero/css';
+import '@sigx/zero-daisyui/css';
+import { installThemes } from '@sigx/zero-daisyui';
+installThemes();   // registers the `light` / `dark` pair plus `dim`, `nord` and `sunset`
+```
+
+## The palette
+
+daisyUI 5.7.8's palette, role for role, in all five themes — checked against its shipped
+`themes.css`. `light` and `dark` are the paired defaults (`defaultLight` / `defaultDark`);
+`dim` (dark), `nord` (light) and `sunset` (dark) stand alone. Under
+`import '@sigx/zero-daisyui/register'` the theme union is exactly those five, and
+`setTheme('dimm')` is a compile error.
+
+Beside the contract tokens it declares daisy's own two non-contract knobs as custom tokens,
+because daisy's controls read them directly: `--depth` (`1` = the inset-shadow relief of
+`light` / `dark`, `0` = the flat look of `dim`, `nord` and `sunset`) with the two paints it
+scales, `--depth-shade` and `--depth-sheen`; and `--noise` with daisy's fractal tile in
+`--fx-noise`. Override `--depth: 0` on a subtree to flatten it.
+
+## Drawn marks and honest ratios
+
+The checkbox tick, the radio dot and the rating fill are drawn, not typeset: each is
+geometry that interpolates between states, so it rides the size ramp and animates. Under
+`forced-colors` and `print` the checkbox swaps to a glyph drawn in `--print-ink`; the rating
+keeps its geometry, since no glyph can say "half".
+
+Five of daisy's own ratios are deliberately moved, and only these five, each measured under
+3:1 against the surface it has to be seen on in at least one theme: the unchecked toggle
+knob and the unfilled rating symbol are `base-content` at 60% rather than daisy's 50% and
+20%; the rating's default `warning` fill is deepened 60/40 toward its content pair; the
+progress bar's fill 90/10 (its `complete` green 55/45); and the role **ink** — the colour a
+transparent or tinted surface draws a label, a border, a focus ring or an error message
+with — is the role mixed toward `--color-base-content`, per role, rather than the raw role
+token daisy draws with. Button's `outline`, `soft` and `ghost` variants read that ink through
+a component token, `--btn-ink`; `solid` is unchanged. Every other value is daisy's.
+
+`select`, `combobox` and `number-input` share one field metric — the same `--size-field`
+height ramp, inset and `--shadow-xs` lift — so two controls in a column are the same height.
+
+## The vocabulary
+
+| Axis | Values |
+|---|---|
+| `color` | the recommended eight: `primary`, `secondary`, `accent`, `neutral`, `info`, `success`, `warning`, `error` |
+| `size` | `xs`, `sm`, `md`, `lg`, `xl` |
+| `variant` | on Button: `solid` \| `outline` \| `soft` \| `ghost` \| `dash` \| `link` — daisy 5's full style vocabulary, orthogonal to the colour axis exactly as daisy composes `btn-outline` with `btn-primary` |
+| `mods` | on Button: `wide`, `block`, `square`, `circle`, `active`, `loading` — daisy's six documented `btn-*` modifiers; on Table: `zebra`, `hover` |
+| themes | `light`, `dark`, `dim`, `nord`, `sunset` |
+
+`color` and `size` are wired on every component. The `loading` modifier draws its spinner in
+`currentColor` off `[data-mod-loading]` — zero changes no DOM — and is paint only: pair it
+with `disabled` yourself. See [Button](/zero/docs/components/button/#the-loading-button).
+
+## The daisy-native surface
+
+The package declares an `api`, so beside `/register` it ships a generated `./components`
+module — the single-import, fully typed surface with daisy's own prop names:
+
+```tsx
+import { Button } from '@sigx/zero-daisyui/components';
+
+<Button wide loading variant="dash" color="primary">Save</Button>
+```
+
+The modifiers are flat booleans, `variant` and `color` are the axes above, and the rendered
+attributes are zero's (`data-mod-wide=""`, `data-variant="dash"`). `Table.Root` takes `zebra`
+and `hover` the same way; every other component is a plain re-export. No `/register` import is
+needed. See [Vendor-named component APIs](/zero/docs/vendor-apis/).
+
+## Writing direction
+
+Every direction-bearing rule is spelled logically, so the whole design system mirrors under
+`dir="rtl"` — the toast viewport's start/end placements, the submenu chevron, the collapsed
+tree indicator and the indeterminate progress sweep included. The switch needed nothing: its
+knob grows a grid column, which is RTL-correct for free.
+
+## About
+
+`@sigx/zero-daisyui` is a Zero package — daisyUI's look as pure tokens + recipes. It is
+versioned in lockstep with the rest of the zero repo, so the runtime, the kit and every
+shipped design system always agree on the anatomy contract. Swap it with `@sigx/zero-basic`,
+or a design system you generated, and no component code changes.

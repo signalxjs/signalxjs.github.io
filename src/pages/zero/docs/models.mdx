@@ -1,0 +1,106 @@
+---
+title: Models
+description: "The one two-way model prop every @sigx/zero component uses instead of value / defaultValue / onChange, the uncontrolled default* props, and the named-models convention for components with more than one piece of state"
+layout: docs
+category: Concepts
+order: 41
+---
+
+# Models
+
+<p class="lede">Every stateful zero component takes one optional `model` prop. Bind it to a
+signal property and the component reads and writes that property; leave it off and the
+component keeps its own state, seeded from a `default*` prop. There are no
+`value` / `defaultValue` / `onValueChange` triplets and no controlled-versus-uncontrolled
+modes to keep straight.</p>
+
+## Binding a model
+
+```tsx
+import { component } from 'sigx';
+import { Dialog } from '@sigx/zero/dialog';
+
+const Example = component(({ signal }) => {
+    const state = signal({ open: false });
+    return () => (
+        <Dialog.Root model={() => state.open}>
+            <Dialog.Trigger>Open</Dialog.Trigger>
+            <Dialog.Popup>…</Dialog.Popup>
+        </Dialog.Root>
+    );
+});
+```
+
+`model={() => state.open}` is sigx two-way binding (`Define.Model`): the getter reads a signal
+property, sigx tracks that read to know which property to write back to, and the component
+writes through it when the user closes the dialog. Writing `state.open = true` from anywhere
+opens it. The getter must read a signal property directly — not a transformed expression —
+or there is nothing to write back to.
+
+Because the parent's signal is the source of truth, the component never holds a stale copy
+and there is no "sync the prop into local state" step.
+
+## Uncontrolled
+
+Omit `model` and the component keeps an internal signal seeded from the component's
+`default*` prop:
+
+```tsx
+<Tabs.Root defaultValue="general">…</Tabs.Root>
+<Dialog.Root defaultOpen>…</Dialog.Root>
+<Checkbox.Root defaultChecked>Remember me</Checkbox.Root>
+```
+
+The change event fires in both modes: `valueChange`, `openChange`, `checkedChange`,
+`pressedChange`, `loadingChange` — the name follows the state. Listen to it when you want to
+react to a change without owning the value.
+
+## What the model is, per component
+
+The model is the component's *essential* value — the thing a `hidden-input` part posts in a
+form. Each component page lists its type; the shapes that recur:
+
+| Shape | Components |
+|---|---|
+| `boolean` | Dialog, Drawer, Popover, Tooltip, Menu, Collapsible, Switch, Checkbox, Toggle, Alert (`open`, default `true`), Skeleton (`loading`, default `true`), Swap |
+| `string` | Tabs, RadioGroup, Select, NativeSelect, Combobox, Input, Textarea, Steps, TreeView (selected value) |
+| `string[]` | Accordion (open items), ToggleGroup (always an array — `multiple` changes the setter, not the shape), TreeView `model:expandedValues` |
+| `number` | RatingGroup, Pagination (page), Diff (percent), Carousel (active index) |
+| `number \| null` | NumberInput (empty commits `null`, never `0`) |
+| `number \| number[]` | Slider (scalar → native `<input type=range>`; array → composed multi-thumb) |
+| `File[]` | FileUpload |
+
+Progress and RadialProgress take a plain `value` prop rather than a model: they display a
+value, nothing writes it back.
+
+## Named models
+
+A component has exactly **one** unnamed `model`. Every additional controllable piece of
+state is a *named model*, bound in JSX as `model:<stateName>` (sigx
+`Define.Model<'<stateName>', T>`), and each keeps the standard companions
+`default<StateName>` and `<stateName>Change`.
+
+Combobox is the shape's home:
+
+```tsx
+<Combobox.Root
+    model={() => state.value}              // the selected value — what the hidden input posts
+    model:inputValue={() => state.query}   // the text in the input
+    model:open={() => state.open}          // whether the popup is open
+>
+```
+
+TreeView binds its selection as `model` and its expanded branches as
+`model:expandedValues` (a `string[]`). Any of them can be left uncontrolled independently:
+`defaultInputValue`, `defaultOpen`, `defaultExpandedValues`.
+
+The rule is what keeps components predictable: whichever component you pick up, `model` is
+the value, and every other controllable state has a name you can read off the props.
+
+## Under the hood
+
+`createControllableState(getModel, defaultValue, onChange)` from `@sigx/zero/behaviors` is
+the primitive behind every model. It reads through the model when one is bound and through an
+internal signal otherwise, fires `onChange` on every actual change in both modes, and
+ignores writes that would not change the value. It is public so an
+[ecosystem component](/zero/docs/ecosystem-components/) follows the same convention.

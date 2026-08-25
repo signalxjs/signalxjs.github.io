@@ -1,0 +1,98 @@
+---
+title: "Overview"
+description: "The neutral starter design system — the Zero Basic package for SignalX Zero (@sigx/zero-basic): what it does, setup and API."
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Zero Basic
+
+<p class="lede">The neutral starter design system for SignalX Zero — readable defaults so a zero
+app looks sane on day one, and the reference implementation for generating a design system
+of your own with `@sigx/zero-kit`.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/zero-basic" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/zero @sigx/zero-basic
+```
+
+```ts
+import '@sigx/zero/css';
+import '@sigx/zero-basic/css';
+import { installThemes } from '@sigx/zero-basic';
+installThemes();   // registers the `basic` / `basic-dark` pair
+```
+
+## The look: Monograph
+
+Documentation-grade calm, engineered for UIs people read all day.
+
+- **Paper surfaces** — cool slate-tinted bases (hue 260), no pure white and no pure black
+  anywhere; input wells are always windows of `base-100` cut into whatever surface they sit
+  on.
+- **Hairline structure** — depth is drawn with 1px `base-300` rules, not shadows. A card is
+  a bordered region; the single honest `lg` shadow is reserved for transient overlays (in
+  dark they sit on `base-200` and catch a moonlit inset edge instead).
+- **Printed-ink petrol** — one protagonist hue, a petrol blue-black at hue 205, carries every
+  interactive signal; focus-visible is always the same 2px petrol ring, every role, every
+  variant. Selected items wear a 2px margin marker over a soft wash rather than a solid fill.
+- **Borders, not shadows; ink, not motion** — nothing moves on hover, pressed feedback is
+  instantaneous ink density, overlays enter with a 4px rise and fade out with no travel.
+  Meta-text is mono; numbers are tabular everywhere.
+- **Marks are drawn ink, not typeset glyphs** — the checkbox tick and the rating star are
+  geometry that interpolates, so a mark's weight is Monograph's and not the reader's font's.
+  Under `forced-colors` and on paper the checkbox falls back to a glyph drawn in
+  `--print-ink`; the rating keeps its geometry, because no glyph can say "half". A
+  `RatingGroup.Item` rendering its own symbol through the slot gets the colour treatment
+  only.
+- **A hairline that *is* the mark is drawn in ink, not in `base-300`** — the structural grey
+  is for rules between things that are each visible on their own. Where the hairline is the
+  only thing separating a mark from its backdrop (the switch's paper knob on its track, the
+  rating's unfilled remainder) it takes 55% ink, as a `border` rather than an inset shadow so
+  `forced-colors` cannot strip it.
+
+## The vocabulary
+
+| Axis | Values |
+|---|---|
+| `color` | the recommended eight: `primary`, `secondary`, `accent`, `neutral`, `info`, `success`, `warning`, `error` |
+| `size` | `xs`, `sm`, `md`, `lg`, `xl` |
+| `variant` | `solid` \| `outline` \| `soft` \| `ghost` on Button; `outline` \| `soft` \| `ghost` on Select; `solid` \| `soft` \| `outline` on Badge — per-scope, via `tokens.scopes` |
+| `mods` | `zebra`, `hover` on Table |
+| themes | `basic` (light) and `basic-dark`, paired |
+| breakpoints | `sm` 640px, `md` 768px, `lg` 1024px |
+
+`color` and `size` are wired on every component; each [component page](/zero/docs/components/)
+says so. Under `import '@sigx/zero-basic/register'` the props narrow to exactly this table.
+See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Writing direction
+
+Every direction-bearing rule is spelled logically, so the whole design system mirrors under
+`dir="rtl"`: `inset-inline-*` and `margin-inline-*` where a logical property exists, and a
+direction-valued custom property the RTL selector rebinds where one does not, since
+`transform` has no logical form. The toast viewport's start/end placements, the submenu
+chevron, the switch thumb, the collapsed tree indicator and the indeterminate progress
+sweep all mirror.
+
+## The reference design system
+
+`@sigx/zero-basic` is the smallest shipped design system and the one to copy when starting
+your own — its `src/tokens.ts` declares the recommended vocabulary explicitly so the manifest
+documents it, its recipes are the reference input for the kit's golden and coverage suites,
+and its `build.mjs` is the reference adopter of an ecosystem component: it merges a manifest
+fragment and spreads a recipe pack at build time only, so the published module graph stays
+zero-only. It also compiles the [Lynx](/zero/docs/lynx/) target, exported as `./lynx/*`. See
+[Authoring a design system](/zero/docs/authoring/).
+
+## About
+
+`@sigx/zero-basic` is a Zero package — the neutral starter design system. It is versioned
+in lockstep with the rest of the zero repo, so the runtime, the kit and every shipped design
+system always agree on the anatomy contract.

@@ -1,0 +1,129 @@
+---
+title: "Spinner"
+description: "The @sigx/zero Spinner component — one empty <span> announcing as role=\"status\" with an accessible name, carrying the color / size axes for a design system to draw the mark into."
+layout: docs
+category: ["Components", "Content"]
+order: 509
+---
+
+# Spinner
+
+<p class="lede">A busy indicator, and nothing else. One empty `<span>` with `role="status"` and
+an accessible name; the mark itself — a border ring, a conic gradient, a pseudo-element — is
+the design system's paint. It has no state: a spinner spins, or it is not rendered.</p>
+
+## Import
+
+```tsx
+import { Spinner } from '@sigx/zero/spinner';
+```
+
+`Spinner` is a compound with a single member, `Spinner.Root`. It is also re-exported from
+the `@sigx/zero` root, together with `spinnerAnatomy`. The props type is exported as
+`SpinnerRootProps`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Spinner } from '@sigx/zero/spinner';
+
+const Upload = component(({ signal }) => {
+    const state = signal({ uploading: false });
+
+    return () => (
+        <div>
+            <button type="button" disabled={state.uploading} onClick={start}>Upload</button>
+            {state.uploading && <Spinner.Root label="Uploading" size="sm" />}
+        </div>
+    );
+});
+```
+
+Spinner takes no `model`: whether it is busy is a fact the app already holds, so the app
+renders the spinner while the work is in flight and removes it when the work is done. That
+is the whole lifecycle. There is no `loading` / `idle` pair, because an idle spinner is one
+nobody should be looking at, and giving it a state would invite a design system to paint
+one.
+
+### The accessible name
+
+```tsx
+<Spinner.Root />
+<Spinner.Root label="Saving draft" />
+```
+
+`role="status"` carries an implicit `aria-live="polite"`, so a screen reader is told the
+name once when the spinner appears — not repeatedly while it turns. The runtime supplies
+`"Loading"` as the name; `label` overrides it. A page that shows several spinners at once
+should give each its own label, otherwise every one of them announces the same word and the
+reader cannot tell which region is working.
+
+### Colour and size
+
+```tsx
+<Spinner.Root color="primary" size="lg" />
+```
+
+The variant axes render as `data-color` / `data-size` on the element, which is the only
+surface a design system needs: the mark is drawn entirely in CSS off those attributes.
+
+### Beside a button
+
+A [`Button`](/zero/docs/components/button/) has no `loading` prop; the busy paint is a
+design-system `mods` modifier. When the design draws nothing, a `Spinner` with a `label`
+beside the disabled button is the accessible fallback.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `span` | — | — | `role="status"`, `aria-label`. Carries the variant axes. Renders empty. |
+
+The part carries `data-scope="spinner"` and `data-part="root"`, and hints the `color` and
+`size` tokens — no `text` token, because it never prints a glyph. It renders no children:
+the recipe draws into the empty element, and the contrast audit grades the result on the
+non-text indicator floor, so an invisible spinner is a real bug rather than a quiet one. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+There is no `asChild`: the element and its role are the component, and there is nothing to
+render it *as*.
+
+## Props
+
+### `Spinner.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | `'Loading'` | The accessible name, rendered as `aria-label`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes. |
+
+Spinner has no `model`, no default-value prop and no change event: it has no state to bind.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on the spinner, so `<Spinner.Root color="primary" size="sm">` is
+styled in both. Neither wires a `variant` or any `mods`; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+Two rules for a recipe that draws the mark:
+
+- **Reduced motion stops the loop.** A spinner's animation is a *loop*, so its duration is
+  written as a literal, never as a `--duration-*` token. The motion tokens collapse to
+  0.01ms under `prefers-reduced-motion: reduce`, which is right for a transition and wrong
+  for a loop — a looping animation on a token speeds up into a strobe instead of stopping.
+  The recipe answers the preference under the `reduced-motion` condition with
+  `animation: none`, and leaves a mark that still reads as "working" when nothing moves
+  (a static ring with a gap, a dimmed arc).
+- **The mark must be visible.** With no text, the spinner is graded on the 3:1 non-text
+  contrast floor against its background, in every colour role the skin wires.
+
+## Related
+
+[`Skeleton`](/zero/docs/components/skeleton/) holds the layout that loading content will
+occupy; [`Progress`](/zero/docs/components/progress/) is for work with a known fraction.
+[`Status`](/zero/docs/components/status/) is the other empty paint-only mark — a resting dot
+rather than a moving one.

@@ -1,0 +1,139 @@
+---
+title: "Swap"
+description: "The @sigx/zero Swap component — two faces over one boolean model, both kept rendered for the CSS transition between them, as a display span by default or a real <button aria-pressed> when interactive."
+layout: docs
+category: ["Components", "Rich behavior"]
+order: 603
+---
+
+# Swap
+
+<p class="lede">A boolean with two faces. `On` and `Off` both stay rendered — the component
+exists for the CSS transition between them — and the inactive face is `aria-hidden`. By
+default a swap is a display element, a `<span>` that follows external state; with
+`interactive` it becomes a real `<button aria-pressed>` that toggles on click.</p>
+
+## Import
+
+```tsx
+import { Swap } from '@sigx/zero/swap';
+```
+
+`Swap` is a compound: `Swap.Root`, `Swap.On`, `Swap.Off`. It is also re-exported from the
+`@sigx/zero` root, together with `swapAnatomy` and `useSwapContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Swap } from '@sigx/zero/swap';
+
+const ThemeIcon = component(({ signal }) => {
+    const state = signal({ dark: false });
+
+    return () => (
+        <Swap.Root model={() => state.dark}>
+            <Swap.On><MoonIcon /></Swap.On>
+            <Swap.Off><SunIcon /></Swap.Off>
+        </Swap.Root>
+    );
+});
+```
+
+`model={() => state.dark}` binds the boolean both ways. Leave the model off and pass
+`defaultOn` to keep the state inside the component; `change` fires either way. See
+[Models](/zero/docs/models/).
+
+Rendered like this the swap has no semantics of its own: it is an icon that follows
+`state.dark`, and whatever sets `state.dark` — a switch elsewhere, a media query — is the
+control.
+
+### Interactive
+
+```tsx
+<Swap.Root interactive label="Toggle dark mode" model={() => state.dark}>
+    <Swap.On><MoonIcon /></Swap.On>
+    <Swap.Off><SunIcon /></Swap.Off>
+</Swap.Root>
+```
+
+`interactive` makes the swap a control: the root renders a native `<button>` with
+`aria-pressed` mirroring the model, a click toggles it, and the platform supplies Enter and
+Space. The faces are usually glyphs, so `label` gives the button its accessible name.
+Interactive is opt-in on purpose — a display element must not claim button semantics.
+
+### Disabled
+
+```tsx
+<Swap.Root interactive disabled label="Toggle dark mode" model={() => state.dark}>
+```
+
+`disabled` disables the button and renders `data-disabled`. On a display swap the attribute
+still renders — a swap that cannot be operated is a styling fact, so the faces fade like the
+button form's would.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `span` | `on` \| `off` | `disabled`, `focus-visible`, `pressed`, `press-animating` | A `button` with `aria-pressed` and `aria-label` under `interactive`. Carries the variant axes. Publishes [press feedback](/zero/docs/behaviors/#press-feedback) when interactive. |
+| `on` | `span` | `on` \| `off` | — | The face shown while `on`; `aria-hidden` while `off`. Inside `root`. |
+| `off` | `span` | `on` \| `off` | — | The face shown while `off`; `aria-hidden` while `on`. Inside `root`. |
+
+Every part carries `data-scope="swap"` and `data-part="<part>"`. All three parts carry the
+same `on` / `off` state: the faces need it to style their own presence, the root to host the
+transition. Neither face is ever `hidden` — the attribute computes `display: none`, which
+would kill the cross-fade — so the inactive face is painted for the animation and absent
+for assistive technology. There is no indeterminate face: the model is a boolean, and a
+third face would be a third state wearing a styling costume. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Swap.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the on / off state. |
+| `defaultOn` | `boolean` | `false` | Initial state when uncontrolled. |
+| `change` | event `(on: boolean)` | — | Fires whenever the state changes. |
+| `interactive` | `boolean` | `false` | Render a `<button aria-pressed>` that toggles on click. |
+| `label` | `string` | — | Accessible name for the interactive form (`aria-label`). |
+| `disabled` | `boolean` | `false` | Inert when interactive; renders `data-disabled` in both forms. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Swap.On`, `Swap.Off`
+
+Only `class`.
+
+## Keyboard
+
+Only under `interactive`, where the root is a native button:
+
+| Key | Action |
+|---|---|
+| Enter / Space | Toggle the state. |
+| Tab | The button is one tab stop. |
+
+A display swap is not focusable and has no keyboard.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the swap root, so `<Swap.Root color="primary" size="lg">` is styled
+in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The recipe stacks the two faces in the same grid cell and keys the transition on
+`data-state`: the face whose part matches the state at full opacity, the other at zero.
+Rotate and flip looks are recipe styling on the same two states, not contract. The faces
+carry no text token hint on purpose — they are glyph slots, and the inactive one is
+legitimately painted at opacity 0, which is exactly what a text-legibility check must not be
+asked to read.
+
+## Related
+
+[Toggle](/zero/docs/components/toggle/) for a pressed-mode button with one face,
+[Switch](/zero/docs/components/switch/) for the form control.

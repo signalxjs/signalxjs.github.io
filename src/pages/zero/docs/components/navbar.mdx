@@ -1,0 +1,124 @@
+---
+title: "Navbar"
+description: "The @sigx/zero Navbar component — the banner landmark bar on a native <header>, with start / center / end sections laid out along the reading direction and no behavior of its own."
+layout: docs
+category: ["Components", "Navigation"]
+order: 401
+---
+
+# Navbar
+
+<p class="lede">The page-level bar: branding at one end, actions at the other, an optional
+centre. The root is a native `<header>` — the banner landmark at document scope — and the
+three sections are plain containers a design system distributes along a flex row. There is
+no state and no behavior; what zero adds is the anatomy and the logical `start` / `end`
+pair, so the bar mirrors under RTL for free.</p>
+
+## Import
+
+```tsx
+import { Navbar } from '@sigx/zero/navbar';
+```
+
+`Navbar` is a compound: `Navbar.Root`, `Navbar.Start`, `Navbar.Center`, `Navbar.End`. It is
+also re-exported from the `@sigx/zero` root, together with `navbarAnatomy`.
+
+## Usage
+
+```tsx
+import { Navbar } from '@sigx/zero/navbar';
+import { Button } from '@sigx/zero/button';
+
+<Navbar.Root color="neutral">
+    <Navbar.Start>
+        <a href="/">Acme</a>
+    </Navbar.Start>
+    <Navbar.Center>
+        <nav aria-label="Primary">
+            <a href="/docs">Docs</a>
+            <a href="/pricing">Pricing</a>
+        </nav>
+    </Navbar.Center>
+    <Navbar.End>
+        <Button.Root color="primary">Sign in</Button.Root>
+    </Navbar.End>
+</Navbar.Root>
+```
+
+All three sections are optional — a bar with only a `Start` and an `End` is a common shape.
+The sections carry no semantics of their own; the `<header>` is the one landmark zero emits.
+
+### Why the root is not a `<nav>`
+
+A navbar routinely holds content that is not navigation — a logo, a search field, an
+account menu — and a `<nav>` around all of it would place every one of those inside a
+navigation landmark it does not belong to. Zero cannot know which section holds the links,
+so it emits the landmark it can honestly claim: the banner. Wrap the actual link set in your
+own labelled `<nav>` **inside** a section, around exactly the links and nothing else, as the
+example above does.
+
+### Styling the sections
+
+```tsx
+<Navbar.Root class="site-bar">
+    <Navbar.Start class="site-bar__brand">Acme</Navbar.Start>
+    <Navbar.End class="site-bar__actions">…</Navbar.End>
+</Navbar.Root>
+```
+
+Every member takes `class`, and every part is selectable by its anatomy —
+`[data-scope="navbar"][data-part="end"]` — so app CSS can reach a section without a class
+at all. The parts are ordinary block containers; a design system's recipe decides that
+`root` is a flex row and how the three sections share it.
+
+### A bar that is not the page header
+
+`<header>` is the banner landmark only when it sits at document scope. Rendered inside an
+`<article>`, `<section>` or another sectioning element it is a plain header for that region,
+so a `Navbar.Root` used as the top bar of a panel does not compete with the page's banner.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `header` | — | — | The banner landmark. Carries the variant axes. |
+| `start` | `div` | — | — | The reading-edge section. Inside `root`. |
+| `center` | `div` | — | — | The middle section. Inside `root`. |
+| `end` | `div` | — | — | The far-edge section. Inside `root`. |
+
+Every part carries `data-scope="navbar"` and `data-part="<part>"`. `start` and `end` are the
+logical pair — the reading edge and the far edge — so a recipe that lays the root out as a
+flex row and lets `end` take `margin-inline-start: auto` mirrors under RTL without a
+direction rule. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Navbar.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Navbar.Start`, `Navbar.Center`, `Navbar.End`
+
+Only `class`. Each renders its section part around its children.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the navbar root, so `<Navbar.Root color="neutral" size="sm">` is
+styled in both. Neither wires a `variant` or any `mods` on the scope; under a design
+system's `/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The root is the only part a recipe needs a colour for — the sections are layout. A design
+system that draws the bar's fill from the `color` axis inherits it into the sections through
+the cascade, and the links and buttons inside keep their own component styling.
+
+## Related
+
+[Breadcrumbs](/zero/docs/components/breadcrumbs/) for the trail below the bar,
+[Menu](/zero/docs/components/menu/) for the account menu that usually sits in `End`,
+[Drawer](/zero/docs/components/drawer/) for the off-canvas navigation a narrow bar collapses
+into.

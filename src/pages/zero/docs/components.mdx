@@ -1,0 +1,23 @@
+---
+title: Components
+description: "Every @sigx/zero component, by tier — 51 unstyled, accessible compound components with a machine-readable anatomy."
+layout: docs
+category: Components
+order: 100
+---
+
+import { ComponentCatalog } from '@/components/ComponentCatalog';
+
+# Components
+
+<p class="lede">Every component in `@sigx/zero`, by tier. Each one renders a stable
+`data-scope` / `data-part` / `data-state` anatomy and no styling; every page lists the
+parts, their states and flags, the props, and what the shipped design systems wire.</p>
+
+Each component is its own subpath — `import { Tabs } from '@sigx/zero/tabs'` — and is also
+re-exported from the package root. State is one two-way [`model`](/zero/docs/models/) prop;
+every component composes the [variant axes](/zero/docs/variant-axes/) (`color`, `size`,
+`variant`, `axes`, `mods`), which pass through as `data-*` attributes for a design system to
+style.
+
+<ComponentCatalog catalogId="zero" collection="zero-docs" />

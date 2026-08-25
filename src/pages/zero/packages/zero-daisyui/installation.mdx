@@ -1,0 +1,76 @@
+---
+title: "Installation"
+description: "Install and configure @sigx/zero-daisyui, the Zero DaisyUI package for SignalX Zero."
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/zero-daisyui` beside `@sigx/zero`, import the two stylesheets, and
+register its five themes. Tailwind is not involved.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/zero @sigx/zero-daisyui
+```
+
+`@sigx/zero-daisyui` peer-depends on `@sigx/zero`; the two publish in lockstep.
+
+## Wire it up
+
+```ts
+import '@sigx/zero/css';                    // layer order + structural fallbacks
+import '@sigx/zero-daisyui/css';            // the whole design system
+import { installThemes } from '@sigx/zero-daisyui';
+
+installThemes();
+```
+
+`installThemes()` registers `light` and `dark` as a pair and `dim`, `nord` and `sunset`
+alongside. With no explicit choice the page follows the system preference; an explicit
+`setTheme('nord')` persists. See [Theming](/zero/docs/theming/).
+
+## Exports
+
+| Subpath | What |
+|---|---|
+| `@sigx/zero-daisyui` | `installThemes()`, plus the `tokens`, `recipes` and `designSystem` declarations. |
+| `@sigx/zero-daisyui/components` | The daisy-native typed surface — `Button` with `wide` / `block` / `square` / `circle` / `active` / `loading` and `variant` up to `dash` and `link`; `Table` with `zebra` / `hover`; every other component re-exported. |
+| `@sigx/zero-daisyui/css` | The complete compiled stylesheet. |
+| `@sigx/zero-daisyui/css/tokens` | Tokens and the five theme blocks only. |
+| `@sigx/zero-daisyui/css/<scope>` | One component's recipe. |
+| `@sigx/zero-daisyui/register` | The generated `ZeroVocabulary` augmentation. |
+| `@sigx/zero-daisyui/manifest.json` | The design-system manifest. |
+| `@sigx/zero-daisyui/report.json` | The coverage report. |
+| `@sigx/zero-daisyui/lynx/index.css`, `…/lynx/tokens.css`, `…/lynx/manifest.json` | The Lynx projection. |
+
+## Choose a typing path
+
+Either narrow zero's own props:
+
+```ts
+import '@sigx/zero-daisyui/register';       // once, at the app entry
+```
+
+or take daisy's names:
+
+```tsx
+import { Button } from '@sigx/zero-daisyui/components';
+<Button wide variant="dash" color="primary">Save</Button>
+```
+
+One or the other per program — see [Vendor-named component APIs](/zero/docs/vendor-apis/).
+
+## Verify
+
+```tsx
+import { Button } from '@sigx/zero/button';
+
+<Button.Root color="primary" mods={{ wide: true }}>daisy</Button.Root>
+```
+
+A wide, primary-filled daisy button with daisy's `light` palette means the stylesheet is
+live; `setTheme('sunset')` should repaint it warm.

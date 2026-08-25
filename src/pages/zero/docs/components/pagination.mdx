@@ -1,0 +1,160 @@
+---
+title: "Pagination"
+description: "The @sigx/zero Pagination component — an options-driven page picker in a <nav> landmark that renders its own windowed item buttons, aria-hidden ellipses and prev / next triggers from count and the page model."
+layout: docs
+category: ["Components", "Navigation"]
+order: 403
+---
+
+# Pagination
+
+<p class="lede">A page picker over a numbered range. Unlike the compound components, zero
+renders the row itself: the visible window derives from `count`, the page model and the
+windowing props, so a consumer could not compose what it cannot compute. The result is a
+`<nav>` landmark of ordinary buttons — the current page marked `aria-current="page"`, the
+ends bracketed by prev / next triggers that disable at the bounds.</p>
+
+## Import
+
+```tsx
+import { Pagination, paginationRow } from '@sigx/zero/pagination';
+```
+
+`Pagination` is a compound with a single member, `Pagination.Root`. It is also re-exported
+from the `@sigx/zero` root, together with `paginationAnatomy` and the `paginationRow`
+helper.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Pagination } from '@sigx/zero/pagination';
+
+const Results = component(({ signal }) => {
+    const state = signal({ page: 1 });
+
+    return () => (
+        <>
+            <ResultList page={state.page} />
+            <Pagination.Root count={12} model={() => state.page} />
+        </>
+    );
+});
+```
+
+`model={() => state.page}` binds the current page both ways — clicking a page writes
+`state.page`, and writing `state.page` moves the row. Leave the model off and pass
+`defaultPage` to keep the state inside the component; `pageChange` fires either way. See
+[Models](/zero/docs/models/).
+
+Every number the consumer passes is sanitised: `count` is at least 1, the page is clamped
+into `1..count`, and fractional values are floored, so the row never renders a page that
+does not exist.
+
+### The window
+
+```tsx
+<Pagination.Root count={40} siblingCount={2} boundaryCount={1} model={() => state.page} />
+```
+
+The row is a constant-width window: `boundaryCount` pages pinned at each end,
+`siblingCount` pages on each side of the current one, and an ellipsis wherever the window
+elides. When the current page sits near an edge the sibling block *slides* instead of
+shrinking, so page 1 of many shows as wide a row as page 5 and the triggers never move as
+the user walks.
+
+### Labels
+
+```tsx
+<Pagination.Root
+    count={12}
+    label="Search results pages"
+    prevLabel="Previous results"
+    nextLabel="Next results"
+    model={() => state.page}
+/>
+```
+
+`label` names the `<nav>` landmark (default `"Pagination"`); `prevLabel` and `nextLabel`
+name the triggers (default `"Previous page"` / `"Next page"`). The triggers render the `‹`
+and `›` glyphs as content, but their accessible name always comes from `aria-label`, never
+from the glyph. Each item button is named `"Page n"`.
+
+### Computing the row yourself
+
+```tsx
+import { paginationRow } from '@sigx/zero/pagination';
+
+paginationRow(5, 12, 1, 1);
+// → [1, 'start-ellipsis', 4, 5, 6, 'end-ellipsis', 12]
+```
+
+`paginationRow(page, count, siblingCount, boundaryCount)` is the pure windowing function
+the component renders from. It returns an array of page numbers and the two ellipsis
+markers, `'start-ellipsis'` and `'end-ellipsis'` — useful for a server-rendered list of
+links or a test that asserts the window shape.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `nav` | — | `disabled` | `aria-label` from `label`. Carries the variant axes. |
+| `item` | `button` | `active` \| `inactive` | `disabled`, `focus-visible`, `pressed`, `press-animating` | One per visible page; `aria-current="page"` when `active`, `aria-label="Page n"`. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). |
+| `ellipsis` | `span` | — | — | `aria-hidden` `…` where the window elides. Inside `root`. |
+| `prev-trigger` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | Steps back one page; disabled on page 1. Carries the `‹` glyph. |
+| `next-trigger` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | Steps forward one page; disabled on the last page. Carries the `›` glyph. |
+
+Every part carries `data-scope="pagination"` and `data-part="<part>"`. The current page is
+the activation state — the same `active` / `inactive` pair as breadcrumbs' current link and
+tabs' selected tab. There is no list: the windowed row is a strip of controls, not content,
+so wrapper `<li>` elements would be elements no part could honestly claim. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Pagination.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `number` | — | Two-way binding of the current page (1-based). |
+| `defaultPage` | `number` | `1` | Initial page when uncontrolled. |
+| `pageChange` | event `(page: number)` | — | Fires whenever the page changes. |
+| `count` | `number` | required | Total number of pages. |
+| `siblingCount` | `number` | `1` | Pages shown on each side of the current page. |
+| `boundaryCount` | `number` | `1` | Pages pinned at each end of the row. |
+| `label` | `string` | `'Pagination'` | Accessible name of the navigation landmark. |
+| `prevLabel` | `string` | `'Previous page'` | Accessible name of the previous-page trigger. |
+| `nextLabel` | `string` | `'Next page'` | Accessible name of the next-page trigger. |
+| `disabled` | `boolean` | `false` | Disables every button; renders `data-disabled` on the root and each button. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| Tab / Shift+Tab | Move between the triggers and every page button — each is its own tab stop. |
+| Enter / Space | Activate the focused button: select that page, or step with a trigger. |
+
+There is deliberately no roving `tabindex`. Roving is for composites where one widget owns
+many stops; here each page is a distinct, meaningful destination exactly like any other
+button row, and collapsing them to one stop would hide the row from a keyboard user walking
+by Tab. There is no APG pagination pattern to defer to, so the semantics stay at the honest
+minimum: a landmark, `aria-current` on the current page, and ordinary buttons.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the pagination root, so `<Pagination.Root color="primary" size="sm">`
+is styled in both. Neither wires a `variant` or any `mods` on the scope; under a design
+system's `/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The trigger glyphs are physical ink: `‹` points left whatever the reading direction. A
+recipe corrects that under RTL with `transform: scaleX(-1)` on the two trigger parts inside
+its `rtl` guard — the same treatment as every other pointing chevron in the shipped skins.
+
+## Related
+
+[Breadcrumbs](/zero/docs/components/breadcrumbs/) for the other navigation landmark,
+[Table](/zero/docs/components/table/) for the data the pages usually page through.

@@ -1,0 +1,174 @@
+---
+title: Behaviors
+description: "The headless behaviors @sigx/zero's components are built from — controllable state, SSR-safe ids, list and tree registration, roving focus, typeahead, dismissal, anchor positioning with virtual anchors, press feedback, spin press and focus management — all public on @sigx/zero/behaviors"
+layout: docs
+category: Concepts
+order: 42
+---
+
+# Behaviors
+
+<p class="lede">Zero's components are composed from a small set of plain setup-time factories
+over signals. Every one of them is exported from `@sigx/zero/behaviors` (and the package
+root), so an ecosystem component uses the same machinery zero's own components do — and so
+you can read a component's behavior off the primitives it spreads.</p>
+
+```ts
+import {
+    createControllableState, createId, zeroPlugin,
+    createListController, createRovingKeydown, createTypeahead, createTreeController,
+    createDismissable, createAnchorPosition, pointAnchor, fixedPositionStrategy,
+    createPressFeedback, createSpinPress,
+    createFocusRestore, focusFirst, getTabbables, isFocusVisible,
+    useFieldContext, provideFieldContext, segmentOptions,
+} from '@sigx/zero/behaviors';
+```
+
+`@sigx/zero/behaviors/core` is the platform-neutral subset — controllable state, ids, the
+field context, option segmentation and the list controller with its element type left open —
+importable without `lib.dom`. See [Lynx](/zero/docs/lynx/).
+
+## Controllable state
+
+`createControllableState(getModel, defaultValue, onChange)` is the primitive behind every
+[`model`](/zero/docs/models/): it reads and writes through the bound model when there is one
+and through an internal signal otherwise, and fires `onChange` on every actual change in both
+modes.
+
+## SSR-safe ids
+
+ARIA wiring needs ids that are unique per app *and* identical between the server render and
+client hydration. `createId(prefix)` mints one from an injectable generator; `zeroPlugin()`
+installs a per-app generator so an SSR app's per-request app factory resets the counter:
+
+```ts
+app.use(zeroPlugin());
+```
+
+Client-only apps can skip the plugin — the fallback singleton only needs uniqueness.
+
+## Lists, roving focus and typeahead
+
+`createListController()` is the registration primitive for anything with items: each item
+registers `{ value, el, disabled }` and the controller answers `items()` /
+`enabledItems()` in DOM order — trusting only *connected* elements, with registration order
+(depth-first render order) as the fallback for created-but-unattached ones, which is also
+what makes it SSR-safe. `moveHighlight` and `optionText` are the listbox-highlight helpers
+Select and Combobox step with.
+
+`createRovingKeydown({ list, orientation, loop, rtl, onMove })` returns a keydown handler
+implementing the APG roving pattern: arrow keys move through the enabled items (Home / End
+jump to the edges), the orientation decides which arrows, `rtl` flips the horizontal pair,
+and the caller decides what "move" means — Tabs selects on focus in automatic mode, Menu
+highlights, Select moves `aria-activedescendant`.
+
+`createTypeahead({ list, onMatch })` is first-character typeahead: printable keys accumulate
+in a one-second buffer and the first enabled item whose text starts with it, searching from
+after the current item, wins.
+
+`createTreeController({ isExpanded })` is the hierarchical version TreeView uses. It
+*implements* the flat `ListController` interface with `items()` returning only the visible
+nodes — every ancestor expanded — in DOM order, so roving and typeahead work on a tree
+unchanged. It adds `registerNode`, `visibleItems`, `level(value)` (for `aria-level`),
+`childrenOf(parentValue)` and `findNode`. Expansion state lives in the component as a
+model; the controller only asks.
+
+## Dismissal
+
+`createDismissable({ getElement, isOpen, dismiss, outsidePress?, escape?, getExtraTargets? })`
+wires outside-press and Escape for an overlay surface while `isOpen()` is true, on a
+module-scoped layer stack so nested overlays dismiss innermost-first. Where the platform
+already dismisses — a modal `<dialog>`'s Escape, `popover="auto"` light dismiss — the
+component syncs the native event back into its model instead. Combobox uses it because its
+`popover="manual"` popup must survive a caret click; a non-modal Dialog uses it because a
+non-modal `<dialog>` fires no `cancel`.
+
+## Positioning
+
+The `popover` attribute lifts an element into the top layer but does not position it.
+`createAnchorPosition({ getAnchor, getFloating, isOpen, placement?, offset?, flip?, strategy? })`
+keeps a floating element positioned against its anchor while open (SSR-inert), and returns a
+handle whose `update()` re-resolves the anchor and re-runs the strategy without an
+open/close transition — a second right-click re-anchoring an open context menu.
+
+The strategy is pluggable through the `PositionStrategy` interface
+(`apply(anchor, floating, opts) → cleanup`). The built-in `fixedPositionStrategy` computes
+fixed coordinates from the anchor rect — `placement` (default `bottom`), `offset` (default
+`6`), viewport flip (default on) and shifting into the viewport — and tracks scroll and
+resize. A richer engine such as `@floating-ui/dom` fits the same interface without zero
+depending on it. Whatever the strategy, it stamps the popup's `data-placement` with where it
+*actually* landed after flipping.
+
+An anchor is anything that can report a client rect: an element, or a **virtual anchor**.
+`pointAnchor(x, y, size?)` builds one at client coordinates — what `Menu.ContextTrigger`
+anchors to under a right-click. The rect is captured once; a moved pointer means a new
+`pointAnchor` plus `update()`.
+
+## Press feedback
+
+CSS can react to `:active`, but it cannot see *where* a press landed or let a one-shot
+effect run past release. `createPressFeedback({ getElement, isDisabled?, oneShot? })`
+publishes exactly that, as data a design system consumes in pure CSS:
+
+- **`data-pressed`** — present while the pointer or key is physically down.
+- **`data-press-animating`** — present from press-start until the design system's press
+  animation ends, *however* it ends: finished, cancelled, or destroyed along with the
+  stylesheet that declared it. Not until release — so a 50 ms tap still plays a full ripple.
+  If the active design system attaches no animation to the flag, it is removed synchronously.
+- **`--press-x` / `--press-y`** — the press point in px, relative to the part's border box.
+  Keyboard presses (Enter / Space) write the box centre.
+- **`--press-r`** — the distance from the press point to the farthest corner, so a covering
+  circle is `calc(var(--press-r) * 2)` wide without CSS trigonometry. Coordinates survive
+  release deliberately: a release fade may still be reading them.
+
+The lifecycle rule: **a press ends when the gesture ends**, and pointer capture defines the
+gesture. An uncaptured `pointerleave` cancels the press (drag off a button to cancel); a
+captured pointer — a native range input dragging, touch's implicit capture — holds it until
+`pointerup` or `pointercancel`. A drag surface (Slider) spreads no key handlers, no
+`pointerleave`, and passes `oneShot: false`: `data-pressed` and the coordinates still
+publish, the animating flag does not. Releases that land off-element are caught by a
+one-shot window listener installed at press start.
+
+Every interactive part publishes it: button root; tabs tab; dialog / popover / drawer
+trigger and close; menu trigger and item; select and combobox trigger and item;
+collapsible / accordion trigger; switch / checkbox control and radio-group item-control
+(a press anywhere in the label row lands on the visible control); slider control
+(`data-pressed` only); pagination item and prev/next triggers; steps item. The tooltip
+trigger is the deliberate exception — it declares only `disabled`, and a recipe that spreads
+a press-aware helper into it would emit a ripple that can never fire.
+
+This is what makes a pointer-anchored effect — a Material ink ripple, a selection-control
+halo, a slider-thumb halo — expressible as pure CSS. A recipe reads the pair and the
+custom properties; see [Recipes](/zero/docs/recipes/).
+
+## Spin press
+
+`createSpinPress({ onSpin, isDisabled?, delay?, interval? })` is press-and-hold auto-repeat
+for NumberInput's stepper triggers: one spin fires immediately on press, repetition starts
+after `delay` (default 400 ms) and ticks every `interval` (default 64 ms), the gesture ends
+wherever the pointer is released, and dragging off the trigger stops the repeat. Call
+`stop()` from `onUnmounted`. Keyboard needs none of this — a held arrow key auto-repeats
+`keydown` natively.
+
+## Focus
+
+- `isFocusVisible(el)` — the platform's `:focus-visible` heuristic, read at focus time so a
+  component can publish the `focus-visible` flag on a different element.
+- `createFocusRestore(isOpen)` — restore focus to the previously focused element when
+  `isOpen()` turns false; the cover for surfaces the platform does not restore for
+  (`show()` dialogs, popovers).
+- `focusFirst(container)` / `getTabbables(container)` — move focus into a surface on open.
+
+## Field context
+
+`useFieldContext()` / `provideFieldContext(ctx)` carry a [`Field`](/zero/docs/components/field/)'s
+control id and its `disabled` / `invalid` / `required` flags to the control inside it, plus
+`aria-describedby` for its description and error. Outside a Field the injectable falls back
+to an inert context, so a bare control still renders.
+
+## Option segmentation
+
+`segmentOptions(options)` turns the `options` array Select, NativeSelect and Combobox accept
+(`{ value, label?, disabled?, group? }[]`) into ordered groups — one per distinct `group` in
+first-appearance order, ungrouped options in a group of their own — the shape the default
+composition renders from.

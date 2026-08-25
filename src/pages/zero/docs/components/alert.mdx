@@ -1,0 +1,163 @@
+---
+title: "Alert"
+description: "The @sigx/zero Alert component — a message that announces itself through role=\"alert\" and can be dismissed, rendering the alert anatomy (root / icon / title / description / close) with an open model that defaults to true."
+layout: docs
+category: ["Components", "Content"]
+order: 502
+---
+
+# Alert
+
+<p class="lede">A message that announces itself, and can be dismissed. The root carries
+`role="alert"`, which makes it a live region; the open state is one two-way `model` that
+defaults to `true`, because an alert is rendered when there is something to say. Closing it
+sets `hidden` on the root — the two states are told apart by presence, so a design system
+never paints `closed`.</p>
+
+## Import
+
+```tsx
+import { Alert } from '@sigx/zero/alert';
+```
+
+`Alert` is a compound: `Alert.Root`, `Alert.Icon`, `Alert.Title`, `Alert.Description`,
+`Alert.Close`. It is also re-exported from the `@sigx/zero` root, together with
+`alertAnatomy` and `useAlertContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Alert } from '@sigx/zero/alert';
+
+const QuotaWarning = component(({ signal }) => {
+    const state = signal({ show: true });
+
+    return () => (
+        <Alert.Root model={() => state.show} color="warning">
+            <Alert.Icon>!</Alert.Icon>
+            <Alert.Title>Approaching your quota</Alert.Title>
+            <Alert.Description>You have used 92% of this month's allowance.</Alert.Description>
+            <Alert.Close label="Dismiss" />
+        </Alert.Root>
+    );
+});
+```
+
+`model={() => state.show}` binds the alert's presence both ways — pressing `Alert.Close`
+writes `false` into `state.show`, and writing `true` back brings the alert back. See
+[Models](/zero/docs/models/).
+
+### Uncontrolled
+
+```tsx
+<Alert.Root color="success">
+    <Alert.Title>Saved</Alert.Title>
+    <Alert.Close />
+</Alert.Root>
+```
+
+Leave the model off and the state lives inside the component, seeded by `defaultOpen`
+(which defaults to `true`) — a bare `Alert.Root` with a Close button dismisses itself.
+`openChange` fires either way.
+
+### An alert that is only ever visible
+
+```tsx
+<Alert.Root color="info">
+    <Alert.Icon>i</Alert.Icon>
+    <Alert.Description>Prices are shown before tax.</Alert.Description>
+</Alert.Root>
+```
+
+Without `Alert.Close` and without a model nothing ever closes the alert, and that is fine:
+the model exists so that dismissal has somewhere to live, not because every alert needs it.
+
+### Announcement
+
+`role="alert"` is the line between this component and a [`Card`](/zero/docs/components/card/):
+an alert nobody is told about is a coloured box, and a coloured box is a card. The role costs
+nothing when the alert is server-rendered — a live region announces *changes*, so an alert
+present in the markup at load is silent, and one inserted or updated later is announced.
+Exactly the behaviour wanted in both cases, from one declaration.
+
+### Rendering the close button as your own element
+
+```tsx
+<Alert.Close asChild>
+    {(p) => <MyIconButton {...p} icon="x" />}
+</Alert.Close>
+```
+
+With `asChild` the default slot receives the part's attribute bag; spread it so the
+`aria-label`, the click handler and the press feedback land on your element.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | `open` \| `closed` | — | `role="alert"`. Carries the variant axes. Hidden in `closed` (`hiddenIn`). |
+| `icon` | `span` | — | — | `aria-hidden="true"`. Inside `root`. |
+| `title` | `div` | — | — | Inside `root`. |
+| `description` | `div` | — | — | Inside `root`. |
+| `close` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-label` (default `Close`). Publishes [press feedback](/zero/docs/behaviors/#press-feedback). `asChild`. |
+
+Every part carries `data-scope="alert"` and `data-part="<part>"`. A closed root gets the
+`hidden` attribute from the runtime, which is what `hiddenIn: ['closed']` declares: a
+`[data-state="closed"]` rule on the root can never paint, so a design system styles `open`
+and leaves the other alone. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+The icon is decorative. The severity a design system paints into it is already carried by
+the text, and a glyph that announced itself would say it twice.
+
+## Props
+
+### `Alert.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the open state. |
+| `defaultOpen` | `boolean` | `true` | Initial state when uncontrolled. |
+| `openChange` | event `(open: boolean)` | — | Fires whenever the open state changes. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Alert.Icon`, `Alert.Title`, `Alert.Description`
+
+Only `class`. Each renders its part around its children.
+
+### `Alert.Close`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | `'Close'` | The button's `aria-label`; its content is usually a glyph, so it needs a name of its own. |
+| `disabled` | `boolean` | `false` | Inert; renders `data-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| Enter / Space (on `Alert.Close`) | Closes the alert — the native button activation; the press feedback tracks the key. |
+
+The alert itself is not focusable; only the close button is in the tab order.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on alert, so `<Alert.Root color="error" size="lg">` is styled in
+both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import the `variant` prop is therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The `closed` state needs no recipe — the runtime's `hidden` removes the root from layout —
+and any transition a design system wants belongs on `open`, where the element is actually
+present. A recipe that sets `display` on the root unconditionally would defeat `hidden`; if
+you need a `display` value, scope it with `&:not([hidden])`.
+
+## Related
+
+[Card](/zero/docs/components/card/) is the same box without the live region;
+[Toast](/zero/docs/components/toast/) is the alert that arrives over a queue and goes
+away by itself.

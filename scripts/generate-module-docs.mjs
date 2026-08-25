@@ -46,6 +46,7 @@ export const familyName = (parent) =>
     parent === 'lynx' ? 'SignalX Lynx'
         : parent === 'server' ? 'SignalX Server'
         : parent === 'terminal' ? 'SignalX Terminal'
+        : parent === 'zero' ? 'SignalX Zero'
         : 'SignalX';
 
 /**
@@ -78,6 +79,7 @@ const pageSet = (m) => {
             : m.parent === 'terminal' ? 'Terminal'
             : m.parent === 'deploy' ? 'Deploy'
             : m.parent === 'actors' ? 'Actors'
+            : m.parent === 'zero' ? 'Zero'
             : 'Core';
     const noun = m.parent === 'lynx' ? 'module' : m.parent === 'deploy' ? 'adapter' : 'package';
     // "an Actors package", "a Lynx module" — parentTitle is the deciding word.
@@ -93,9 +95,12 @@ const pageSet = (m) => {
             ? ' It ships from the core repo in lockstep with the release it deploys, so the adapter always matches your sigx version.'
         : m.parent === 'actors'
             ? ' It is versioned in lockstep with the rest of the actors repo, so any combination of backends, transports and tools just works together.'
+        : m.parent === 'zero'
+            ? ' It is versioned in lockstep with the rest of the zero repo, so the runtime, the kit and every shipped design system always agree on the anatomy contract.'
             : '';
-    // Deploy adapters are build-time tooling — install as devDependencies.
-    const installCmd = m.parent === 'deploy' ? `pnpm add -D ${m.npm}` : `pnpm add ${m.npm}`;
+    // Deploy adapters and the zero authoring kit are build-time tooling —
+    // install as devDependencies.
+    const installCmd = m.parent === 'deploy' || m.id === 'zero-kit' ? `pnpm add -D ${m.npm}` : `pnpm add ${m.npm}`;
     const importName = m.name.replace(/[^A-Za-z0-9]/g, '');
     const pages = [
         {
@@ -192,7 +197,7 @@ See the package source for the complete typed surface.
     // hand-authored "Deploying" guide), not the generic "Usage" stub — skip
     // it so re-runs stay idempotent.
     return m.parent === 'server' || m.parent === 'terminal' || m.parent === 'deploy'
-        || m.parent === 'actors'
+        || m.parent === 'actors' || m.parent === 'zero'
         ? pages.filter((p) => p.file !== 'usage.mdx')
         : pages;
 };

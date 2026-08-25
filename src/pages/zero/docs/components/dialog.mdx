@@ -1,0 +1,166 @@
+---
+title: "Dialog"
+description: "The @sigx/zero Dialog component — modal and non-modal overlays on the native <dialog> element and the top layer, with an alert-dialog preset, presence-aware labelling and a ::backdrop pseudo part."
+layout: docs
+category: ["Components", "Overlays"]
+order: 201
+---
+
+# Dialog
+
+<p class="lede">A modal (or non-modal) overlay on the native `<dialog>` element. The top layer
+replaces any Portal: the server renders the popup closed in place, and `showModal()` gives
+focus trapping, Escape, an inert background and focus restore natively. State flows one way —
+the model opens and closes the element, and native `close` events sync back.</p>
+
+## Import
+
+```tsx
+import { Dialog } from '@sigx/zero/dialog';
+```
+
+`Dialog` is a compound: `Dialog.Root`, `Dialog.Trigger`, `Dialog.Popup`, `Dialog.Title`,
+`Dialog.Description`, `Dialog.Footer`, `Dialog.Close`, `Dialog.Cancel`. It is also
+re-exported from the `@sigx/zero` root, together with `dialogAnatomy` and `useDialogContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Dialog } from '@sigx/zero/dialog';
+
+const Invite = component(({ signal }) => {
+    const state = signal({ open: false });
+
+    return () => (
+        <Dialog.Root model={() => state.open}>
+            <Dialog.Trigger color="primary">Invite a teammate</Dialog.Trigger>
+            <Dialog.Popup>
+                <Dialog.Title>Invite a teammate</Dialog.Title>
+                <Dialog.Description>They get an email with a link that works once.</Dialog.Description>
+                …
+                <Dialog.Footer>
+                    <Dialog.Close>Cancel</Dialog.Close>
+                    <button type="button" onClick={send}>Send invite</button>
+                </Dialog.Footer>
+            </Dialog.Popup>
+        </Dialog.Root>
+    );
+});
+```
+
+`Dialog.Root` renders no element of its own — it only provides context — so the trigger and
+the popup can sit anywhere in the tree below it. The popup is rendered in place and lifted
+into the top layer when it opens; there is no Portal and no z-index to manage.
+
+### Alert dialog
+
+```tsx
+<Dialog.Root model={() => state.confirmDelete} role="alertdialog">
+    <Dialog.Trigger color="error">Delete project</Dialog.Trigger>
+    <Dialog.Popup>
+        <Dialog.Title>Delete this project?</Dialog.Title>
+        <Dialog.Description>This cannot be undone.</Dialog.Description>
+        <Dialog.Footer>
+            <Dialog.Cancel>Keep it</Dialog.Cancel>
+            <button type="button" onClick={destroy}>Delete</button>
+        </Dialog.Footer>
+    </Dialog.Popup>
+</Dialog.Root>
+```
+
+`role="alertdialog"` is the APG alert-dialog preset on the same anatomy: the popup announces
+as `alertdialog`, a backdrop click does **not** dismiss (Escape still does, under
+`dismissible`), and initial focus goes to the least-destructive action — mark it with
+`Dialog.Cancel`, which closes like `Close` and carries `autofocus` in this mode so
+`showModal()`'s focusing steps land on it.
+
+### Non-modal
+
+```tsx
+<Dialog.Root model={() => state.open} modal={false}>
+```
+
+`modal={false}` opens with `show()` instead of `showModal()`: the dialog stays in flow, the
+page behind it stays interactive, and there is no backdrop. A non-modal `<dialog>` fires no
+`cancel` event, so zero routes Escape through its own dismiss layer and restores focus on
+close itself.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `trigger` | `button` | `open` \| `closed` | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-haspopup="dialog"`, `aria-expanded`, `aria-controls`. Carries the variant axes. `asChild`. |
+| `popup` | `dialog` | `open` \| `closed` | — | `aria-labelledby` / `aria-describedby` while a Title / Description is rendered. |
+| `backdrop` | *pseudo* | `open` \| `closed` | — | Renders no element on the web; projects onto `popup::backdrop`. |
+| `title` | `h2` | — | — | Inside `popup`. |
+| `description` | `p` | — | — | Inside `popup`. |
+| `footer` | `footer` | — | — | The action row. Inside `popup`. |
+| `close` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | Closes the dialog. `asChild`. |
+| `cancel` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | The least-destructive action; `autofocus` under `alertdialog`. `asChild`. |
+
+Dialog is one of the four scopes (with Menu, Popover and Tooltip) whose Root renders a
+fragment, so there is no `root` part. The **trigger** is the carrier part: the variant axes
+live on `Dialog.Trigger`, and a design system's axis rules for the scope anchor there. The
+popup is a top-layer sibling of the trigger, so colour styles the trigger, never the popup.
+
+The backdrop is a real part of the anatomy that renders no element on the web: recipes style
+`parts.backdrop` and the compiler projects it onto
+`[data-scope="dialog"][data-part="popup"]::backdrop`, with states narrowing the popup
+(`[data-state="open"]::backdrop`). A platform without a native top layer renders it as an
+element; sharing the part name is what lets one recipe style both.
+
+ARIA wiring is presence-aware: the popup references its `Title` and `Description` ids only
+while those parts are actually rendered, so omitting a title never leaves a dangling
+`aria-labelledby`.
+
+## Props
+
+### `Dialog.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the open state. |
+| `defaultOpen` | `boolean` | `false` | Initial state when uncontrolled. |
+| `openChange` | event `(open: boolean)` | — | Fires whenever the open state changes. |
+| `modal` | `boolean` | `true` | `showModal()` (focus trap, inert background, backdrop) or `show()`. |
+| `dismissible` | `boolean` | `true` | Whether Escape and, for a modal dialog, a backdrop click close it. |
+| `role` | `'dialog' \| 'alertdialog'` | `'dialog'` | The alert-dialog preset. |
+
+### `Dialog.Trigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `disabled` | `boolean` | `false` | Renders `data-disabled`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/) for the scope, rendered on the trigger. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Dialog.Popup`, `Dialog.Title`, `Dialog.Description`, `Dialog.Footer`
+
+Only `class`.
+
+### `Dialog.Close`, `Dialog.Cancel`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `disabled` | `boolean` | `false` | Renders `data-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard and dismissal
+
+| Interaction | Modal | Non-modal |
+|---|---|---|
+| Escape | Closes, via the native `cancel` event, when `dismissible`. | Closes through zero's dismiss layer, when `dismissible`. |
+| Backdrop click | Closes when `dismissible` and `role` is `dialog`; a click on the dialog's own padding is not a backdrop click. | No backdrop; clicks elsewhere are not an event. |
+| Tab | Trapped inside the popup by the platform. | Moves freely. |
+| Focus on close | Restored by the platform. | Restored by zero. |
+
+## In the shipped design systems
+
+`@sigx/zero-basic` and `@sigx/zero-daisyui` both wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the dialog **trigger**, in each skin's own button idiom. Neither
+wires a `variant` on the scope. The popup, backdrop, title, description, footer and close
+parts are styled by every shipped design system — including the `open` / `closed`
+transitions on `popup` and the backdrop scrim.

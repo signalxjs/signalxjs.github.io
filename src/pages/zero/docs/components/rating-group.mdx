@@ -1,0 +1,175 @@
+---
+title: "Rating Group"
+description: "The @sigx/zero RatingGroup component — radio semantics over a row of symbols (root / label / control / item), with hover preview, optional half values and a three-value full / half / empty item state."
+layout: docs
+category: ["Components", "Form controls"]
+order: 312
+---
+
+# Rating Group
+
+<p class="lede">Radio semantics over a row of symbols — stars, hearts, whatever the design
+draws. The model is a plain number (`0` is no rating), each item is a `role="radio"` whose
+`data-state` is `full`, `half` or `empty`, and the keyboard moves the value rather than focus
+between elements, which is what lets `allowHalf` put two values on one symbol.</p>
+
+## Import
+
+```tsx
+import { RatingGroup } from '@sigx/zero/rating-group';
+```
+
+`RatingGroup` is a compound: `RatingGroup.Root`, `RatingGroup.Label`, `RatingGroup.Control`,
+`RatingGroup.Item`. It is also re-exported from the `@sigx/zero` root, together with
+`ratingGroupAnatomy`, `useRatingGroupContext` and the `RatingItemSlotProps` type.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { RatingGroup } from '@sigx/zero/rating-group';
+
+const Review = component(({ signal }) => {
+    const state = signal({ stars: 0 });
+
+    return () => (
+        <RatingGroup.Root model={() => state.stars} name="stars" allowHalf>
+            <RatingGroup.Label>Rating</RatingGroup.Label>
+            <RatingGroup.Control>
+                {[1, 2, 3, 4, 5].map((i) => <RatingGroup.Item index={i} key={i} />)}
+            </RatingGroup.Control>
+        </RatingGroup.Root>
+    );
+});
+```
+
+`model={() => state.stars}` binds the value both ways. Leave the model off and pass
+`defaultValue` to keep the state inside the component; `valueChange` fires either way. See
+[Models](/zero/docs/models/).
+
+Items are explicit children, `index` 1 through `count` — zero owns no iteration. `count`
+defaults to 5 and is what End jumps to, so keep it equal to the number of items you render.
+
+### Preview and commit
+
+Each item's `data-state` is driven by the displayed value: the hover preview while a pointer is
+over the control, the committed value otherwise. A recipe styles the fill once and never has to
+distinguish preview from commit. `data-highlighted` marks the items inside the preview range
+while a pointer hovers, and the preview clears when the pointer leaves the control. With
+`allowHalf` the pointer's horizontal position within an item decides the half (flipped under
+RTL); a tap commits with the same arithmetic.
+
+### Your own symbol
+
+```tsx
+<RatingGroup.Item index={i}>
+    {({ state, highlighted }) => <HeartIcon fill={state} dim={!highlighted} />}
+</RatingGroup.Item>
+```
+
+The default slot receives `{ state, highlighted }` for swapping SVGs. Without a slot each item
+renders a bare text node: `★` for `full` and `half`, `☆` for `empty`. `half` is deliberately a
+full star — the half-star codepoint U+2BEA has almost no coverage in the common system sans
+stacks and renders as a tofu box, which states the value less accurately than a star does.
+Drawing a distinct half is the design system's job; see below.
+
+### Localising item names
+
+```tsx
+<RatingGroup.Root model={() => state.stars} itemLabel={(index, count) => `${index} av ${count}`}>
+```
+
+Each item carries an `aria-label`, defaulting to `"<index> of <count>"`. `itemLabel` is the
+localisation seam.
+
+### Deselect and read-only
+
+`deselectable` makes clicking the current value clear it to `0`. `readonly` keeps the value
+visible and focusable but rejects pointer and keyboard changes; `disabled` makes the control
+inert and takes it out of the tab order.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled`, `invalid`, `required`, `readonly` | Carries the variant axes. |
+| `label` | `div` | — | `disabled`, `invalid`, `required` | Names the control through `aria-labelledby`. Inside `root`. |
+| `control` | `div` | — | `disabled`, `readonly`, `focus-visible` | `role="radiogroup"`, `aria-labelledby`, `aria-describedby`. Mirrors the focused item's `focus-visible`. Inside `root`. |
+| `item` | `span` | `full` \| `half` \| `empty` | `highlighted`, `disabled`, `readonly`, `focus-visible` | `role="radio"`, `aria-checked`, `aria-label`, roving `tabIndex`. Inside `control`. |
+| `hidden-input` | `input` | — | — | `type="hidden"`; rendered when `name` is set, empty while the value is `0`. |
+
+Every part carries `data-scope="rating-group"` and `data-part="<part>"`. `item` carries the
+one three-value state set in the library. Inside a [Field](/zero/docs/components/field/) the
+label and control adopt the field's ids and the control announces the field's descriptions.
+See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `RatingGroup.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `number` | — | Two-way binding of the rating; `0` is no rating. |
+| `defaultValue` | `number` | `0` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: number)` | — | Fires whenever the rating changes. |
+| `count` | `number` | `5` | How many items are rendered; End jumps here. |
+| `allowHalf` | `boolean` | `false` | Pointer halves and `0.5` keyboard steps. |
+| `deselectable` | `boolean` | `false` | Clicking the current value clears to `0`. |
+| `name` | `string` | — | Form field name; renders the hidden input. |
+| `required` | `boolean` | `false` | Renders `data-required`. |
+| `invalid` | `boolean` | `false` | Renders `data-invalid`. |
+| `readonly` | `boolean` | `false` | Rejects changes; renders `data-readonly`. |
+| `disabled` | `boolean` | `false` | Inert; renders `data-disabled` and `aria-disabled`. |
+| `itemLabel` | `(index: number, count: number) => string` | `"<index> of <count>"` | Per-item accessible name. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+Field context (`disabled`, `invalid`, `required`, the label and control ids,
+`aria-describedby`) is merged with the props.
+
+### `RatingGroup.Label`, `RatingGroup.Control`
+
+Only `class`.
+
+### `RatingGroup.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `index` | `number` | required | The value this item represents, `1` through `count`. |
+| `class` | `string` | — | Extra classes. |
+
+The default slot receives `{ state, highlighted }`.
+
+## Keyboard
+
+One tab stop: the item for the ceiling of the value, or item 1 while the value is `0`. The
+keys move the value, and the tab stop follows it.
+
+| Key | Action |
+|---|---|
+| ArrowRight / ArrowUp | Increase by the step (`1`, or `0.5` with `allowHalf`); ArrowRight flips under RTL. |
+| ArrowLeft / ArrowDown | Decrease by the step; ArrowLeft flips under RTL. |
+| Home | The smallest non-zero value (one step). |
+| End | `count`. |
+| Click / tap | Commit the value under the pointer; the current value again clears it under `deselectable`. |
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on rating-group, so `<RatingGroup.Root color="warning" size="lg">` is
+styled in both. Neither wires a `variant` on the scope; under a design system's `/register`
+import the prop is therefore absent. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The default symbol must stay a bare text node, and a design system relies on that: a consumer
+symbol arrives as an element, so a recipe tells the two apart with `&:not(:has(> *))` (draw
+your own star geometry over the text) versus `&:has(*)` (leave the consumer's SVG alone and
+only colour it). A distinct `half` is the recipe's to draw — either with its own geometry, or
+by halving the full-width glyph with a `mask-size: 50% 100%` or a hard-stop gradient under
+`background-clip: text`, both of which need a full star in all three states to cut in two.
+Nothing is lost to assistive technology either way: the value lives on the hidden input and
+each item carries its own `aria-label`.
+
+## Related
+
+[Radio Group](/zero/docs/components/radio-group/) for a labelled single choice,
+[Field](/zero/docs/components/field/) for labelling.

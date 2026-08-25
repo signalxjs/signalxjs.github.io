@@ -1,0 +1,228 @@
+---
+title: "Combobox"
+description: "The @sigx/zero Combobox component — an editable text input over a filtered listbox on the APG editable combobox pattern, with three named models (value, inputValue, open) and consumer-owned filtering."
+layout: docs
+category: ["Components", "Form controls"]
+order: 310
+---
+
+# Combobox
+
+<p class="lede">An editable text input over a filtered listbox: the WAI-ARIA editable combobox
+pattern. Focus stays in a real `<input role="combobox">`, the highlighted option is conveyed
+through `aria-activedescendant`, and the items are JSX children you filter yourself — zero
+registers, highlights and selects them, and prunes a highlight whose item unmounts
+mid-typing.</p>
+
+## Import
+
+```tsx
+import { Combobox } from '@sigx/zero/combobox';
+```
+
+`Combobox` is a compound: `Combobox.Root`, `Combobox.Control`, `Combobox.Input`,
+`Combobox.Trigger`, `Combobox.Popup`, `Combobox.Group`, `Combobox.GroupLabel`,
+`Combobox.Item`, `Combobox.Empty`. It is also re-exported from the `@sigx/zero` root,
+together with `comboboxAnatomy`, `useComboboxContext` and `useComboboxGroupContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Combobox } from '@sigx/zero/combobox';
+
+const fruits = ['Apple', 'Banana', 'Cherry', 'Lime'];
+
+const FruitSearch = component(({ signal }) => {
+    const state = signal({ fruit: '', query: '' });
+    const matches = () => fruits.filter((f) => f.toLowerCase().includes(state.query.toLowerCase()));
+
+    return () => (
+        <Combobox.Root model={() => state.fruit} model:inputValue={() => state.query} name="fruit">
+            <Combobox.Control>
+                <Combobox.Input placeholder="Search fruit…" />
+                <Combobox.Trigger />
+            </Combobox.Control>
+            <Combobox.Popup>
+                {matches().map((f) => (
+                    <Combobox.Item value={f} key={f}>{f}</Combobox.Item>
+                ))}
+                {matches().length === 0 ? <Combobox.Empty>No fruit found</Combobox.Empty> : null}
+            </Combobox.Popup>
+        </Combobox.Root>
+    );
+});
+```
+
+Filtering is yours: bind `model:inputValue` (or listen to `inputValueChange`), render only
+the items that match, and render `Combobox.Empty` yourself when nothing does. Zero owns no
+emptiness logic. Selecting an item writes its `value` to the model and fills the input with
+the item's text; an external value write (a form reset, server data) reflects into the input
+once the matching item is known.
+
+### Named models
+
+Combobox has three pieces of controllable state, each a model:
+
+| Model | Type | Uncontrolled default | Change event |
+|---|---|---|---|
+| `model` | `string` | `defaultValue` | `valueChange` |
+| `model:inputValue` | `string` | `defaultInputValue` | `inputValueChange` |
+| `model:open` | `boolean` | `defaultOpen` | `openChange` |
+
+The unnamed `model` is the essential value — what the hidden input posts. Every additional
+piece of state is a named model, bound as `model:<name>` in JSX, with the same
+`default<Name>` + `<name>Change` companions. Any of the three may be left uncontrolled. See
+[Models](/zero/docs/models/).
+
+### Option groups
+
+```tsx
+<Combobox.Popup>
+    <Combobox.Group>
+        <Combobox.GroupLabel>Citrus</Combobox.GroupLabel>
+        <Combobox.Item value="lime">Lime</Combobox.Item>
+    </Combobox.Group>
+</Combobox.Popup>
+```
+
+`Combobox.Group` renders `role="group"` inside the listbox, named by its `GroupLabel` through
+`aria-labelledby` while one is rendered — exactly as in
+[Select](/zero/docs/components/select/). Your filter renders or omits whole groups.
+
+### The options sugar
+
+```tsx
+<Field.Root>
+    <Field.Label>Fruit</Field.Label>
+    <Combobox.Root
+        model={() => state.fruit}
+        model:inputValue={() => state.query}
+        options={matches().map((f) => ({ value: f }))}
+    />
+</Field.Root>
+```
+
+With no slot children, `options` renders the default composition — `Control(Input, Trigger)`
+and a `Popup` with an `Item` per entry and a `Group` + `GroupLabel` per distinct `group` in
+first-appearance order, `label` defaulting to `value` — through the same anatomy. It is
+rendering sugar only: filtering stays yours, so bind `model:inputValue` and pass an
+already-narrowed array. Slot children win entirely when both are given. Name an
+options-driven Combobox through a [Field](/zero/docs/components/field/) — its label lands on
+the generated input via the control id.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled`, `invalid`, `required` | Carries the variant axes. |
+| `control` | `div` | `open` \| `closed` | `disabled`, `invalid`, `focus-visible` | The field chrome wrapping input + trigger; mirrors the input's focus so the ring draws on the box. Inside `root`. |
+| `input` | `input` | `open` \| `closed` | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` | `role="combobox"`, `aria-autocomplete="list"`, `aria-expanded`, `aria-controls`, `aria-activedescendant`. Inside `control`. |
+| `trigger` | `button` | `open` \| `closed` | `disabled`, `pressed`, `press-animating`, `focus-visible` | `tabIndex=-1`, `aria-label`, `aria-expanded`, `aria-controls`. A pointer affordance. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). `asChild`. |
+| `popup` | `div` | `open` \| `closed` | — | `role="listbox"`, `popover="manual"`, `aria-labelledby` the input. `data-placement` on every placement. |
+| `group` | `div` | — | — | `role="group"`, `aria-labelledby` its label while one is rendered. Inside `popup`. |
+| `group-label` | `div` | — | — | No role — it stays in the accessibility tree to name the group. Inside `group`. |
+| `item` | `div` | — | `selected`, `highlighted`, `disabled`, `pressed`, `press-animating` | `role="option"`, `aria-selected`, `aria-disabled`. Pointer-only press feedback. `asChild`. |
+| `item-indicator` | `span` | — | `selected` | `aria-hidden`; rendered inside the selected item only. |
+| `empty` | `div` | — | — | `role="presentation"`; rendered by the consumer when the filtered list is empty. Inside `popup`. |
+| `hidden-input` | `input` | — | — | `type="hidden"`, carries `name` and the selected value for form posts. |
+
+Every part carries `data-scope="combobox"` and `data-part="<part>"`. The **root** is the
+carrier part for the variant axes. The input carries no `data-placeholder` flag — it is a
+real text input, so `:placeholder-shown` is the selector. The popup is `popover="manual"`
+plus zero's [dismiss layer](/zero/docs/behaviors/): native `auto` light dismiss would close
+the list on a caret click in the input, so dismissal is outside-press only, with Escape owned
+by the input's key handler. It is positioned against the control through the
+[positioning behavior](/zero/docs/behaviors/#positioning). See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Combobox.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Two-way binding of the selected item's `value`. |
+| `defaultValue` | `string` | `''` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: string)` | — | Fires whenever the selection changes. |
+| `model:inputValue` | `string` | — | Two-way binding of the input's text. |
+| `defaultInputValue` | `string` | `''` | Initial text when uncontrolled. |
+| `inputValueChange` | event `(value: string)` | — | Fires on every keystroke and on selection. |
+| `model:open` | `boolean` | — | Two-way binding of the popup's open state. |
+| `defaultOpen` | `boolean` | `false` | Initial open state when uncontrolled. |
+| `openChange` | event `(open: boolean)` | — | Fires whenever the popup opens or closes. |
+| `placeholder` | `string` | — | The input's placeholder; `Combobox.Input`'s own prop wins. |
+| `name` | `string` | — | Form field name, rendered on the hidden input. |
+| `required` | `boolean` | `false` | Renders `required` and `data-required` on the input. |
+| `invalid` | `boolean` | `false` | Renders `aria-invalid` and `data-invalid`. |
+| `readonly` | `boolean` | `false` | The input is `readOnly`; keys and the trigger do nothing. |
+| `disabled` | `boolean` | `false` | Inert; renders `data-disabled`. |
+| `placement` | `Placement` | `'bottom-start'` | Preferred popup side and alignment. |
+| `positionStrategy` | `PositionStrategy` | fixed positioning | How the popup is placed against the control. |
+| `options` | `ReadonlyArray<OptionInput>` | — | `{ value, label?, disabled?, group? }[]`; renders the default composition when there are no slot children. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+Field context (`disabled`, `invalid`, `required`, `aria-describedby`, the control id on the
+input) is merged with the props.
+
+### `Combobox.Input`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `placeholder` | `string` | the root's `placeholder` | Native placeholder text. |
+| `class` | `string` | — | Extra classes. |
+
+### `Combobox.Trigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | `'Show options'` | `aria-label` for the disclosure button. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+The default content is a chevron glyph. A click toggles the popup and returns focus to the
+input.
+
+### `Combobox.Control`, `Combobox.Popup`, `Combobox.Group`, `Combobox.GroupLabel`, `Combobox.Empty`
+
+Only `class`.
+
+### `Combobox.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | The value this item selects. |
+| `textValue` | `string` | the item's text content | What fills the input on selection; set it when the content is not plain text. |
+| `disabled` | `boolean` | `false` | Skipped by the highlight; renders `data-disabled` and `aria-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+Focus stays in the input throughout; options never receive focus, and there is no typeahead —
+typing is the filter.
+
+| Key | Action |
+|---|---|
+| Typing | Writes `model:inputValue` and opens the popup. |
+| ArrowDown / ArrowUp (closed) | Open the popup with the highlight on the first / last enabled item. |
+| ArrowDown / ArrowUp (open) | Move the highlight to the next / previous enabled item. |
+| Enter | Select the highlighted item and close; otherwise not swallowed, so a form submits. |
+| Escape | Close the popup (only swallowed while it is open). |
+| Tab | Close and leave; not swallowed. |
+| Home / End | Stay with the text caret. |
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on combobox, so `<Combobox.Root color="primary" size="sm">` is styled
+in both. Neither wires a `variant` on the scope; under a design system's `/register` import
+the prop is therefore absent. Both draw the well and the focus ring on `control`, style the
+popup's `open` / `closed` transition and the `highlighted` / `selected` item flags, and give
+`empty` its muted text. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[Select](/zero/docs/components/select/) for a select-only listbox,
+[Field](/zero/docs/components/field/) for labelling.

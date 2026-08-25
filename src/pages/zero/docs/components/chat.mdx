@@ -1,0 +1,143 @@
+---
+title: "Chat"
+description: "The @sigx/zero Chat component — one message row (root / avatar / header / bubble / footer) whose root declares its inline side as data-placement from the logical start / end pair, with no state and no ARIA of its own."
+layout: docs
+category: ["Components", "Content"]
+order: 515
+---
+
+# Chat
+
+<p class="lede">One message row: an avatar slot, a name line, the bubble, a status line.
+The root *is* the row, and its one piece of contract data is which inline side it sits on —
+`start` for the other party, `end` for your own — spelled logically so a transcript reads
+correctly in both directions. Pure content: no state, no ids, no ARIA of its own.</p>
+
+## Import
+
+```tsx
+import { Chat } from '@sigx/zero/chat';
+```
+
+`Chat` is a compound: `Chat.Root`, `Chat.Avatar`, `Chat.Header`, `Chat.Bubble`,
+`Chat.Footer`. It is also re-exported from the `@sigx/zero` root, together with
+`chatAnatomy`. The `ChatPlacement` type (`'start' | 'end'`) is exported alongside
+`ChatRootProps` and `ChatPartProps`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Chat } from '@sigx/zero/chat';
+
+const Transcript = component(({ signal }) => {
+    const state = signal({
+        messages: [
+            { from: 'Ada', mine: false, text: 'The contract is the anatomy.', at: '12:45' },
+            { from: 'You', mine: true, text: 'Agreed.', at: '12:46' },
+        ],
+    });
+
+    return () => (
+        <div role="log" aria-label="Conversation with Ada">
+            {state.messages.map((m) => (
+                <Chat.Root placement={m.mine ? 'end' : 'start'} color={m.mine ? 'primary' : undefined}>
+                    {!m.mine && <Chat.Avatar><img src="/ada.png" alt="" /></Chat.Avatar>}
+                    <Chat.Header>{m.from} · {m.at}</Chat.Header>
+                    <Chat.Bubble>{m.text}</Chat.Bubble>
+                    <Chat.Footer>Delivered</Chat.Footer>
+                </Chat.Root>
+            ))}
+        </div>
+    );
+});
+```
+
+Chat takes no `model`: a row is content. Each `Chat.Root` is one message; `Avatar`,
+`Header`, `Bubble` and `Footer` are its optional parts, in whatever order the design wants
+them.
+
+### Which side
+
+```tsx
+<Chat.Root>
+    <Chat.Bubble>Hello from the other party.</Chat.Bubble>
+</Chat.Root>
+<Chat.Root placement="end" color="primary">
+    <Chat.Bubble>Hello from me.</Chat.Bubble>
+</Chat.Root>
+```
+
+`placement` defaults to `start` — the reading edge is the other party in every messenger,
+and your own rows opt into `end`. It is logical on purpose: a row from the other party sits
+at the reading start in both text directions, so a physical `left` would be wrong in one of
+them and a recipe flips nothing by hand. The root always renders `data-placement`,
+including for the default.
+
+### The avatar is a slot
+
+```tsx
+<Chat.Avatar><Avatar.Root>…</Avatar.Root></Chat.Avatar>
+<Chat.Avatar><img src="/ada.png" alt="" /></Chat.Avatar>
+<Chat.Avatar>AL</Chat.Avatar>
+```
+
+`Chat.Avatar` is a slot, not a nested avatar anatomy: put zero's
+[`Avatar`](/zero/docs/components/avatar/), a bare `<img>`, or initials in it.
+
+### Transcript semantics are yours
+
+The row carries no ARIA. A transcript that should announce new messages is a `role="log"`
+container the consumer writes *around* the rows, as in the example above; the row itself
+has nothing to say about it.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | The row. `data-placement`: `start` \| `end`. Carries the variant axes. |
+| `avatar` | `div` | — | — | A slot for any avatar content. Inside `root`. Optional. |
+| `header` | `div` | — | — | The name / time line. Inside `root`. Optional. |
+| `bubble` | `div` | — | — | The message body. Inside `root`. Optional. |
+| `footer` | `div` | — | — | The status line. Inside `root`. Optional. |
+
+Every part carries `data-scope="chat"` and `data-part="<part>"`. Token hints: `root` takes
+`color`; `header` and `footer` take `color` and `text`; `bubble` takes `color`,
+`radius-box` and `text`; `avatar` hints none. The colour axis rides the root and recipes
+wire it to the **bubble's** fill — the row itself never paints. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Chat.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `placement` | `ChatPlacement` | `'start'` | Which inline side the row sits on; rendered as `data-placement`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes. |
+
+Chat has no `model`, no default-value prop and no change event: it has no state to bind.
+
+### `Chat.Avatar`, `Chat.Header`, `Chat.Bubble`, `Chat.Footer`
+
+Only `class`. Each renders its part around the default slot.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on the chat root, so `<Chat.Root color="primary" size="sm">` is
+styled in both. Neither wires a `variant` or any `mods`; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A chat recipe lays the row out as a grid or flex row, aligns it to `inline-start` or
+`inline-end` by `[data-placement]`, and gives the bubble its fill from the root's
+`[data-color]` — the axis is read on the ancestor and painted on the descendant, so the
+bubble's text colour and its background come from the same role pair.
+
+## Related
+
+[`Avatar`](/zero/docs/components/avatar/) for the avatar slot;
+[`Timeline`](/zero/docs/components/timeline/) is the other content list whose items declare
+a logical side.

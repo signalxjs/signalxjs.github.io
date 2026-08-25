@@ -1,0 +1,124 @@
+---
+title: "Badge"
+description: "The @sigx/zero Badge component — one <span> part carrying the color / size / variant axes for a count, a status or a tag, where the carrier is the text-bearing part and asChild lets the badge be a link or a button."
+layout: docs
+category: ["Components", "Content"]
+order: 503
+---
+
+# Badge
+
+<p class="lede">A small standing label: a count, a status, a tag. One part on a `<span>`,
+with no state and no behavior. It exists for the same reason
+[`Button`](/zero/docs/components/button/) does — the variant axes have to land on something a
+design system can select, and at badge scale the fill *is* the component.</p>
+
+## Import
+
+```tsx
+import { Badge } from '@sigx/zero/badge';
+```
+
+`Badge` is a compound with a single member, `Badge.Root`; `<Badge>` is also callable
+directly. It is also re-exported from the `@sigx/zero` root, together with `badgeAnatomy`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Badge } from '@sigx/zero/badge';
+
+const Status = component(({ signal }) => {
+    const state = signal({ active: true });
+
+    return () => (
+        <Badge.Root color={state.active ? 'success' : 'neutral'} variant="soft">
+            {state.active ? 'Active' : 'Paused'}
+        </Badge.Root>
+    );
+});
+```
+
+There is no `model`: a badge shows what you put in it. The colour, size and variant come
+from the [variant axes](/zero/docs/variant-axes/), and the text is the children.
+
+### A count
+
+```tsx
+<Badge.Root color="error" size="xs">{unread}</Badge.Root>
+```
+
+### As a link or a button
+
+```tsx
+<Badge.Root color="primary" asChild>
+    {(p) => <a href="/issues?label=bug" {...p}>bug</a>}
+</Badge.Root>
+
+<Badge.Root variant="outline" asChild>
+    {(p) => <button type="button" onClick={() => remove(tag)} {...p}>{tag} ×</button>}
+</Badge.Root>
+```
+
+A badge is so often already something else — an `<a>` to the filtered list, a `<button>`
+that removes the tag. With `asChild` the default slot receives the part's attribute bag;
+spread it so the anatomy lands on your element. A link *inside* a badge is not the same box
+as a badge that *is* a link, which is what `asChild` gives you.
+
+### A skin-specific axis
+
+```tsx
+<Badge.Root color="warning" axes={{ density: 'compact' }}>Beta</Badge.Root>
+```
+
+`axes` passes any extra axis a design system declares through as `data-<axis>`, and `mods`
+renders presence-only `data-mod-<name>` attributes. Neither shipped design system declares
+extra axes or modifiers on badge, so under their `/register` imports these are absent; a
+design system of your own can add them. See [Variant axes](/zero/docs/variant-axes/).
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `span` | — | — | Carries the variant axes and renders the text. `asChild`. |
+
+One element, and that is the whole point. There is no chrome to separate from content, so
+`root` both carries the axes and renders the text — the carrier is the text-bearing part.
+That makes badge the one content-tier scope whose colour contrast a one-element probe can
+measure directly, which is why it is the scope that wires its own `variant` vocabulary in
+`@sigx/zero-basic` (see below). See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Badge.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+An `asChild` badge that renders a `<button>` or an `<a>` gets that element's own
+interactivity; Badge adds no handlers, no `disabled` and no press feedback of its own.
+
+## In the shipped design systems
+
+| | `color` | `size` | `variant` | `mods` |
+|---|---|---|---|---|
+| `@sigx/zero-basic` | the eight recommended roles | `xs`–`xl` | `soft` (default) · `solid` · `outline` | — |
+| `@sigx/zero-daisyui` | the eight recommended roles | `xs`–`xl` | — | — |
+
+`@sigx/zero-basic` narrows badge's `variant` to `solid | soft | outline` for the scope, with
+`soft` as the default — the design-system-wide set also has `ghost`, and a ghost badge is a
+word with no box. `@sigx/zero-daisyui` wires no `variant` on badge, so under its `/register`
+import the prop is absent; `<Badge.Root color="success">` is styled in both. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The root's tokens are `color`, `radius-field`, `size` and `text`: a badge rounds like a
+field control rather than a box, and its text size comes off the `--text-*` ramp.
+
+## Related
+
+[Button](/zero/docs/components/button/) is the same one-part shape with press feedback;
+[Kbd](/zero/docs/components/kbd/) and [Status](/zero/docs/components/status/) are the other
+single-part content labels.

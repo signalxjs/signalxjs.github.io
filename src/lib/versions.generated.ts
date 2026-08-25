@@ -103,5 +103,9 @@ export const VERSIONS: Record<string, string> = {
     "@sigx/use": "0.5.0",
     "@sigx/vercel": "0.15.6",
     "@sigx/vite": "0.15.6",
+    "@sigx/zero": "0.2.0-beta.1",
+    "@sigx/zero-basic": "0.2.0-beta.1",
+    "@sigx/zero-daisyui": "0.2.0-beta.1",
+    "@sigx/zero-kit": "0.2.0-beta.1",
     "sigx": "0.15.6",
 };

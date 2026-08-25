@@ -1,0 +1,67 @@
+---
+title: "Installation"
+description: "Install and configure @sigx/zero-basic, the Zero Basic package for SignalX Zero."
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/zero-basic` beside `@sigx/zero`, import the two stylesheets, and
+register its themes.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/zero @sigx/zero-basic
+```
+
+`@sigx/zero-basic` peer-depends on `@sigx/zero`; the two publish in lockstep.
+
+## Wire it up
+
+```ts
+import '@sigx/zero/css';                 // layer order + structural fallbacks
+import '@sigx/zero-basic/css';           // the whole design system
+import { installThemes } from '@sigx/zero-basic';
+
+installThemes();
+```
+
+`installThemes()` registers `basic` (light) and `basic-dark` with zero's theme registry;
+with no explicit choice the page follows the system preference through `light-dark()`. See
+[Theming](/zero/docs/theming/).
+
+## Exports
+
+| Subpath | What |
+|---|---|
+| `@sigx/zero-basic` | `installThemes()`, plus the `tokens`, `recipes` and `designSystem` declarations. |
+| `@sigx/zero-basic/css` | The complete compiled stylesheet. |
+| `@sigx/zero-basic/css/tokens` | Tokens and theme blocks only. |
+| `@sigx/zero-basic/css/<scope>` | One component's recipe — `@sigx/zero-basic/css/tabs`, `…/css/dialog`, … |
+| `@sigx/zero-basic/register` | The generated `ZeroVocabulary` augmentation. |
+| `@sigx/zero-basic/manifest.json` | The design-system manifest. |
+| `@sigx/zero-basic/report.json` | The coverage report. |
+| `@sigx/zero-basic/lynx/index.css`, `…/lynx/tokens.css`, `…/lynx/manifest.json` | The Lynx projection. |
+
+## Typed vocabulary
+
+```ts
+import '@sigx/zero-basic/register';
+```
+
+Narrows every component's `color` / `size` / `variant` props to what this design system
+wires, and `setTheme` to `'basic' | 'basic-dark'`. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Verify
+
+```tsx
+import { Button } from '@sigx/zero/button';
+
+<Button.Root color="primary" variant="outline">Monograph</Button.Root>
+```
+
+A petrol-inked outline button with a 2px petrol focus ring means the stylesheet is live.

@@ -1,0 +1,190 @@
+---
+title: "Number Input"
+description: "The @sigx/zero NumberInput component — an APG spinbutton on a real text input, rendering root / label / control / input / increment-trigger / decrement-trigger / hidden-input, where typing is an uncommitted draft and stepping commits at once."
+layout: docs
+category: ["Components", "Form controls"]
+order: 304
+---
+
+# Number Input
+
+<p class="lede">The WAI-ARIA spinbutton pattern over a real `<input type="text">` with
+`inputmode="decimal"`. The model is `number | null` — an empty field is not zero. Typing edits
+an uncommitted draft that commits on blur or Enter; stepping with the keys, the spin triggers
+or the wheel commits immediately, and a hidden input posts the canonical number.</p>
+
+## Import
+
+```tsx
+import { NumberInput } from '@sigx/zero/number-input';
+```
+
+`NumberInput` is a compound: `NumberInput.Root`, `NumberInput.Label`, `NumberInput.Control`,
+`NumberInput.Input`, `NumberInput.IncrementTrigger`, `NumberInput.DecrementTrigger`. It is
+also re-exported from the `@sigx/zero` root, together with `numberInputAnatomy` and
+`useNumberInputContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { NumberInput } from '@sigx/zero/number-input';
+
+const Quantity = component(({ signal }) => {
+    const state = signal({ qty: 1 as number | null });
+
+    return () => (
+        <NumberInput.Root model={() => state.qty} min={0} max={99} name="qty">
+            <NumberInput.Label>Quantity</NumberInput.Label>
+            <NumberInput.Control>
+                <NumberInput.DecrementTrigger>-</NumberInput.DecrementTrigger>
+                <NumberInput.Input />
+                <NumberInput.IncrementTrigger>+</NumberInput.IncrementTrigger>
+            </NumberInput.Control>
+        </NumberInput.Root>
+    );
+});
+```
+
+`model={() => state.qty}` binds the committed value both ways. Leave the model off and pass
+`defaultValue` to keep the state inside the component; `valueChange` fires either way. See
+[Models](/zero/docs/models/).
+
+### Draft and commit
+
+While the user types, the text is a draft the model does not see: half-typed entries such as
+`-` or `1e` never reach it. On blur or Enter the draft is parsed, clamped into `[min, max]`
+and snapped to the step grid anchored at `min` (with `min={1} step={2}` the valid values are
+1, 3, 5 …). Unparseable text reverts to the last committed value; an emptied field commits
+`null`, never `0`. Stepping first commits any pending draft, then moves from the committed
+value — and from empty, the first step lands on `min` (or `0`), not one step past it.
+
+### Range, step and clamping
+
+```tsx
+<NumberInput.Root model={() => state.price} min={0} step={0.05} clampOnBlur={false}>
+```
+
+`step` is coerced to a positive finite number (anything else steps by `1`). A value outside
+`[min, max]` is `invalid` on every part until it is corrected; with `clampOnBlur={false}` a
+typed out-of-range value is still step-snapped but kept, so the invalid flag can show it.
+Home and End jump to the documented bound itself, even when `max` sits off the step grid.
+
+### Display formatting
+
+```tsx
+<NumberInput.Root
+    model={() => state.amount}
+    format={(v) => v.toFixed(2)}
+    parse={(t) => { const n = Number(t.replace(',', '.')); return Number.isFinite(n) ? n : null; }}
+>
+```
+
+`format` renders the committed value in the visible input; `parse` turns typed text into a
+number, returning `null` for "not a number". The default parser accepts decimal syntax only
+(`1`, `-2.5`, `.5`, `1e3`), not hex or octal. The hidden input always posts
+`String(value)`, so a display format can never corrupt form data.
+
+### Wheel stepping
+
+```tsx
+<NumberInput.Root model={() => state.qty} allowWheel>
+```
+
+Off by default. When on, the wheel steps the value only while the input has focus, so a
+wheel over an unfocused field keeps scrolling the page.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled`, `invalid`, `required`, `readonly` | Carries the variant axes. |
+| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the input's id. Inside `root`. |
+| `control` | `div` | — | `disabled`, `invalid`, `readonly`, `focus-visible` | The field chrome wrapping input and triggers; the ring and invalid tint draw here. Inside `root`. |
+| `input` | `input` | — | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` | `type="text"`, `inputmode="decimal"`, `role="spinbutton"`, `aria-valuemin` / `aria-valuemax` / `aria-valuenow` / `aria-valuetext`. Inside `control`. |
+| `increment-trigger` | `button` | — | `disabled`, `pressed`, `press-animating` | `tabIndex=-1`, `aria-controls` the input. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). `asChild`. Inside `control`. |
+| `decrement-trigger` | `button` | — | `disabled`, `pressed`, `press-animating` | As the increment trigger. `asChild`. Inside `control`. |
+| `hidden-input` | `input` | — | — | `type="hidden"`; rendered only when `name` is set, posting `String(value)` or the empty string. Inside `root`. |
+
+Every part carries `data-scope="number-input"` and `data-part="<part>"`. The triggers are
+satellites of the spinbutton, not tab stops of their own: keyboard stepping lives on the
+input, and a pointer press on a trigger hands focus to the input so the keys carry on from
+where the pointer left off. A trigger is disabled at its bound (`data-disabled` while the
+value is already at `max` or `min`), and while `disabled` or `readonly`. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+While a draft is being typed, `aria-valuenow` is withheld and the draft text rides
+`aria-valuetext` alone, so a screen reader never hears two different numbers.
+
+## Props
+
+### `NumberInput.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `number \| null` | — | Two-way binding of the committed value; `null` is empty. |
+| `defaultValue` | `number` | `null` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: number \| null)` | — | Fires whenever the committed value changes. |
+| `min` | `number` | — | Lower bound; also the anchor of the step grid. |
+| `max` | `number` | — | Upper bound. |
+| `step` | `number` | `1` | Step size; non-positive or non-finite values fall back to `1`. |
+| `allowWheel` | `boolean` | `false` | Wheel over the focused input steps the value. |
+| `clampOnBlur` | `boolean` | `true` | Clamp an out-of-range commit into `[min, max]`. |
+| `format` | `(value: number) => string` | `String` | Display formatting for the committed value. |
+| `parse` | `(text: string) => number \| null` | lenient decimal | Parse typed text; return `null` for "not a number". |
+| `name` | `string` | — | Form field name; renders the `hidden-input` part. |
+| `required` | `boolean` | `false` | Renders `required` and `data-required`; a wrapping Field's `required` also applies. |
+| `invalid` | `boolean` | `false` | Renders `aria-invalid` and `data-invalid`; a wrapping Field's `invalid` and an out-of-range value also apply. |
+| `readonly` | `boolean` | `false` | Renders `readonly` and `data-readonly`; stepping is off. |
+| `disabled` | `boolean` | `false` | Renders `disabled` and `data-disabled`; a wrapping Field's `disabled` also applies. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `NumberInput.Label`, `NumberInput.Control`
+
+Only `class`. Each renders its part around its children.
+
+### `NumberInput.Input`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `placeholder` | `string` | — | Native placeholder text, shown while the value is empty. |
+| `class` | `string` | — | Extra classes on the `<input>`. |
+
+### `NumberInput.IncrementTrigger`, `NumberInput.DecrementTrigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | `'Increment'` / `'Decrement'` | The trigger's `aria-label`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag; a disabled `asChild` trigger gets `aria-disabled`. |
+| `class` | `string` | — | Extra classes. |
+
+A trigger steps once on pointer down and, held, repeats after a short delay — dragging off
+the trigger stops the repeat, and a release anywhere ends it. There is no click stepping,
+so a tap never double-steps.
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| ArrowUp / ArrowDown | Commit the draft, then step by `step` / `-step`. |
+| PageUp / PageDown | Commit the draft, then step by ten steps. |
+| Home / End | Jump to `min` / `max`, when set; without a bound the key stays with the text caret. |
+| Enter | Commit the draft. |
+| Tab | Leaves the field, committing the draft on blur. The triggers are not tab stops. |
+
+Keys step only while the input is neither `disabled` nor `readonly`; a read-only field keeps
+its native caret navigation. A held arrow key auto-repeats natively.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on number-input, so `<NumberInput.Root color="primary" size="sm">` is
+styled in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[Input](/zero/docs/components/input/) · [Field](/zero/docs/components/field/) ·
+[Slider](/zero/docs/components/slider/)

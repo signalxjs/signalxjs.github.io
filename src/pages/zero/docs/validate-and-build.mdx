@@ -1,0 +1,154 @@
+---
+title: Validate and build
+description: "The sigx zero:validate and zero:build commands from @sigx/zero-kit — flags, what the validator checks (tokens, WCAG contrast, recipe structure and content, vocabularies, injection guards), the coverage report and report.json, and the programmatic API"
+layout: docs
+category: Authoring design systems
+order: 64
+---
+
+# Validate and build
+
+<p class="lede">`@sigx/zero-kit` is a plugin for the `sigx` CLI: having the kit in a package's
+dependencies is the whole wiring. `zero:validate` answers "is this design system correct" with
+a flat list of issues; `zero:validate --report` answers the other question — what does it
+actually *cover*; `zero:build` runs the same validation and then emits every artifact.</p>
+
+## The commands
+
+```
+sigx zero:validate [entry] [--manifest <path>] [--extra-manifest <path>]...
+                   [--strict] [--report] [--report-json <path>]
+sigx zero:build    [entry] [--manifest <path>] [--extra-manifest <path>]...
+                   [--out <dir>]
+```
+
+- **`entry`** is a compiled ES module (default `./dist/design-system.js`) exporting the
+  design system as `designSystem` or as its default export — so compile your TypeScript
+  first: a package's build script is `tsgo -p tsconfig.json && node build.mjs`, or
+  `tsgo … && sigx zero:build`.
+- **`--manifest`** defaults to `@sigx/zero/manifest.json` resolved from the current
+  directory, so the contract checked is the one the project ships. It takes a path or a
+  module specifier.
+- **`--extra-manifest`** (repeatable) merges an ecosystem manifest fragment into the base
+  manifest instead of replacing it. See [Building your own component](/zero/docs/ecosystem-components/).
+- **`--strict`** turns warnings into a failure — the flag for CI.
+- **`--report`** prints the human-readable coverage report; **`--report-json <path>`** writes
+  the machine-readable one, and `--report-json -` puts the JSON on stdout with diagnostics on
+  stderr, ready to pipe.
+- **`--out`** is the artifact directory (default `./dist`).
+
+The commands are namespaced so another plugin's `build` cannot shadow them; the bare
+`sigx build` / `sigx validate` aliases also resolve when nothing else claims those names.
+Both exit non-zero on failure, and `--help` prints the current flags.
+
+## What the validator checks
+
+`validateDesignSystem(ds, manifest)` runs `validateRecipes` and `validateApi` inside it and
+returns `{ ok, errors, warnings }`, each issue with a `where` and a `message`. The principle
+behind the rules: **an explicit declaration closes its set.**
+
+**Tokens**
+- Every theme defines every declared role (and its `-content` where declared) and the four
+  base surfaces; role names follow the grammar and avoid CSS-global keywords
+  (`RESERVED_ROLE_NAMES`); two roles whose derived properties collide are an error.
+- WCAG contrast: every declared role against its `-content` pair, per theme — an error below
+  3:1 — plus the base surfaces against `base-content`.
+- Token *values* are checked for `var()` references that resolve and do not cycle; `custom`
+  and `extra` token names follow the `--kebab-case` grammar; theme names are safe to
+  interpolate into `[data-theme="…"]`.
+- `sizes: []` is legal; `variants: []` at the design-system level is an error.
+
+**Recipes — structure**
+- `component` must be a manifest scope; every `parts` key a declared part; every `states`
+  key a declared state or flag of that part, or an interaction state.
+- `recipe.tokens` keys must be `--kebab-case`; `@keyframes` names may not be CSS keywords.
+- Axis names and values, in `variants` and `compoundVariants.match`, must be kebab-case
+  identifiers; an axis may not be a reserved name.
+
+**Recipes — vocabulary**
+- A `variants.color` key that names no declared role is an error (its selector could never
+  match); a value outside an explicitly declared `sizes`, `variants`, `axes` or `modifiers`
+  set is an error listing the set; a value outside the scope's own `tokens.scopes` entry is
+  an error. Only the default-resolved size ramp stays advisory — a warning.
+- An axis wired with zero values is an error (the components emitter would print an empty
+  union). `defaultVariants` is validated against the recipe's own wired keys and values.
+- A compound matching an axis the recipe never wires is an error; matching a value the axis
+  does not wire is a warning.
+- One component wiring fewer roles than its siblings is a warning (measured against the
+  union the design system actually wires, so holding a role back consistently everywhere
+  stays silent). When one scope narrows an axis and a styled sibling does not, the sibling is
+  still offering values declared for someone else — a *cross-talk* warning. A union value in
+  no scope's vocabulary is *unclaimed*.
+- A variant or modifier rule on a part whose `parent` chain does not reach the carrier is an
+  error — it could never match.
+
+**Recipes — content**
+- An undeclared token reference (`var(--color-brnad)`) is an error naming the nearest
+  declared token. Runtime and medium properties resolve without a declaration.
+- Physical properties with a logical twin warn, in declarations, `@keyframes` and the `css`
+  hatch, with the reasoned exemptions listed under [Recipes](/zero/docs/recipes/#write-direction-logically).
+- `transition` shorthands carrying literal durations warn.
+- The same `at` prelude reached through two tiers is an error.
+- Every interpolation point is guarded against selector break-out.
+
+**Fragments and api**
+- A merged fragment must carry the current `version`, a valid package specifier, scope and
+  part names that pass the grammar, states from `STATE_VOCABULARY` (with the synonym in the
+  message), flags from `FLAG_VOCABULARY`, `hiddenIn ⊆ states` and an acyclic part tree; a
+  scope collision is an error naming the existing owner.
+- Api mappings must exist in the declared vocabulary and may not shadow a component-specific
+  Root prop design-system-wide (`RESERVED_PROPS_BY_SCOPE`).
+
+**Coverage** — a component with no recipe warns (`N component(s) have no recipe`), and so
+does a declared state or flag no rule styles, unless the recipe lists it in `skipStates`.
+
+## The coverage report
+
+```
+basic — coverage report
+  components styled: 52/52 (100%)
+  color wired: 44/52 (85%)
+  size wired: 44/52 (85%)
+  variant wired: 3/52 (6%)
+  states+flags covered: …
+  theme basic: min contrast 8.73:1 (…)
+```
+
+The report is emitted whether or not validation passes — a design system that fails is
+exactly the one whose coverage is worth reading. `sigx zero:build` writes the same report to
+`dist/report.json`, so a built design system carries it without anyone running `validate`.
+It carries, per design system:
+
+- `coverage` — components styled against the manifest, and which are unstyled.
+- `vocabulary` — the declared roles, sizes, variants, axes, modifiers, per-scope `scopes`,
+  and `declaredOut` (axes declared out of existence).
+- `unwired` — declared-but-unused values per axis and per modifier: the only place a
+  declared colour role or size step nobody wires surfaces, since the validator has no rule
+  for those.
+- `unclaimed` — union values in no scope's vocabulary.
+- `components` — per scope: the axes wired (`wired`, `status`, and `offered` when the scope
+  restricts something — offered is the promise, wired is the delivery, and the gap is a
+  finding), custom axes, mods, defaults, which axes the `/register` artifact types `never`,
+  and per-part state and flag coverage split into covered / covered indirectly / skipped /
+  uncovered.
+- `divergence` — per axis, the per-component value sets, flagging any component wiring a
+  strict subset of its siblings, with `declared` marking a deliberate narrowing.
+- `themes` — the minimum contrast margin per theme across the declared role pairs, the worst
+  pair, and the counts below the 3:1 floor and below AA.
+- `api` — every vendor prop, where it routes, and its grade, when an api is declared.
+- `lynx` — the translated and dropped declarations, when the lynx target is built.
+
+The JSON declares `$schema: https://signalxjs.github.io/zero/schemas/report.schema.json`
+(`reportVersion: 1`). See [Manifests and schemas](/zero/docs/manifests/).
+
+## Programmatic use
+
+`runStandardBuild(options)` from `@sigx/zero-kit/build` is what both `build.mjs` and the CLI
+call — merge fragments, validate, throw after printing every issue if validation fails,
+compile, build the report, write the artifacts — and returns `{ result, written }`. The
+pieces are exported from the barrel for anything more specific: `validateDesignSystem`,
+`validateRecipes`, `validateApi`, `compileDesignSystem`, `compileTokensCss`,
+`compileRecipeCss`, `buildReport` / `formatReport`, `buildDsManifest`, `writeArtifacts`,
+`compileRegisterDts`, `compileComponentsDts` / `compileComponentsJs`, `mergeManifests`, and
+the conformance helpers `conformanceRows` / `reportRows` / `formatConformanceMatrix`. The
+barrel is Node-only; see the [Zero Kit API](/zero/packages/zero-kit/api/).

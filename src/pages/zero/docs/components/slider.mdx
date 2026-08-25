@@ -1,0 +1,189 @@
+---
+title: "Slider"
+description: "The @sigx/zero Slider component — a number or number[] model with two projections over one anatomy: a native <input type=range> control, or composed track / range / thumb parts for multi-thumb ranges."
+layout: docs
+category: ["Components", "Form controls"]
+order: 311
+---
+
+# Slider
+
+<p class="lede">A number — or `number[]` — model with two projections over one anatomy. A
+scalar model renders `Slider.Control`, a native `<input type="range">` that brings its own
+keyboard, form participation and accessibility. An array model composes the real
+`Slider.Track` / `Slider.Range` / `Slider.Thumb` parts, one APG `role="slider"` thumb per
+value. Zero positions the moving parts structurally and paints nothing.</p>
+
+## Import
+
+```tsx
+import { Slider } from '@sigx/zero/slider';
+```
+
+`Slider` is a compound: `Slider.Root`, `Slider.Label`, `Slider.Control`, `Slider.Track`,
+`Slider.Range`, `Slider.Thumb`, `Slider.ValueText`. It is also re-exported from the
+`@sigx/zero` root, together with `sliderAnatomy`, `useSliderContext` and the `SliderMark`
+type.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Slider } from '@sigx/zero/slider';
+
+const Volume = component(({ signal }) => {
+    const state = signal({ volume: 40 });
+
+    return () => (
+        <Slider.Root model={() => state.volume} min={0} max={100} name="volume">
+            <Slider.Label>Volume</Slider.Label>
+            <Slider.Control />
+            <Slider.ValueText />
+        </Slider.Root>
+    );
+});
+```
+
+`model={() => state.volume}` binds the value both ways. Leave the model off and pass
+`defaultValue` to keep the state inside the component; `valueChange` fires either way, and
+emission preserves the model's shape — scalar in, scalar out. See
+[Models](/zero/docs/models/).
+
+This is the native projection: the platform supplies the keyboard, posts the value under
+`name` through the input itself, and a design system styles the thumb and track through the
+input's vendor pseudo-elements against `[data-scope="slider"][data-part="control"]`. The
+current fraction is published as `--slider-percent` on the root for track-fill styling.
+
+### A range with two thumbs
+
+```tsx
+const Price = component(({ signal }) => {
+    const state = signal({ price: [100, 400] });
+
+    return () => (
+        <Slider.Root
+            model={() => state.price}
+            min={0}
+            max={500}
+            step={10}
+            name="price"
+            marks={[0, { value: 250, label: '250' }, 500]}
+            getValueText={(v) => `$${v}`}
+        >
+            <Slider.Label>Price</Slider.Label>
+            <Slider.Track>
+                <Slider.Range />
+                <Slider.Thumb label="Minimum price" />
+                <Slider.Thumb label="Maximum price" />
+            </Slider.Track>
+            <Slider.ValueText />
+        </Slider.Root>
+    );
+});
+```
+
+With a `number[]` model you compose the parts: one `Slider.Thumb` per value, in order — thumbs
+claim their index by registration order, and an explicit `index` pins one. Thumbs cannot
+cross: a thumb clamps at its neighbour, and announces that clamp as its `aria-valuemin` /
+`aria-valuemax` (the allowed range, not the rail's). `Slider.Range` spans the lowest to the
+highest value (`min` to the value when single). A pointer press on the track moves the nearest
+thumb there and starts a drag; a press on a thumb drags that thumb even when two are stacked.
+
+A range model has no native widget to post through, so it renders one hidden input per value
+under the shared `name` — how multi-value fields post.
+
+### Marks
+
+`marks` renders one positioned `mark` part per entry inside the track. A bare number is a
+tick; `{ value, label }` also renders the label text inside the part.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled`, `invalid`, `focus-visible` | Carries the variant axes and `data-orientation`. Publishes `--slider-percent`. |
+| `label` | `label` | — | `disabled` | `for` the control id. Inside `root`. |
+| `control` | `input` | — | `disabled`, `invalid`, `focus-visible`, `pressed` | `type="range"`; the scalar projection. Carries `name`, `min`, `max`, `step`, `aria-invalid`. |
+| `track` | `div` | — | `disabled` | The rail; `position: relative`. Pointer presses move the nearest thumb. |
+| `range` | `div` | — | `disabled` | The filled span, positioned with `inset-inline-start` and `inline-size` percents. Inside `track`. |
+| `thumb` | `div` | — | `disabled`, `pressed`, `focus-visible` | `role="slider"`, `tabIndex=0`, `aria-valuemin` / `aria-valuemax` / `aria-valuenow` / `aria-valuetext`, `aria-label`. Positioned with `inset-inline-start`. Inside `track`. |
+| `mark` | `span` | — | `disabled` | One per `marks` entry, positioned with `inset-inline-start`; carries the label text. Inside `track`. |
+| `value-text` | `output` | — | — | `for` the control id; defaults to the value, or the values joined with an en dash. |
+| `hidden-input` | `input` | — | — | `type="hidden"`; one per value under `name`, rendered for array models only. |
+
+Every part carries `data-scope="slider"` and `data-part="<part>"`. One recipe carries both
+projections — rules for parts a render does not include are inert there. Zero positions
+`range`, `thumb` and `mark` absolutely with logical `inset-inline-start` percents, so RTL
+mirrors for free, and paints nothing: a recipe centres the thumb on its position with a
+negative `margin-inline-start` of half its own width, and owns every colour.
+`--slider-percent` tracks the highest value's fraction in both projections.
+
+`data-pressed` is the only press-feedback flag on this scope: a drag is a long press with no
+one-shot, so the control and thumb carry `pressed` while the pointer is down — including
+after it leaves the element, until a window-level release — and never `press-animating`. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Slider.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `number \| number[]` | — | Two-way binding of the value; an array selects the composed projection. |
+| `defaultValue` | `number \| number[]` | `min` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: number \| number[])` | — | Fires whenever any value changes; same shape as the model. |
+| `min` | `number` | `0` | Lower bound. |
+| `max` | `number` | `100` | Upper bound. |
+| `step` | `number` | `1` | Quantisation; values are snapped to the step, anchored at `min`. |
+| `name` | `string` | — | Form field name; on the native control, or one hidden input per value. |
+| `invalid` | `boolean` | `false` | Renders `data-invalid` and `aria-invalid`. |
+| `disabled` | `boolean` | `false` | Inert; renders `data-disabled` on every part. |
+| `marks` | `readonly SliderMark[]` | `[]` | Ticks rendered as `mark` parts inside the track; `number \| { value, label? }`. |
+| `getValueText` | `(value: number, index: number) => string` | — | Per-thumb `aria-valuetext` — "$40", "40 percent". |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+Field context (`disabled`, `invalid`, the control and label ids) is merged with the props.
+
+### `Slider.Label`, `Slider.Control`, `Slider.Track`, `Slider.Range`
+
+Only `class`. `Slider.Track` renders the `mark` parts before its children.
+
+### `Slider.Thumb`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `index` | `number` | registration order | Which value this thumb drives. |
+| `label` | `string` | — | `aria-label`; a multi-thumb slider must name each thumb. |
+| `class` | `string` | — | Extra classes. |
+
+### `Slider.ValueText`
+
+Only `class`. Its default slot receives `{ value, values }`; without one it renders the
+scalar value, or the values joined with an en dash.
+
+## Keyboard
+
+The native control's keyboard is the platform's. Each composed thumb is its own tab stop:
+
+| Key | Action |
+|---|---|
+| ArrowRight / ArrowUp | Increase by `step` (ArrowRight flips under RTL). |
+| ArrowLeft / ArrowDown | Decrease by `step` (ArrowLeft flips under RTL). |
+| PageUp / PageDown | Increase / decrease by ten steps. |
+| Home / End | Jump to `min` / `max`, clamped at the neighbouring thumb. |
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on slider, so `<Slider.Root color="accent" size="lg">` is styled in
+both. Neither wires a `variant` on the scope; under a design system's `/register` import the
+prop is therefore absent. Both style the native control's pseudo-elements and the composed
+track, range, thumb and mark parts from the same recipe, reading `--slider-percent` for the
+native track fill. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[Number Input](/zero/docs/components/number-input/) for a typed value,
+[Progress](/zero/docs/components/progress/) for a read-only fraction,
+[Field](/zero/docs/components/field/) for labelling.
