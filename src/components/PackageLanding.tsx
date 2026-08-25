@@ -65,8 +65,8 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                     <h1>{pkg.title}</h1>
                     <p class="lh-tag">{pkg.blurb}</p>
                     <div class="lh-cta">
+                        {/* Keyword-bearing anchor text into the area's guide entry (#52). */}
                         {docs && (
-                            {/* Keyword-bearing anchor text into the area's guide entry (#52). */}
                             <SxLink to={docs} class="sx-btn sx-btn-primary">
                                 Get started with {pkg.id === 'core' ? 'SignalX' : pkg.kind === 'collection' ? `SignalX ${pkg.title}` : pkg.npm} <Icon name="arrowRight" size={15} />
                             </SxLink>
