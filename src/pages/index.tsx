@@ -45,7 +45,7 @@ export default HomePage;
  */
 export const meta = {
     title: 'SignalX — Fine-grained reactive TypeScript framework',
-    description: 'SignalX (sigx) — a fine-grained reactive TypeScript framework: signals, TSX components, no virtual DOM, server functions and actors. Web, native and terminal.',
+    description: 'SignalX (sigx) — a fine-grained reactive TypeScript framework: signals, TSX components, server functions and actors. Web, native and terminal.',
     layout: 'home',
     // The site-wide graph in index.html already describes the homepage.
     autoJsonLd: false,

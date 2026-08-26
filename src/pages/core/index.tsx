@@ -19,6 +19,6 @@ export default Landing;
 
 export const meta = {
     title: 'SignalX Core — Signals and fine-grained reactivity for TSX',
-    description: 'Fine-grained TypeScript reactivity: signals, computed values and effects; the renderer touches only the DOM nodes that changed — no virtual DOM, no re-renders.',
+    description: 'Fine-grained TypeScript reactivity: signals, computed values and effects. A change re-renders only the components that read it; keyed diffing patches the DOM.',
     layout: 'package',
 };
