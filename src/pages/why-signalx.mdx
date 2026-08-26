@@ -1,14 +1,14 @@
 ---
-title: Why SignalX — signals, no virtual DOM, one component model
-description: Why SignalX — fine-grained signals reactivity, no virtual DOM, one TSX component model for web, native iOS/Android and terminal, plus streaming SSR and actors.
+title: Why SignalX — signals, fine-grained updates, one component model
+description: Why SignalX — signals that re-render only what read them, one TSX component model for web, native iOS/Android and terminal, plus streaming SSR and actors.
 layout: default
 ---
 
 # Why SignalX
 
 SignalX (`sigx`) is a fine-grained reactive TypeScript framework. State is signals, views are
-TSX components, and there is no virtual DOM: when a signal changes, only the DOM nodes that
-read it update. The same component model renders to the browser, to native iOS and Android
+TSX components, and updates are bounded by signals: when a signal changes, only the components
+that read it re-render, and only the DOM that differs is patched. The same component model renders to the browser, to native iOS and Android
 views, to the terminal and to a server-rendered stream.
 
 ## Fine-grained reactivity with signals
@@ -35,13 +35,13 @@ you mutate directly. If you know SolidJS-style signals, the model will feel fami
 Read more: [Signals](/core/docs/signals/) · [Computed](/core/docs/computed/) ·
 [Effects](/core/docs/effects/)
 
-## No virtual DOM, no re-renders
+## Updates bounded by signals, not by the tree
 
-A SignalX component function runs **once**. Its setup creates state, and its render function
-returns TSX whose reactive expressions are bound directly to the DOM nodes they produce. Later
-updates do not diff a tree — each changed signal patches exactly the text, attribute or list
-item that depends on it. That is what makes the core runtime small (about 7 kB) and updates
-proportional to what changed rather than to the size of the component.
+A SignalX component's setup runs **once**; its render function re-runs only when a signal it
+read changes. Under the hood the renderer is a vnode renderer with keyed reconciliation, but
+a state change never walks the whole app: it invalidates just the components that actually
+read the changed signal, and the diff is bounded by that signal's readers rather than by the
+size of the component tree. Work stays proportional to what changed.
 
 Read more: [Components](/core/docs/components/) · [Lifecycle](/core/docs/lifecycle/)
 
