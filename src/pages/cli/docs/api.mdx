@@ -56,9 +56,29 @@ Re-exported from `@sigx/args`. Use it to declare a command's arguments — `a.st
 export function runCreate(opts?: CreateOptions): Promise<void>;
 ```
 
-Entry point of the `create` command, exported from `@sigx/cli/create`. The `sigx` binary calls it with the options it already parsed via `@sigx/args`; the bare `@sigx/create` shim (`npm create @sigx@latest`) calls it with no argument, in which case it parses `process.argv` itself. In a TTY it runs the interactive `@sigx/terminal` prompts; in non-interactive mode — no TTY, `yes: true`, or both `type` and a positional `name` — it scaffolds headlessly and calls `process.exit()` with the result code.
+Entry point of the `create` command, exported from `@sigx/cli/create`. The `sigx` binary calls it with the options it already parsed via `@sigx/args`; the bare `@sigx/create` shim (`npm create @sigx@latest`) calls it with no argument, in which case it parses `process.argv` itself. In a TTY it runs the [wizard](/cli/docs/create) on `@sigx/terminal`; in non-interactive mode — no TTY, `yes: true`, or a kind (`kind`, `type` or `preset`) together with a positional `name` — it scaffolds headlessly and calls `process.exit()` with the result code.
 
-- **`opts`** — optional pre-parsed `CreateOptions` (`name?`, `type?`, `styling?`, `yes?`). Omitted, it reads `process.argv`.
+- **`opts`** — optional pre-parsed `CreateOptions`. Omitted, it reads `process.argv`.
+
+  ```ts
+  interface CreateOptions {
+      name?: string;
+      kind?: 'spa' | 'ssr' | 'ssg' | 'terminal' | 'lynx';
+      /** Deprecated alias of `kind` (`basic` = `spa`). */
+      type?: string;
+      render?: 'hydrate' | 'islands' | 'resume';
+      target?: 'node' | 'cloudflare' | 'bun' | 'deno' | 'vercel' | 'vercel-edge' | 'netlify';
+      styling?: 'none' | 'tailwind' | 'daisyui';
+      /** Comma-separated on the command line. */
+      features?: string;
+      pm?: 'pnpm' | 'npm' | 'yarn' | 'bun' | 'deno';
+      install?: boolean;
+      git?: boolean;
+      preset?: string;
+      yes?: boolean;
+      list?: boolean;
+  }
+  ```
 - **Returns** — `Promise<void>` (the function exits the process when it finishes).
 
 When the bare `@sigx/create` shim parses `process.argv` itself, it is lenient: **unknown flags are tolerated** (ignored rather than erroring), so a future `sigx create` flag never breaks an older shim. The one hard error is a **trailing value-expecting flag with no value** (e.g. a dangling `--type`), which exits with code `2`.

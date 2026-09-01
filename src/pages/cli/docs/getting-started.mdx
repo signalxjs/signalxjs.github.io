@@ -10,7 +10,7 @@ order: 10
 
 `@sigx/cli` is the command-line tool for SignalX projects. It does three things:
 
-- **Scaffolds new projects** with `sigx create` — interactive prompts (or headless flags) that copy a bundled template into a new directory.
+- **Scaffolds new projects** with `sigx create` — a wizard (or headless flags) that composes a project from the kind, rendering, deploy target, styling and extras you pick.
 - **Reports environment & project info** with `sigx info`, including the Lynx native toolchain when a Lynx config is detected.
 - **Discovers plugins at runtime** so packages like `@sigx/vite`, `@sigx/ssg`, and `@sigx/lynx-cli` can contribute commands such as `dev`, `build`, `preview`, and the platform commands.
 
@@ -21,14 +21,18 @@ The CLI ships a single binary, `sigx`, and is ESM-only.
 The fastest way to a new project is `sigx create`. You can run it without installing anything:
 
 ```bash
-npx sigx create
+npm create @sigx@latest
 ```
 
-This walks you through interactive prompts — a name, a project type, and a styling option — then writes the project into `./<name>`. To skip the prompts and scaffold headlessly, pass flags:
+This walks you through the wizard — a name, then **Quick start** (a Tailwind SPA with routing and tests) or **Customize** (kind → rendering and deploy target → styling → extras), then your package manager and whether to install dependencies and initialize git. It writes the project into `./<name>` and prints the next steps.
+
+To skip the prompts and scaffold headlessly, pass flags:
 
 ```bash
-npx sigx create my-app --type ssr --styling tailwind
+npx sigx create my-app --kind ssr --styling tailwind -y
 ```
+
+`--kind` takes `spa`, `ssr`, `ssg`, `terminal` or `lynx`. See [Creating a Project](/cli/docs/create) for the full flag surface, the deploy targets and render modes for SSR, and what each kind generates.
 
 ## Installing into a project
 
@@ -48,25 +52,36 @@ See [Installation](/cli/docs/installation) for peer-dependency details and which
 
 ## A minimal end-to-end example
 
-Scaffold a basic web app, install dependencies, and start it:
+Scaffold a web app, install dependencies, and start it — in one command:
 
 ```bash
-npx sigx create my-app --type basic
+npm create @sigx@latest my-app -- --kind spa --install -y
+cd my-app
+npm run dev
+```
+
+`--install` is what makes the dependencies land; headless runs never install (or touch git) unless you ask. Drop it and run the install yourself:
+
+```bash
+npx sigx create my-app --kind spa -y
 cd my-app
 npm install
 npm run dev
 ```
 
-The `basic` web template uses Vite scripts directly (`vite`, `vite build`, `vite preview`). The other templates wire npm scripts differently:
+Scripts differ by kind:
 
-- **`ssg`** maps `dev`, `build`, and `preview` to `sigx dev` / `sigx build` / `sigx preview`.
-- **`lynx`** maps `dev` and `build` to `sigx dev` / `sigx build` (plus `sigx doctor` and `sigx prebuild`), but has no `preview` script.
-- **`ssr`** does not use `sigx` scripts at all: it runs a custom Express server via `node server.js` for `dev`, `start`, and `preview`, and builds with `vite build`.
+- **`spa`** uses Vite directly — `vite`, `vite build`, `vite preview`.
+- **`ssr`** runs `node server.mjs` for `dev` and builds with `vite build --app`; `start` runs the production server. Every deploy target shares that dev workflow.
+- **`ssg`** maps `dev`, `build` and `preview` to `sigx dev` / `sigx build` / `sigx preview`.
+- **`terminal`** runs `sigx-terminal-dev src/main.tsx` for `dev` (HMR) and `tsx src/main.tsx` for `start`.
+- **`lynx`** maps `dev` and `build` to `sigx dev` / `sigx build`, plus `sigx doctor` and `sigx prebuild`, and has no `preview`.
 
-Where a template uses `sigx` commands, those resolve to commands contributed by the corresponding plugin packages.
+Where a project uses `sigx` commands, those resolve to commands contributed by the corresponding plugin packages.
 
 ## Where to go next
 
+- [Creating a Project](/cli/docs/create) — the wizard, every `create` flag, and what each kind generates.
 - [Installation](/cli/docs/installation) — install, peer dependencies, and the plugin packages behind each command.
 - [Commands](/cli/docs/commands) — every command with its usage and flags.
 - [Authoring Plugins](/cli/docs/plugins) — extend the CLI with your own commands.
