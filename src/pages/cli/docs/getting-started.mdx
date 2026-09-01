@@ -29,8 +29,10 @@ This walks you through the wizard — a name, then **Quick start** (a Tailwind S
 To skip the prompts and scaffold headlessly, pass flags:
 
 ```bash
-npx sigx create my-app --kind ssr --styling tailwind -y
+npx sigx create my-app --kind ssr --styling tailwind --install -y
 ```
+
+Headless runs never install dependencies or initialize git unless `--install` / `--git` ask for it, which keeps them safe in CI — drop `--install` and run the install yourself.
 
 `--kind` takes `spa`, `ssr`, `ssg`, `terminal` or `lynx`. See [Creating a Project](/cli/docs/create) for the full flag surface, the deploy targets and render modes for SSR, and what each kind generates.
 
