@@ -20,66 +20,37 @@ npx sigx <command>
 
 ### sigx create
 
-Scaffolds a new SignalX project by copying a bundled template into `./<name>` and substituting the `{{projectName}}` placeholder.
+Scaffolds a new SignalX project, composing it from the kind, render mode, deploy target, styling and extras you pick.
 
 ```bash
-sigx create [name] [--type <basic|ssr|ssg|lynx>] [--styling <none|tailwind|daisyui>] [--yes|-y]
+sigx create [name] [--kind <spa|ssr|ssg|terminal|lynx>] [--render <hydrate|islands|resume>]
+            [--target <node|cloudflare|bun|deno|vercel|vercel-edge|netlify>]
+            [--styling <none|tailwind|daisyui>] [--features <a,b>] [--pm <pnpm|npm|yarn|bun|deno>]
+            [--install|--no-install] [--git|--no-git] [--preset quick] [--yes|-y] [--list]
 ```
 
-By default it runs an interactive prompt-kit flow on `@sigx/terminal`: an intro, a **name** text prompt, then **type** and **styling** select prompts, a scaffolding spinner, and a "next steps" note. It falls back to **headless, flag-driven mode** when any of the following is true:
-
-- standard output / input is not a TTY (for example, in CI or when piped),
-- `--yes` / `-y` is passed,
-- both `--type` and a positional `name` are provided.
-
-**Flags & arguments**
-
-| Argument | Values | Default | Description |
-| --- | --- | --- | --- |
-| `name` (positional) | any directory name | `my-sigx-app` | Target directory created under the current folder. |
-| `--type` | `basic`, `ssr`, `ssg`, `lynx` | `basic` | Project template to copy. |
-| `--styling` | `none`, `tailwind`, `daisyui` | `none` | Styling preset. `daisyui` is also offered for `lynx` (maps to `@sigx/lynx-daisyui`). |
-| `--yes` / `-y` | — | — | Skip the prompts and run headlessly with defaults/flags. |
-
-**Examples**
+With no flags it runs an interactive wizard on `@sigx/terminal`: name → Quick start or Customize → the shape questions → package manager → install and git → a summary you confirm. It falls back to **headless, flag-driven mode** when standard input/output is not a TTY, when `--yes` / `-y` is passed, or when a kind (`--kind`, `--type` or `--preset`) comes with a positional name. Headless never installs dependencies or touches git unless asked.
 
 ```bash
-sigx create my-app --type basic
-sigx create my-app --type ssr --styling tailwind
-sigx create my-app --type ssg --styling daisyui
-sigx create my-app --type lynx --styling tailwind
+sigx create                                   # the wizard
+sigx create my-app --preset quick --install --git -y
+sigx create my-app --kind ssr --render resume --target cloudflare -y
+sigx create --list                            # everything this build can generate
 ```
 
-Interactive prompts:
+`--type basic|ssr|ssg|terminal|lynx` is a deprecated alias of `--kind`, with `basic` meaning `spa`.
 
-```bash
-npx sigx create
-```
+**Exit codes** — `2` for an invalid or contradictory flag, `1` when scaffolding fails (for example the target directory already exists), `130` when a prompt is cancelled.
 
-**Exit codes**
-
-- `1` — target directory already exists, or the requested template was not found.
-- `2` — invalid `--type` or `--styling` value.
+**→ [Creating a Project](/cli/docs/create)** covers the wizard step by step, every flag, what each kind generates, the render modes and deploy targets, and the extras matrix.
 
 **Notes**
 
+- Generated projects pin the matched `sigx` / `@sigx/*` set the CLI was released against — never `latest` — so the peer graph resolves to a single copy of `@sigx/reactivity`. The current CLI is <PkgVersion npm="@sigx/cli" />.
 - If the target directory is inside a pnpm workspace (a `pnpm-workspace.yaml` is found by walking up the tree), `@sigx/*` dependencies in the generated `package.json` are rewritten to `workspace:*`.
-- Templates ship a `gitignore` file that is renamed to `.gitignore` on copy (npm strips `.gitignore` from published tarballs).
-- Text files have their `{{projectName}}` placeholders substituted on copy; binary assets (PNG icons in the `lynx` template) are copied byte-for-byte.
+- SSG and terminal projects ship their own `pnpm-workspace.yaml` allowing `esbuild` to run its install script (`allowBuilds` for pnpm 11, `onlyBuiltDependencies` for pnpm 10) — pnpm 11 fails the install otherwise.
+- Every project gets a `README.md` and a `.gitignore`, with commands spelled for the chosen package manager.
 - The terminal prompt kit (`@sigx/terminal`) is lazy-loaded, so it is only pulled in when you actually run `create` interactively.
-
-**Templates & pinned versions**
-
-Templates pin a **matched set** of `sigx` / `@sigx/*` versions — never `latest` — so a freshly scaffolded project's peer graph resolves with a single copy of `@sigx/reactivity` under strict peer deps. Each template pins the set it was authored against rather than the newest core line, and the `ssg` and `lynx` templates pin the matched set their plugin (`@sigx/ssg` / `@sigx/lynx-cli`) is built against. Third-party deps (`vite`, `express`, `tailwindcss`, …) keep their own caret ranges. To start from the current core, bump the scaffolded `package.json` to `sigx` <PkgVersion npm="sigx" /> and its matching `@sigx/*` set after creating the project.
-
-The **SSR templates** (`ssr`, `ssr-tailwind`, `ssr-daisyui`) scaffold a server built on the document render API:
-
-- an Express 5 **`server.js`** — Vite middleware in dev (`ssrLoadModule` for `entry-server`), static client assets + the built server bundle in prod;
-- an **`index.html`** with the standard `<!--ssr-outlet-->` marker;
-- an **`entry-server.tsx`** `render()` that serves crawlers and AI agents a blocking [`renderDocument`](/server/packages/server-renderer) (complete inline HTML, no client work) and everyone else a streaming `renderDocumentToNodeStream` (the `shell` promise settles before the first byte, so a failed render can still become a proper 500);
-- an **`entry-client.tsx`** that gates hydration on the server's completion signal (`window.__SIGX_STREAMING_COMPLETE__` / the `sigx:ready` event), emitted in both modes, so hydration always runs against finished server HTML.
-
-`npm run dev` / `start` / `preview` run `node server.js`; `build` runs `vite build` plus a `vite build --ssr` of `entry-server`.
 
 ### sigx info
 

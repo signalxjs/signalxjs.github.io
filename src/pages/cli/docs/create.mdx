@@ -1,0 +1,219 @@
+---
+title: Creating a Project
+description: "sigx create — the wizard, every flag, and what each kind of project generates"
+layout: docs
+category: Guides
+order: 25
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Creating a Project
+
+`sigx create` scaffolds a new SignalX project. Run it without installing anything:
+
+```bash
+npm create @sigx@latest
+```
+
+or, if the CLI is already available, `npx sigx create`. With no flags you get an interactive wizard; with flags it runs headlessly and never touches the network or your git config unless you ask it to.
+
+A project is **composed** from your choices rather than copied from a fixed template folder: a kind, a render mode and deploy target for server-rendered apps, a styling preset, and any extras are layered together into the file tree. Every combination is generated from the same set of layers, so a router-plus-i18n SSR app on Cloudflare is as first-class as the plain SPA.
+
+## The wizard
+
+```bash
+npm create @sigx@latest
+```
+
+The prompts, in order:
+
+1. **Project name** — validated as you type: no path separators, and the directory must not already exist.
+2. **How do you want to start?**
+   - **Quick start** — web app (SPA) + Tailwind + router + tests. A good default.
+   - **Customize** — the questions below.
+3. **What are you building?** — the [kind](#kinds).
+4. **Rendering** and **Deploy target** — SSR only. Picking `vercel-edge` prints a heads-up that the Edge runtime is Web APIs only, with no Node built-ins or filesystem in server code.
+5. **Styling** — skipped for terminal apps, which have no styling option.
+6. **Extras** — a multiselect showing only the extras your kind, render mode and target actually support. Skipped when none apply.
+7. **Package manager** — defaults to the one that ran `create` (from `npm_config_user_agent`), falling back to the nearest lockfile.
+8. **Install dependencies?** — defaults to yes.
+9. **Initialize a git repository?** — defaults to yes, or to *no* when you are already inside a repository (the prompt says so).
+10. **Summary and confirmation.** Answering *no* takes you back through the shape questions once.
+
+Then it scaffolds, installs and initializes git as separate spinner phases, and prints the next steps for your package manager. A failed install never fails the run — the project is written, the tail of the install output is shown, and the install command is added to the next steps so you can retry it yourself. If git is not installed, the repository step is skipped with a note.
+
+Esc or Ctrl+C at any prompt exits with code `130`.
+
+Flags combine with the wizard: pass any that shape the project and it skips the Quick start / Customize question and uses your flags as the prompts' initial values.
+
+## Headless mode
+
+`create` runs headlessly — no prompts — when any of these is true:
+
+- stdin or stdout is not a TTY (CI, or piped output),
+- `-y` / `--yes` is passed,
+- a kind is given (`--kind`, `--type` or `--preset`) **together with** a positional name.
+
+Headless never installs dependencies and never initializes git unless `--install` / `--git` say so, which keeps it safe in CI.
+
+```bash
+sigx create my-app --kind ssr --render resume --target cloudflare \
+  --styling tailwind --features server-fn,testing --pm npm -y
+```
+
+### Flags
+
+| Flag | Values | Default | Description |
+| --- | --- | --- | --- |
+| `name` (positional) | a directory name | `my-sigx-app` | Target directory, created under the current folder. |
+| `--kind` | `spa`, `ssr`, `ssg`, `terminal`, `lynx` | `spa` | What to build. See [Kinds](#kinds). |
+| `--type` | `basic`, `ssr`, `ssg`, `terminal`, `lynx` | — | Deprecated alias of `--kind`; `basic` means `spa`. Giving both with different values is an error. |
+| `--render` | `hydrate`, `islands`, `resume` | `hydrate` | SSR only. See [Render modes](#render-modes). |
+| `--target` | `node`, `cloudflare`, `bun`, `deno`, `vercel`, `vercel-edge`, `netlify` | `node` | SSR only. See [Deploy targets](#deploy-targets). |
+| `--styling` | `none`, `tailwind`, `daisyui` | `none` | Stylesheet preset. Terminal apps take none. |
+| `--features` | comma-separated: `router`, `i18n`, `testing`, `server-fn` | — | Extras. See [Extras](#extras). |
+| `--pm` | `pnpm`, `npm`, `yarn`, `bun`, `deno` | detected | Package manager the scripts and next steps are written for. |
+| `--install` / `--no-install` | — | off in headless | Install dependencies after scaffolding. |
+| `--git` / `--no-git` | — | off in headless | `git init` plus a first commit. |
+| `--preset` | `quick` | — | SPA + Tailwind + router + testing. |
+| `--yes` / `-y` | — | — | Skip the prompts. |
+| `--list` | — | — | Print every kind, render mode, target, styling and extra this build can generate, then exit. |
+
+`--render` and `--target` apply to `--kind ssr` only; passing them with any other kind is an error.
+
+**Exit codes** — `2` for an invalid or contradictory flag, `1` when scaffolding itself fails (for example the target directory already exists), `130` when you cancel a prompt.
+
+To see exactly what your installed version can generate:
+
+```bash
+sigx create --list
+```
+
+## Kinds
+
+| `--kind` | What you get |
+| --- | --- |
+| `spa` | Client-rendered single-page app on Vite. |
+| `ssr` | Server-rendered web app — streaming, islands or resumable, deployable to seven targets. |
+| `ssg` | Static site with [`@sigx/ssg`](/ssg/) — file-based routing, MDX, built-in search. |
+| `terminal` | Terminal UI with [`@sigx/terminal`](/terminal/) — TSX + signals, HMR dev runner. |
+| `lynx` | Native iOS and Android app with [SignalX Lynx](/lynx/) from one component tree. |
+
+`basic` is the legacy name for `spa` and still works through `--type`.
+
+### What each kind generates
+
+Every project ships a `README.md` describing its layout, scripts and how to deploy, plus a `.gitignore` — with commands spelled for the package manager you chose.
+
+**`spa`**
+
+```text
+index.html  vite.config.ts  tsconfig.json  package.json
+src/main.tsx  src/App.tsx  src/components/Counter.tsx  src/styles.css  src/env.d.ts
+public/favicon.svg
+```
+
+`dev` → `vite`, `build` → `vite build`, `preview` → `vite preview`.
+
+**`ssr`** (target `node` shown)
+
+```text
+index.html  server.mjs  vite.config.ts  tsconfig.json  package.json
+src/entry-server.tsx  src/entry-client.tsx  src/App.tsx
+src/components/Counter.tsx  src/styles.css  src/env.d.ts
+public/favicon.svg
+```
+
+`src/entry-server.tsx` exports a per-request `createApp(url)` factory — each call builds a fresh app, so nothing is shared between concurrent requests. `server.mjs` is plain Node with two modes: Vite middleware plus `createDevRequestHandler` in dev, and static assets plus `createRequestHandler` over `dist/server/sigx-app.js` in production. Crawlers and AI agents are served the blocking document render; everyone else gets the streaming one.
+
+`dev` → `node server.mjs`, `build` → `vite build --app` (one build for client and server), `start` → `node --conditions production server.mjs`.
+
+**`ssg`**
+
+```text
+ssg.config.ts  vite.config.ts  tsconfig.json  package.json  pnpm-workspace.yaml
+src/pages/index.mdx  src/pages/about.mdx  src/layouts/default.tsx
+src/components/Counter.tsx  src/styles/global.css  src/env.d.ts
+public/favicon.svg
+```
+
+The stylesheet stays at `src/styles/global.css` and `@sigx/ssg` generates the HTML template. `dev` / `build` / `preview` map to `sigx dev` / `sigx build` / `sigx preview`.
+
+**`terminal`**
+
+```text
+tsconfig.json  package.json  pnpm-workspace.yaml
+src/main.tsx  src/App.tsx
+```
+
+`dev` → `sigx-terminal-dev src/main.tsx` (HMR), `start` → `tsx src/main.tsx`, plus a `typecheck` script.
+
+**`lynx`**
+
+```text
+lynx.config.ts  signalx.config.ts  tsconfig.json  package.json
+src/main.tsx  src/main.thread.tsx  src/App.tsx  src/lynx-env.d.ts
+assets/icon.png  assets/splash.png  assets/adaptive-foreground.png
+```
+
+`dev` → `sigx dev`, `build` → `sigx build`, plus `sigx doctor` and `sigx prebuild`.
+
+## Render modes
+
+SSR projects choose how the page reaches the browser.
+
+| `--render` | Behaviour |
+| --- | --- |
+| `hydrate` | Streaming SSR with full client hydration — the classic shape. The default. |
+| `islands` | A server-only page whose components hydrate individually per `client:*` directive, with an app-less `hydrateIslands()` client. See [`@sigx/ssr-islands`](/server/packages/ssr-islands/). |
+| `resume` | Zero JavaScript on load; handlers are extracted into chunks and load on first interaction, with `refreshComponents` and `createBoundaryRefresh` wired for single-flight boundary refresh. See [`@sigx/resume`](/server/packages/resume/). |
+
+## Deploy targets
+
+Each target contributes its platform entry, its config, the Vite adapter, and `deploy` / `start` scripts, plus a deploy section in the generated README.
+
+| `--target` | Entry & config | Run / deploy |
+| --- | --- | --- |
+| `node` (default) | `server.mjs` (Express) | `node --conditions production server.mjs` |
+| `cloudflare` | `src/entry.cloudflare.ts`, `wrangler.jsonc` | `wrangler deploy` (`wrangler dev` to preview) |
+| `bun` | `server.bun.ts` | `bun --conditions=production server.bun.ts` |
+| `deno` | `src/entry.deno.ts`, `deno.json` | `deno deploy` |
+| `vercel` | `src/entry.vercel.ts` | `vercel deploy --prebuilt` |
+| `vercel-edge` | `src/entry.vercel.ts` (Edge runtime) | `vercel deploy --prebuilt` |
+| `netlify` | `src/entry.netlify.ts`, `netlify.toml` | `netlify deploy --prod --no-build` |
+
+**Every target develops the same way.** `dev` is always the Vite dev server through `server.mjs`, whichever platform you deploy to — the platform entry is what `build` bundles and `deploy` ships. Express is a dev-only dependency everywhere except the `node` target.
+
+`vercel-edge` runs on the Edge runtime: Web APIs only, no Node built-ins and no filesystem in server code.
+
+For the platforms themselves, see the [deployment guides](/deploy/docs/overview).
+
+## Extras
+
+`--features` takes a comma-separated list; the wizard offers the same set as a multiselect, filtered to what your other choices support.
+
+| Feature | Adds | Available for |
+| --- | --- | --- |
+| `router` | [`@sigx/router`](/router/docs/getting-started), `src/router.ts`, Home/About pages, `<RouterView />`, `createWebHistory` in the browser and a per-request `createMemoryHistory` on the server | SPA, SSR (`hydrate`) |
+| `i18n` | [`@sigx/i18n`](/i18n/docs/overview), an `app` namespace in English and Swedish under `src/locales/`, lazy catalogs, `?lang=`/cookie/browser detection, SSR preload and state transfer, a language switch | SPA, SSR (`hydrate`) |
+| `testing` | Vitest on happy-dom and oxlint, `test` and `lint` scripts, `vitest.config.ts`, `.oxlintrc.json`, and a sample test that mounts the app (or the Counter island on a static site) | SPA, SSR, SSG |
+| `server-fn` | [`@sigx/server`](/server/packages/server/overview), `src/api/hello.server.ts` declared with `serverFn`, read from a component with `useData`, and `sigxServer()` in `vite.config.ts` | SSR (any render mode or target) |
+
+Router and i18n need a hydrated client, which is why they are `hydrate`-only — islands and resumable pages have no client app to route. Server functions compose into whichever platform entry you chose, so a plain hydrated app ships none of that code.
+
+An extra that your kind, render mode or target cannot take is an error, not a silent no-op.
+
+## Versions and install scripts
+
+Generated projects pin the matched `sigx` / `@sigx/*` set that your CLI was released against — never `latest` — so a fresh project's peer graph resolves to a single copy of `@sigx/reactivity` under strict peer deps. Third-party dependencies (`vite`, `express`, `tailwindcss`, …) keep their own caret ranges. The current CLI is <PkgVersion npm="@sigx/cli" />.
+
+SSG and terminal projects need `esbuild` to run its install script, so they ship a `pnpm-workspace.yaml` declaring it under both spellings — `allowBuilds` for pnpm 11, `onlyBuiltDependencies` for pnpm 10. Without it pnpm 11 fails the install outright.
+
+If you scaffold inside an existing pnpm workspace, `@sigx/*` dependencies in the generated `package.json` are rewritten to `workspace:*`.
+
+## Where to go next
+
+- [Commands](/cli/docs/commands) — every command with its usage and flags.
+- [Deployment](/deploy/docs/overview) — the platform guides behind each `--target`.
+- [Installation](/cli/docs/installation) — which plugin package provides which command.
