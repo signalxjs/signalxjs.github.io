@@ -1,0 +1,119 @@
+---
+title: Breadcrumbs
+description: Breadcrumbs show the user's location in a page hierarchy
+layout: docs
+category: ["Components", "Navigation"]
+order: 305
+---
+
+# Breadcrumbs
+
+Breadcrumbs render a trail of links showing where the current page sits in a
+hierarchy. Pass the trail as an `items` array; each click emits the item's `id`
+so you can route however you like.
+
+## Import
+
+```tsx
+import { Breadcrumbs } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Breadcrumbs } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    const items = [
+        { id: 'home', label: 'Home', href: '/' },
+        { id: 'docs', label: 'Documents', href: '/docs' },
+        { id: 'current', label: 'Add Document' },
+    ];
+
+    return () => <Breadcrumbs items={items} />;
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Handling Navigation
+
+Every item is clickable and emits `navigate` with the item's `id`. Use it to
+drive a router or, as here, to trim the trail.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Breadcrumbs, Card, Text } from '@sigx/daisyui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({
+        trail: [
+            { id: 'root', label: 'Files' },
+            { id: 'projects', label: 'Projects' },
+            { id: 'sigx', label: 'sigx' },
+            { id: 'docs', label: 'docs' },
+        ],
+        last: '',
+    });
+
+    const navigate = (id: string) => {
+        state.last = id;
+        const index = state.trail.findIndex((item) => item.id === id);
+        state.trail = state.trail.slice(0, index + 1);
+    };
+
+    return () => (
+        <Card>
+            <Card.Body class="space-y-2">
+                <Breadcrumbs items={state.trail} onNavigate={navigate} />
+                <Text size="sm" class="opacity-70">
+                    {state.last ? `Navigated to "${state.last}"` : 'Click a crumb to go back up'}
+                </Text>
+            </Card.Body>
+        </Card>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Long Trails
+
+The list scrolls horizontally when it does not fit, so constrain the width with
+`class` rather than truncating items.
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Breadcrumbs } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    const items = ['Home', 'Library', 'Programming', 'Frontend', 'Frameworks', 'SignalX', 'DaisyUI']
+        .map((label, i) => ({ id: String(i), label }));
+
+    return () => <Breadcrumbs items={items} class="max-w-xs" />;
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `items` | `BreadcrumbItem[]` | - | The trail, in order from root to current |
+| `class` | `string` | - | Additional CSS classes on the wrapper |
+
+### BreadcrumbItem
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `string` | Identifier passed to `onNavigate` when the item is clicked |
+| `label` | `string` | Text shown for the item |
+| `href` | `string` | Optional target for your own routing; the item is not rendered as a real `href` |
+
+## Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onNavigate` | `(id: string) => void` | Fired with the item's `id` when it is clicked |

@@ -20,21 +20,21 @@ Every operation except `isAvailable` returns a Promise. Values are encrypted bef
 import { SecureStorage } from '@sigx/lynx-secure-storage';
 
 // Store an encrypted string (overwrites any existing value for the key)
-await SecureStorage.set('refresh_token', refreshToken);
+await SecureStorage.setItem('refresh_token', refreshToken);
 
 // Read it back — resolves to null when the key is absent
-const token = await SecureStorage.get('refresh_token'); // string | null
+const token = await SecureStorage.getItem('refresh_token'); // string | null
 
 // Remove a single key, or wipe everything this module owns
-await SecureStorage.delete('refresh_token');
+await SecureStorage.removeItem('refresh_token');
 await SecureStorage.clear();
 ```
 
-Keys and values are both strings. `set` throws on an empty/non-string key or a non-string value, so serialize structured data with `JSON.stringify` before storing it. `clear` only deletes keys owned by this module's service identifier — it never touches other apps' Keychain items or other Lynx packages' preferences.
+Keys and values are both strings. `setItem` throws on an empty/non-string key or a non-string value, so serialize structured data with `JSON.stringify` before storing it. `clear` only deletes keys owned by this module's service identifier — it never touches other apps' Keychain items or other Lynx packages' preferences.
 
 ## Gating a key behind biometrics
 
-Pass `requireBiometric: true` to `set` and the OS will demand a biometric check (Face ID / Touch ID / Android `BiometricPrompt`) on every subsequent `get` of that key. The `set` call itself never prompts — only reads do.
+Pass `requireBiometric: true` to `setItem` and the OS will demand a biometric check (Face ID / Touch ID / Android `BiometricPrompt`) on every subsequent `getItem` of that key. The `setItem` call itself never prompts — only reads do.
 
 When you read a biometric-gated key, supply a `biometricPrompt` so the OS prompt shows meaningful copy. `reason` is required (iOS prompt text and Android subtitle); `title` is Android-only and defaults to `"Authenticate"` (iOS ignores it — the Keychain prompt title is fixed).
 
@@ -42,13 +42,13 @@ When you read a biometric-gated key, supply a `biometricPrompt` so the OS prompt
 import { SecureStorage } from '@sigx/lynx-secure-storage';
 
 // Write — no prompt happens here
-await SecureStorage.set('access_token', accessToken, {
+await SecureStorage.setItem('access_token', accessToken, {
   requireBiometric: true,
 });
 
 // Read — triggers Face ID / BiometricPrompt before resolving
 try {
-  const accessToken = await SecureStorage.get('access_token', {
+  const accessToken = await SecureStorage.getItem('access_token', {
     biometricPrompt: {
       reason: 'Unlock your account',
       title: 'Acme Bank', // Android only
@@ -60,9 +60,9 @@ try {
 }
 ```
 
-Reads reject when the user cancels or fails authentication, so always wrap a biometric `get` in `try/catch`. Native error codes are normalized to strings such as `userCancel`, `authenticationFailed` and `biometryLockout` (Android lockout only), and every message is prefixed `[@sigx/lynx-secure-storage]`.
+Reads reject when the user cancels or fails authentication, so always wrap a biometric `getItem` in `try/catch`. Native error codes are normalized to strings such as `userCancel`, `authenticationFailed` and `biometryLockout` (Android lockout only), and every message is prefixed `[@sigx/lynx-secure-storage]`.
 
-Android note: a biometric `get` needs a foreground activity to host the prompt and requires a strong (Class 3) biometric sensor enrolled. If no biometric hardware is available or none is enrolled, the read rejects with a clean error rather than silently downgrading.
+Android note: a biometric `getItem` needs a foreground activity to host the prompt and requires a strong (Class 3) biometric sensor enrolled. If no biometric hardware is available or none is enrolled, the read rejects with a clean error rather than silently downgrading.
 
 ## Access + refresh token recipe
 
@@ -72,15 +72,15 @@ A common pattern pairs a silently-readable refresh token with a biometric-gated 
 import { SecureStorage } from '@sigx/lynx-secure-storage';
 
 async function persistSession(accessToken: string, refreshToken: string) {
-  await SecureStorage.set('refresh_token', refreshToken);
-  await SecureStorage.set('access_token', accessToken, {
+  await SecureStorage.setItem('refresh_token', refreshToken);
+  await SecureStorage.setItem('access_token', accessToken, {
     requireBiometric: true,
   });
 }
 
 async function logout() {
-  await SecureStorage.delete('access_token');
-  await SecureStorage.delete('refresh_token');
+  await SecureStorage.removeItem('access_token');
+  await SecureStorage.removeItem('refresh_token');
 }
 
 // On cold start, check presence without prompting
@@ -93,21 +93,21 @@ async function hasSession(): Promise<boolean> {
 
 ## Handling errors and key invalidation
 
-Both platforms invalidate a biometric-gated key when the user adds or removes a biometric enrollment. The encrypted blob stays on disk but `get` rejects — the right response is to delete the key and route the user back to sign-in. On Android the error message matches `/may be invalidated|KeyPermanentlyInvalidated/i`; on iOS, treat a repeated `authenticationFailed` the same way (iOS cannot yet distinguish a genuine mismatch from a changed biometric set).
+Both platforms invalidate a biometric-gated key when the user adds or removes a biometric enrollment. The encrypted blob stays on disk but `getItem` rejects — the right response is to delete the key and route the user back to sign-in. On Android the error message matches `/may be invalidated|KeyPermanentlyInvalidated/i`; on iOS, treat a repeated `authenticationFailed` the same way (iOS cannot yet distinguish a genuine mismatch from a changed biometric set).
 
 ```tsx
 import { SecureStorage } from '@sigx/lynx-secure-storage';
 
 async function readAccessToken(): Promise<string | null> {
   try {
-    return await SecureStorage.get('access_token', {
+    return await SecureStorage.getItem('access_token', {
       biometricPrompt: { reason: 'Unlock your account' },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (/may be invalidated|KeyPermanentlyInvalidated/i.test(message)) {
       // Biometrics changed — the key is gone. Clean up and re-authenticate.
-      await SecureStorage.delete('access_token');
+      await SecureStorage.removeItem('access_token');
       return null;
     }
     throw err; // userCancel, authenticationFailed, etc. — let the caller decide
@@ -123,7 +123,7 @@ async function readAccessToken(): Promise<string | null> {
 import { SecureStorage } from '@sigx/lynx-secure-storage';
 
 if (SecureStorage.isAvailable()) {
-  await SecureStorage.set('refresh_token', refreshToken);
+  await SecureStorage.setItem('refresh_token', refreshToken);
 }
 ```
 

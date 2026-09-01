@@ -1,0 +1,165 @@
+---
+title: "Popover"
+description: "The @sigx/zero Popover component — an anchor-positioned, non-modal overlay on the popover attribute, rendering the trigger / popup / title / close anatomy with placement, offset and a pluggable position strategy."
+layout: docs
+category: ["Components", "Overlays"]
+order: 203
+---
+
+# Popover
+
+<p class="lede">A non-modal surface anchored to its trigger — a filter panel, a colour picker,
+a settings flyout. The popup carries `popover="auto"`, so the platform supplies the top layer,
+light dismiss and Escape; zero mirrors the model into `showPopover()` / `hidePopover()`,
+positions the popup against the trigger, and moves focus into it on open.</p>
+
+## Import
+
+```tsx
+import { Popover } from '@sigx/zero/popover';
+```
+
+`Popover` is a compound: `Popover.Root`, `Popover.Trigger`, `Popover.Popup`, `Popover.Title`,
+`Popover.Close`. It is also re-exported from the `@sigx/zero` root, together with
+`popoverAnatomy` and `usePopoverContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Popover } from '@sigx/zero/popover';
+
+const Filters = component(({ signal }) => {
+    const state = signal({ open: false });
+
+    return () => (
+        <Popover.Root model={() => state.open} placement="bottom-start">
+            <Popover.Trigger color="neutral">Filters</Popover.Trigger>
+            <Popover.Popup>
+                <Popover.Title>Filters</Popover.Title>
+                …
+                <Popover.Close>Done</Popover.Close>
+            </Popover.Popup>
+        </Popover.Root>
+    );
+});
+```
+
+`model={() => state.open}` binds the open state both ways — the trigger toggles it, a light
+dismiss or Escape writes it back through the native `toggle` event, and writing `state.open`
+shows or hides the popup. Leave the model off and pass `defaultOpen` to keep the state inside
+the component; `openChange` fires either way. See [Models](/zero/docs/models/).
+
+`Popover.Root` renders no element of its own — it only provides context — so the trigger and
+the popup can sit anywhere below it. The popup is rendered closed in place and lifted into the
+top layer when it opens; there is no Portal and no z-index to manage.
+
+### Placement and offset
+
+```tsx
+<Popover.Root defaultOpen={false} placement="right-start" offset={12}>
+```
+
+`placement` is one of the fourteen names in the placement vocabulary — `top`, `bottom`,
+`left`, `right`, each alone or with `-start` / `-end`, plus the logical `start` and `end`.
+The position behavior flips to the opposite side when there is no room and stamps the
+*resolved* placement as `data-placement` on the popup, so a recipe pointing an arrow at the
+trigger reads the attribute, not the prop. `offset` is the gap in pixels. See
+[Positioning](/zero/docs/behaviors/#positioning).
+
+### A custom position strategy
+
+```tsx
+<Popover.Root positionStrategy={myStrategy}>
+```
+
+`positionStrategy` swaps the default fixed-coordinates strategy for your own `PositionStrategy`
+— an object whose `apply(anchor, floating, opts)` positions the popup and returns a cleanup.
+CSS anchor positioning, a floating-ui adapter, or a test double all fit the shape.
+
+### Rendering the trigger as your own element
+
+```tsx
+<Popover.Trigger asChild>
+    {(p) => <a href="#filters" {...p}>Filters</a>}
+</Popover.Trigger>
+```
+
+With `asChild` the default slot receives the part's attribute bag; spread it so the anatomy,
+the ARIA and the anchor `ref` land on your element.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `trigger` | `button` | `open` \| `closed` | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-haspopup="dialog"`, `aria-expanded`, `aria-controls`. The anchor. Carries the variant axes. `asChild`. |
+| `popup` | `div` | `open` \| `closed` | — | `popover="auto"`, `role="dialog"`, `tabIndex=-1`, `data-placement` (resolved), `aria-labelledby` while a Title renders. |
+| `title` | `h3` | — | — | Inside `popup`. |
+| `close` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | Closes the popover. Inside `popup`. `asChild`. |
+
+Popover's Root renders a fragment, so there is no `root` part. The **trigger** is the carrier
+part: the variant axes live on `Popover.Trigger`, and a design system's axis rules for the
+scope anchor there. The popup is a top-layer sibling of the trigger, so colour styles the
+trigger, never the popup.
+
+The popup is a `role="dialog"`, and so receives focus on open — the first tabbable inside it,
+or the popup itself — and focus returns to the trigger on close. ARIA wiring is presence-aware:
+the popup references its `Title` id only while that part is rendered. Trigger and close
+publish [press feedback](/zero/docs/behaviors/#press-feedback). See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Popover.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the open state. |
+| `defaultOpen` | `boolean` | `false` | Initial state when uncontrolled. |
+| `openChange` | event `(open: boolean)` | — | Fires whenever the open state changes. |
+| `placement` | `Placement` | `'bottom'` | Preferred side and alignment; the resolved value renders as `data-placement` on the popup. |
+| `offset` | `number` | `6` | Gap between the trigger and the popup, in px. |
+| `positionStrategy` | `PositionStrategy` | fixed-coordinates | Replaces the positioning implementation. |
+
+### `Popover.Trigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `disabled` | `boolean` | `false` | Renders `data-disabled`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/) for the scope, rendered on the trigger. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Popover.Popup`, `Popover.Title`
+
+Only `class`.
+
+### `Popover.Close`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `disabled` | `boolean` | `false` | Renders `data-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard and dismissal
+
+| Interaction | Action |
+|---|---|
+| Enter / Space / click on the trigger | Toggle the popover. |
+| Escape | Closes (native `popover="auto"` behaviour); focus returns to the trigger. |
+| Click outside | Light dismiss, from the platform. |
+| Tab | Moves freely — the popup is non-modal; focus starts inside it on open. |
+
+## In the shipped design systems
+
+`@sigx/zero-basic` and `@sigx/zero-daisyui` both wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the popover **trigger**, in each skin's own button idiom. Neither
+wires a `variant` or any `mods` on the scope. The popup, title and close parts are styled by
+every shipped design system, including the `open` / `closed` transition on `popup`.
+
+## Related
+
+[`Tooltip`](/zero/docs/components/tooltip/) for a hover label with no interactive content ·
+[`Menu`](/zero/docs/components/menu/) for a list of actions ·
+[`Dialog`](/zero/docs/components/dialog/) when the surface must be modal.

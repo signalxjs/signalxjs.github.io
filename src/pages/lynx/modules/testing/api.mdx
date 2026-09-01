@@ -29,7 +29,7 @@ Mounts a sigx Lynx JSX element into an in-memory `TestNode` tree and returns que
 
 ## Queries
 
-These standalone helpers operate on any `TestNode` container; the same set is also returned, container-bound, from [`render`](#render). The `get*` helpers throw when no node matches; the `query*` helpers return `null`.
+These standalone helpers operate on any `TestNode` container; the synchronous set is also returned, container-bound, from [`render`](#render), and [`within`](#within) scopes all of them to a subtree. The `get*` helpers throw when no node matches (the error prints the searched tree via [`formatTree`](#formattree)); the `query*` helpers return `null`; the `find*` helpers return a Promise that polls with [`waitFor`](#waitfor) until a match appears.
 
 ### getByType
 
@@ -79,6 +79,63 @@ export function getByProp(container: TestNode, key: string, value: unknown): Tes
 
 Returns the first node (including the container) whose `props[key]` strictly equals (`===`) `value`. Throws if none found.
 
+### queryByProp
+
+```ts
+export function queryByProp(container: TestNode, key: string, value: unknown): TestNode | null
+```
+
+Returns the first node (including the container) whose `props[key]` strictly equals `value`, or `null` if none found.
+
+### findByType
+
+```ts
+export function findByType(container: TestNode, type: string, options?: WaitForOptions): Promise<TestNode>
+```
+
+[`waitFor`](#waitfor) plus [`getByType`](#getbytype): resolves with the first descendant matching the element type once one exists. Rejects after `options.timeout` (default 1000 ms) with the `getByType` error, so the failure names the type and prints the tree.
+
+### findByText
+
+```ts
+export function findByText(container: TestNode, text: string, options?: WaitForOptions): Promise<TestNode>
+```
+
+[`waitFor`](#waitfor) plus [`getByText`](#getbytext).
+
+### findByProp
+
+```ts
+export function findByProp(container: TestNode, key: string, value: unknown, options?: WaitForOptions): Promise<TestNode>
+```
+
+[`waitFor`](#waitfor) plus [`getByProp`](#getbyprop).
+
+### within
+
+```ts
+export function within(node: TestNode): {
+  getByType; getAllByType; getByText; getByProp;
+  queryByType; queryByText; queryByProp;
+  findByType; findByText; findByProp;
+}
+```
+
+Scopes all ten query helpers to a subtree. Each returned function has the standalone helper's signature minus the leading `container` argument. Without it, a query for a common node type finds the first one anywhere in the tree, which is rarely the one the assertion meant.
+
+```ts
+const row = getByProp(container, 'id', 'row-3');
+expect(within(row).queryByText('Delete')).toBeTruthy();
+```
+
+### formatTree
+
+```ts
+export function formatTree(node: TestNode): string
+```
+
+Pretty-prints a `TestNode` subtree, one node per line with its type, props and text. This is what a failing `getBy*` / `findBy*` call appends to its error message under `Tree searched:`.
+
 ## Events
 
 ### fireEvent
@@ -125,6 +182,39 @@ export function waitForUpdate(): Promise<void>
 ```
 
 A bare reactive flush: awaits a microtask then a `setTimeout(0)` so pending reactive effects and scheduled renderer commits complete before assertions. Available on iOS and Android.
+
+`act` and `waitForUpdate` advance a **fixed** amount — one microtask plus one macrotask. That is right when the work completes in one turn: a signal write, a synchronous effect. Anything whose turn count you cannot know — a dynamic import, chained effects, a deferred callback — needs [`waitFor`](#waitfor). Writing `for (let i = 0; i < 5; i++) await act(…)` or `await new Promise(r => setTimeout(r, 60))` is a guess that holds until the CI runner is busy.
+
+### waitFor
+
+```ts
+export async function waitFor<T>(
+  condition: () => T | Promise<T>,
+  options?: WaitForOptions,
+): Promise<T>
+```
+
+Polls `condition` until it returns a truthy value, then returns that value. A condition that **throws** counts as "not yet", which is what lets `waitFor(() => getByText(container, 'Done'))` read naturally — the `getBy*` queries throw when they find nothing. On timeout it rethrows the condition's last error if there was one (so the failure names what was missing and prints the tree); otherwise it throws `[@sigx/lynx-testing] timed out after <ms>ms waiting for <description>`. A non-finite or negative `timeout` / `interval` throws immediately rather than looping forever.
+
+```ts
+// Takes however many turns the hydration actually needs.
+const tabBar = await waitFor(() => getByProp(container, 'role', 'tablist'));
+```
+
+### WaitForOptions
+
+```ts
+export interface WaitForOptions {
+  /** Give up after this long, in milliseconds. Default 1000. */
+  timeout?: number;
+  /** Extra delay between attempts, in milliseconds. Default 0 — one turn. */
+  interval?: number;
+  /** Named in the timeout message, to say what was being waited for. */
+  description?: string;
+}
+```
+
+Options for [`waitFor`](#waitfor) and the `find*` queries (which fill in `description` themselves).
 
 ## Types
 

@@ -18,7 +18,7 @@ const Landing = component(() => {
 export default Landing;
 
 export const meta = {
-    title: 'SignalX Lynx - Native iOS & Android with Lynx',
-    description: 'Write one SignalX component tree, render it to real native views on iOS and Android.',
+    title: 'SignalX Lynx — Native iOS & Android apps with signals',
+    description: 'Build native iOS and Android apps with the SignalX component model: one reactive TSX tree rendered to real native views, plus a library of native modules.',
     layout: 'package',
 };

@@ -27,7 +27,7 @@ pnpm add @sigx/runtime-dom   # direct, for custom setups
 
 `@sigx/runtime-dom` binds the renderer-agnostic component model from `@sigx/runtime-core` to the browser DOM:
 
-- **Fine-grained DOM patches** — a changed signal updates exactly the text nodes, attributes and properties that read it. No virtual DOM.
+- **Signal-bounded patches** — a changed signal re-renders only the components that read it; keyed vnode reconciliation then patches just the text nodes, attributes and properties that differ.
 - **Event delegation** — `onClick` and friends attach once per root.
 - **Hydration** — pairs with `@sigx/server-renderer` to hydrate server-rendered HTML, selectively via islands.
 

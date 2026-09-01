@@ -1,0 +1,145 @@
+---
+title: "Diff"
+description: "The @sigx/zero Diff component — a before / after reveal whose divider handle is an APG slider over a 0–100 percent model, publishing --diff-percent on the root and positioning the handle at the logical inline start."
+layout: docs
+category: ["Components", "Rich behavior"]
+order: 605
+---
+
+# Diff
+
+<p class="lede">A before / after comparison with a draggable divider. The two panes are
+content and stay inert; the handle is the one control — an APG `slider` with
+`aria-valuenow` from 0 to 100, arrow keys and a pointer drag that survives leaving the box.
+Zero owns the mechanism and paints nothing: it publishes `--diff-percent` on the root and
+positions the handle, and the recipe owns the clip and every colour.</p>
+
+## Import
+
+```tsx
+import { Diff } from '@sigx/zero/diff';
+```
+
+`Diff` is a compound: `Diff.Root`, `Diff.Before`, `Diff.After`, `Diff.Handle`. It is also
+re-exported from the `@sigx/zero` root, together with `diffAnatomy` and `useDiffContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Diff } from '@sigx/zero/diff';
+
+const Retouch = component(({ signal }) => {
+    const state = signal({ reveal: 50 });
+
+    return () => (
+        <Diff.Root model={() => state.reveal}>
+            <Diff.Before><img src="/original.png" alt="Original" /></Diff.Before>
+            <Diff.After><img src="/edited.png" alt="Edited" /></Diff.After>
+            <Diff.Handle label="Comparison" />
+        </Diff.Root>
+    );
+});
+```
+
+`model={() => state.reveal}` binds the reveal percent both ways — dragging writes
+`state.reveal`, and writing `state.reveal` moves the divider. Leave the model off and pass
+`defaultValue` to keep the state inside the component; `valueChange` fires either way. See
+[Models](/zero/docs/models/). Every value is rounded and clamped into `0..100`.
+
+### Size pane content to the root
+
+The `after` pane is revealed by clipping its width, so content sized to the pane would
+squish as the pane narrows instead of revealing. Size the images (or whatever the panes
+hold) to the **root** — `inline-size: 100%` of the root's width, which is what the recipe
+does for the shipped skins — and the two panes line up pixel for pixel under the divider.
+
+### The handle's content
+
+```tsx
+<Diff.Handle label="Before and after">
+    <GripIcon />
+</Diff.Handle>
+```
+
+The handle's default slot is its visible content — a grip glyph, or nothing when the recipe
+draws the divider line and knob itself. Its accessible name is `label`, `"Comparison"` by
+default; the slot never contributes to the name.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | Publishes `--diff-percent`; `position: relative`. Carries the variant axes. |
+| `before` | `div` | — | — | The full image; content. Inside `root`. |
+| `after` | `div` | — | — | The revealed overlay; recipes clip it. Inside `root`. |
+| `handle` | `div` | — | `focus-visible`, `pressed`, `press-animating` | `role="slider"`, `tabIndex=0`, `aria-valuemin` / `aria-valuemax` / `aria-valuenow`, `aria-orientation="horizontal"`. Positioned at `inset-inline-start: <value>%`. |
+
+Every part carries `data-scope="diff"` and `data-part="<part>"`. The runtime writes two
+things structurally: `--diff-percent: <value>%` on the root, and the handle's
+`inset-inline-start` — a *logical* inset, so under RTL the handle sits at the reading-edge
+percentage and mirrors for free. Nothing else is painted. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+The handle publishes `data-pressed` for the length of a drag — a drag is a long press, in
+Slider's shape: no `pointerleave` handler and no one-shot, the window-level release ends it
+wherever the pointer lets go.
+
+## Props
+
+### `Diff.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `number` | — | Two-way binding of the reveal percent, `0`–`100`. |
+| `defaultValue` | `number` | `50` | Initial percent when uncontrolled. |
+| `valueChange` | event `(value: number)` | — | Fires whenever the percent changes. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Diff.Before`, `Diff.After`
+
+Only `class`.
+
+### `Diff.Handle`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | `'Comparison'` | Accessible name of the slider. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| ArrowRight / ArrowLeft | Increase / decrease by 1 in LTR; mirrored under RTL, so the handle always moves the way the key points. |
+| ArrowUp / ArrowDown | Increase / decrease by 1. |
+| PageUp / PageDown | Increase / decrease by 10. |
+| Home / End | 0 / 100. |
+| Tab | The handle is the one tab stop; the panes are not focusable. |
+
+A pointer press on the handle focuses it and starts a drag; `pointermove` on the window
+maps the pointer's x through the root's box to a percent (inverted under RTL) until
+`pointerup` or `pointercancel` — so the drag continues past the edge of the box. A click on
+a pane is not a command.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the diff root, so `<Diff.Root color="primary" size="sm">` is styled
+in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+Two recipe rules hold for every design system. Clip the `after` pane with a **logical**
+`inline-size: var(--diff-percent)` and `overflow: hidden` — never a physical `clip-path`
+inset or a transform, which have no logical spelling and break under RTL. And size the
+pane's content to the root, not the pane, for the reason above. The `handle` is a paint
+part with no text: a design system draws the divider line and the knob from the `color`
+axis, and the contrast audit grades the knob's grab affordance against the root's resting
+surface.
+
+## Related
+
+[Slider](/zero/docs/components/slider/) for the same keyboard contract as a form control,
+[Carousel](/zero/docs/components/carousel/) for showing several images in one frame.

@@ -1,6 +1,6 @@
 ---
 title: Styling & layout
-description: Flexbox layout and the styling model on Lynx
+description: "Styling on SignalX Lynx — the flexbox layout model, style props and how web-style CSS maps to native views on iOS and Android."
 layout: docs
 category: Core Concepts
 order: 60
@@ -146,7 +146,12 @@ Themes on Lynx are sets of CSS custom properties — colors (`--color-<token>`),
 
 ### How themes are applied
 
-As of 0.19, `ThemeProvider` wraps children in a host `view` and declares the active theme's tokens as **inline CSS custom properties** on it. Because Lynx layout defaults enable CSS inheritance, the variables flow to every descendant — and because they are set inline they paint on the **first frame**, with no post-mount swap and no per-theme CSS class to generate. Inline custom properties require **Lynx ≥ 3.9** on native hosts (the CLI templates pin 3.9.0; an existing app runs `sigx prebuild --clean` once to adopt it).
+`ThemeProvider` wraps children in a host `view` that carries the active theme's tokens as CSS custom properties. Because Lynx layout defaults enable CSS inheritance, the variables flow to every descendant and paint on the **first frame**. The tokens reach the host one of two ways:
+
+- **Generated stylesheet rules** for a design system's built-in themes. The design system generates `.theme-name { … }` rules — and, for follow-system use, a `@media (prefers-color-scheme: …)` twin — from its registry data at build time, and the CSS engine resolves them. The painted scheme is the engine's own answer, so a stale JS appearance signal cannot paint the wrong theme. Needs a Lynx ≥ 4.0 host (the CLI templates pin 4.0.1).
+- **Inline custom properties** for everything else — a tenant palette registered at runtime, an `extendTheme()` derivative, the web target. Lynx has no runtime stylesheet-injection API, so these declare the exact palette inline (Lynx ≥ 3.9) with no post-mount swap.
+
+App code is the same either way; see the [Zero theme engine](/lynx/modules/zero/usage/#the-theme-engine) for the details. Note that inline `--*` custom properties are registered by the engine only when they arrive as runtime styles (`SET_STYLE`); a `--*` declaration inside a compile-time snapshot template's static style does not register.
 
 Two authoring constraints remain — they concern the CSS engine's colour handling, not variable inheritance:
 
@@ -260,6 +265,34 @@ export const Hint = component(() => {
 ```
 
 `colorOf(token, alpha?)` returns `#RRGGBB` or `#RRGGBBAA` and is reactive to theme switches.
+
+## At-rules: `@media`, `@supports`, `@font-face`
+
+On a Lynx ≥ 4.0 host the stylesheet at-rules reach the native binary (the plugin's `enableCSSRule` option, on by default) and the engine evaluates them:
+
+- **`@media` width / orientation queries** work on device. They are evaluated in **logical px** (dp / pt, the same units `useScreen()` reports) and re-evaluated live on rotation, split-screen resize and foldable unfold — no JS involved.
+- **`@media (prefers-color-scheme: dark)`** is correct on the first frame and re-resolves on live flips, because `@sigx/lynx-appearance`'s native publisher drives the engine's colour scheme. See [Appearance](/lynx/modules/appearance/usage/#dark-mode-in-css).
+- **`@supports`** works as a capability gate for a property or value.
+- **`@font-face`** works with a **`data:` URI** `src` only — bundler-resolved `url()` assets do not resolve inside the `.lynx` template.
+
+```css
+.grid { flex-direction: column; }
+
+@media (orientation: landscape) and (min-width: 600px) {
+  .grid { flex-direction: row; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .card { background-color: #1c1c1e; color: #f2f2f7; }
+}
+
+@font-face {
+  font-family: 'Brand';
+  src: url('data:font/woff2;base64,…') format('woff2');
+}
+```
+
+The web target does not carry `@media` / `@supports` rules into the bundle (the web encoder drops them), and a pre-4.0 host decodes but cannot evaluate them. Branch on the `__SIGX_CSS_RULE__` build define when a rule's absence would leave something unstyled rather than merely unrefined — see the [plugin's build-time defines](/lynx/modules/plugin/api/#build-time-defines).
 
 ## Component library
 

@@ -1,0 +1,151 @@
+---
+title: "Tabs"
+description: "The @sigx/zero Tabs component — APG tabs with roving arrow keys, automatic or manual activation and orientation, rendering the tabs anatomy (root / list / tab / panel) with no styling."
+layout: docs
+category: ["Components", "Actions & disclosure"]
+order: 104
+---
+
+# Tabs
+
+<p class="lede">The WAI-ARIA tabs pattern: a `tablist` of `tab` buttons that rove with the arrow
+keys, one `tabpanel` shown at a time. The selected value is one two-way `model`; the rest
+is anatomy for a design system to style.</p>
+
+## Import
+
+```tsx
+import { Tabs } from '@sigx/zero/tabs';
+```
+
+`Tabs` is a compound: `Tabs.Root`, `Tabs.List`, `Tabs.Tab`, `Tabs.Panel`. It is also
+re-exported from the `@sigx/zero` root, together with `tabsAnatomy` and `useTabsContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Tabs } from '@sigx/zero/tabs';
+
+const Settings = component(({ signal }) => {
+    const state = signal({ tab: 'profile' });
+
+    return () => (
+        <Tabs.Root model={() => state.tab}>
+            <Tabs.List>
+                <Tabs.Tab value="profile">Profile</Tabs.Tab>
+                <Tabs.Tab value="billing">Billing</Tabs.Tab>
+                <Tabs.Tab value="danger" disabled>Danger zone</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="profile">…</Tabs.Panel>
+            <Tabs.Panel value="billing">…</Tabs.Panel>
+            <Tabs.Panel value="danger">…</Tabs.Panel>
+        </Tabs.Root>
+    );
+});
+```
+
+`model={() => state.tab}` binds the selected value both ways — selecting a tab writes
+`state.tab`, and writing `state.tab` selects the tab. Leave the model off and pass
+`defaultValue` to keep the state inside the component; `valueChange` fires either way. See
+[Models](/zero/docs/models/).
+
+### Vertical tabs
+
+```tsx
+<Tabs.Root defaultValue="a" orientation="vertical">
+    <Tabs.List>…</Tabs.List>
+    …
+</Tabs.Root>
+```
+
+`orientation` renders as `data-orientation` on every part and switches the roving keys:
+horizontal lists move on ArrowLeft / ArrowRight, vertical lists on ArrowUp / ArrowDown.
+
+### Manual activation
+
+```tsx
+<Tabs.Root defaultValue="a" activationMode="manual">
+```
+
+By default (`automatic`) moving focus with the arrow keys also selects the tab. Under
+`manual`, focus moves and the tab is selected on Enter, Space or click — the pattern for
+panels that are expensive to render.
+
+### Rendering a tab as your own element
+
+```tsx
+<Tabs.Tab value="docs" asChild>
+    {(p) => <a href="/docs" {...p}>Docs</a>}
+</Tabs.Tab>
+```
+
+With `asChild` the default slot receives the part's attribute bag; spread it onto the
+element you render so the anatomy, ARIA and keyboard wiring land on it.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | Carries the variant axes and `data-orientation`. |
+| `list` | `div` | — | — | `role="tablist"`, `aria-orientation`. Inside `root`. |
+| `tab` | `button` | `active` \| `inactive` | `disabled`, `focus-visible`, `pressed`, `press-animating` | `role="tab"`, `aria-selected`, `aria-controls`. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). `asChild`. |
+| `panel` | `div` | `active` \| `inactive` | — | `role="tabpanel"`, `aria-labelledby`, `tabIndex=0`. Hidden in `inactive` (`hiddenIn`). |
+
+Every part carries `data-scope="tabs"` and `data-part="<part>"`. An inactive panel gets the
+`hidden` attribute from the runtime, so a `[data-state="inactive"]` rule on a panel can never
+paint — a design system styles the active panel and leaves the other alone. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Tabs.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Two-way binding of the selected tab's `value`. |
+| `defaultValue` | `string` | — | Initial value when uncontrolled. |
+| `valueChange` | event `(value: string)` | — | Fires whenever the selection changes. |
+| `activationMode` | `'automatic' \| 'manual'` | `'automatic'` | Whether arrow-key focus also selects. |
+| `loop` | `boolean` | `true` | Arrow keys wrap from the last tab to the first. |
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Roving-key axis; rendered as `data-orientation`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Tabs.List`
+
+Only `class`. Renders the `list` part around its children.
+
+### `Tabs.Tab`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | The value this tab selects. |
+| `disabled` | `boolean` | `false` | Skipped by roving focus; renders `data-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Tabs.Panel`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | The tab value this panel belongs to. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| ArrowRight / ArrowLeft (horizontal), ArrowDown / ArrowUp (vertical) | Move focus to the next / previous enabled tab; selects it under `automatic`. |
+| Home / End | First / last enabled tab. |
+| Enter / Space | Select the focused tab (`manual`). |
+| Tab | Leaves the list; the selected panel is the next tab stop. |
+
+Only the selected tab is in the tab order (roving `tabindex`).
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on tabs, so `<Tabs.Root color="success" size="sm">` is styled in both.
+Neither wires a `variant` on tabs; under a design system's `/register` import the prop is
+therefore absent. See [Typed vocabulary](/zero/docs/typed-vocabulary/).

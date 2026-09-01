@@ -75,7 +75,12 @@ function Feed({ items }: { items: string[] }) {
 
 A theme is a named palette plus optional radius and size overrides. The registry starts **empty** — a DS seeds it at module load by calling `registerTheme()`. Insertion order matters: the first registered theme of a variant is the follow-system default for that variant, and the very first registered theme is the last-resort fallback.
 
-`ThemeProvider` applies the active theme's palette as **inline CSS custom properties** on its host `view`, which descendants inherit — so the theme paints on the first frame (Lynx ≥ 3.9). Mount it once near the root of your app.
+`ThemeProvider` puts the active theme's palette — the `--color-*` set, the text ramp and both surface paints — on its host `view` as CSS custom properties, which descendants inherit so the theme paints on the first frame. Mount it once near the root of your app. The palette reaches the host one of two ways, and which one a theme takes is decided per theme:
+
+- **From a generated stylesheet**, for a design system's built-in themes (`ThemeInput.staticCss`). The design system generates real stylesheet rules from the registry data at build time — `.daisy-dark { … }` and, for follow-system use, a `@media (prefers-color-scheme: dark) { .lynx-zero.scheme-dark-daisy-dark { … } }` twin. The host wears the theme name as a class and the CSS engine resolves the palette. While the app follows the OS the provider puts both `scheme-light-<L>` and `scheme-dark-<D>` classes on the host and the engine picks; the media rule is a compound selector, so it deterministically outranks the pinned rule. The painted theme is therefore **the engine's answer about the colour scheme, not the JS thread's** — a stale appearance signal cannot paint a light app on a dark device. Needs a Lynx ≥ 4.0 host and the plugin's `enableCSSRule` (on by default).
+- **Inline**, for everything else: a tenant palette fetched at runtime and passed to `registerTheme()`, an `extendTheme()` derivative, the web target, or a build with `enableCSSRule: false`. Lynx has no runtime stylesheet-injection API, so these themes declare their exact palette as inline custom properties (Lynx ≥ 3.9) and paint on frame one like any built-in. Multi-tenant theming lives entirely on this path and is fully supported.
+
+Nothing in app code chooses between the two: the same `<ThemeProvider>`, `useTheme()`, `themeController` and theme names work either way. The provider reads the `__SIGX_CSS_RULE__` build define to know whether the generated rules exist in this bundle and falls back to inline when they do not.
 
 ```tsx
 import { ThemeProvider, StatusBarSync } from '@sigx/lynx-zero';

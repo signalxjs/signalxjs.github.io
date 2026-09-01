@@ -1,0 +1,140 @@
+---
+title: "Skeleton"
+description: "The @sigx/zero Skeleton component — one part that holds the layout its content will occupy, with a loading model that defaults to true, data-state loading|loaded, aria-busy while loading, and children that stay in the DOM in both states."
+layout: docs
+category: ["Components", "Content"]
+order: 508
+---
+
+# Skeleton
+
+<p class="lede">The shape of what is coming. One `div` around the real content, with a
+`loading` model that defaults to `true` and `aria-busy` while it holds. The children stay in
+the DOM in both states — a skeleton exists to hold the layout its content will occupy, so
+the design system paints *over* the content while loading and paints nothing once it has
+arrived.</p>
+
+## Import
+
+```tsx
+import { Skeleton } from '@sigx/zero/skeleton';
+```
+
+`Skeleton` is a compound with a single member, `Skeleton.Root`; `<Skeleton>` is also
+callable directly. It is also re-exported from the `@sigx/zero` root, together with
+`skeletonAnatomy`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Skeleton } from '@sigx/zero/skeleton';
+
+const Article = component(({ signal }) => {
+    const state = signal({ pending: true, title: '', summary: '' });
+
+    load().then((a) => {
+        state.title = a.title;
+        state.summary = a.summary;
+        state.pending = false;
+    });
+
+    return () => (
+        <Skeleton.Root model={() => state.pending}>
+            <h2>{state.title || 'Loading a title of about this length'}</h2>
+            <p>{state.summary || 'A summary paragraph that is roughly the size of the real one.'}</p>
+        </Skeleton.Root>
+    );
+});
+```
+
+`model={() => state.pending}` binds the loading state both ways; the component never writes
+it itself, so in practice it reads `state.pending` and follows. Writing `false` flips the
+root to `loaded` and drops `aria-busy`. See [Models](/zero/docs/models/).
+
+Give the children their final shape while loading — placeholder text of about the right
+length, a fixed-size box where the image goes — because the children *are* the layout. If
+they were swapped out for a placeholder, the box would be the wrong size and the page would
+jump when the real thing arrived.
+
+### Uncontrolled
+
+```tsx
+<Skeleton.Root defaultLoading>
+    <p>…</p>
+</Skeleton.Root>
+```
+
+Leave the model off and the state lives inside the component, seeded by `defaultLoading`
+(which defaults to `true`). Since nothing inside the component ever changes it, an
+uncontrolled skeleton is a skeleton that stays loading — useful for a static placeholder
+row while a whole list is fetched, and for stories and tests. `loadingChange` fires
+whenever the state changes, either way.
+
+### Announcement
+
+Skeleton uses `aria-busy` rather than a live region: assistive technology is told this region
+is being updated, and told once it settles. A skeleton that announced itself would interrupt
+for something that is, by definition, not content yet.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | `loading` \| `loaded` | — | `aria-busy="true"` while `loading`. Carries the variant axes. |
+
+One part, two states, and the children stay in the DOM through both. There is no `hiddenIn`,
+which is the difference from [`Avatar`](/zero/docs/components/avatar/)'s swap: nothing is
+hidden in either state, so the two are told apart by *paint* — every design system has to
+make `loading` and `loaded` look different, and the design-system tooling's state-legibility
+guard says so if one does not. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Skeleton.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `boolean` | — | Two-way binding of the loading state. |
+| `defaultLoading` | `boolean` | `true` | Initial state when uncontrolled. |
+| `loadingChange` | event `(loading: boolean)` | — | Fires whenever the loading state changes. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+There is no `asChild`: the root is a plain wrapper whose only job is to carry the state
+and hold the box.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on skeleton, so `<Skeleton.Root color="neutral" size="sm">` is styled
+in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import the `variant` prop is therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A recipe paints the `loading` state as a fill over the children — a background on the root
+plus, conventionally, transparent ink so the placeholder text sizes the box without being
+read — and paints nothing in `loaded`. The shimmer that usually rides the fill is a *looping*
+animation, and a loop has to **stop** under `prefers-reduced-motion: reduce`, not speed up:
+give it a literal duration and switch it off in the media query. A `--duration-*` token is
+the wrong tool here — every declared duration token collapses to about zero under reduced
+motion, which turns a shimmer into a strobe.
+
+```css
+[data-scope="skeleton"][data-part="root"][data-state="loading"] {
+    animation: shimmer 1.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    [data-scope="skeleton"][data-part="root"][data-state="loading"] {
+        animation: none;
+    }
+}
+```
+
+The root's tokens are `color`, `radius-box` and `size`, so a skeleton rounds like the
+[`Card`](/zero/docs/components/card/) it usually stands in for.
+
+## Related
+
+[Spinner](/zero/docs/components/spinner/) and [Progress](/zero/docs/components/progress/)
+signal that work is happening; Skeleton signals where the result will go.

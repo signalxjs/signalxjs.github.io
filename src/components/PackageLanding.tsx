@@ -65,9 +65,10 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                     <h1>{pkg.title}</h1>
                     <p class="lh-tag">{pkg.blurb}</p>
                     <div class="lh-cta">
+                        {/* Keyword-bearing anchor text into the area's guide entry (#52). */}
                         {docs && (
                             <SxLink to={docs} class="sx-btn sx-btn-primary">
-                                Get started <Icon name="arrowRight" size={15} />
+                                Get started with {pkg.id === 'core' ? 'SignalX' : pkg.kind === 'collection' ? `SignalX ${pkg.title}` : pkg.npm} <Icon name="arrowRight" size={15} />
                             </SxLink>
                         )}
                         {pkg.id === 'lynx' && (
@@ -92,6 +93,11 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         )}
                         {pkg.id === 'actors' && (
                             <SxLink to="/actors/packages" class={`sx-btn ${docs ? 'sx-btn-outline' : 'sx-btn-primary'}`}>
+                                <Icon name="cube" size={15} /> Browse packages
+                            </SxLink>
+                        )}
+                        {pkg.id === 'zero' && (
+                            <SxLink to="/zero/packages" class={`sx-btn ${docs ? 'sx-btn-outline' : 'sx-btn-primary'}`}>
                                 <Icon name="cube" size={15} /> Browse packages
                             </SxLink>
                         )}
@@ -208,6 +214,18 @@ export const PackageLanding = component<PackageLandingProps>(({ props }) => {
                         </div>
                         <div class="lynx-mod-row">
                             {modulesByParent('actors').filter((m) => !m.aliasFor).map(moduleCard)}
+                        </div>
+                    </>
+                )}
+                {pkg.id === 'zero' && (
+                    <>
+                        <div class="section-label">
+                            <span class="sl-text">Authoring kit & design systems</span>
+                            <span class="sl-line" />
+                            <span class="sl-note">@sigx/zero is the runtime — add one design system beside it, or compile your own</span>
+                        </div>
+                        <div class="lynx-mod-row">
+                            {modulesByParent('zero').filter((m) => !m.aliasFor).map(moduleCard)}
                         </div>
                     </>
                 )}

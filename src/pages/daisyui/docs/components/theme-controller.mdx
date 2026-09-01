@@ -1,0 +1,142 @@
+---
+title: Theme Controller
+description: Switch DaisyUI themes at runtime with ThemeToggle, ThemeSelector and ThemeConfigurator
+layout: docs
+category: ["Components", "Actions"]
+order: 120
+---
+
+# Theme Controller
+
+Three components change the active DaisyUI theme at runtime. All of them work
+by setting the `data-theme` attribute on `document.documentElement`, which is
+where DaisyUI reads the theme from.
+
+- `ThemeToggle` — a light/dark toggle button
+- `ThemeSelector` — a `<select>` listing themes
+- `ThemeConfigurator` — a full colour editor that produces a custom theme
+
+Because they change the theme of the **whole document**, the examples on this
+page are static — a live one would restyle these docs. Paste any of them into
+your own app to try it.
+
+## Import
+
+```tsx
+import { ThemeToggle, ThemeSelector, ThemeConfigurator, ThemeProvider } from '@sigx/daisyui';
+```
+
+## ThemeToggle
+
+A circular ghost button that flips between a light and a dark theme, showing a
+moon icon in light mode and a sun icon in dark mode.
+
+```tsx
+import { ThemeToggle } from '@sigx/daisyui';
+
+// light ⇄ dark (the defaults)
+<ThemeToggle />
+
+// pick which two themes it toggles between
+<ThemeToggle lightTheme="cupcake" darkTheme="dracula" />
+
+// replace the default button classes
+<ThemeToggle class="btn btn-outline btn-sm" />
+```
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `lightTheme` | `DaisyTheme \| string` | `'light'` | Theme applied when toggling to light |
+| `darkTheme` | `DaisyTheme \| string` | `'dark'` | Theme applied when toggling to dark |
+| `class` | `string` | `'btn btn-ghost btn-circle text-base-content'` | Replaces the button's classes entirely |
+
+## ThemeSelector
+
+A bordered `<select>` whose options are theme names. Choosing one applies it
+immediately.
+
+```tsx
+import { ThemeSelector } from '@sigx/daisyui';
+
+// all 32 built-in themes
+<ThemeSelector />
+
+// only the themes your CSS bundles
+<ThemeSelector themes={['light', 'dark', 'cupcake', 'cyberpunk']} />
+```
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `themes` | `(DaisyTheme \| string)[]` | all built-in themes | Themes offered in the list |
+| `class` | `string` | - | Additional CSS classes on the `<select>` |
+
+## ThemeConfigurator
+
+An interactive editor for every DaisyUI colour token. It starts from a preset,
+lets the user adjust colours, and emits the resulting `ThemeConfigData` on every
+change. Bind it with `model` to keep the config in your own state.
+
+```tsx
+import { component } from 'sigx';
+import { ThemeConfigurator, DEFAULT_THEME_CONFIG } from '@sigx/daisyui';
+
+const ThemeStudio = component(({ signal }) => {
+    const state = signal({ theme: DEFAULT_THEME_CONFIG });
+
+    return () => (
+        <ThemeConfigurator
+            model={() => state.theme}
+            baseTheme="cupcake"
+            showPreview
+            showExport
+            persistKey="my-app-theme"
+            onChange={(config) => console.log(config.colors)}
+        />
+    );
+});
+```
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `() => signal.property` | - | Model binding for the `ThemeConfigData` being edited |
+| `config` | `ThemeConfigData` | - | Initial config (cloned) when there is nothing persisted |
+| `baseTheme` | `string` | - | Name of a `THEME_PRESETS` entry to start from (`light`, `dark`, `cupcake`, `cyberpunk`) |
+| `showPreview` | `boolean` | `false` | Render a live component preview using the edited theme |
+| `showExport` | `boolean` | `false` | Show CSS / JSON export controls |
+| `persistKey` | `string` | - | `localStorage` key; the config is loaded from and saved to it |
+| `class` | `string` | - | Additional CSS classes |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Extra content rendered inside the configurator |
+| `preview` | Replaces the built-in preview panel |
+
+### Events
+
+| Event | Type | Description |
+|-------|------|-------------|
+| `onChange` | `(config: ThemeConfigData) => void` | Fired whenever a colour or setting changes |
+
+## Reading and setting the theme directly
+
+The components sit on top of plain functions you can call yourself:
+
+```tsx
+import { getCurrentTheme, setTheme, toggleDarkMode, getPreferredTheme } from '@sigx/daisyui';
+
+getCurrentTheme();              // 'dark' | null — reads document.documentElement's data-theme
+setTheme('synthwave');          // applies a theme and saves it to localStorage
+toggleDarkMode('light', 'dark'); // flips between the two
+getPreferredTheme('light');     // saved theme (localStorage 'daisy-theme'), else 'dark' if the OS prefers it, else the default
+```
+
+See [Theming](/daisyui/docs/theming/) for `ThemeProvider`, dark-mode detection and
+building your own theme CSS.

@@ -1,0 +1,105 @@
+---
+title: Typed vocabulary
+description: "The /register subpath — one import of a design system's generated register module narrows every @sigx/zero component's color / size / variant / axes / mods props, closes theme names and types token keys, through the ZeroVocabulary augmentation seam"
+layout: docs
+category: Styling
+order: 52
+---
+
+# Typed vocabulary
+
+<p class="lede">By default the variant-axis props are open unions: any design-system-declared
+value is valid, and the recommended names autocomplete. A design system's generated
+`/register` module narrows them — one side-effect import, and every component's `color`,
+`size`, `variant`, `axes` and `mods` props accept exactly what that design system's
+compiled CSS answers to, per component. No import, no change.</p>
+
+## Opting in
+
+```ts
+// app entry — once
+import '@sigx/zero-basic/register';
+```
+
+```tsx
+<Button.Root variant="outline">…</Button.Root>   // ok — basic wires it on button
+<Button.Root variant="dash">…</Button.Root>      // error — not in basic's button vocabulary
+<Tabs.Root variant="outline">…</Tabs.Root>       // error — basic wires no variant on tabs
+<Badge.Root variant="ghost">…</Badge.Root>       // error — badge's own set is solid | soft | outline
+```
+
+What narrows:
+
+- **Per-component axis props.** Each of `color` / `size` / `variant` becomes the literal union
+  the design system's recipes wire for that scope; `axes` and `mods` become the declared bags.
+  An axis the design system leaves unwired on a scope is typed `never` — and since sigx's JSX
+  prop surface strips `never`-valued props, the prop simply does not exist on that component.
+  The generated file carries a doc comment on each `never` naming the reason (the scope
+  declared it empty, the design system has no such axis, or no recipe wires it).
+- **Theme names.** `setTheme()` and `ThemeProvider`'s `theme` prop take the design system's
+  real theme names; `setTheme('dimm')` is an error. Reads stay open (see
+  [Theming](/zero/docs/theming/)).
+- **Custom properties, breakpoints and token keys.** `cssVar(name)` autocompletes every
+  custom property the compiled `tokens.css` emits; `token(category, key)` autocompletes the
+  keys of each token category; `ZeroBreakpoint` is the declared breakpoint names.
+
+```ts
+import { cssVar, token } from '@sigx/zero';
+
+const ring = cssVar('--color-primary');       // 'var(--color-primary)'
+const gap = token('space', 'md');             // 'var(--space-md)'
+```
+
+## How it works
+
+`@sigx/zero` exports one empty interface:
+
+```ts
+export interface ZeroVocabulary {}
+```
+
+The variant-axis prop types are generic on the component scope
+(`WithVariantAxes<'button'>`) and resolve through it: `ColorValueFor<S>`, `SizeScaleFor<S>`,
+`VariantValueFor<S>`, `AxesFor<S>`, `ModsFor<S>`. With nothing augmenting the interface they
+fall back to the open unions. A design system's `register.d.ts` is a `declare module
+'@sigx/zero'` block that augments `ZeroVocabulary` with `theme`, `breakpoint`, `property`,
+`tokens` and `components` — one entry per compiled scope, each carrying all five members.
+
+The resolvers keep three cases distinguishable: no augmentation → the open fallback;
+declared → the literal union; declared empty → `never`. That is why `roles: {}` in a design
+system (no colour axis) removes the `color` prop everywhere rather than leaving it open.
+
+## The artifact is generated, never authored
+
+`sigx zero:build` writes `dist/register.d.ts` and an empty `dist/register.js` for every
+design system, from the **harvest** — what the recipes actually wire — rather than the
+declaration. The harvest is strictly stronger: it refuses to type a value the compiled CSS
+does not implement. The file ends with two self-verifying assertions that make it fail its
+own compilation rather than silently degrade: every `components` key must be a `ZeroScope`
+(a typo'd or version-skewed scope would otherwise take the open fallback and un-narrow
+exactly the component it meant to narrow — merged ecosystem scopes are excluded by name),
+and every entry must carry all five members (a truncated entry would silently un-narrow the
+axis it omitted).
+
+A design system package exposes it as the `./register` subpath:
+
+```json
+"./register": { "types": "./dist/register.d.ts", "import": "./dist/register.js" }
+```
+
+## One register per program
+
+Augmentation is program-wide: importing two design systems' `/register` modules in one
+program merges two augmentations of the same interface and produces nonsense. An app uses
+one design system's register. A program that needs vendor-named props for a design system —
+or two design systems' typed surfaces side by side — uses the `./components` path instead,
+which is self-contained and augments nothing. See
+[Vendor-named component APIs](/zero/docs/vendor-apis/).
+
+## For ecosystem components
+
+`WithVariantAxes<S>` constrains `S` to zero's own closed scope registry, so a typo'd scope
+literal is a compile error rather than a silently different type. An out-of-tree component
+uses `WithVariantAxesOpen<S extends string>` — the open constraint is the deliberate cost of
+a scope the registry cannot know, and a register module built for the design system is what
+closes the loop. See [Building your own component](/zero/docs/ecosystem-components/).

@@ -1,0 +1,176 @@
+---
+title: "Table"
+description: "The @sigx/zero Table component — a semantic data table over the real table elements, with a scroll-container root that carries the variant axes and a selected flag per row."
+layout: docs
+category: ["Components", "Rich behavior"]
+order: 601
+---
+
+# Table
+
+<p class="lede">Data in real table elements — `<table>`, `<caption>`, `<thead>`, `<tbody>`,
+`<tfoot>`, `<tr>`, `<th>`, `<td>` — wrapped in the scroll container the content's width
+demands. The elements are the semantics: assistive-technology row and column navigation and
+header association only exist on a real table, so there is no `asChild` anywhere in the
+scope. Zero adds no state, no ids and no ARIA beyond what the elements carry natively.</p>
+
+## Import
+
+```tsx
+import { Table } from '@sigx/zero/table';
+```
+
+`Table` is a compound: `Table.Root`, `Table.Caption`, `Table.Head`, `Table.Body`,
+`Table.Foot`, `Table.Row`, `Table.HeaderCell`, `Table.Cell`. It is also re-exported from the
+`@sigx/zero` root, together with `tableAnatomy`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Table } from '@sigx/zero/table';
+
+const Revenue = component(({ signal }) => {
+    const state = signal({ selected: 'q2' });
+    const rows = [
+        { id: 'q1', quarter: 'Q1', revenue: '$12,930' },
+        { id: 'q2', quarter: 'Q2', revenue: '$14,210' },
+        { id: 'q3', quarter: 'Q3', revenue: '$15,080' },
+    ];
+
+    return () => (
+        <Table.Root mods={{ zebra: true }}>
+            <Table.Caption>Quarterly revenue</Table.Caption>
+            <Table.Head>
+                <Table.Row>
+                    <Table.HeaderCell>Quarter</Table.HeaderCell>
+                    <Table.HeaderCell>Revenue</Table.HeaderCell>
+                </Table.Row>
+            </Table.Head>
+            <Table.Body>
+                {rows.map((r) => (
+                    <Table.Row selected={state.selected === r.id}>
+                        <Table.Cell>{r.quarter}</Table.Cell>
+                        <Table.Cell>{r.revenue}</Table.Cell>
+                    </Table.Row>
+                ))}
+            </Table.Body>
+            <Table.Foot>
+                <Table.Row>
+                    <Table.HeaderCell scope="row">Total</Table.HeaderCell>
+                    <Table.Cell>$42,220</Table.Cell>
+                </Table.Row>
+            </Table.Foot>
+        </Table.Root>
+    );
+});
+```
+
+`Table.Root` renders the wrapper `div` *and* the `<table>` inside it; the sections go
+straight into `Root`. Write a `Caption` — it is the table's accessible name, and a data
+table without one is announced as "table" and nothing more.
+
+### Row headers
+
+```tsx
+<Table.HeaderCell scope="row">Total</Table.HeaderCell>
+```
+
+`HeaderCell` renders a `<th>` whose `scope` defaults to `col`. A header that labels its row
+rather than its column says `scope="row"`, and assistive technology associates the cells
+accordingly.
+
+### Selected rows
+
+```tsx
+<Table.Row selected={state.selected === r.id}>
+```
+
+`selected` renders the shared `data-selected` flag on the `<tr>`. It is a per-row fact the
+app owns — which row is chosen — so it is a flag on the row, not a mod on the table. Zero
+attaches no behavior to it: the click handling, the checkbox column and the keyboard model
+of a selectable grid are yours.
+
+### Zebra striping and hover
+
+```tsx
+<Table.Root mods={{ zebra: true, hover: true }}>
+```
+
+Striping and hover-highlight are per-instance styling choices, not anatomy: they render as
+`data-mod-zebra` / `data-mod-hover` on the root, and a design system that offers them draws
+the stripes and the highlight in CSS. Both shipped design systems do. Under one that does
+not, the attributes match nothing and the table renders plain.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | The scroll container. Carries the variant axes. |
+| `table` | `table` | — | — | The real table. Inside `root`. |
+| `caption` | `caption` | — | — | The accessible name. Inside `table`. |
+| `head` | `thead` | — | — | Inside `table`. |
+| `body` | `tbody` | — | — | Inside `table`. |
+| `foot` | `tfoot` | — | — | Inside `table`. |
+| `row` | `tr` | — | `selected` | Inside whichever section holds it. |
+| `header-cell` | `th` | — | — | `scope="col"` by default. Inside `row`. |
+| `cell` | `td` | — | — | Inside `row`. |
+
+Every part carries `data-scope="table"` and `data-part="<part>"`. The **root** is the scroll
+container, not the table: a table is the one component whose natural content is wider than
+its container, and a `<table>` cannot be its own overflow box — `display: table` does not
+scroll — so the wrapper `div` is anatomy. Recipes give it `overflow-x: auto`, and the
+variant axes ride it, where the compiler anchors axis rules. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+There are no states — a table has no machine lifecycle — and no sorting: `header-cell`
+renders the `<th>` that would carry `aria-sort`, so the anatomy is ready for a sortable
+column without shipping dead parts today.
+
+## Props
+
+### `Table.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Table.Caption`, `Table.Head`, `Table.Body`, `Table.Foot`, `Table.Cell`
+
+Only `class`.
+
+### `Table.Row`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `selected` | `boolean` | `false` | The app's "this row is chosen"; renders `data-selected`. |
+| `class` | `string` | — | Extra classes. |
+
+### `Table.HeaderCell`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `scope` | `'col' \| 'row'` | `'col'` | Which axis this header labels — the native `<th scope>`. |
+| `class` | `string` | — | Extra classes. |
+
+## In the shipped design systems
+
+| | `color` | `size` | `variant` | `mods` |
+|---|---|---|---|---|
+| `@sigx/zero-basic` | the eight recommended roles | `xs`–`xl` | — | `zebra` · `hover` |
+| `@sigx/zero-daisyui` | the eight recommended roles | `xs`–`xl` | — | `zebra` · `hover` |
+
+Neither wires a `variant` on the scope; under a design system's `/register` import the prop
+is therefore absent, while `mods={{ zebra: true }}` and `mods={{ hover: true }}` type-check in
+both. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A recipe draws `zebra` on the even body rows, scoped under `[data-mod-zebra]` on the root,
+`hover` as a row highlight on `:hover`, and
+`[data-selected]` as a stronger tint that wins over both. The `size` axis scales cell
+padding and the text token on the cells; `color` tints the head.
+
+## Related
+
+[Pagination](/zero/docs/components/pagination/) for walking a long table page by page,
+[Skeleton](/zero/docs/components/skeleton/) for the rows while they load.

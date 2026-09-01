@@ -74,6 +74,53 @@ be disabled by a typo. The connection is the right unit for it, because the conn
 actually costs activations: over one socket a page can hold thousands of in-flight calls, each
 able to force an activation.
 
+## Subscriptions
+
+A subscription is established through the full pipeline — authorization, dispatch, the first
+value — under the app posture's `timeoutMs`. One whose first value cannot be produced in time
+receives a per-subscription **504 error frame**, and the session releases the watch and the
+keep-alive it held, instead of hanging silently. A subscription that has delivered its first
+value is never timed out; pushes arrive at the watch loop's own cadence.
+
+**`throttlePolicy`** decides how much say a client gets over its own delivery rate. A
+subscription may carry a requested window (`w`, [`throttleMs`](/actors/docs/live-reads#ask-for-a-slower-delivery-window)
+on the client), which the policy floors and rounds **up** to a fixed ladder:
+
+```ts
+createActorSocketSession({
+    host, request, send, close,
+    throttlePolicy: { min: 50, buckets: [50, 250, 1000, 5000] },   // DEFAULT_THROTTLE_POLICY
+});
+```
+
+`min` is the fastest window a client may ask for; `buckets` is the ascending ladder a request
+is rounded up to. The default floor is the runtime's own 50 ms watch throttle, so a client can
+only ever ask to be served more *slowly*. `{ min: 0, buckets: [0, 16, 50] }` opts a
+deployment into sub-50 ms delivery deliberately; `{ min: 50, buckets: [50] }` refuses the
+feature. Validated at construction — an empty, unsorted, or entirely-below-floor ladder closes
+the socket with 1011 rather than surfacing per subscription. `DEFAULT_THROTTLE_POLICY` and
+the `LiveThrottlePolicy` type are exported from `@sigx/actors/server`.
+
+## Reporting the send buffer
+
+`send(message: string)` is the whole contract, so the session cannot see how much the
+transport has queued. An adapter that can supplies **`bufferedBytes()`**:
+
+```ts
+createActorSocketSession({
+    host, request,
+    send: (message) => socket.send(message),
+    close: (code, reason) => socket.close(code, reason),
+    bufferedBytes: () => socket.bufferedAmount ?? null,
+});
+```
+
+It surfaces as `session.stats().bufferedBytes` and, summed across open sessions, as
+[`socketStats().bufferedBytes`](/actors/docs/observability#socket-sessions) — the host's own
+backpressure gauge. **Return `null`, never `0`, when the transport cannot say**; omitting the
+option does the same. A genuine `0` — the transport asked, nothing is queued — is a real
+measurement and is reported as one. `@sigx/actors-ws/node` supplies it automatically.
+
 ## Session lifetime
 
 Both default to `0` (off), and both are validated at construction.

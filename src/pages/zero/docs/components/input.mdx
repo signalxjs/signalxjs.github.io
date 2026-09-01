@@ -1,0 +1,163 @@
+---
+title: "Input"
+description: "The @sigx/zero Input component — a single-line text field rendering root / label / control / input, whose string model writes through on every keystroke and whose visible <input> is the form control."
+layout: docs
+category: ["Components", "Form controls"]
+order: 302
+---
+
+# Input
+
+<p class="lede">A single-line text field on a native `<input>`. The model is a plain `string`
+written through on every keystroke; the `control` part is the field chrome a design system
+draws the border, ring and invalid tint on, and the `<input>` inside it is transparent. There
+is no hidden input — the visible element is the form control and carries `name`.</p>
+
+## Import
+
+```tsx
+import { Input } from '@sigx/zero/input';
+```
+
+`Input` is a compound: `Input.Root`, `Input.Label`, `Input.Control`, `Input.Input`. It is also
+re-exported from the `@sigx/zero` root, together with `inputAnatomy`, `useInputContext` and
+the `InputType` type.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Input } from '@sigx/zero/input';
+
+const SignIn = component(({ signal }) => {
+    const state = signal({ email: '' });
+
+    return () => (
+        <Input.Root model={() => state.email} type="email" name="email" autocomplete="email" required>
+            <Input.Label>Email</Input.Label>
+            <Input.Control>
+                <Input.Input placeholder="you@example.com" />
+            </Input.Control>
+        </Input.Root>
+    );
+});
+```
+
+`model={() => state.email}` binds the text both ways — every `input` event writes
+`state.email`, and writing `state.email` updates the field. A string is always itself, so there
+is no draft to commit and the model never lags the field. Leave the model off and pass
+`defaultValue` to keep the state inside the component; `valueChange` fires either way. See
+[Models](/zero/docs/models/).
+
+### Inside a Field
+
+```tsx
+<Field.Root invalid={!!state.error}>
+    <Field.Label>Username</Field.Label>
+    <Input.Root model={() => state.username} name="username">
+        <Input.Control>
+            <Input.Input />
+        </Input.Control>
+    </Input.Root>
+    <Field.Error>{state.error}</Field.Error>
+</Field.Root>
+```
+
+Inside a [`Field.Root`](/zero/docs/components/field/) the `<input>` adopts the field's control
+id, its `disabled` / `invalid` / `required` flags and its `aria-describedby`, so
+`Input.Label` becomes optional — the `Field.Label` names it. Standalone, the component mints
+its own ids and `Input.Label` is the label.
+
+### The text types
+
+```tsx
+<Input.Root model={() => state.password} type="password" autocomplete="current-password">
+```
+
+`type` accepts the text-shaped types only: `text`, `email`, `password`, `search`, `tel` and
+`url`. Numbers are a [`NumberInput`](/zero/docs/components/number-input/); the selection
+types are other components; the date and time types render browser chrome no recipe can
+style, so a design system could not honour the anatomy for them.
+
+### Read-only and disabled
+
+```tsx
+<Input.Root model={() => state.id} readonly>
+<Input.Root model={() => state.id} disabled>
+```
+
+`readonly` keeps the field focusable and selectable but rejects edits, rendering
+`data-readonly` on root, control and input; `disabled` takes it out of the tab order and
+renders `data-disabled` on every part.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled`, `invalid`, `required`, `readonly` | Carries the variant axes. |
+| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the input's id. Inside `root`. |
+| `control` | `div` | — | `disabled`, `invalid`, `readonly`, `focus-visible` | The field chrome. Mirrors the input's focus-visible so the ring draws on the box. Inside `root`. |
+| `input` | `input` | — | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` | The native text input; carries `name`, `aria-invalid` and `aria-describedby`. Inside `control`. |
+
+Every part carries `data-scope="input"` and `data-part="<part>"`. There are no machine
+states — a text field has nothing to be open or checked about — only flags. The `control`
+box is the seam a design system styles: the `<input>` inside is meant to be transparent, and
+the `focus-visible` flag is published on both so the ring can draw on the box rather than the
+bare element. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+There is no `hidden-input` part. Checkbox, Switch and NumberInput post through a hidden mirror
+because their visible control is not a form control or not the canonical value; an
+`<input type="text">` is both, so `name` goes straight on it and the field posts pre-hydration.
+
+## Props
+
+### `Input.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Two-way binding of the text. |
+| `defaultValue` | `string` | `''` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: string)` | — | Fires on every change of the value. |
+| `type` | `'text' \| 'email' \| 'password' \| 'search' \| 'tel' \| 'url'` | `'text'` | The native input type; text-shaped types only. |
+| `name` | `string` | — | Form field name, rendered on the visible `<input>`. |
+| `autocomplete` | `string` | — | Native autofill hint — `email`, `current-password`, `off`, … |
+| `maxlength` | `number` | — | Native `maxlength`. |
+| `required` | `boolean` | `false` | Renders `required` and `data-required`; a wrapping Field's `required` also applies. |
+| `invalid` | `boolean` | `false` | Renders `aria-invalid` and `data-invalid`; a wrapping Field's `invalid` also applies. |
+| `readonly` | `boolean` | `false` | Renders `readonly` and `data-readonly`. |
+| `disabled` | `boolean` | `false` | Renders `disabled` and `data-disabled`; a wrapping Field's `disabled` also applies. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Input.Label`, `Input.Control`
+
+Only `class`. Each renders its part around its children.
+
+### `Input.Input`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `placeholder` | `string` | — | Native placeholder text. |
+| `class` | `string` | — | Extra classes on the `<input>`. |
+
+Everything else the element needs — `type`, `name`, `autocomplete`, `maxlength`, the flags and
+the ids — comes from `Input.Root` through context, so the input part takes only what is
+specific to the element itself.
+
+## Keyboard
+
+The platform's: text editing, Tab in and out, and native form submission on Enter inside a
+`<form>`. Zero adds nothing on top.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on input, so `<Input.Root color="primary" size="lg">` is styled in
+both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[Field](/zero/docs/components/field/) · [Textarea](/zero/docs/components/textarea/) ·
+[Number Input](/zero/docs/components/number-input/)

@@ -1,0 +1,110 @@
+---
+title: "Overview"
+description: "The renderer-free data layer behind every @sigx/actors dashboard — ops polling, one normalised snapshot, rates across counter resets, and what is wrong"
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Monitor
+
+<p class="lede">Build your own dashboard without re-deriving the awkward parts. Poll a host's
+<a href="/actors/docs/ops-endpoint"><code>ops()</code></a> endpoint, get one normalised
+<code>MonitorSnapshot</code>, and let the rates, alerts and shard states come out right.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/actors-monitor" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/actors-monitor
+```
+
+```ts
+import { DashboardState, httpSource } from '@sigx/actors-monitor';
+
+const state = new DashboardState({ source: httpSource({ url: location.origin, base: '/admin/ops' }) });
+state.start();
+// state.view.snapshot / .error / .partial — a signal your UI reads
+```
+
+Browser-safe by construction: no renderer, no `node:` import, no DOM. `@sigx/reactivity` is
+the one runtime peer — for the signal `DashboardState` publishes its view through.
+`@sigx/actors` is an **optional, types-only** peer, so HTTP mode works in a project with no
+actor runtime installed at all.
+
+## What it is
+
+The data layer that [`@sigx/actors-cli`](/actors/packages/actors-cli/overview) draws in a
+terminal and [`@sigx/actors-dashboard`](/actors/packages/actors-dashboard/overview) draws in
+a browser. Neither renderer derives a number of its own — which is what keeps the two from
+disagreeing about what the cluster is doing.
+
+```
+   ops() on the host                    embeddedSource (Node only)
+   GET /_sigx/ops                       @sigx/actors-cli/source — STARTS A REAL HOST
+   GET /_sigx/ops/cluster                         │
+          └────────────► MonitorSource ◄──────────┘
+                              │
+                  @sigx/actors-monitor
+                  MonitorSnapshot   normalised, whichever source produced it
+                  DashboardState    the poll loop, back-pressure, last-good
+                  RateTracker       cumulative counters → rates, with GAPS
+                  alertLines        what is wrong, worst first
+                  scopeOf / …       what a number is ABOUT
+                  shardStates       claimed / unclaimed / split
+                ┌─────────────┴─────────────┐
+      @sigx/actors-cli            @sigx/actors-dashboard
+```
+
+## The four rules a renderer may not re-decide
+
+Every one of these fails **silently** when a second implementation gets it wrong: none of them
+throws, and each one renders as a plausible number.
+
+> **A counter going backwards is a gap, not a rate.** Core reports monotonic totals since
+> start with no windowing, so a rate has to come from diffing two snapshots. When the second
+> reading is *lower*, `metrics().reset()` ran, or the host restarted, or a peer dropped out of
+> the fan-out — and in every case the previous total is meaningless. The answer is `null`.
+> Subtracting anyway gives a negative rate; treating the new total as the delta gives an
+> enormous positive one. Both draw as traffic that never happened, and nothing flags it.
+
+**`partial` makes every total a lower bound.** A fan-out where one member did not answer
+still returns numbers, and they look exactly like complete ones. The snapshot carries
+`partial: true` all the way to the UI, and a renderer must say so.
+
+**A `null` digest is "this host said nothing", not "this host did nothing".** An
+uninstrumented host and an idle one are different findings; rendering the first as zeroes
+claims the second. The same rule covers an empty histogram — `percentilePoints` returns three
+nulls rather than three zeroed bars that assert "we measured, and it was fast".
+
+**A number needs its scope attached.** `scopeOf`, `polledLabel` and `coverageNote` exist
+because a right number under no label, sitting beneath one of a different scope, is the
+failure a dashboard is most likely to introduce. Cluster-wide calls and this host's calls are
+both correct and are not the same fact.
+
+## Reaching `ops()` from a browser
+
+`ops()` sets **no CORS headers** and refuses to construct without a bearer secret outside dev.
+So a browser dashboard does not call it directly — it calls a **same-origin route of your own
+app**, which authenticates the operator and forwards to the host with the bearer attached
+server-side. `httpSource({ url: location.origin, base: '/admin/ops' })` with **no** `secret` is the browser half;
+the nine-line server half is on the
+[ops endpoint page](/actors/docs/ops-endpoint#reaching-ops-from-a-browser).
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>Never pass <code>secret</code> to <code>httpSource</code> in browser code.</strong>
+    The endpoint reports your actor type names, traffic shape and cluster topology, and the
+    activation list carries actor keys, which are user data. A secret in a bundle is published
+    to every visitor, and nothing in the browser will tell you.
+  </div>
+</div>
+
+## Next steps
+
+- [Installation](/actors/packages/actors-monitor/installation) — sources, the poll loop and writing a renderer.
+- [API reference](/actors/packages/actors-monitor/api) — every export.
+- [`@sigx/actors-dashboard`](/actors/packages/actors-dashboard/overview) — the web rendering of this.

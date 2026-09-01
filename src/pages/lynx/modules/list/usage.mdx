@@ -93,9 +93,11 @@ Pinterest-style masonry), and `single` is the default single-column list.
 <List items={cards}  numColumns={2} listType="waterfall" renderItem={renderCard} />
 ```
 
-`horizontal` switches the scroll axis, and `itemSnap` (`start` / `center` /
-`end` / `none`) makes the list snap cells into place for paginated, carousel-like
-scrolling.
+`horizontal` switches the scroll axis, and `itemSnap` makes the list snap cells
+into place for paginated, carousel-like scrolling — pass `'start'` / `'center'` /
+`'end'`, or `{ factor, offset, maxSnapCount }` for an offset from the alignment
+line and, on Lynx 4.0+, how many items one fling may cross. Omit the prop for free
+scrolling; see the [API reference](/lynx/modules/list/api/#itemsnap).
 
 ## Header, footer & empty slots
 
@@ -164,7 +166,9 @@ Pull-to-refresh is opt-in on vertical lists: pass the controlled `refreshing`
 prop and an `onRefresh` handler. Pulling down past `pullThreshold` (px, default
 64) while at the top fires `onRefresh`; hold `refreshing` true to keep the
 indicator open, then set it back to `false` to dismiss. Customize the indicator
-with the `refresh` slot. For infinite scroll, set `loadingMore` to show a
+with the `refresh` slot. The resting indicator sits above the list's own
+content and never paints over content above the list, so the wrapper needs no
+`overflow-hidden`. For infinite scroll, set `loadingMore` to show a
 trailing loading cell while the next page loads.
 
 ```tsx
@@ -182,8 +186,8 @@ trailing loading cell while the next page loads.
 
 Pass `inverted` for a WhatsApp-style chat (vertical only). Items render
 oldest → newest, but the first paint is already scrolled to the newest message
-(opacity-gated to hide the jump), and new items **stick to the bottom** while
-you are there. Scroll up and incoming messages raise the `newMessages`
+on both platforms (opacity-gated to hide the jump), and new items **stick to the
+bottom** while you are there. Scroll up and incoming messages raise the `newMessages`
 affordance instead of yanking you down — tap it to jump back to the latest.
 `stickToBottom` (default `true`) opts out of the auto-scroll.
 

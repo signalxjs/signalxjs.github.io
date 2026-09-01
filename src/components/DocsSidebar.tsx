@@ -44,6 +44,7 @@ const CATALOG_LABEL: Record<ModuleParent, string> = {
     terminal: 'All Terminal packages',
     deploy: 'All Deploy adapters',
     actors: 'All Actors packages',
+    zero: 'All Zero packages',
 };
 
 /**

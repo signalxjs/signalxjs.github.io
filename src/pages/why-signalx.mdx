@@ -1,0 +1,84 @@
+---
+title: Why SignalX — signals, fine-grained updates, one component model
+description: Why SignalX — signals that re-render only what read them, one TSX component model for web, native iOS/Android and terminal, plus streaming SSR and actors.
+layout: default
+---
+
+# Why SignalX
+
+SignalX (`sigx`) is a fine-grained reactive TypeScript framework. State is signals, views are
+TSX components, and updates are bounded by signals: when a signal changes, only the components
+that read it re-render, and only the DOM that differs is patched. The same component model renders to the browser, to native iOS and Android
+views, to the terminal and to a server-rendered stream.
+
+## Fine-grained reactivity with signals
+
+A **signal** is a value that remembers who read it. A `computed` derives another value from
+signals and caches it until a dependency changes; an `effect` runs code whenever the signals
+it read change. Dependencies are tracked automatically at read time — there are no dependency
+arrays and no manual subscriptions.
+
+```tsx
+import { signal, computed, effect } from 'sigx';
+
+const state = signal({ count: 0 });
+const doubled = computed(() => state.count * 2);
+
+effect(() => console.log(state.count, doubled.value));
+
+state.count++; // logs "1 2" — nothing else re-runs
+```
+
+`signal(primitive)` returns a `{ value }` box; `signal(object)` returns a deeply reactive proxy
+you mutate directly. If you know SolidJS-style signals, the model will feel familiar.
+
+Read more: [Signals](/core/docs/signals/) · [Computed](/core/docs/computed/) ·
+[Effects](/core/docs/effects/)
+
+## Updates bounded by signals, not by the tree
+
+A SignalX component's setup runs **once**; its render function re-runs only when a signal it
+read changes. Under the hood the renderer is a vnode renderer with keyed reconciliation, but
+a state change never walks the whole app: it invalidates just the components that actually
+read the changed signal, and the diff is bounded by that signal's readers rather than by the
+size of the component tree. Work stays proportional to what changed.
+
+Read more: [Components](/core/docs/components/) · [Lifecycle](/core/docs/lifecycle/)
+
+## One component model, four render targets
+
+The reactivity core and the component model are renderer-neutral. Each target is a package
+that maps the same TSX tree onto a different surface:
+
+| Target | Package | What it renders to |
+| --- | --- | --- |
+| Web | [`sigx`](/core/) | The browser DOM |
+| Native iOS & Android | [`@sigx/lynx`](/lynx/) | Real native views, with a library of native modules |
+| Terminal | [`@sigx/terminal`](/terminal/) | Terminal cells with flexbox layout and keyboard input |
+| Server | [`@sigx/server-renderer`](/server/) | A streaming HTML response |
+
+Shared packages — [router](/router/), [store](/store/), [i18n](/i18n/), [composables](/use/) —
+are written once against the core and run on every target.
+
+## Server rendering, islands and resume
+
+[SignalX Server](/server/) streams HTML from the server and gives you a choice of how much
+JavaScript the client loads. [Islands](/server/packages/ssr-islands/overview/) hydrate only the
+components you mark with a `client:*` directive. [Resume](/server/packages/resume/overview/)
+ships almost no JavaScript on load and lifts event handlers into lazily-imported chunks that
+run against a resumed scope of named signals, so component setup never re-runs in the browser.
+[Server functions](/server/packages/server/overview/) are typed RPC you call like an ordinary
+function.
+
+## Actors for server state
+
+[SignalX Actors](/actors/) adds addressable, single-threaded server objects to the same wire as
+server functions: one activation per key, turn-based concurrency so a method body never races
+itself, persistent state with optimistic concurrency, and clustering across hosts when one
+process is not enough.
+
+## Where to start
+
+- [Get started with SignalX](/core/docs/getting-started/) — install `sigx` and build a first component.
+- [SignalX for LLMs](/llms/) — a condensed cheatsheet of the API and its semantics.
+- [Browse the package family](/core/) — every package, its target and its docs.

@@ -1,0 +1,113 @@
+---
+title: "Kbd"
+description: "The @sigx/zero Kbd component — a keyboard key on the semantic <kbd> element, one part carrying the color / size axes with no states, no behavior and no asChild."
+layout: docs
+category: ["Components", "Content"]
+order: 510
+---
+
+# Kbd
+
+<p class="lede">A keyboard key, spelled with the element that means it. One part on the
+platform's own `<kbd>` — the HTML element whose whole job is "this run of text is keyboard
+input" — carrying the variant axes for a design system to draw the keycap. There is no state
+and no behavior: a keycap has no lifecycle.</p>
+
+## Import
+
+```tsx
+import { Kbd } from '@sigx/zero/kbd';
+```
+
+`Kbd` is a compound with a single member, `Kbd.Root`. It is also re-exported from the
+`@sigx/zero` root, together with `kbdAnatomy`. The props type is exported as `KbdRootProps`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Kbd } from '@sigx/zero/kbd';
+
+const SearchHint = component(({ signal }) => {
+    const state = signal({ mac: navigator.platform.startsWith('Mac') });
+
+    return () => (
+        <p>
+            Press <Kbd.Root>{state.mac ? '⌘' : 'Ctrl'}</Kbd.Root> <Kbd.Root>K</Kbd.Root> to search
+        </p>
+    );
+});
+```
+
+Kbd takes no `model` — a keycap's only content is its text, which comes through the default
+slot. Anything that reads the page (a screen reader's element list, reader mode, a search
+index) sees a `<kbd>` and knows the text is a key, which is the thing a styled `<span>`
+could never say.
+
+### Size in context
+
+```tsx
+<p>Save with <Kbd.Root size="sm">S</Kbd.Root>.</p>
+
+<table>
+    <tr>
+        <td>Open the palette</td>
+        <td><Kbd.Root size="lg">⌘</Kbd.Root> <Kbd.Root size="lg">P</Kbd.Root></td>
+    </tr>
+</table>
+```
+
+`size` is the axis that earns its keep: a shortcut in running text sits smaller than one in
+a settings table. `color` rides along on the same carrier surface.
+
+### One key per element
+
+```tsx
+<Kbd.Root>Ctrl</Kbd.Root> + <Kbd.Root>Shift</Kbd.Root> + <Kbd.Root>P</Kbd.Root>
+```
+
+Each key is its own `<kbd>`; the separator is plain text between them. That keeps every
+keycap the same shape and lets a reader hear the chord as three keys.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `kbd` | — | — | Carries the variant axes. Renders the default slot as its text. |
+
+The part carries `data-scope="kbd"` and `data-part="root"`, and hints the `color`,
+`radius-field`, `size` and `text` tokens — Badge's shape (the fill *is* the component: root
+carries the axes and renders the text) on the semantic element. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+There is no `asChild`, on purpose. A badge is often already a link or a button, but a keycap
+is never anything except a keycap — the element is the meaning, and offering the escape
+hatch would only invite dropping the one thing the component exists for.
+
+## Props
+
+### `Kbd.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes. |
+
+The default slot is the key's text. Kbd has no `model`, no default-value prop and no change
+event: it has no state to bind.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on kbd, so `<Kbd.Root color="neutral" size="sm">` is styled in both.
+Neither wires a `variant` or any `mods`; under a design system's `/register` import those
+props are therefore absent. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A kbd recipe is a keycap: a field-radius box (`radius-field`), a text size on the `size`
+axis, and a fill on the `color` axis. Because the part renders text, it is graded on the
+text contrast floor in every colour role the skin wires.
+
+## Related
+
+[`Badge`](/zero/docs/components/badge/) is the same one-part shape on a generic element,
+with `asChild` for the cases where the badge is really a link.

@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Redis",
-    description: "Redis — module overview",
+    description: "Membership, directory & storage on Redis — the Redis package for SignalX (@sigx/actors-redis).",
     layout: 'default',
     sidebar: false,
 };

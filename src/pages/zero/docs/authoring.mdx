@@ -1,0 +1,175 @@
+---
+title: Authoring a design system
+description: "How a @sigx/zero design system is built with @sigx/zero-kit — the package shape, tokens + recipes → CSS, the standard build, the /define and /build subpaths, what a built design system ships, and the generation skill"
+layout: docs
+category: Authoring design systems
+order: 60
+---
+
+# Authoring a design system
+
+<p class="lede">A design system for zero is data: a `TokensInput` (colour roles, size ramp,
+variant vocabularies, non-colour token values, themes) and one `RecipeInput` per component
+(per-part styles against its anatomy). `@sigx/zero-kit` validates them against the anatomy
+manifest, compiles them to four cascade layers of plain CSS, and emits the manifest, the
+coverage report and the typed `/register` artifact. No component code is ever written or
+changed.</p>
+
+## Install
+
+```bash
+pnpm add -D @sigx/zero-kit @sigx/cli
+```
+
+The kit is Node-only and never a runtime dependency. `@sigx/cli` provides the `sigx` binary;
+the kit plugs its `zero:build` / `zero:validate` commands into it through its `sigx-cli`
+manifest field, and the CLI offers them in any directory that has the kit installed. Install
+both as direct dev dependencies — a package manager only links the executables of *direct*
+dependencies.
+
+## The package shape
+
+There is no scaffolding command — a CLI plugin only loads where the kit is already installed,
+so it could never run in the empty directory a design system starts as. Copy the shape of
+`@sigx/zero-basic`, the smallest shipped design system:
+
+```
+packages/acme/
+  package.json        # peerDependency + devDependency on @sigx/zero, devDependency on @sigx/zero-kit
+  tsconfig.json
+  build.mjs           # the standard build, ~15 lines of declaration passing
+  src/tokens.ts       # roles, sizes, variants, modifiers, scopes, system, themes
+  src/recipes.ts      # one RecipeInput per component
+  src/design-system.ts
+  src/index.ts        # the runtime half: installThemes()
+```
+
+`src/index.ts` is the only module of a design system that runs in the browser, and it
+imports one thing from zero:
+
+```ts
+import { registerThemes } from '@sigx/zero';
+import { tokens } from './tokens.js';
+
+export { tokens } from './tokens.js';
+export { recipes } from './recipes.js';
+export { designSystem } from './design-system.js';
+
+export function installThemes(): void {
+    registerThemes(tokens);
+}
+```
+
+`tokens.ts` and `recipes.ts` ship in that runtime bundle too (the registry derives theme
+metadata from `tokens`), so they import from the kit **type-only**. A design-system module
+that needs a kit *value* at runtime — `defineApi`, `defineTokens` — imports it from
+`@sigx/zero-kit/define`, whose module graph is `node:`-free by contract; a value import from
+the kit's barrel would drag `node:fs` into every browser consumer.
+
+## Declare
+
+```ts
+import { defineTokens, defineRecipe, defineDesignSystem } from '@sigx/zero-kit/define';
+
+export const designSystem = defineDesignSystem({
+    name: 'acme',
+    tokens: defineTokens({
+        roles: { primary: {}, surface: { content: false, soft: false } },
+        sizes: ['compact', 'comfortable', 'spacious'],
+        variants: ['solid', 'outline', 'ghost'],
+        axes: { density: ['compact', 'comfortable'] },
+        modifiers: ['block'],
+        system: {
+            radius: { selector: '0.375rem', field: '0.375rem', box: '0.75rem' },
+            border: '1px',
+        },
+        systemDark: { border: '2px' },
+        custom: { 'glass-blur': { description: 'backdrop blur', syntax: '<length>' } },
+        defaultLight: 'acme', defaultDark: 'acme-dark',
+        themes: {
+            acme: {
+                colorScheme: 'light', pair: 'acme-dark',
+                colors: { primary: 'oklch(60% 0.2 260)', 'primary-content': 'oklch(98% 0.01 260)', surface: 'oklch(97% 0 0)',
+                          'base-100': 'oklch(100% 0 0)', 'base-200': 'oklch(96% 0 0)', 'base-300': 'oklch(92% 0 0)', 'base-content': 'oklch(20% 0 0)' },
+                custom: { 'glass-blur': '12px' },
+            },
+            'acme-dark': { colorScheme: 'dark', pair: 'acme', colors: { /* … */ } },
+        },
+    }),
+    recipes: [
+        defineRecipe({
+            component: 'tabs',
+            parts: { tab: { base: { padding: '0.5rem 1rem' }, states: { active: { color: 'var(--color-primary)' } } } },
+        }),
+    ],
+});
+```
+
+The `define*` helpers are identity functions with typing — they narrow literals so recipes
+type-check against the declared vocabulary. [Tokens](/zero/docs/tokens/) and
+[Recipes](/zero/docs/recipes/) cover every field.
+
+## Build
+
+Every design system runs the same pipeline — merge any ecosystem fragments, validate,
+refuse to emit from an invalid source, compile, build the coverage report, write the
+artifacts — and it ships as one function on `@sigx/zero-kit/build`. A package's `build.mjs`
+is only its data:
+
+```js
+import { fileURLToPath } from 'node:url';
+import { anatomies } from '@sigx/zero/anatomy';
+import { runStandardBuild } from '@sigx/zero-kit/build';
+import { designSystem } from './dist/design-system.js';
+
+await runStandardBuild({
+    designSystem,
+    manifest: { components: Object.values(anatomies).map((a) => a.toJSON()) },
+    // fragments: [fragment],          // ecosystem manifest fragments, merged in
+    // targets: ['web', 'lynx'],       // default ['web']
+    outDir: fileURLToPath(new URL('./dist', import.meta.url)),
+});
+```
+
+The caller supplies the anatomy manifest because the kit deliberately has no runtime
+dependency on zero. `sigx zero:build` calls the same function, so the CLI path and the
+`build.mjs` path cannot drift. See [Validate and build](/zero/docs/validate-and-build/) for
+the commands, the flags and the report.
+
+## What a built design system ships
+
+| File | What |
+|---|---|
+| `dist/css/index.css` | The whole design system: the layer-order statement, `tokens.css` and every recipe. Exported as `./css`. |
+| `dist/css/tokens.css` | `@property` registrations, `:where(:root)` defaults with `light-dark()`, the `prefers-color-scheme: dark` block, one diff-only `[data-theme="…"]` block per theme, the reduced-motion block. Exported as `./css/tokens`. |
+| `dist/css/components/<scope>.css` | One file per recipe. Exported as `./css/*`. |
+| `dist/manifest.json` | The design-system manifest — themes with swatches, the declared vocabulary and every emitted property, and per scope what the recipes wire. Exported as `./manifest.json`. |
+| `dist/report.json` | The coverage report. Exported as `./report.json`. |
+| `dist/register.d.ts` + `register.js` | The generated `ZeroVocabulary` augmentation. Exported as `./register`. |
+| `dist/components.d.ts` + `components.js` | Only when the design system declares an `api`: the vendor-named module. Exported as `./components`. |
+| `dist/lynx/…` | Only with `targets: ['web', 'lynx']`: the class-grammar projection. |
+
+Add the matching entries to the package's `exports` map — `@sigx/zero-basic`'s
+`package.json` is the reference.
+
+## The generation skill
+
+The kit ships an agent skill at `skills/design-system/` (in the published package): a model
+reads the anatomy manifest, writes `tokens.ts` + `recipes.ts` against the token grammar,
+and iterates against `sigx zero:validate` until the design system is complete, contrast-safe
+and state-legible. It travels with a brief pack — five worked style briefs (`brutalist`,
+`corporate`, `glass`, `riso`, `terminal`) — and the conformance fixtures: compiling
+`TokensInput` / `RecipeInput` files for HeroUI, Material 3, Radix Themes, Ant Design and
+Carbon, each proving a non-default axis surface builds on the contract. The JSON Schemas
+close the loop for a generator that emits plain JSON first — see
+[Manifests and schemas](/zero/docs/manifests/).
+
+## The rest of this section
+
+- [Tokens](/zero/docs/tokens/) — the colour grammar, the size axis, variant vocabularies, per-scope narrowing, categories, themes.
+- [Recipes](/zero/docs/recipes/) — parts, states, selectors, conditions, variants, modifiers, compounds, and the authoring rules.
+- [The compiled CSS](/zero/docs/compiled-css/) — layers, specificity, the `@scope` donut, emission order, reduced motion.
+- [Validate and build](/zero/docs/validate-and-build/) — the CLI, the validator's rules and the coverage report.
+- [Manifests and schemas](/zero/docs/manifests/) — the two manifests, fragments and the JSON Schemas.
+- [Building your own component](/zero/docs/ecosystem-components/) — shipping a component zero does not.
+- [Lynx](/zero/docs/lynx/) — the second emit target.

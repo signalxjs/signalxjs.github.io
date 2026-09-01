@@ -66,7 +66,16 @@ is not near zero, the edge is not hashing the token, or placement is not `prefer
 
 `transportFallbacks` tells you a [transport chain](/actors/docs/transports) is doing real work
 — useful mid-deploy, worrying afterwards. `rebalanceRounds` and `rebalanceMigrations` cover
-[rebalancing](/actors/docs/rebalancing).
+[rebalancing](/actors/docs/rebalancing). `targetedDispatches` counts
+[`dispatchOn()`](/actors/docs/clustering#targeted-worker-calls-members-and-dispatchon) calls
+this host initiated, apart from `remoteDispatches`.
+
+Per-host `stats.watchLoops` is the [live fan-out](/actors/docs/live-reads#sizing-live-fan-out)
+gauge: a loop count tracking the subscriber count on a hot actor is the per-identity split
+building.
+
+Counters are summed across hosts with a missing field read as `0`, so a mixed-version fleet —
+a peer whose report predates a counter — still totals rather than failing the fold.
 
 ## Detail is opt-in and clamped
 

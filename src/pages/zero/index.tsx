@@ -1,5 +1,5 @@
 /**
- * DevTools Package Landing Page
+ * Zero Package Landing Page
  *
  * Thin data-driven page - all content comes from src/lib/family.ts
  * via <PackageLanding>. (One file per package because @sigx/ssg uses
@@ -12,13 +12,13 @@ import { component } from 'sigx';
 import { PackageLanding } from '@/components/PackageLanding';
 
 const Landing = component(() => {
-    return () => <PackageLanding id="devtools" />;
+    return () => <PackageLanding id="zero" />;
 });
 
 export default Landing;
 
 export const meta = {
-    title: 'SignalX DevTools - Inspect signals at runtime',
-    description: 'A browser panel to trace the reactive graph, time-travel effects and inspect components.',
+    title: 'SignalX Zero - Unstyled components + generatable design systems',
+    description: 'Headless, accessible compound components with a machine-readable anatomy, and design systems as pure data compiled to plain CSS — @sigx/zero, @sigx/zero-kit, @sigx/zero-basic and @sigx/zero-daisyui.',
     layout: 'package',
 };

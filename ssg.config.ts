@@ -3,7 +3,7 @@ import { defineSSGConfig } from '@sigx/ssg';
 // esbuild, so the relative .ts registry import works on every supported Node.
 // (scripts/generate-module-docs.mjs imports the registry directly and still
 // needs Node ≥22.18 — dev-only.)
-import { ACTORS_RELEASED, MODULES, moduleDocsCollection, moduleRoutePrefix, type ModuleParent } from './src/lib/modules.ts';
+import { ACTORS_RELEASED, DEVTOOLS_RELEASED, MODULES, moduleDocsCollection, moduleRoutePrefix, type ModuleParent } from './src/lib/modules.ts';
 import { qualifiedTitle, decodeTitleEntities, escapeTitle } from './src/lib/seo-title.ts';
 
 /**
@@ -63,7 +63,7 @@ export default defineSSGConfig({
         // purpose: "SignalX"/"sigx" collides with unrelated projects, so the
         // fallback description must say what this actually is.
         description:
-            'SignalX (sigx) — a fine-grained reactive TypeScript framework with signals, TSX components, typed server functions and actors. One core for web, native (Lynx) and terminal apps.',
+            'SignalX (sigx) — a fine-grained reactive TypeScript framework: signals, TSX components, server functions and actors. Web, native and terminal.',
         // origin only — the SSG appends Vite's `base` for sitemap and
         // canonical URLs, so site.url must NOT include it.
         url: 'https://sigx.dev',
@@ -203,6 +203,32 @@ export default defineSSGConfig({
                 'Clustering',
                 'Operations',
                 'Deploying',
+                'Reference',
+            ],
+        },
+        // `zero` is a collection — zero-kit and the two shipped design systems
+        // are documented via the `zero-pkg-*` collections injected by
+        // `...moduleCollections` below. This collection holds everything about
+        // `@sigx/zero` itself: the contract, the behaviors, theming and variant
+        // axes, the design-system authoring guides, and one page per component.
+        'zero-docs': {
+            path: '/zero/docs',
+            showDrafts: 'dev',
+            sectionOrder: [
+                'Getting Started',
+                'Concepts',
+                'Styling',
+                'Authoring design systems',
+                'Platforms',
+                'Components',
+                // The component tiers — sub-groups under Components, in the order
+                // the library tiers them rather than alphabetically.
+                'Actions & disclosure',
+                'Overlays',
+                'Form controls',
+                'Navigation',
+                'Content',
+                'Rich behavior',
                 'Reference',
             ],
         },
@@ -376,6 +402,8 @@ export default defineSSGConfig({
             { title: 'Internationalization', collections: ['i18n-docs'] },
             { title: 'Mermaid Diagrams', collections: ['mermaid-docs'] },
             { title: 'daisyUI Components', collections: ['daisyui-docs', 'daisyui-api'] },
+            { title: 'Zero (unstyled components + design systems)', collections: ['zero-docs'] },
+            { title: 'Zero Packages (authoring kit & design systems)', links: moduleLlmsLinks('zero') },
             { title: 'Static Site Generation', collections: ['ssg-docs'] },
             { title: 'Server (SSR, server functions, resume & serialize)', links: moduleLlmsLinks('server') },
             { title: 'Vite Plugin', collections: ['vite-docs'] },
@@ -392,7 +420,8 @@ export default defineSSGConfig({
             { title: 'CLI', collections: ['cli-docs'] },
             { title: 'Terminal UIs', collections: ['terminal-docs'] },
             { title: 'Terminal Packages', links: moduleLlmsLinks('terminal') },
-            { title: 'DevTools', collections: ['devtools-docs'] },
+            // Gated the same way: `@sigx/devtools` is unpublished and its pages are drafts.
+            ...(DEVTOOLS_RELEASED ? [{ title: 'DevTools', collections: ['devtools-docs'] }] : []),
             { title: 'Monaco Editor', collections: ['monaco-docs'] },
             { title: 'Lynx (native iOS & Android)', collections: ['lynx-docs'] },
             // ~45 one-liners instead of ~310 page links; each overview.md links
@@ -401,7 +430,7 @@ export default defineSSGConfig({
         ],
         // Keep llms-full.txt ingestible in one context window — the lynx module
         // bodies are indexed above and individually fetchable as .md instead.
-        full: { exclude: ['/lynx/modules/**'] },
+        full: { exclude: ['/lynx/modules/**', '/zero/docs/components/**'] },
         // Per-area sub-indexes for consumers that only need one area.
         areas: {
             '/core': {

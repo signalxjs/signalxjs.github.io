@@ -1,0 +1,230 @@
+---
+title: "Select"
+description: "The @sigx/zero Select component — a single-value listbox on the APG select-only combobox pattern, rendering trigger / value / indicator / popup / group / item parts with typeahead, option groups and an options sugar."
+layout: docs
+category: ["Components", "Form controls"]
+order: 308
+---
+
+# Select
+
+<p class="lede">A single-value listbox: the WAI-ARIA select-only combobox pattern. Focus stays
+on the trigger button and the highlighted option is conveyed through `aria-activedescendant`;
+the popup is a native popover positioned against the trigger, and a hidden input posts the
+value. What zero adds is the anatomy — the trigger, the popup and every option carry stable
+`data-*` hooks for a design system to style.</p>
+
+## Import
+
+```tsx
+import { Select } from '@sigx/zero/select';
+```
+
+`Select` is a compound: `Select.Root`, `Select.Trigger`, `Select.Value`, `Select.Indicator`,
+`Select.Popup`, `Select.Group`, `Select.GroupLabel`, `Select.Item`. It is also re-exported
+from the `@sigx/zero` root, together with `selectAnatomy`, `useSelectContext` and
+`useSelectGroupContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Select } from '@sigx/zero/select';
+
+const FruitPicker = component(({ signal }) => {
+    const state = signal({ fruit: '' });
+
+    return () => (
+        <Select.Root model={() => state.fruit} placeholder="Pick a fruit…" name="fruit">
+            <Select.Trigger label="Fruit">
+                <Select.Value />
+                <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popup>
+                <Select.Item value="apple">Apple</Select.Item>
+                <Select.Item value="banana">Banana</Select.Item>
+                <Select.Item value="cherry" disabled>Cherry</Select.Item>
+            </Select.Popup>
+        </Select.Root>
+    );
+});
+```
+
+`model={() => state.fruit}` binds the selected value both ways — picking an option writes
+`state.fruit`, and writing `state.fruit` selects the option. Leave the model off and pass
+`defaultValue` to keep the state inside the component; `valueChange` fires either way. The
+empty string is "nothing selected": `Select.Value` shows the `placeholder` and the trigger
+carries `data-placeholder`. See [Models](/zero/docs/models/).
+
+### Option groups
+
+```tsx
+<Select.Popup>
+    <Select.Group>
+        <Select.GroupLabel>Citrus</Select.GroupLabel>
+        <Select.Item value="lime">Lime</Select.Item>
+        <Select.Item value="lemon">Lemon</Select.Item>
+    </Select.Group>
+    <Select.Item value="apple">Apple</Select.Item>
+</Select.Popup>
+```
+
+`Select.Group` is the `<optgroup>` equivalent: `role="group"` inside the listbox, named by
+its `Select.GroupLabel` through `aria-labelledby` while one is rendered — a group without a
+label stays anonymous rather than referencing a missing id. Labels never register as options,
+so typeahead and the arrow-key highlight walk straight through group boundaries.
+
+### The options sugar
+
+```tsx
+<Field.Root>
+    <Field.Label>Fruit</Field.Label>
+    <Select.Root
+        model={() => state.fruit}
+        placeholder="Pick a fruit…"
+        options={[
+            { value: 'apple', label: 'Apple' },
+            { value: 'lime', group: 'Citrus' },
+            { value: 'lemon', label: 'Lemon', group: 'Citrus', disabled: true },
+        ]}
+    />
+</Field.Root>
+```
+
+With no slot children, `options` renders the full default composition — `Trigger(Value,
+Indicator)` and a `Popup` with one `Item` per entry, a `Group` + `GroupLabel` per distinct
+`group` in first-appearance order, `label` defaulting to `value` — through the same compound
+parts you would write by hand, so recipes, typeahead and the highlight see exactly what
+hand-written items produce. Slot children win entirely when both are given: the array is
+ignored, never merged, so a custom trigger means hand-writing the popup too.
+
+The generated trigger carries no `aria-label`. Name an options-driven Select through a
+[Field](/zero/docs/components/field/) — its label lands on the trigger via the field's control
+id — or write the trigger yourself with `label`.
+
+### Naming the trigger
+
+`role="combobox"` prohibits name-from-content, so the value or placeholder text inside the
+trigger can never name it. Outside a Field, pass `label` on `Select.Trigger`; inside a Field,
+omit it — `aria-label` would override the field's visible label. Inside a Field the trigger
+also adopts the field's control id and announces `aria-invalid`, `aria-required` and
+`aria-describedby` from the field context.
+
+### Rendering the trigger or an item as your own element
+
+```tsx
+<Select.Item value="apple" asChild>
+    {(p) => <li {...p}>Apple</li>}
+</Select.Item>
+```
+
+With `asChild` the default slot receives the part's attribute bag; spread it so the anatomy,
+ARIA and pointer wiring land on your element.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled`, `invalid`, `required` | Carries the variant axes. |
+| `trigger` | `button` | `open` \| `closed` | `disabled`, `invalid`, `focus-visible`, `placeholder`, `pressed`, `press-animating` | `role="combobox"`, `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls`, `aria-activedescendant`. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). `asChild`. |
+| `value` | `span` | — | `placeholder` | The selected option's text, or the placeholder. Inside `trigger`. |
+| `indicator` | `span` | `open` \| `closed` | — | `aria-hidden`; defaults to a chevron glyph. Inside `trigger`. |
+| `popup` | `div` | `open` \| `closed` | — | `role="listbox"`, `popover="auto"`, `aria-labelledby` the trigger. `data-placement` on every placement. |
+| `group` | `div` | — | — | `role="group"`, `aria-labelledby` its label while one is rendered. Inside `popup`. |
+| `group-label` | `div` | — | — | No role — it stays in the accessibility tree to name the group. Inside `group`. |
+| `item` | `div` | — | `selected`, `highlighted`, `disabled`, `pressed`, `press-animating` | `role="option"`, `aria-selected`, `aria-disabled`. Pointer-only press feedback. `asChild`. |
+| `item-indicator` | `span` | — | `selected` | `aria-hidden`; rendered inside the selected item only. |
+| `hidden-input` | `input` | — | — | `type="hidden"`, carries `name` and the value for form posts. |
+
+Every part carries `data-scope="select"` and `data-part="<part>"`. The **root** is the carrier
+part for the variant axes. The popup is positioned against the trigger through the
+[positioning behavior](/zero/docs/behaviors/#positioning) and reports its resolved side as
+`data-placement`; it opens and closes through the native popover API, so a light-dismiss
+click is a native toggle that syncs back into the model. The keyboard highlight scrolls its
+item into view — `aria-activedescendant` moves no real focus, so nothing would scroll
+natively. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Select.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Two-way binding of the selected item's `value`; `''` is nothing selected. |
+| `defaultValue` | `string` | `''` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: string)` | — | Fires whenever the selection changes. |
+| `openChange` | event `(open: boolean)` | — | Fires whenever the popup opens or closes. |
+| `placeholder` | `string` | — | Text `Select.Value` shows while the value is empty. |
+| `name` | `string` | — | Form field name, rendered on the hidden input. |
+| `required` | `boolean` | `false` | Renders `data-required` and `aria-required` on the trigger. |
+| `invalid` | `boolean` | `false` | Renders `data-invalid` and `aria-invalid`. |
+| `disabled` | `boolean` | `false` | Inert; renders `data-disabled` on root and trigger. |
+| `placement` | `Placement` | `'bottom-start'` | Preferred popup side and alignment. |
+| `positionStrategy` | `PositionStrategy` | fixed positioning | How the popup is placed against the trigger. |
+| `options` | `ReadonlyArray<OptionInput>` | — | `{ value, label?, disabled?, group? }[]`; renders the default composition when there are no slot children. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+Field context (`disabled`, `invalid`, `required`, `aria-describedby`, the control id) is
+merged with the props: a Select inside a `Field.Root` with `invalid` set is invalid.
+
+### `Select.Trigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | — | `aria-label` for a Select outside a Field; omit inside one. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Select.Value`
+
+Only `class`. Its default slot receives `{ value }` for custom rendering; without one it
+renders the selected item's text (or `textValue`), or the placeholder while empty.
+
+### `Select.Indicator`, `Select.Popup`, `Select.Group`, `Select.GroupLabel`
+
+Only `class`. The indicator's default content is a chevron glyph.
+
+### `Select.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | The value this item selects. |
+| `textValue` | `string` | the item's text content | Typeahead text and what `Select.Value` displays; set it when the content is not plain text. |
+| `disabled` | `boolean` | `false` | Skipped by highlight and typeahead; renders `data-disabled` and `aria-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+Focus stays on the trigger throughout; options never receive focus.
+
+| Key | Action |
+|---|---|
+| ArrowDown / ArrowUp, Enter, Space (closed) | Open the popup; the highlight lands on the selected option, else the first enabled one. |
+| Printable characters (closed) | Typeahead selects the matching option directly. |
+| ArrowDown / ArrowUp (open) | Move the highlight to the next / previous enabled option. |
+| Home / End (open) | Highlight the first / last enabled option. |
+| Printable characters (open) | Typeahead moves the highlight. |
+| Enter / Space (open) | Select the highlighted option and close. |
+| Escape | Close without changing the value. |
+| Tab | Close and leave; the value is unchanged. |
+
+## In the shipped design systems
+
+| | `color` | `size` | `variant` | `mods` |
+|---|---|---|---|---|
+| `@sigx/zero-basic` | the eight recommended roles | `xs`–`xl` | `outline` (default) · `soft` · `ghost` | — |
+| `@sigx/zero-daisyui` | the eight recommended roles | `xs`–`xl` | — | — |
+
+`@sigx/zero-basic` wires a `variant` on the select scope with `outline` as the default, so
+`<Select.Root variant="ghost">` is styled there; under `@sigx/zero-daisyui`'s `/register`
+import the prop is absent. Both style the trigger, value, indicator, popup, group label and
+item parts, including the `open` / `closed` transitions on `popup` and the `highlighted` /
+`selected` item flags. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[Native Select](/zero/docs/components/native-select/) for the platform picker,
+[Combobox](/zero/docs/components/combobox/) for an editable input over a filtered list,
+[Field](/zero/docs/components/field/) for labelling.

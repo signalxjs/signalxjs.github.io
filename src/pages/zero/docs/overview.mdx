@@ -1,0 +1,93 @@
+---
+title: Zero
+description: "SignalX Zero — unstyled, accessible compound components with a machine-readable anatomy, and design systems as pure data compiled to plain CSS"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Zero
+
+<p class="lede">Zero splits a UI into two artifacts that evolve independently: headless
+components that render a stable, machine-readable anatomy and no styling, and a design
+system — typed tokens and per-part recipes — compiled to plain, layered CSS that selects on
+that anatomy. Swapping the whole look of an app is an import swap. Generating a new look is
+something a model, or a human afternoon, can do against the published manifest.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/zero" /> <span class="mmr-dot" /> MIT</p>
+
+```tsx
+import { Tabs } from '@sigx/zero/tabs';
+
+<Tabs.Root model={() => state.tab}>
+    <Tabs.List>
+        <Tabs.Tab value="a">First</Tabs.Tab>
+        <Tabs.Tab value="b">Second</Tabs.Tab>
+    </Tabs.List>
+    <Tabs.Panel value="a">…</Tabs.Panel>
+    <Tabs.Panel value="b">…</Tabs.Panel>
+</Tabs.Root>
+```
+
+```ts
+// The entire skin of the app:
+import '@sigx/zero/css';                    // layer order + structural fallbacks
+import '@sigx/zero-daisyui/css';            // ← or '@sigx/zero-basic/css', or yours
+import { installThemes } from '@sigx/zero-daisyui';
+installThemes();
+```
+
+## The four packages
+
+| Package | What it is |
+|---|---|
+| [`@sigx/zero`](/zero/docs/installation/) | The runtime: the anatomy contract, the headless behaviors (controllable models, SSR-safe ids, roving focus, dismissal, positioning, press feedback), 51 [components](/zero/docs/components/), the theme engine, and the anatomy `manifest.json` + `llms.txt`. Peer-depends on `sigx` only. |
+| [`@sigx/zero-kit`](/zero/packages/zero-kit/overview/) | The Node-only authoring kit: `defineTokens` / `defineRecipe` / `defineDesignSystem` / `defineApi`, the tokens + recipes → CSS compiler, validation, the `sigx zero:build` / `zero:validate` CLI plugin, the JSON Schemas and the design-system generation skill. Never a runtime dependency. |
+| [`@sigx/zero-basic`](/zero/packages/zero-basic/overview/) | The neutral starter design system — readable defaults from day one, and the reference input for generating your own. |
+| [`@sigx/zero-daisyui`](/zero/packages/zero-daisyui/overview/) | daisyUI's tokens and component look as pure data — five themes, no Tailwind, no plugin — plus a daisy-native typed `./components` surface. |
+
+All four publish in lockstep at one version.
+
+## Why zero is different
+
+**Models, not prop triplets.** sigx two-way binding replaces `value` / `defaultValue` /
+`onValueChange` with one optional `model`: `<Dialog.Root model={() => state.open}>`. A
+component with more than one piece of state binds the extras as named models
+(`model:inputValue`). See [Models](/zero/docs/models/).
+
+**Native platform first.** `<dialog>` and the top layer mean no Portal, and free focus
+trapping, Escape and focus restore. `<details>` disclosure works with no JavaScript. Form
+controls are real inputs that post a form before hydration. The `popover` attribute lifts
+menus and popovers into the top layer. Zero adds the anatomy and the keyboard; the platform
+does the rest.
+
+**The anatomy is a contract.** Every part carries `data-scope` / `data-part` and at most one
+`data-state`; flags are presence-only; states, flags and placements come from closed, governed
+vocabularies. Every component ships its parts × states × token hints as JSON, so recipes
+type-check against it, tests assert against it, and a generator can write a design system
+having read nothing else. A part rename is a breaking change, and the build says so. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+**A design system is data.** Tokens and recipes compile to four cascade layers of plain
+CSS — no Tailwind, no CSS-in-JS, no runtime styling engine — and a component the design
+system has never heard of renders unstyled but accessible. That fallback is the baseline of
+the whole idea, not an error state. See [Authoring a design system](/zero/docs/authoring/).
+
+**Typed to the design system you use.** One import of a design system's generated
+`/register` module narrows every `color` / `size` / `variant` prop to exactly what its
+compiled CSS answers to. A design system that declares an `api` also ships a `./components`
+module with the vendor's own prop names. See [Typed vocabulary](/zero/docs/typed-vocabulary/)
+and [Vendor-named component APIs](/zero/docs/vendor-apis/).
+
+**One token vocabulary across web and Lynx.** The contract is not web-shaped: the same
+design-system source compiles to a class-grammar target for `@sigx/lynx-zero`, so one
+`tokens.ts` + `recipes.ts` can skin a native app too. See [Lynx](/zero/docs/lynx/).
+
+## Where to go next
+
+- [Installation](/zero/docs/installation/) — `@sigx/zero` plus a design system, in three lines.
+- [Your first page](/zero/docs/quick-start/) — components, a theme toggle and SSR-safe ids.
+- [Components](/zero/docs/components/) — every component, by tier.
+- [Authoring a design system](/zero/docs/authoring/) — when you want a look of your own.

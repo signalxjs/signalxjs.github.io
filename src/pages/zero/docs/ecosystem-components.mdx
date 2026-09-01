@@ -1,0 +1,199 @@
+---
+title: Building your own component
+description: "Shipping a component @sigx/zero does not — as a peer package built from zero's public surface: defineAnatomy, the behaviors, the contract helpers, WithVariantAxesOpen, expectAnatomy, a manifest fragment and a recipe pack a design system adopts"
+layout: docs
+category: Authoring design systems
+order: 66
+---
+
+# Building your own component
+
+<p class="lede">Zero's component set is closed; its authoring surface is not. An ecosystem
+component package is a *peer* of `@sigx/zero` — it ships a component zero does not, built
+from the same public machinery zero's own components are built from, and held to the same
+contract. It reaches design systems as data: a manifest fragment plus an optional recipe
+pack, merged at a design system's build time.</p>
+
+## The shape of an ecosystem package
+
+Four exports, two entries:
+
+| What | From | Why |
+|---|---|---|
+| the anatomy | main entry | `defineAnatomy('<vendor>-<name>', parts)` — the source of truth |
+| the component | main entry | built from `@sigx/zero`'s behaviors and contract helpers, exported under the scope's Pascal spelling (`acme-stepper` → `AcmeStepper`, `componentExportName(scope)`): an api-declaring design system's generated `./components` module imports exactly that name from exactly that package |
+| the **manifest fragment** | a data-only entry | how a design system learns the scope exists |
+| a **recipe pack** (optional) | the same data entry | default styling any recommended-vocabulary design system can adopt |
+
+Keep the fragment / recipes entry free of component imports: a design system's Node build
+script imports it, and must not drag in a UI runtime.
+
+## 1. Declare the anatomy
+
+```ts
+import { defineAnatomy } from '@sigx/zero/anatomy';
+
+export const stepperAnatomy = defineAnatomy('acme-stepper', {
+    root: { element: 'div' },
+    item: {
+        element: 'button',
+        parent: 'root',
+        states: ['active', 'complete', 'inactive'],   // from STATE_VOCABULARY
+        flags: ['disabled', 'focus-visible'],          // from FLAG_VOCABULARY only
+        tokens: ['color', 'radius-selector', 'text'],
+        asChild: true,
+    },
+});
+```
+
+The rules that make it a *zero* anatomy:
+
+- **Vendor-prefix the scope** (`acme-stepper`). The merge hard-errors on collisions; the
+  prefix is what keeps you out of everyone's way. Scope and part names are also filenames and
+  selectors, so they follow the kebab-case grammar.
+- `data-state` values come from the governed `STATE_VOCABULARY` (`expanded` fails with
+  "use `open`"); flags from `FLAG_VOCABULARY`, rendered presence-only; `placements` from
+  `PLACEMENT_VOCABULARY`. Never invent synonyms.
+- `parent` names the same-scope part each part renders inside; the tree must be acyclic.
+- A part the runtime hides with `hidden` in some state declares `hiddenIn`.
+- `anatomy.toJSON()` emits exactly the manifest component shape — you never hand-write
+  manifest JSON.
+
+See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## 2. Build the component from the public surface
+
+Everything zero's own components use is exported from `@sigx/zero/behaviors` and
+`@sigx/zero/contract`: `createControllableState` (the [`model`](/zero/docs/models/)
+convention), `createId` / `zeroPlugin` (SSR-safe ids), `createListController` +
+`createRovingKeydown` (registration and arrow-key focus), `createDismissable`, the focus
+utilities, `createPressFeedback`, `createTypeahead`, `createAnchorPosition`, and the contract
+helpers `dataAttr` / `stateAttr` / `variantAttrs` / `renderAsChild`. See
+[Behaviors](/zero/docs/behaviors/).
+
+```tsx
+import { component, compound } from 'sigx';
+import type { Define } from 'sigx';
+import { createControllableState, createListController, createRovingKeydown } from '@sigx/zero/behaviors';
+import { dataAttr, stateAttr, variantAttrs, renderAsChild, synthesizesClickFrom } from '@sigx/zero/contract';
+import type { PartProps, WithAsChild, WithClass, WithDisabled, WithVariantAxesOpen } from '@sigx/zero/contract';
+import { stepperAnatomy } from './anatomy.js';
+
+export type AcmeStepperRootProps =
+    & Define.Model<string>
+    & Define.Prop<'defaultValue', string, false>
+    & Define.Event<'valueChange', string>
+    & WithVariantAxesOpen<'acme-stepper'>
+    & WithClass
+    & Define.Slot<'default'>;
+
+const Root = component<AcmeStepperRootProps>(({ props, slots, emit }) => {
+    const state = createControllableState<string>(() => props.model, props.defaultValue ?? '', (v) => emit('valueChange', v));
+    const list = createListController();
+    // … provide context, wire createRovingKeydown({ list, onMove }) …
+    return () => (
+        <div data-scope={stepperAnatomy.scope} data-part="root" {...variantAttrs(props)} class={props.class}>
+            {slots.default?.()}
+        </div>
+    );
+});
+
+export const AcmeStepper = compound(Root, { Root /* , Item */ });
+```
+
+Conventions worth copying from any component in zero's source:
+
+- **Anatomy first**: import part names from your `anatomy.ts`; render `data-scope` /
+  `data-part` / `data-state` exactly as declared. `dataAttr(bool)` renders a presence flag;
+  `stateAttr(bool, 'on', 'off')` picks a state.
+- **Inert context fallback**: `defineInjectable` with a do-nothing default so a bare part
+  still renders outside its root.
+- **Registration is not reactive**: at first render an item may only depend on items
+  registered *before* it (DOM order) plus the model — derive state accordingly.
+- **`asChild` + keyboard**: synthesise activation only for keys the platform will not —
+  `synthesizesClickFrom(target, key)` is the exact test; skipping it double-activates anchors
+  on Enter.
+- **Variant pass-through** is `{...variantAttrs(props)}` on the carrier part; type the
+  props with `WithVariantAxesOpen<'<scope>'>` — the open constraint is the deliberate cost of
+  a scope zero's registry cannot know, and a design system's `/register` module is what closes
+  it. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## 3. Hold it to the contract
+
+```ts
+import { expectAnatomy } from '@sigx/zero/testing';
+
+expectAnatomy(container, stepperAnatomy);             // throws a plain Error
+expectAnatomy(el, stepperAnatomy, { axes: ['emphasis'] });   // custom axes, declared
+```
+
+It checks: declared parts only, states from the closed set, flags declared and
+presence-only, `data-placement` from the declared subset, DOM nesting matching the part tree,
+and `hidden` exactly where `hiddenIn` says. Runner-agnostic. `expectAnatomyElements` runs
+the same rules over an `ElementLike` for a non-DOM renderer.
+
+## 4. Publish the fragment (and the pack)
+
+```ts
+// fragment.ts — a data-only entry, no component imports
+import type { RecipeInput } from '@sigx/zero-kit/define';
+import { stepperAnatomy } from './anatomy.js';
+
+export const fragment = {
+    version: 1,                              // FRAGMENT_VERSION — required
+    package: '@acme/zero-stepper',           // your npm specifier — required
+    components: [stepperAnatomy.toJSON()],
+};
+
+export const recipes: RecipeInput[] = [{ component: 'acme-stepper', parts: { /* … */ } }];
+```
+
+The recipe pack targets the **recommended token grammar** — role names from
+`RECOMMENDED_ROLE_LIST` (`var(--color-primary)` …), the recommended sizes — so it styles
+itself under any design system that keeps the recommended vocabulary without naming one.
+Generate a `color` axis over the *whole* recommended role list rather than a subset (a
+partial axis diverges from every sibling component, and the validator says so), and style
+every declared state distinctly. The JSON form of the fragment validates against
+`fragment.schema.json`.
+
+## 5. A design system opts in
+
+```js
+// build.mjs — build-time composition, the whole adoption
+import { runStandardBuild } from '@sigx/zero-kit/build';
+import { fragment, recipes as stepperRecipes } from '@acme/zero-stepper/fragment';
+
+await runStandardBuild({
+    designSystem: { ...designSystem, recipes: [...designSystem.recipes, ...stepperRecipes] },
+    manifest,
+    fragments: [fragment],
+    outDir,
+});
+```
+
+or on the CLI, with the fragment as JSON:
+
+```sh
+sigx zero:validate --extra-manifest ./node_modules/@acme/zero-stepper/dist/fragment.json
+sigx zero:build    --extra-manifest ./node_modules/@acme/zero-stepper/dist/fragment.json
+```
+
+Merging is a statement of intent: a merged scope with no recipe draws the ordinary
+`N component(s) have no recipe` warning — validate telling you the adoption is half done
+(merge the fragment *and* spread the pack, or write a recipe).
+
+Everything downstream is automatic: validation, recipe compilation and the coverage report
+treat the merged scope like any other; provenance is stamped per component; the generated
+`register.d.ts` excludes merged scopes **by name** from its `ZeroScope` compile gate
+(`ZeroScope` itself stays closed); and under api mode the `./components` module imports the
+scope from your package. If the ecosystem package is private or the design system is
+published, keep the adoption in build tooling the package never ships — an import reachable
+from the published entry would make the package uninstallable. `@sigx/zero-basic` adopts an
+in-repo acceptance-test component exactly this way, in its `build.mjs` alone.
+
+## 6. The fallback is the contract
+
+A design system that never merges your fragment leaves your component **unstyled but
+accessible** — correctly attributed anatomy, working behavior, `hidden` still honoured by
+zero's base CSS. That is the baseline of the whole thesis, not an error state. Ship sensible
+unstyled rendering, and let recipe packs or per-design-system recipes carry the ink.

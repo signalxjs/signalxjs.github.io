@@ -1,0 +1,61 @@
+---
+title: "API reference"
+description: "API reference for @sigx/zero-daisyui — every export of the SignalX Zero DaisyUI package."
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/zero-daisyui` <PkgVersion npm="@sigx/zero-daisyui" />.</p>
+
+## Runtime module
+
+| Export | What it is |
+|---|---|
+| `installThemes()` | Hands `tokens` to `registerThemes` — registers `light`, `dark`, `dim`, `nord` and `sunset` with their schemes, the `light` / `dark` pairing and derived swatches. |
+| `tokens` | The `TokensInput` declaration — the recommended roles and sizes, the six-value `variant` union, the eight modifiers, per-scope `scopes` for `button` and `table`, the `depth` / `depth-shade` / `depth-sheen` / `noise` / `fx-noise` custom tokens, `system`, the five themes. |
+| `recipes` | The `RecipeInput[]` — one recipe per zero component. |
+| `designSystem` | `{ name: 'daisyui', tokens, recipes, api }` — the `DesignSystemInput` the build compiles. |
+
+## `./components`
+
+The generated vendor-named module. `Button` and `Table` are `adapt()`ed; everything else is
+a plain re-export of the zero component.
+
+| Export | Props beyond zero's own |
+|---|---|
+| `Button` | `wide`, `block`, `square`, `circle`, `active`, `loading` (booleans → `data-mod-*`); `variant` narrowed to `solid` \| `outline` \| `soft` \| `ghost` \| `dash` \| `link`; `color` and `size` narrowed to the wired sets. |
+| `Table` | `zebra`, `hover` on `Table.Root`. |
+| `Tabs`, `Dialog`, `Select`, … | zero's components, unchanged. |
+
+## Stylesheets
+
+| Subpath | Contents |
+|---|---|
+| `./css` | `dist/css/index.css` — the layer-order statement, tokens, the five theme blocks and every recipe. |
+| `./css/tokens` | `dist/css/tokens.css`. |
+| `./css/*` | `dist/css/components/<scope>.css`. |
+| `./lynx/index.css`, `./lynx/tokens.css` | The class-grammar projection. |
+
+## Generated artifacts
+
+| Subpath | Contents |
+|---|---|
+| `./register` | `register.d.ts` — augments `ZeroVocabulary` with `theme: 'light' \| 'dark' \| 'dim' \| 'nord' \| 'sunset'`, every emitted custom property (the daisy customs included), the token keys per category, and one entry per scope. |
+| `./manifest.json` | The design-system manifest, with the `api` routing. |
+| `./report.json` | The coverage report, with its `api` section. |
+| `./lynx/manifest.json` | The Lynx manifest. |
+
+## The wired surface
+
+| Scope | `color` | `size` | `variant` | `mods` |
+|---|---|---|---|---|
+| every scope | the eight recommended roles | `xs`–`xl` | — | — |
+| `button` | ✓ (default `primary`) | ✓ (default `md`) | `solid` (default) · `outline` · `soft` · `ghost` · `dash` · `link` | `wide` · `block` · `square` · `circle` · `active` · `loading` |
+| `table` | ✓ | ✓ | — | `zebra` · `hover` |
+
+The manifest's `components` record is the authoritative version of this table.

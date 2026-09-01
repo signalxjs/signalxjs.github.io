@@ -1,0 +1,169 @@
+---
+title: "Carousel"
+description: "The @sigx/zero Carousel component — a scroll-snap viewport whose model is the active slide index, derived from real scroll by an IntersectionObserver and driven back by scrollIntoView, with APG carousel ARIA, clamping prev / next triggers and labelled indicator buttons."
+layout: docs
+category: ["Components", "Rich behavior"]
+order: 602
+---
+
+# Carousel
+
+<p class="lede">A scroll-snap viewport with an active-index model. The scrolling *is* the
+mechanism: the viewport is a real overflow container, each item a snap stop, and the model
+is derived from where the user actually scrolled — then driven back by `scrollIntoView`
+when the app sets it. The root is a labelled `region` with
+`aria-roledescription="carousel"`, so `label` is required.</p>
+
+## Import
+
+```tsx
+import { Carousel } from '@sigx/zero/carousel';
+```
+
+`Carousel` is a compound: `Carousel.Root`, `Carousel.Viewport`, `Carousel.Item`,
+`Carousel.PrevTrigger`, `Carousel.NextTrigger`, `Carousel.IndicatorGroup`,
+`Carousel.Indicator`. It is also re-exported from the `@sigx/zero` root, together with
+`carouselAnatomy` and `useCarouselContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Carousel } from '@sigx/zero/carousel';
+
+const Featured = component(({ signal }) => {
+    const state = signal({ slide: 0 });
+    const photos = ['/a.jpg', '/b.jpg', '/c.jpg'];
+
+    return () => (
+        <Carousel.Root label="Featured photos" model={() => state.slide}>
+            <Carousel.Viewport>
+                {photos.map((src) => (
+                    <Carousel.Item><img src={src} alt="" /></Carousel.Item>
+                ))}
+            </Carousel.Viewport>
+            <Carousel.PrevTrigger>‹</Carousel.PrevTrigger>
+            <Carousel.NextTrigger>›</Carousel.NextTrigger>
+            <Carousel.IndicatorGroup>
+                {photos.map((_, i) => <Carousel.Indicator index={i} />)}
+            </Carousel.IndicatorGroup>
+        </Carousel.Root>
+    );
+});
+```
+
+`model={() => state.slide}` binds the active index both ways — scrolling or pressing a
+control writes `state.slide`, and writing `state.slide` scrolls the slide into view. Leave
+the model off and pass `defaultIndex` to keep the state inside the component; `indexChange`
+fires either way. See [Models](/zero/docs/models/).
+
+Items register in DOM order, so the indicator's `index` is the item's position in the
+viewport, zero-based. The item count is reactive: "n of m" labels and the trigger bounds
+update as items arrive or leave.
+
+### How the model follows the scroll
+
+The viewport creates an `IntersectionObserver` in `onMounted` — the server renders the
+resting markup and never observes — thresholded so the item owning most of the viewport
+owns the model. A model write that came *from* the observer does not scroll back, so
+setting the model never fights the user's finger. When the initial index is not 0 the
+viewport jumps there instantly on mount; every later model change scrolls smoothly, unless
+`prefers-reduced-motion: reduce` asks for a jump.
+
+### Labels
+
+```tsx
+<Carousel.Item label="Sunrise over the bay">…</Carousel.Item>
+<Carousel.PrevTrigger label="Earlier photo" />
+<Carousel.Indicator index={0} label="Sunrise" />
+```
+
+Each item is a `group` with `aria-roledescription="slide"` named `"n of m"` by default; the
+triggers default to `"Previous slide"` / `"Next slide"`, and each dot to `"Go to slide n"`.
+Pass `label` on any of them to override.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | `role="region"`, `aria-roledescription="carousel"`, `aria-label`. Carries the variant axes. |
+| `viewport` | `div` | — | — | The scroll container; `tabIndex=0`. Inside `root`. |
+| `item` | `div` | `active` \| `inactive` | — | `role="group"`, `aria-roledescription="slide"`, `aria-label`. Inside `viewport`. |
+| `prev-trigger` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | Disabled on the first slide. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). |
+| `next-trigger` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | Disabled on the last slide. |
+| `indicator-group` | `div` | — | — | Holds the dots. Inside `root`. |
+| `indicator` | `button` | `active` \| `inactive` | `disabled`, `focus-visible`, `pressed` | `aria-current="true"` when `active`. Inside `indicator-group`. |
+
+Every part carries `data-scope="carousel"` and `data-part="<part>"`. The viewport is a
+scrollable region, so it is a tab stop: focused, the platform's arrow keys scroll it — the
+swipe gesture's keyboard equivalent. The prev / next triggers *clamp* rather than wrap
+("1 of 5" after "5 of 5" reads as a bug) and disable at their bounds. The dots are plain
+labelled buttons, not tabs — no roving `tabindex`, every dot its own stop. The carousel is
+horizontal only: a vertical scroll-snap gallery is a scrolling page, not a carousel. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Carousel.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `number` | — | Two-way binding of the active slide index (zero-based). |
+| `defaultIndex` | `number` | `0` | Initial index when uncontrolled. |
+| `indexChange` | event `(index: number)` | — | Fires whenever the active index changes. |
+| `label` | `string` | required | Accessible name of the region. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Carousel.Viewport`, `Carousel.IndicatorGroup`
+
+Only `class`.
+
+### `Carousel.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | `"n of m"` | Accessible name of the slide. |
+| `class` | `string` | — | Extra classes. |
+
+### `Carousel.PrevTrigger`, `Carousel.NextTrigger`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `label` | `string` | `'Previous slide'` / `'Next slide'` | Accessible name for an icon-only trigger. |
+| `class` | `string` | — | Extra classes. |
+
+### `Carousel.Indicator`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `index` | `number` | required | Which slide this dot names and activates. |
+| `label` | `string` | `"Go to slide n"` | Accessible name of the dot. |
+| `class` | `string` | — | Extra classes. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| Tab | Moves through the viewport, the triggers and each dot — every control is its own stop. |
+| ArrowLeft / ArrowRight (viewport focused) | The platform scrolls the viewport; the snap lands on a slide and the model follows. |
+| Enter / Space (trigger or dot focused) | Step one slide, or jump to the dot's slide. |
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the carousel root, so `<Carousel.Root color="primary" size="sm">`
+is styled in both. Neither wires a `variant` or any `mods` on the scope; under a design
+system's `/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The recipe owns the snap: `viewport` gets `overflow-x: auto`, `scroll-snap-type: x
+mandatory` and a flex row, each `item` gets `scroll-snap-align` and a width, and the
+runtime never sets a scroll style. The `indicator` is a paint part — it carries no text — so
+a design system paints the dot from the `color` axis and tells `active` from `inactive` by
+fill; the contrast audit grades both states.
+
+## Related
+
+[Tabs](/zero/docs/components/tabs/) for panels that switch without scrolling,
+[Diff](/zero/docs/components/diff/) for comparing two images in one frame.

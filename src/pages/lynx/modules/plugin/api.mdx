@@ -107,6 +107,12 @@ export interface PluginSigxLynxOptions {
   customCSSInheritanceList?: string[];
   /** Whether themes and safe-area may ride inline CSS custom properties (requires Lynx ≥ 3.9). @defaultValue true */
   enableCSSInlineVariables?: boolean;
+  /** Opt into Lynx 4.0's new sticky layout for `<list>` section headers. @defaultValue false */
+  enableNewSticky?: boolean;
+  /** Register the Fiber Element API through Lynx 4.0's new raw binding path. @defaultValue false */
+  enableElementApiNewRegistration?: boolean;
+  /** Encode `@media` / `@supports` / `@layer` rules into the `.lynx` template. @defaultValue true */
+  enableCSSRule?: boolean;
   /** Whether to place debug info outside the template bundle. @defaultValue true */
   debugInfoOutside?: boolean;
 }
@@ -118,7 +124,46 @@ export interface PluginSigxLynxOptions {
 - `enableCSSInheritance?: boolean` — enable CSS inheritance in the Lynx engine. Default `false`.
 - `customCSSInheritanceList?: string[]` — additional CSS properties to inherit beyond the engine defaults. Only effective when `enableCSSInheritance` is `true`.
 - `enableCSSInlineVariables?: boolean` — let themes (`@sigx/lynx-zero` `ThemeProvider`) and safe-area publish inline CSS custom properties for first-frame-perfect runtime theming. Default `true`; requires **Lynx ≥ 3.9** on native hosts. A kill switch for hosts that can't run 3.9.
+- `enableNewSticky?: boolean` — opt into Lynx 4.0's new sticky layout for `<list>` section headers. Default `false`. It changes where and when a header pins, so re-check anything doing pixel math against sticky positions.
+- `enableElementApiNewRegistration?: boolean` — select Lynx 4.0's new raw binding path for the Fiber Element API. Default `false`. Every `<sigx-*>` custom element is created through the generic `__CreateElement`, so this switch moves the entire custom-element surface at once; opting in is a deliberate, test-it-yourself choice.
+- `enableCSSRule?: boolean` — route stylesheet encoding through the tasm `CSSRuleParser`, the only encoder path that carries `@media`, `@supports` and `@layer` rules into the `.lynx` binary. Default `true`; `false` is the kill switch that restores the pre-4.0 encoding exactly. Read at **encode time**, so it needs `@lynx-js/template-webpack-plugin` ≥ 0.14 (`@lynx-js/tasm` ≥ 0.0.41) to have any effect; when enabled the encoder also forces `enableCSSSelector` and `enableCSSInvalidation` on. Evaluating the rules on device needs a Lynx ≥ 4.0 host.
 - `debugInfoOutside?: boolean` — place debug info outside the template bundle. Default `true`.
+
+#### Page-config flags
+
+The four flags above are written into the `.lynx` template's page config. They share one rule: **the plugin always encodes the resolved boolean, never omits the key.** An absent key means "whatever the engine or host decides today", which is how a behaviour change arrives without anyone choosing it. A host older than the engine version listed simply ignores the key, so encoding one is always safe.
+
+| Flag | Needs | Default | Opt in with |
+|---|---|---|---|
+| `enableCSSInlineVariables` | Lynx ≥ 3.6, and ≥ 3.9 to re-resolve on change | `true` | on by default; `false` is the kill switch |
+| `enableNewSticky` | Lynx ≥ 4.0 | `false` | `pluginSigxLynx({ enableNewSticky: true })` |
+| `enableElementApiNewRegistration` | Lynx ≥ 4.0 | `false` | `pluginSigxLynx({ enableElementApiNewRegistration: true })` |
+| `enableCSSRule` | tasm ≥ 0.0.41 to encode; Lynx ≥ 4.0 to evaluate | `true` | on by default; `false` is the kill switch |
+
+`enableElementApiNewRegistration` is pinned for a stronger reason than the others: upstream marks it `readSettings: true`, so a **host setting** can flip it under a bundle that never asked. The page config takes precedence over settings, so encoding the boolean keeps the choice with the app.
+
+`enableCSSRule` has two ways of ending up `false` for a bundle — the kill switch and the web target, whose encoder drops at-rules regardless — so the resolved answer is also folded into the bundle as the [`__SIGX_CSS_RULE__`](#build-time-defines) define.
+
+### Build-time defines
+
+The plugin folds these boolean literals into every bundle. They are declared in `@sigx/lynx/client`, so an app with the standard `/// <reference types="@sigx/lynx/client" />` gets them typed. Because they are literals, `if (__X__) { … }` branches tree-shake out of the bundle they are false in.
+
+| Define | Value |
+|---|---|
+| `__WEB__` / `__NATIVE__` | which environment the bundle targets |
+| `__MAIN_THREAD__` / `__BACKGROUND__` | which thread's bundle this is |
+| `__DEV_BUILD__` | `true` in a development build (`NODE_ENV !== 'production'`), `false` in a release build |
+| `__SIGX_CSS_RULE__` | whether `@media` / `@supports` rules reach this bundle's binary — `false` on the web target and under `enableCSSRule: false` |
+
+**Use `__DEV_BUILD__`, not `__DEV__`.** The bare `__DEV__` expands to a `process.env` expression that **throws in the Lynx background runtime**. `__DEV_BUILD__` is resolved in Node at build time, so it both works at runtime and tree-shakes out of a release bundle. Its typical use is refusing to present a measurement taken from a development build: main-thread costs there are inflated by orders of magnitude (upstream's `setStyleProperty` copies a 256-entry array per call under `__DEV__`), so any perf number from a dev build is meaningless.
+
+```ts
+if (__DEV_BUILD__) {
+  showBanner('DEV BUILD — NOT REAL NUMBERS');
+}
+```
+
+`__SIGX_CSS_RULE__` reflects the encoder only — it cannot know the host's engine version. Branch on it when a rule's *absence* would leave something unstyled rather than merely unrefined: a palette that only exists inside `@media (prefers-color-scheme: …)` needs a JS fallback where it is `false`. `@sigx/lynx-zero`'s `<ThemeProvider>` reads it to choose between letting the CSS engine resolve a built-in theme's palette and declaring that palette inline.
 
 ### ApplyEntryOptions
 

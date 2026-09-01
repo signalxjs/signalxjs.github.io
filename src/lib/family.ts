@@ -7,7 +7,7 @@
  * collection packages (core, lynx, server, terminal) live in lib/modules.ts.
  */
 
-import { ACTORS_RELEASED, moduleById, type SigxModule } from '@/lib/modules';
+import { ACTORS_RELEASED, DEVTOOLS_RELEASED, moduleById, type SigxModule } from '@/lib/modules';
 import { VERSIONS } from '@/lib/versions.generated';
 
 export type PackageStatus = 'stable' | 'beta' | 'experimental';
@@ -113,6 +113,13 @@ const RAW_PACKAGES: SigxPackage[] = [
       blurb: 'The reactive model, rendered to the terminal — flexbox layout, input and a cell renderer.' },
 
     // ---- Web: UI ----
+    // `zero` is a collection with a real runtime package: `@sigx/zero` is the
+    // component foundation, and zero-kit / zero-basic / zero-daisyui are the
+    // authoring kit and the two shipped design systems that skin it.
+    { id: 'zero', npm: '@sigx/zero', title: 'Zero', cat: 'ui', target: 'web', kind: 'collection',
+      hue: 305, glyph: '◌', status: 'beta', version: '0.2.0-beta.1',
+      tag: 'Unstyled components + generatable design systems',
+      blurb: 'Headless, accessible compound components that render a stable, machine-readable anatomy and no styling — and design systems as pure data, compiled to plain layered CSS. Swap the whole look of an app with one import; generate a new one against the published manifest.' },
     { id: 'daisyui', npm: '@sigx/daisyui', title: 'DaisyUI', cat: 'ui', target: 'web', kind: 'component-library',
       hue: 24, glyph: '❂', status: 'stable', version: '0.12.1',
       tag: 'Themed component library',
@@ -140,7 +147,7 @@ const RAW_PACKAGES: SigxPackage[] = [
       tag: 'Deploy adapters for every platform',
       blurb: 'Ship your SSR app anywhere — one WinterCG fetch handler plus build adapters for Cloudflare Workers, Vercel and Netlify, and documented Node, Deno and Bun entries.' },
     { id: 'devtools', npm: '@sigx/devtools', title: 'DevTools', cat: 'tooling', target: 'foundation',
-      hue: 196, glyph: '⊙', status: 'beta', version: '0.1.0',
+      hue: 196, glyph: '⊙', status: 'beta', version: '0.0.1',
       tag: 'Inspect signals at runtime',
       blurb: 'A browser panel to trace the reactive graph, time-travel effects and inspect components.' },
 ];
@@ -165,9 +172,12 @@ declare const __SIGX_SHOW_UNRELEASED__: boolean | undefined;
  * ships. `command === 'serve'` in vite.config.ts is the signal that actually
  * distinguishes serving from building.
  */
-const SHOW_ACTORS =
-    ACTORS_RELEASED
-    || (typeof __SIGX_SHOW_UNRELEASED__ !== 'undefined' && __SIGX_SHOW_UNRELEASED__);
+const SHOW_UNRELEASED =
+    typeof __SIGX_SHOW_UNRELEASED__ !== 'undefined' && __SIGX_SHOW_UNRELEASED__;
+const SHOW_ACTORS = ACTORS_RELEASED || SHOW_UNRELEASED;
+
+/** Same gate for `@sigx/devtools`, which has not been published yet. */
+const SHOW_DEVTOOLS = DEVTOOLS_RELEASED || SHOW_UNRELEASED;
 
 /**
  * Registry with live npm versions overlaid (falls back to the literal).
@@ -193,10 +203,11 @@ export const PACKAGES: SigxPackage[] = RAW_PACKAGES.map((p) => ({
  * What drafts do NOT cover is a registry row rendering a tile that links to a
  * page the production build never emitted — hence this second list.
  *
- * See SHOW_ACTORS above, and ACTORS_RELEASED in lib/modules.ts.
+ * See SHOW_ACTORS / SHOW_DEVTOOLS above, and ACTORS_RELEASED /
+ * DEVTOOLS_RELEASED in lib/modules.ts.
  */
-export const PUBLIC_PACKAGES: SigxPackage[] =
-    PACKAGES.filter((p) => SHOW_ACTORS || p.id !== 'actors');
+export const PUBLIC_PACKAGES: SigxPackage[] = PACKAGES.filter((p) =>
+    (SHOW_ACTORS || p.id !== 'actors') && (SHOW_DEVTOOLS || p.id !== 'devtools'));
 
 export const CATEGORIES: { id: PackageCategory; label: string; hint: string }[] = [
     { id: 'core', label: 'Core', hint: 'Reactivity, routing & state' },
@@ -269,7 +280,8 @@ export function packageForCollection(collection?: string | null): SigxPackage | 
 /**
  * Resolve a sub-package/module from a module collection name
  * (`lynx-mod-<id>-docs` / `core-pkg-<id>-docs` / `server-pkg-<id>-docs` /
- * `terminal-pkg-<id>-docs` / `deploy-pkg-<id>-docs` / `actors-pkg-<id>-docs` —
+ * `terminal-pkg-<id>-docs` / `deploy-pkg-<id>-docs` / `actors-pkg-<id>-docs` /
+ * `zero-pkg-<id>-docs` —
  * see lib/modules.ts).
  * The `-mod-`/`-pkg-` infix keeps these unambiguous against top-level
  * collections (`core-api` vs a core sub-package named `api`), while
@@ -277,7 +289,7 @@ export function packageForCollection(collection?: string | null): SigxPackage | 
  */
 export function moduleForCollection(collection?: string | null): SigxModule | undefined {
     if (!collection) return undefined;
-    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg|terminal-pkg|deploy-pkg|actors-pkg)-(.+?)-(?:docs|api)$/);
+    const m = collection.match(/^(?:lynx-mod|core-pkg|server-pkg|terminal-pkg|deploy-pkg|actors-pkg|zero-pkg)-(.+?)-(?:docs|api)$/);
     return m ? moduleById[m[1]] : undefined;
 }
 

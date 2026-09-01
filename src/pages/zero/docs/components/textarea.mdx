@@ -1,0 +1,145 @@
+---
+title: "Textarea"
+description: "The @sigx/zero Textarea component — a multi-line text field rendering root / label / textarea, Input's shape without the control box, with a string model that writes through on every keystroke."
+layout: docs
+category: ["Components", "Form controls"]
+order: 303
+---
+
+# Textarea
+
+<p class="lede">A multi-line text field on a native `<textarea>`. It is Input's shape minus the
+`control` box: nothing sits inside a textarea for a wrapper to hold, so the border, ring and
+invalid tint draw on the element itself. The model is a plain `string` written through on
+every keystroke, and the visible element is the form control.</p>
+
+## Import
+
+```tsx
+import { Textarea } from '@sigx/zero/textarea';
+```
+
+`Textarea` is a compound: `Textarea.Root`, `Textarea.Label`, `Textarea.Textarea`. It is also
+re-exported from the `@sigx/zero` root, together with `textareaAnatomy` and
+`useTextareaContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Textarea } from '@sigx/zero/textarea';
+
+const Profile = component(({ signal }) => {
+    const state = signal({ bio: '' });
+
+    return () => (
+        <Textarea.Root model={() => state.bio} name="bio" rows={4} maxlength={280}>
+            <Textarea.Label>Bio</Textarea.Label>
+            <Textarea.Textarea placeholder="Tell us about yourself" />
+        </Textarea.Root>
+    );
+});
+```
+
+`model={() => state.bio}` binds the text both ways — every `input` event writes `state.bio`,
+and writing `state.bio` updates the field. Leave the model off and pass `defaultValue` to keep
+the state inside the component; `valueChange` fires either way. See
+[Models](/zero/docs/models/).
+
+### Inside a Field
+
+```tsx
+<Field.Root required invalid={!!state.error}>
+    <Field.Label>Message</Field.Label>
+    <Textarea.Root model={() => state.message} name="message" rows={6}>
+        <Textarea.Textarea />
+    </Textarea.Root>
+    <Field.Description>Markdown is supported.</Field.Description>
+    <Field.Error>{state.error}</Field.Error>
+</Field.Root>
+```
+
+Inside a [`Field.Root`](/zero/docs/components/field/) the `<textarea>` adopts the field's
+control id, its `disabled` / `invalid` / `required` flags and its `aria-describedby`, so
+`Textarea.Label` becomes optional — the `Field.Label` names it. Standalone, the component
+mints its own ids and `Textarea.Label` is the label.
+
+### Rows and sizing
+
+```tsx
+<Textarea.Root model={() => state.notes} rows={10}>
+```
+
+`rows` passes straight through to the element. Zero does not auto-size the box — growing it
+means measuring `scrollHeight` against a collapsed height on every keystroke, which is a
+layout behavior rather than an anatomy one — and whether the box is user-resizable is the
+design system's call (`resize: vertical` is the usual choice).
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled`, `invalid`, `required`, `readonly` | Carries the variant axes. |
+| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the textarea's id. Inside `root`. |
+| `textarea` | `textarea` | — | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` | The native element; carries `name`, `rows`, `aria-invalid` and `aria-describedby`. The chrome draws here. Inside `root`. |
+
+Every part carries `data-scope="textarea"` and `data-part="<part>"`. There are no machine
+states, only flags. Where [Input](/zero/docs/components/input/) has a `control` box as the
+seam for something to sit beside the text, a textarea's scrollbar and resize handle belong to
+the element itself, so a wrapper would be chrome with nothing to wrap: the `focus-visible`
+flag, the `radius-field` and `size` token hints all live on the `textarea` part. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+There is no `hidden-input` part either: a `<textarea>` is a form control and carries its own
+`name`, so it posts pre-hydration without a mirror.
+
+## Props
+
+### `Textarea.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Two-way binding of the text. |
+| `defaultValue` | `string` | `''` | Initial value when uncontrolled. |
+| `valueChange` | event `(value: string)` | — | Fires on every change of the value. |
+| `name` | `string` | — | Form field name, rendered on the `<textarea>`. |
+| `autocomplete` | `string` | — | Native autofill hint — `street-address`, `off`, … |
+| `maxlength` | `number` | — | Native `maxlength`. |
+| `rows` | `number` | — | Native `rows`; the element's default applies when unset. |
+| `required` | `boolean` | `false` | Renders `required` and `data-required`; a wrapping Field's `required` also applies. |
+| `invalid` | `boolean` | `false` | Renders `aria-invalid` and `data-invalid`; a wrapping Field's `invalid` also applies. |
+| `readonly` | `boolean` | `false` | Renders `readonly` and `data-readonly`. |
+| `disabled` | `boolean` | `false` | Renders `disabled` and `data-disabled`; a wrapping Field's `disabled` also applies. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Textarea.Label`
+
+Only `class`. Renders the `label` part around its children.
+
+### `Textarea.Textarea`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `placeholder` | `string` | — | Native placeholder text. |
+| `class` | `string` | — | Extra classes on the `<textarea>`. |
+
+`name`, `autocomplete`, `maxlength`, `rows`, the flags and the ids all come from
+`Textarea.Root` through context; the element part takes only what is specific to it.
+
+## Keyboard
+
+The platform's: multi-line text editing, Tab in and out. Enter inserts a newline rather than
+submitting a form, as a native `<textarea>` does. Zero adds nothing on top.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on textarea, so `<Textarea.Root color="accent" size="sm">` is styled
+in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Related
+
+[Input](/zero/docs/components/input/) · [Field](/zero/docs/components/field/)

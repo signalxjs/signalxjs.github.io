@@ -381,7 +381,7 @@ function extendTheme(base: string, patch: {
 }): Theme;
 ```
 
-Derives a new full `Theme` from a registered `base`, overriding tokens and recomputing any soft tints the patch did not set. Throws if `base` is not registered. Pass the result to `registerTheme()`.
+Derives a new full `Theme` from a registered `base`, overriding tokens and recomputing any soft tints the patch did not set. Throws if `base` is not registered. Pass the result to `registerTheme()`. The derived theme **never inherits `staticCss`** — it is a new name with no generated stylesheet rule behind it, so it paints through the inline path.
 
 ### pickThemeFor
 
@@ -450,10 +450,13 @@ interface ThemeInput {
   radius?: ThemeRadius;
   sizes?: ThemeSizes;
   softMix?: number;
+  staticCss?: boolean;
 }
 ```
 
-What a theme author writes: core tokens required, `*-soft` optional. `softMix` defaults to `0.16`. (The `staticCss` option was removed in 0.19 — themes ride inline CSS variables, so first-frame paint is correct without a build-time class.)
+What a theme author writes: core tokens required, `*-soft` optional. `softMix` defaults to `0.16`.
+
+`staticCss` declares that the design system generated a stylesheet rule for this theme from the same registry data at build time — a `.theme-name { --color-*: …; background-color: …; color: … }` rule plus its `@media (prefers-color-scheme: …)` twin under `.lynx-zero.scheme-<variant>-<theme-name>`. `ThemeProvider` then lets the CSS engine resolve the palette instead of declaring it inline; `hasStaticCss(name)` reads the flag. Leave it unset for anything registered at runtime — a tenant palette fetched from a backend, or a theme derived with `extendTheme()`. Claiming `staticCss` for a theme whose CSS does not exist leaves the app with **no** palette at all.
 
 ### ThemePaletteInput
 

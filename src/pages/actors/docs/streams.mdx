@@ -47,6 +47,21 @@ state** from a stream body. Dev builds warn when a body reads live `ctx.state`.
 `ctx.changes()` yields a detached snapshot after every mutating turn, through a bounded
 buffer that drops oldest.
 
+### Snapshot a subtree, not the whole state
+
+`ctx.snapshot()` clones everything, and on a large state that is an O(state) cost per read.
+`ctx.snapshot(value)` clones an arbitrary **value** through the host codec instead — the same
+encode-and-revive a state snapshot uses, so custom `types:` handlers round-trip where a
+`structuredClone` would throw or strip them:
+
+```ts
+methods: (ctx) => ({
+    items: () => ctx.snapshot(ctx.state.items),   // detached copy of one subtree
+}),
+```
+
+Reach for it whenever a read must return part of a large state detached.
+
 ## Seed with `{ initial: true }`
 
 ```ts

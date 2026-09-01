@@ -74,8 +74,10 @@ Node upgrade does not come with — scheme `http` (the session folds `ws:`/`http
 origin), headers including cookies and `Origin` carried over verbatim.
 
 Everything `AttachActorSocketOptions` inherits — `host`, `origin`, `maxMessageBytes`,
-`maxConcurrent`, `maxSubscriptions`, `pingMs`, `revalidateMs`, `maxConnectionMs`, `onError`,
-`stats` — is documented under [Socket sessions](/actors/docs/socket-sessions).
+`maxConcurrent`, `maxSubscriptions`, `pingMs`, `revalidateMs`, `maxConnectionMs`,
+`throttlePolicy`, `onError`, `stats` — is documented under
+[Socket sessions](/actors/docs/socket-sessions). `bufferedBytes` is supplied by the adapter
+from the socket's `bufferedAmount`.
 
 ### Structural types
 

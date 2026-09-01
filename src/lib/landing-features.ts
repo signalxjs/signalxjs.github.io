@@ -50,6 +50,14 @@ const FEATURES: Record<string, LandingFeature[]> = {
         { icon: 'cube', title: 'Just a function call', body: 'Call an actor from a component, a server function or another actor with the same expression. The Vite plugin swaps actor modules for typed client stubs, so the browser gets a proxy and never the implementation.' },
         { icon: 'terminal', title: 'One node until it isn\'t', body: 'Start with zero infrastructure. Add Redis, Postgres or Kubernetes membership when one process stops being enough — the actor code does not change, only the providers you hand the app.' },
     ],
+    zero: [
+        { icon: 'cube', title: 'Unstyled, by contract', body: 'Every part renders data-scope / data-part / data-state and nothing else. No classes, no inline styles — the anatomy is a machine-readable contract a stylesheet selects on.' },
+        { icon: 'bolt', title: 'One two-way model prop', body: 'model={() => state.open} binds a signal property both ways. No value / defaultValue / onValueChange triplets — a named model per extra piece of state when a component has more than one.' },
+        { icon: 'layers', title: 'Native platform first', body: '<dialog> and the top layer instead of a Portal, the popover attribute, <details> disclosure, real form inputs that post before hydration. The platform does the work; zero adds the anatomy.' },
+        { icon: 'sparkle', title: 'A design system is data', body: 'Typed tokens and per-part recipes, compiled by @sigx/zero-kit into plain layered CSS. Swap the whole look of an app by swapping one import; keep the components.' },
+        { icon: 'book', title: 'Generatable, and validated', body: 'The anatomy manifest ships as JSON with ready-made selectors, so a design system can be generated against it — and sigx zero:validate checks token completeness, WCAG contrast and state coverage before it ships.' },
+        { icon: 'terminal', title: 'Typed to the design system', body: 'One import of a design system’s generated /register module narrows every color, size and variant prop to exactly what its compiled CSS answers to. Or use its ./components module for vendor-named props.' },
+    ],
     deploy: [
         { icon: 'bolt', title: 'One fetch handler', body: 'createFetchHandler is the whole runtime story — a WinterCG Request → Response handler that runs unchanged on Node, workerd, Deno, Bun and the edge runtimes.' },
         { icon: 'book', title: 'You own the entry', body: 'src/entry.<platform>.ts is scaffolded once and never overwritten — the static → server functions → document composition stays a readable file in your repo.' },

@@ -1,0 +1,211 @@
+---
+title: Tokens
+description: "TokensInput for @sigx/zero-kit — the colour-role grammar, the size ramp, variant vocabularies, custom axes, modifiers, per-scope narrowing, the closed token categories with open keys, system / systemDark, custom tokens, breakpoints, swatches and themes"
+layout: docs
+category: Authoring design systems
+order: 61
+---
+
+# Tokens
+
+<p class="lede">`defineTokens()` declares everything about a design system that is not a
+per-component style: which colour roles, sizes, variants, axes and modifiers exist; the
+non-colour token values, once for the whole design system; and the themes, each a palette
+over the declared roles. Both halves of the token contract follow one shape — a closed set of
+categories, each fixing a `--prefix-` and a value grammar, with open keys inside that you
+declare.</p>
+
+## Colour is a grammar, not a vocabulary
+
+Each design system declares its own colour **roles**. Every role emits `--color-<role>`, and
+by default `--color-<role>-content` (the readable foreground, contrast-validated) and
+`--color-<role>-soft` (a derived tint). Only the base surfaces are fixed:
+`base-100`, `base-200`, `base-300`, `base-content` — they anchor `-soft` derivation,
+`light-dark()` emission and theme swatches.
+
+```ts
+roles: {
+    primary: {}, secondary: {}, accent: {}, neutral: {},
+    info: {}, success: {}, warning: {}, error: {},        // the recommended eight
+    surface: { content: false, soft: false },             // a fill: no -content, no -soft
+}
+```
+
+Omit `roles` and the design system takes the recommended eight. A role opting out of
+`-content` or `-soft` is a fill or a hairline (a tonal surface, an outline colour) — something
+a button cannot be, which is why recipes derive their colour axis from the roles that keep
+both. Role names follow `ROLE_NAME_PATTERN`; two roles whose derived properties collide
+(`danger` derives `--color-danger-soft`; a role literally named `danger-soft` emits the same
+property) are an error.
+
+`roles: {}` is a different statement from omitting it: it declares that this design system
+has **no colour axis**. Every recipe keying `variants.color` errors, and the `/register`
+artifact types `color: never` everywhere. See [Declining an axis](#declining-an-axis).
+
+## The size axis
+
+`sizes` is the vocabulary of the `data-size` axis — what the `size` prop accepts:
+
+```ts
+sizes: ['compact', 'comfortable', 'spacious'],   // or [...SIZE_SCALE_LIST, '2xl']
+```
+
+Omitted, it is the recommended `xs` – `sm` – `md` – `lg` – `xl` ramp. Three things share the
+word: `tokens.sizes` is the `data-size` **axis**; `system.size` is the `--size-*`
+control-sizing **unit** (`selector`, `field`); `system.typography.sizes` is the `--text-*`
+**ramp**. They are three different things.
+
+## Variants, axes and modifiers
+
+```ts
+variants: ['solid', 'outline', 'soft', 'ghost'],   // the data-variant vocabulary
+axes: { density: ['compact', 'comfortable'] },      // any further axes: data-density
+modifiers: ['block', 'icon-only'],                  // presence-only: data-mod-block
+```
+
+Declaring a vocabulary **closes** it: a recipe keying a value outside the declared set is a
+build error listing the set. `variants`, `modifiers` and `axes` have no recommended
+default, so omitting one leaves that axis undeclared and unchecked. Axis names and values are
+kebab-case identifiers (they are interpolated into attribute selectors), and an axis may not
+be named after a reserved name — `color`, `size`, `variant`, `mods`, `axes`, `scope`,
+`part`, `state`, `orientation` or any flag (`RESERVED_AXES`).
+
+Not every switch is an axis. An axis answers *which one* and carries a value; a modifier
+answers *is it on* and carries none — daisyUI's `block`, HeroUI's `icon-only`. Declare those
+in `modifiers`, wire them in a recipe's `modifiers` block, and consumers set them through
+`mods`. A one-member axis (`axes: { block: ['block'] }`) is not the way to express this.
+
+The `variant` vocabulary is the design system's own. `solid | outline | soft | ghost` is a
+convention the shipped design systems share, not a contract; a design language whose
+colour is fused into its variants (`primary | secondary | tertiary | outline | ghost |
+danger | danger-soft`, with `roles: {}`) is just as valid.
+
+## Per-scope vocabularies
+
+Real design systems do not give every component the same variants. Declare the **union** at
+the top level and say which part of it each scope offers:
+
+```ts
+variants: ['solid', 'outline', 'soft', 'ghost'],          // the UNION
+scopes: {
+    button: { variants: ['solid', 'outline', 'soft', 'ghost'] },
+    select: { variants: ['outline', 'soft', 'ghost'] },
+    badge:  { variants: ['solid', 'soft', 'outline'] },
+    table:  { modifiers: ['zebra', 'hover'] },
+},
+```
+
+Every axis takes a restriction — `colors`, `sizes`, `variants`, `axes`, `modifiers` — and a
+scope may only narrow. An **absent** key means the scope offers the whole union; an **empty
+list** is the positive claim "this scope has no such axis". The narrowing is enforced: a
+recipe keying a value outside the scope's set is an error, `register.d.ts` narrows the
+component's prop to the set, and the manifest advertises it per scope.
+
+The unit is the **scope, not the part**: zero puts one attribute per axis on the scope's
+carrier and cascades it to every part below, so two vocabularies inside one component are two
+**axes** — a select whose trigger and popup vary independently declares the second in
+`axes`. `parts` inside a scope entry is rejected by name.
+
+## Declining an axis
+
+Absence means "I didn't say"; empty means "there isn't one".
+
+| Declaration | Meaning |
+|---|---|
+| `roles` omitted | the recommended eight roles |
+| `roles: {}` | no colour axis; `color` is `never` |
+| `sizes` omitted | the recommended `xs`–`xl` ramp |
+| `sizes: []` | no size axis; `size` is `never` |
+| `variants` omitted | undeclared — recipes are not checked against a list |
+| `scopes.x.variants: []` | scope `x` has no variant axis |
+
+`variants: []` at the design-system level is an error ("declared but empty — omit it to
+leave the vocabulary undeclared").
+
+## Non-colour tokens: categories
+
+Non-colour tokens are declared **once**, in `system`, not per theme. The categories are
+closed — each fixes a prefix and a value grammar — and the keys inside are yours:
+
+| Category | Prefix | Recommended keys | Grammar |
+|---|---|---|---|
+| `radius` | `--radius-` | `selector`, `field`, `box` | `<length>` |
+| `size` | `--size-` | `selector`, `field` | `<length>` — the unit control sizing multiplies |
+| `typography.fonts` | `--font-` | `sans`, `serif`, `mono`, `display` | families only, never sizes |
+| `typography.sizes` | `--text-` | `xs` … `3xl` | `<length>`; every key also emits `--text-fixed-<key>` |
+| `typography.weights` | `--weight-` | `normal`, `medium`, `semibold`, `bold` | `<number>` |
+| `typography.leading` | `--leading-` | `none`, `tight`, `normal`, `relaxed` | unitless |
+| `typography.tracking` | `--tracking-` | `tight`, `normal`, `wide` | `<length>` |
+| `spacing` | `--space-` | `2xs` … `2xl` | `<length>` |
+| `shadow` | `--shadow-` | `xs` … `xl` | any |
+| `motion.durations` | `--duration-` | `instant`, `fast`, `normal`, `slow` | `<time>` |
+| `motion.easings` | `--ease-` | `linear`, `standard`, `emphasized` | any |
+| `border` | `--border` | scalar | `<length>` |
+| `disabledOpacity` | `--disabled-opacity` | scalar | `<number>` |
+
+The recommended keys are the ones `@sigx/zero/css` ships fallbacks for, so omitting a
+category is never an error. Declare any other keys you need and they flow into the manifest
+and the `/register` types. The `--text-*` ramp can be listed in `typography.sizes` or
+generated from a modular `typography.scale: { base, ratio }`, with `sizes` winning per key.
+
+Resolution is `system` → `systemDark` → `theme.system`: `systemDark` overrides values for
+dark-scheme themes, and a single theme can override through its own `system` block.
+
+## Themes
+
+```ts
+defaultLight: 'basic', defaultDark: 'basic-dark',
+themes: {
+    basic: {
+        colorScheme: 'light',
+        pair: 'basic-dark',
+        colors: { primary: 'oklch(45% 0.11 205)', 'primary-content': 'oklch(98% 0.01 205)', /* every role, + base-100/200/300/base-content */ },
+        // softMix?: number   — the -soft derivation strength for this theme
+        // system?: { … }     — per-theme overrides of the category values
+        // custom?: { … }     — values for declared custom tokens
+        // extra?: { … }      — additional raw custom properties
+    },
+    'basic-dark': { colorScheme: 'dark', pair: 'basic', colors: { /* … */ } },
+},
+```
+
+Every theme defines every declared role (and its `-content` where declared) plus the four
+base surfaces; `-soft` is optional and derived when omitted. `colorScheme` is the closed
+`'light' | 'dark'` pair; theme names are open. `pair` names the theme `toggle()` switches to;
+`defaultLight` / `defaultDark` name the themes `:root` uses under each system preference
+(`defaultLight` is required). Any number of themes is fine — `@sigx/zero-daisyui` declares
+five. See [Theming](/zero/docs/theming/).
+
+Colour tokens differ between the default light and dark themes through `light-dark()`;
+everything else — category values, `custom`, `extra` — is emitted in a
+`prefers-color-scheme: dark` block whenever the two defaults disagree. Give a value a light
+counterpart if you want it to differ under dark: an explicitly selected light theme has to
+have something to restate.
+
+## Custom tokens, breakpoints, swatch
+
+```ts
+custom: {
+    depth: { description: "daisy's inset-shadow depth: 1 = shadowed, 0 = flat.", syntax: '<number>' },
+},
+breakpoints: { sm: '640px', md: '768px', lg: '1024px' },
+swatch: ['primary', 'accent', 'base-100', 'base-content'],
+```
+
+- `custom` declares design-system-specific tokens (name → `description`, optional `syntax`
+  for an `@property` registration), valued per theme in `custom`. Declared, they are
+  validated, appear in the manifest, and autocomplete through `cssVar`.
+- `breakpoints` are the named `at` conditions recipes use (`@media (min-width: …)`),
+  declared ascending. `reduced-motion`, `hover-none`, `prefers-dark`, `forced-colors`,
+  `print` and `starting-style` are reserved built-in names.
+- `swatch` is what a theme picker samples; omitted, it is the first four declared roles plus
+  `base-100` and `base-content` (`defaultSwatch`).
+
+## What the declaration produces
+
+Declared roles are `@property`-registered (typed `<color>`, so theme switches animate) in the
+compiled `tokens.css`; `-soft` is not, because its value can be `color-mix()`. The design
+system's `dist/manifest.json` carries `roles`, `sizes`, `variants`, `axes`, `modifiers`,
+`scopes`, `custom`, `breakpoints`, `system`, `systemDark` and `properties` — every custom
+property the compiled stylesheet actually emits, read back off the stylesheet so it cannot
+drift. See [Manifests and schemas](/zero/docs/manifests/).

@@ -1,0 +1,174 @@
+---
+title: "Steps"
+description: "The @sigx/zero Steps component — a wizard's step rail of native <button> items whose active / complete / inactive states derive from DOM order, with arrow keys that rove focus without changing the step."
+layout: docs
+category: ["Components", "Navigation"]
+order: 404
+---
+
+# Steps
+
+<p class="lede">The step rail of a wizard: a `role="group"` of steps, each a real `<button>`
+with an indicator disc, a title, a description and the separator line toward the next one.
+The active step is one two-way `model`; every step before it in DOM order is `complete`,
+every step after it `inactive` — the walk of the wizard, told by ink rather than by
+position alone.</p>
+
+## Import
+
+```tsx
+import { Steps } from '@sigx/zero/steps';
+```
+
+`Steps` is a compound: `Steps.Root`, `Steps.Item`, `Steps.Indicator`, `Steps.Separator`,
+`Steps.Title`, `Steps.Description`. It is also re-exported from the `@sigx/zero` root,
+together with `stepsAnatomy`, `useStepsContext` and `useStepsItemContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Steps } from '@sigx/zero/steps';
+
+const Checkout = component(({ signal }) => {
+    const state = signal({ step: 'details' });
+
+    return () => (
+        <Steps.Root model={() => state.step} label="Checkout">
+            <Steps.Item value="cart">
+                <Steps.Indicator>1</Steps.Indicator>
+                <Steps.Title>Cart</Steps.Title>
+                <Steps.Description>Review your items</Steps.Description>
+                <Steps.Separator />
+            </Steps.Item>
+            <Steps.Item value="details">
+                <Steps.Indicator>2</Steps.Indicator>
+                <Steps.Title>Details</Steps.Title>
+                <Steps.Separator />
+            </Steps.Item>
+            <Steps.Item value="payment">
+                <Steps.Indicator>3</Steps.Indicator>
+                <Steps.Title>Payment</Steps.Title>
+            </Steps.Item>
+        </Steps.Root>
+    );
+});
+```
+
+`model={() => state.step}` binds the active step's `value` both ways — clicking a step
+writes `state.step`, and writing `state.step` moves the rail. Leave the model off and pass
+`defaultStep` to keep the state inside the component; `stepChange` fires either way. See
+[Models](/zero/docs/models/).
+
+With no step set at all (uncontrolled, no `defaultStep`) nothing is active and nothing has
+been walked past: every item is `inactive`, and the first enabled item is the tab stop.
+
+### Vertical rail
+
+```tsx
+<Steps.Root defaultStep="cart" orientation="vertical">
+```
+
+`orientation` renders as `data-orientation` on the root, every item and every separator,
+and switches the roving keys: a horizontal rail moves on ArrowLeft / ArrowRight, a vertical
+one on ArrowUp / ArrowDown.
+
+### Rendering a step as your own element
+
+```tsx
+<Steps.Item value="cart" asChild>
+    {(p) => <a href="/checkout/cart" {...p}>Cart</a>}
+</Steps.Item>
+```
+
+With `asChild` the default slot receives the part's attribute bag; spread it so the anatomy,
+`aria-current`, `tabIndex` and the keyboard wiring land on your element. The bag also
+supplies the button contract the native element carried itself — `role="button"`, and
+`aria-disabled` while disabled — and synthesises Enter / Space activation on elements
+where the platform does not.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled` | `role="group"`, `aria-label` from `label`, `data-orientation`. Carries the variant axes. |
+| `item` | `button` | `active` \| `complete` \| `inactive` | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-current="step"` when `active`; `data-orientation`. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). `asChild`. |
+| `indicator` | `span` | `active` \| `complete` \| `inactive` | — | Mirrors its item's state. Inside `item`. |
+| `separator` | `span` | `complete` \| `inactive` | — | `aria-hidden` line toward the next step; `data-orientation`. Inside `item`. |
+| `title` | `span` | — | — | Inside `item`. |
+| `description` | `span` | — | — | Inside `item`. |
+
+Every part carries `data-scope="steps"` and `data-part="<part>"`. The item is a real
+`<button>`, so every band inside it is a `<span>` — a button's content model excludes flow
+content. The separator lives *inside* the item because the line from this step toward the
+next is this step's own geometry; it bridges past the button's box, so recipes give it
+`pointer-events: none`. Its state is the walked pair only: `complete` once its own item is
+complete, otherwise `inactive` — an active item's separator is a line the walk has reached,
+not crossed. `title` and `description` carry no states on purpose; a recipe that wants an
+emphasised active title reaches it through the item's state
+(`[data-part="item"][data-state="active"] [data-part="title"]`). See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+The indicator is **not** `aria-hidden`: its content is the step's number, which is
+information, and for an item rendered with only an indicator it is the button's entire
+accessible name. A consumer whose indicator is purely decorative wraps the decoration in
+its own `aria-hidden` element.
+
+## Props
+
+### `Steps.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Two-way binding of the active step's `value`. |
+| `defaultStep` | `string` | — | Initial step when uncontrolled. |
+| `stepChange` | event `(value: string)` | — | Fires whenever the active step changes. |
+| `loop` | `boolean` | `false` | Arrow keys wrap from the last step to the first. |
+| `label` | `string` | — | Accessible name of the `role="group"` container. |
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Roving-key axis; rendered as `data-orientation`. |
+| `disabled` | `boolean` | `false` | Disables every step; renders `data-disabled`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `Steps.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | The step this item selects. |
+| `disabled` | `boolean` | `false` | Skipped by roving focus; renders `data-disabled`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes. |
+
+### `Steps.Indicator`, `Steps.Separator`, `Steps.Title`, `Steps.Description`
+
+Only `class`.
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| ArrowRight / ArrowLeft (horizontal), ArrowDown / ArrowUp (vertical) | Move focus to the next / previous enabled step — the active step does not change. |
+| Home / End | First / last enabled step. |
+| Enter / Space / click | Select the focused step. |
+| Tab | Leaves the rail. |
+
+One tab stop: the active step, or the first enabled step when none is active. Arrow keys
+rove focus only — a wizard step is selected on purpose, never by passing over it.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on the steps root, so `<Steps.Root color="primary" size="sm">` is
+styled in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A recipe paints the rail from three parts: the `indicator` disc filled for `active` and
+`complete`, the `separator` line tinted for `complete`, and the item's own state for the
+text. Because `complete` is position-derived, a rail never needs the app to say which steps
+are done — the model alone tells the whole story.
+
+## Related
+
+[Tabs](/zero/docs/components/tabs/) for the same roving-and-select shape over panels,
+[Timeline](/zero/docs/components/timeline/) for the read-only list a rail resembles.

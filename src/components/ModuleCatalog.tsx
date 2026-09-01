@@ -81,6 +81,15 @@ export const ModuleCatalog = component<ModuleCatalogProps>(({ props, signal }) =
                             transport when connection count starts to hurt, and the tooling when you
                             need to see inside a running cluster.
                         </p>
+                    ) : props.parent === 'zero' ? (
+                        <p>
+                            <code class="inline">@sigx/zero</code> is the runtime — the components, their
+                            behaviors and the anatomy contract. A design system is a separate CSS artifact
+                            you add beside it: start with <code class="inline">@sigx/zero-basic</code> or{' '}
+                            <code class="inline">@sigx/zero-daisyui</code>, or compile your own with{' '}
+                            <code class="inline">@sigx/zero-kit</code>. Published in lockstep; each one
+                            carries its own docs.
+                        </p>
                     ) : props.parent === 'terminal' ? (
                         <p>
                             Everything in the terminal repo — the <code class="inline">@sigx/terminal</code>{' '}

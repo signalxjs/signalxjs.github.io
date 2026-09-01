@@ -1,0 +1,135 @@
+---
+title: Manifests and schemas
+description: "The two manifest.json artifacts in @sigx/zero — the anatomy manifest @sigx/zero ships and the versioned design-system manifest a compiled design system ships — plus ecosystem fragments, the coverage report, and the JSON Schemas served at /zero/schemas/"
+layout: docs
+category: Authoring design systems
+order: 65
+---
+
+# Manifests and schemas
+
+<p class="lede">Two different artifacts share the filename `manifest.json`, and they share only
+the filename. Zero's **anatomy manifest** describes the contract — every component's parts,
+states, flags and token hints. A **design-system manifest** describes what one design
+system declares and wires against it. Both are governed by JSON Schemas, served from this
+site.</p>
+
+## The anatomy manifest
+
+`@sigx/zero/manifest.json` — generated at build from every component's `anatomy.ts` — is the
+registry a design system is written against and the file a generator reads first:
+
+```json
+{
+  "$schema": "https://signalxjs.github.io/zero/schemas/manifest.schema.json",
+  "zeroVersion": "0.2.0-beta.1",
+  "attributeSpec": { "scope": "data-scope", "part": "data-part", "state": "data-state",
+                     "flagForm": "presence (data-<flag>=\"\"), never \"false\"",
+                     "flagVocabulary": ["disabled", "highlighted", "…"],
+                     "stateVocabulary": { "presence": ["open", "closed"], "…": [] },
+                     "stateSynonyms": { "expanded": "open", "…": "" },
+                     "placementVocabulary": ["top", "top-start", "…"],
+                     "variantAxes": { "color": "data-color", "size": "data-size", "variant": "data-variant" },
+                     "extraAxisForm": "data-<axis>, set via the `axes` prop; …" },
+  "tokens": { "colors": { "convention": {}, "required": [], "recommendedRoles": [] },
+              "categories": [], "recommendedSizes": ["xs", "sm", "md", "lg", "xl"] },
+  "components": [ { "scope": "tabs", "orientation": true, "parts": [ { "name": "tab", "element": "button", "parent": "list",
+                    "states": ["active", "inactive"], "flags": ["disabled", "focus-visible", "pressed", "press-animating"],
+                    "tokens": ["color", "radius-field", "size", "text"], "asChild": true,
+                    "selectors": { "active": "[data-state=\"active\"]", "disabled": "[data-disabled]" } } ] } ]
+}
+```
+
+- `attributeSpec` — the attribute names, the presence-only flag form, the flag / state /
+  placement vocabularies, the synonym table, the three named variant axes and the open
+  `data-<axis>` form.
+- `tokens` — the colour convention (`--color-` prefix, `-content` / `-soft` suffixes, the
+  four required base surfaces, the recommended roles), the closed token `categories` with
+  their prefix, path, recommended keys, syntax and description, and the recommended sizes.
+- `components` — an **array** of `anatomy.toJSON()` snapshots. Each part carries `element`,
+  `parent`, `states`, `flags`, `placements`, `hiddenIn`, `pseudo`, `asChild`, its token
+  hints, and ready-made per-state selector fragments.
+
+There is no `manifestVersion`: a contract change ships a new zero version and a new schema.
+A copy of every shipped `manifest.json` is what a design-system build validates against
+(`--manifest`, defaulting to the installed `@sigx/zero`'s).
+
+## The design-system manifest
+
+A compiled design system ships `dist/manifest.json` (exported as `./manifest.json`),
+governed by `ds-manifest.schema.json`:
+
+```json
+{
+  "$schema": "https://signalxjs.github.io/zero/schemas/ds-manifest.schema.json",
+  "manifestVersion": 1,
+  "zeroVersion": "0.2.0-beta.1",
+  "name": "basic",
+  "themes": [ { "name": "basic", "colorScheme": "light", "pair": "basic-dark", "swatch": { "primary": "oklch(…)" } } ],
+  "tokens": { "roles": {}, "sizes": [], "variants": [], "axes": {}, "modifiers": [], "scopes": {},
+              "custom": {}, "breakpoints": {}, "system": {}, "systemDark": {}, "properties": ["--border", "--color-accent", "…"] },
+  "components": { "button": { "color": ["primary", "…"], "size": ["xs", "…"], "variant": ["solid", "outline", "soft", "ghost"],
+                              "axes": {}, "mods": [], "defaults": { "color": "primary", "variant": "solid", "size": "md" },
+                              "offered": { "variant": ["solid", "outline", "soft", "ghost"] } } },
+  "api": { "button": { "carrier": "root", "singlePart": true, "props": { "wide": { "modifier": "wide" } } } }
+}
+```
+
+- `manifestVersion` is `const 1` (`DS_MANIFEST_VERSION`) — consumers hard-check the number
+  rather than sniffing keys. `zeroVersion` is the kit's own version; lockstep makes them the
+  same train.
+- `themes` carry each theme's name, scheme, pair and derived swatch.
+- `tokens` carries the whole declaration plus `properties` — every custom property the
+  compiled `tokens.css` actually emits, read back off the stylesheet so it cannot drift.
+- `components` is a **record**, scope → the harvested `CompiledComponentAxes`: what the
+  recipes actually wire per axis (values, custom axes, mods, defaults), plus `offered` when
+  the scope restricts something in `tokens.scopes`. The array/record asymmetry is the
+  cleanest proof the two manifests are different artifacts.
+- `api` is present when the design system declares one: per scope, the carrier, whether the
+  scope is a single part, and each vendor prop's route.
+
+The manifest is **self-validated at write time**: `writeArtifacts` round-trips the object
+through JSON and validates it against the schema, so a manifest the schema rejects fails the
+build that produces it, not the app that reads it. Consumers use the exported
+`DesignSystemManifest` type rather than re-declaring the shape.
+
+## Fragments
+
+An ecosystem component enters a design system's manifest as a fragment,
+`{ version: 1, package, components }` (`FRAGMENT_VERSION`; schema `fragment.schema.json`),
+where `components` is literally zero's own component shape — `anatomy.toJSON()` — plus
+ownership. `mergeManifests(base, ...fragments)` enforces the version pin, the package
+specifier grammar, scope and part-name grammar, the shared vocabularies, `hiddenIn ⊆
+states` and `parent` acyclicity, hard-errors on a scope collision naming the existing owner,
+and stamps every merged component with its owning `package`. That provenance survives
+compilation: the register artifact excludes merged scopes by name from its `ZeroScope` gate,
+and a generated `./components` module imports them from their owning package. See
+[Building your own component](/zero/docs/ecosystem-components/).
+
+## The report
+
+`dist/report.json` is the coverage report `zero:validate --report-json` prints, declared
+against `report.schema.json` (`reportVersion: 1`). See
+[Validate and build](/zero/docs/validate-and-build/#the-coverage-report).
+
+## The JSON Schemas
+
+The kit ships JSON Schemas (draft 2020-12) for every authoring surface in its
+`dist/schemas/`, and each `$id` points at the copy served from this site under
+[`/zero/schemas/`](/zero/docs/schemas/):
+
+| Schema | Governs |
+|---|---|
+| `tokens.schema.json` | `TokensInput` |
+| `recipe.schema.json` | `RecipeInput` |
+| `manifest.schema.json` | the `@sigx/zero` anatomy manifest |
+| `ds-manifest.schema.json` | a compiled design system's `dist/manifest.json` |
+| `report.schema.json` | the coverage report |
+| `fragment.schema.json` | an ecosystem manifest fragment |
+| `lynx-manifest.schema.json` | a compiled design system's `dist/lynx/manifest.json` |
+
+They close the JSON-first authoring loop: a generator emits tokens and recipes as plain JSON,
+checks them against the schema for structural mistakes, wraps them in `defineTokens` /
+`defineRecipe`, and runs `sigx zero:validate` for the semantic half — completeness, contrast,
+anatomy and token-reference checks a schema cannot see. The kit's test suite validates every
+shipped design system's tokens and recipes, and the real zero manifest, against them.

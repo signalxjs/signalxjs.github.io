@@ -43,6 +43,7 @@ const AREA_LABELS: Record<string, string> = {
     server: 'SignalX Server',
     deploy: 'Deploying SignalX',
     actors: 'SignalX Actors',
+    zero: 'SignalX Zero',
     errors: 'SignalX error codes',
     blog: 'SignalX blog',
 };

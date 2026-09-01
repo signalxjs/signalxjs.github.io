@@ -221,6 +221,95 @@ Writing a custom `ClusterMembership`? `refreshCoalescer()` from `@sigx/actors/cl
 same primitive: `demand()` preserves `ClusterMembership.refresh()`'s started-at-or-after
 contract, and `settled()` is for teardown.
 
+## Heterogeneous clusters: registration-aware placement
+
+A cluster member is only ever chosen to host an actor type its app **registers** —
+`defineActorApp({ actors })`. Different roles may register different actor apps and join one
+cluster: web pods registering only a relay worker and a cache actor, engine pods registering
+everything. A type never lands on a host that does not register it, structurally.
+
+Each host publishes its registered type names in its membership descriptor —
+`HostDescriptor.types` — and `Host.registeredTypes()` returns the same sorted list locally.
+Placement enforces eligibility at every decision point: a cached route naming a
+non-registering host is dropped, a directory entry pointing at one is evicted and the actor
+re-placed, and the [policy](/actors/docs/placement-policies) is handed a view already narrowed
+to the hosts registering the type.
+
+**When no active host registers a type**, placement throws
+[`ActorUnplaceableError`](/actors/docs/errors) (`kind: 'unplaceable'`) rather than silently
+widening to the full view — silently widening is how a type lands on a host that never
+registered it. It is retried against a refreshed membership view, because the one pod
+registering a type being mid-join *is* a rolling deploy, and it surfaces as the `cause` of the
+final `ActorActivationError` once the retries are spent:
+
+```
+actor type "Report" is registered by no ACTIVE host (view: 3 hosts, 3 active).
+Add "Report" to some host's defineActorApp({ actors }), or check that the pods registering it are up.
+```
+
+A host that is still `joining` or already `leaving` does not count.
+
+**The receiving side enforces the same rule.** An inbound cluster call for a type this host
+does not register answers `wrong-host` with no owner hint, so the caller evicts its route and
+re-places — rather than a 404, which is terminal.
+
+**Mixed versions.** A descriptor **without** `types` reads as "registers everything" — the
+only safe direction, since absent-means-ineligible would empty every view mid-rolling-deploy.
+Consequently, while a fleet is half-published, older pods stay eligible for a brand-new type;
+a newer receiving pod refuses it with `wrong-host` so the caller re-places instead of caching
+a poisoned route.
+
+Reminder shard ownership stays rendezvous over the **full** active view — shards are
+host-level, not typed — and a host registering only workers has nothing to fence and keeps
+serving them.
+
+## Targeted worker calls: `members()` and `dispatchOn()`
+
+Placement routes a call to wherever the actor lives. A
+[stateless worker](/actors/docs/stateless-workers) executes on the host that *receives* the
+call — that is what a worker is — so for workers, choosing the host is meaningful.
+`ClusterPlacement` exposes the two primitives:
+
+```ts
+import { workerOn } from '@sigx/actors/cluster';
+
+// every active member registering the worker — the pod registry you would otherwise hand-roll
+const relays = placement.members({ registers: 'WebsocketRelay' });
+
+await Promise.all(
+    relays.map((member) => workerOn(placement, member, WebsocketRelay).broadcast(roomId, payload)),
+);
+```
+
+**`members(filter?)`** enumerates the current view, self included — `status: 'active'` by
+default (`'any'` disables the filter), optionally narrowed with `registers: '<Type>'`. A
+synchronous read with no I/O. A descriptor without `types` matches any filter, the same rule
+placement applies.
+
+**`dispatchOn(target, ref, method, args, options?)`** invokes a worker method **on** a chosen
+member — a `HostDescriptor` or a host id. `workerOn(placement, target, def, key?, options?)`
+is the typed sugar, returning a client whose methods are the worker's. `options` is
+`{ timeoutMs?: 30_000, signal? }` for the single attempt.
+
+Three rules keep it honest:
+
+- **Workers only.** A stateful type is refused when its definition is locally resolvable —
+  targeted delivery would fight placement over where the activation lives.
+- **One attempt.** No retry, no route cache, no directory. The caller chose the host, so
+  `unreachable` (departed) and `wrong-host` (does not register the type) are *answers*,
+  propagated branded, never consumed as a re-route.
+- **Self-targets run in-process.** A host often cannot reach its own advertised address, and
+  a fenced host can still serve its own workers.
+
+`targetedDispatches` counts these apart from `remoteDispatches` in
+[`placement.counters()`](/actors/docs/cluster-stats). Both members are optional on the
+`ClusterPlacement` interface, so a hand-rolled placement predating them keeps compiling;
+`workerOn` throws on a placement without `dispatchOn`.
+
+The use case this exists for: a per-pod relay or fan-out worker on the web-tier members — a
+WebSocket relay that must reach *every* pod holding connections — without a hand-rolled pod
+registry.
+
 ## What clustering does not change
 
 Your actor code. Nothing in a definition knows whether it is running on one host or fifty —
@@ -234,6 +323,7 @@ and invisible to the directory entirely.
 ## Next steps
 
 - [Placement policies](/actors/docs/placement-policies) — where new activations go.
+- [Stateless workers](/actors/docs/stateless-workers) — the targets of `dispatchOn`.
 - [Transports](/actors/docs/transports) — how hosts talk, and which to pick.
 - [Locality routing](/actors/docs/locality-routing) — getting the edge to help.
 - [Rebalancing](/actors/docs/rebalancing) — correcting a lumpy fleet.

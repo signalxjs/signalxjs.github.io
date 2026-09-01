@@ -20,7 +20,7 @@
 import type { PackageStatus } from './family';
 import { VERSIONS } from './versions.generated.ts';
 
-export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy' | 'actors';
+export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy' | 'actors' | 'zero';
 
 /**
  * Release gate for the actors line. `false` keeps `/actors/` off every PUBLIC
@@ -41,6 +41,19 @@ export type ModuleParent = 'lynx' | 'core' | 'server' | 'terminal' | 'deploy' | 
  * src/pages/actors/**. The `server` category move follows automatically.
  */
 export const ACTORS_RELEASED = true;
+
+/**
+ * Release gate for `@sigx/devtools` — the same machinery as ACTORS_RELEASED.
+ * The package has never been published, so `/devtools/` stays off every
+ * PUBLIC surface (mega-menu, home grid, ⌘K palette, package counts, llms.txt)
+ * and its pages carry `draft: true`. Dev still shows the area — see
+ * SHOW_DEVTOOLS in lib/family.ts.
+ *
+ * On publish day: flip to `true`, strip `draft: true` from
+ * src/pages/devtools/**, and convert src/pages/devtools/index.mdx back to the
+ * .tsx landing shell the other packages use.
+ */
+export const DEVTOOLS_RELEASED = false;
 
 export interface SigxModule {
     /** Stable id — also the route segment and collection infix. */
@@ -106,6 +119,11 @@ export const MODULE_CATEGORIES: Record<ModuleParent, { id: string; label: string
         { id: 'platforms', label: 'Platform backends' },
         { id: 'tooling', label: 'Tooling & observability' },
     ],
+    zero: [
+        { id: 'runtime', label: 'Runtime' },
+        { id: 'authoring', label: 'Authoring' },
+        { id: 'skins', label: 'Design systems' },
+    ],
 };
 
 /**
@@ -117,241 +135,245 @@ const RAW_MODULES: SigxModule[] = [
     // ============ Lynx (@sigx/lynx-*) — lockstep-versioned ============
     // ---- Framework ----
     { id: 'framework', parent: 'lynx', npm: '@sigx/lynx', name: 'Lynx', category: 'framework',
-      hue: 285, glyph: '◑', status: 'stable', version: '0.26.0', downloads: '52k', shots: 0, aliasFor: 'lynx',
+      hue: 285, glyph: '◑', status: 'stable', version: '0.27.0', downloads: '52k', shots: 0, aliasFor: 'lynx',
       tag: 'Framework barrel',
       blurb: 'Re-exports reactivity, runtime-core and the Lynx renderer under one import — home of SharedValue / useSharedValue.' },
     { id: 'plugin', parent: 'lynx', npm: '@sigx/lynx-plugin', name: 'Build Plugin', category: 'framework',
-      hue: 318, glyph: '◮', status: 'stable', version: '0.26.0', downloads: '47k', shots: 0,
+      hue: 318, glyph: '◮', status: 'stable', version: '0.27.0', downloads: '47k', shots: 0,
       tag: 'Rspack / Rspeedy plugin',
       blurb: 'Splits your source into the BG + MT bundles Lynx requires and runs the main-thread worklet transform.' },
     { id: 'cli', parent: 'lynx', npm: '@sigx/lynx-cli', name: 'CLI Plugin', category: 'framework',
-      hue: 264, glyph: '›', status: 'stable', version: '0.26.0', downloads: '46k', shots: 0,
+      hue: 264, glyph: '›', status: 'stable', version: '0.27.0', downloads: '46k', shots: 0,
       tag: '@sigx/cli plugin',
       blurb: 'dev / build / prebuild / doctor / run:android / run:ios / run:web, plus the autolinker for native modules.' },
 
     // ---- Runtime ----
     { id: 'runtime', parent: 'lynx', npm: '@sigx/lynx-runtime', name: 'Runtime', category: 'runtime',
-      hue: 232, glyph: '⊟', status: 'stable', version: '0.26.0', downloads: '45k', shots: 0,
+      hue: 232, glyph: '⊟', status: 'stable', version: '0.27.0', downloads: '45k', shots: 0,
       tag: 'Background-thread renderer',
       blurb: 'sigx RuntimeRenderer adapter, op queue, useMainThreadRef, useSharedValue and runOnMainThread.' },
     { id: 'runtime-main', parent: 'lynx', npm: '@sigx/lynx-runtime-main', name: 'Main Runtime', category: 'runtime',
-      hue: 210, glyph: '⊞', status: 'stable', version: '0.26.0', downloads: '44k', shots: 0,
+      hue: 210, glyph: '⊞', status: 'stable', version: '0.27.0', downloads: '44k', shots: 0,
       tag: 'Main-thread (Lepus) runtime',
       blurb: 'Applies the BG → MT op stream via Lynx PAPI, runs worklets and drives useAnimatedStyle.' },
     { id: 'core', parent: 'lynx', npm: '@sigx/lynx-core', name: 'Native Bridge', category: 'runtime',
-      hue: 200, glyph: '⊙', status: 'stable', version: '0.26.0', downloads: '44k', shots: 0,
+      hue: 200, glyph: '⊙', status: 'stable', version: '0.27.0', downloads: '44k', shots: 0,
       tag: 'Low-level NativeModules bridge',
       blurb: 'getModule, callSync, callAsync, guardModule — every native-module package depends on this.' },
 
     // ---- Native modules ----
     { id: 'biometric', parent: 'lynx', npm: '@sigx/lynx-biometric', name: 'Biometric', category: 'native',
-      hue: 350, glyph: '✺', status: 'beta', version: '0.26.0', downloads: '12k', shots: 2,
+      hue: 350, glyph: '✺', status: 'beta', version: '0.27.0', downloads: '12k', shots: 2,
       tag: 'Face ID / Touch ID auth',
       blurb: 'Biometric authentication — Face ID, Touch ID and BiometricPrompt.' },
     { id: 'camera', parent: 'lynx', npm: '@sigx/lynx-camera', name: 'Camera', category: 'native',
-      hue: 24, glyph: '◉', status: 'stable', version: '0.26.0', downloads: '19k', shots: 3,
+      hue: 24, glyph: '◉', status: 'stable', version: '0.27.0', downloads: '19k', shots: 3,
       tag: 'Camera capture',
       blurb: 'Photo and video capture with a reactive preview API.' },
     { id: 'clipboard', parent: 'lynx', npm: '@sigx/lynx-clipboard', name: 'Clipboard', category: 'native',
-      hue: 60, glyph: '▤', status: 'stable', version: '0.26.0', downloads: '22k', shots: 0,
+      hue: 60, glyph: '▤', status: 'stable', version: '0.27.0', downloads: '22k', shots: 0,
       tag: 'System clipboard',
       blurb: 'Read from and write to the system clipboard.' },
     { id: 'file-system', parent: 'lynx', npm: '@sigx/lynx-file-system', name: 'File System', category: 'native',
-      hue: 158, glyph: '❏', status: 'stable', version: '0.26.0', downloads: '17k', shots: 0,
+      hue: 158, glyph: '❏', status: 'stable', version: '0.27.0', downloads: '17k', shots: 0,
       tag: 'Sandboxed file access',
-      blurb: 'Read / write / delete and list files in the app documents directory.' },
+      blurb: 'Read / write / delete files and read file info in the app documents and cache directories.' },
     { id: 'haptics', parent: 'lynx', npm: '@sigx/lynx-haptics', name: 'Haptics', category: 'native',
-      hue: 46, glyph: '∿', status: 'stable', version: '0.26.0', downloads: '33k', shots: 0,
+      hue: 46, glyph: '∿', status: 'stable', version: '0.27.0', downloads: '33k', shots: 0,
       tag: 'Haptic feedback',
       blurb: 'Impact, selection and notification haptic feedback.' },
     { id: 'image-picker', parent: 'lynx', npm: '@sigx/lynx-image-picker', name: 'Image Picker', category: 'native',
-      hue: 18, glyph: '◫', status: 'beta', version: '0.26.0', downloads: '16k', shots: 2,
+      hue: 18, glyph: '◫', status: 'beta', version: '0.27.0', downloads: '16k', shots: 2,
       tag: 'Pick / capture images',
       blurb: 'Pick or capture images from the photo library or camera.' },
     { id: 'linking', parent: 'lynx', npm: '@sigx/lynx-linking', name: 'Linking', category: 'native',
-      hue: 196, glyph: '⊶', status: 'stable', version: '0.26.0', downloads: '20k', shots: 0,
+      hue: 196, glyph: '⊶', status: 'stable', version: '0.27.0', downloads: '20k', shots: 0,
       tag: 'Deep links & URL schemes',
       blurb: 'openURL, getInitialURL and inbound URL events.' },
     { id: 'location', parent: 'lynx', npm: '@sigx/lynx-location', name: 'Location', category: 'native',
-      hue: 170, glyph: '◎', status: 'stable', version: '0.26.0', downloads: '23k', shots: 1,
+      hue: 170, glyph: '◎', status: 'stable', version: '0.27.0', downloads: '23k', shots: 1,
       tag: 'GPS coordinates',
       blurb: 'One-shot and watch APIs for device location.' },
     { id: 'network', parent: 'lynx', npm: '@sigx/lynx-network', name: 'Network', category: 'native',
-      hue: 220, glyph: '◴', status: 'stable', version: '0.26.0', downloads: '26k', shots: 0,
+      hue: 220, glyph: '◴', status: 'stable', version: '0.27.0', downloads: '26k', shots: 0,
       tag: 'Connectivity status',
       blurb: 'wifi / cellular / none status. Pair with fetch or WebSocket — not a transport.' },
     { id: 'notifications', parent: 'lynx', npm: '@sigx/lynx-notifications', name: 'Notifications', category: 'native',
-      hue: 12, glyph: '❂', status: 'beta', version: '0.26.0', downloads: '18k', shots: 2,
+      hue: 12, glyph: '❂', status: 'beta', version: '0.27.0', downloads: '18k', shots: 2,
       tag: 'Local notifications',
       blurb: 'Schedule and present local push notifications.' },
     { id: 'permissions', parent: 'lynx', npm: '@sigx/lynx-permissions', name: 'Permissions', category: 'native',
-      hue: 78, glyph: '▥', status: 'stable', version: '0.26.0', downloads: '14k', shots: 0,
+      hue: 78, glyph: '▥', status: 'stable', version: '0.27.0', downloads: '14k', shots: 0,
       tag: 'Permission helper',
       blurb: 'Shared Android permission helper used by other native modules.' },
     { id: 'safe-area', parent: 'lynx', npm: '@sigx/lynx-safe-area', name: 'Safe Area', category: 'native',
-      hue: 300, glyph: '▢', status: 'stable', version: '0.26.0', downloads: '28k', shots: 1,
+      hue: 300, glyph: '▢', status: 'stable', version: '0.27.0', downloads: '28k', shots: 1,
       tag: 'Safe-area insets',
       blurb: 'Notch, home indicator, status bar and keyboard insets.' },
     { id: 'secure-storage', parent: 'lynx', npm: '@sigx/lynx-secure-storage', name: 'Secure Storage', category: 'native',
-      hue: 96, glyph: '▩', status: 'beta', version: '0.26.0', downloads: '15k', shots: 0,
+      hue: 96, glyph: '▩', status: 'beta', version: '0.27.0', downloads: '15k', shots: 0,
       tag: 'Encrypted KV storage',
       blurb: 'Keychain / Keystore-backed KV with optional per-key biometric gating.' },
     { id: 'share', parent: 'lynx', npm: '@sigx/lynx-share', name: 'Share', category: 'native',
-      hue: 250, glyph: '⊼', status: 'stable', version: '0.26.0', downloads: '21k', shots: 1,
+      hue: 250, glyph: '⊼', status: 'stable', version: '0.27.0', downloads: '21k', shots: 1,
       tag: 'Native share sheet',
       blurb: 'UIActivityViewController / Intent.ACTION_SEND share sheet.' },
     { id: 'storage', parent: 'lynx', npm: '@sigx/lynx-storage', name: 'Storage', category: 'native',
-      hue: 110, glyph: '▦', status: 'stable', version: '0.26.0', downloads: '34k', shots: 0,
+      hue: 110, glyph: '▦', status: 'stable', version: '0.27.0', downloads: '34k', shots: 0,
       tag: 'Persistent KV store',
       blurb: 'Persistent string key-value store (UserDefaults / SharedPreferences).' },
     { id: 'websocket', parent: 'lynx', npm: '@sigx/lynx-websocket', name: 'WebSocket', category: 'native',
-      hue: 240, glyph: '◇', status: 'beta', version: '0.26.0', downloads: '17k', shots: 0,
+      hue: 240, glyph: '◇', status: 'beta', version: '0.27.0', downloads: '17k', shots: 0,
       tag: 'WebSocket global',
       blurb: 'Browser-standard WebSocket — URLSessionWebSocketTask (iOS), OkHttp (Android).' },
 
     // ---- Gestures & motion ----
     { id: 'gestures', parent: 'lynx', npm: '@sigx/lynx-gestures', name: 'Gestures', category: 'motion',
-      hue: 285, glyph: '✦', status: 'stable', version: '0.26.0', downloads: '31k', shots: 2,
+      hue: 285, glyph: '✦', status: 'stable', version: '0.27.0', downloads: '31k', shots: 2,
       tag: 'Frame-locked touch handling',
       blurb: 'Pressable, Draggable, Swipeable + useTap / usePan / usePinch / useSwipe and a useGesture composer.' },
     { id: 'motion', parent: 'lynx', npm: '@sigx/lynx-motion', name: 'Motion', category: 'motion',
-      hue: 320, glyph: '◈', status: 'stable', version: '0.26.0', downloads: '29k', shots: 2,
+      hue: 320, glyph: '◈', status: 'stable', version: '0.27.0', downloads: '29k', shots: 2,
       tag: 'Animation drivers',
       blurb: 'withSpring, withTiming, animate — progress is observable from the background thread for free.' },
 
     // ---- UI & routing ----
     { id: 'daisyui', parent: 'lynx', npm: '@sigx/lynx-daisyui', name: 'DaisyUI', category: 'ui',
-      hue: 350, glyph: '✿', status: 'stable', version: '0.26.0', downloads: '27k', shots: 3,
+      hue: 350, glyph: '✿', status: 'stable', version: '0.27.0', downloads: '27k', shots: 3,
       tag: 'Component library',
       blurb: 'DaisyUI-flavored component library, stylesheet and Tailwind preset for Lynx.' },
     { id: 'icons', parent: 'lynx', npm: '@sigx/lynx-icons', name: 'Icons', category: 'ui',
-      hue: 46, glyph: '✸', status: 'stable', version: '0.26.0', downloads: '25k', shots: 1,
+      hue: 46, glyph: '✸', status: 'stable', version: '0.27.0', downloads: '25k', shots: 1,
       tag: 'Icon component + registry',
       blurb: '<Icon set name /> with build-time auto-detection and subsetting.' },
     { id: 'icons-fa', parent: 'lynx', npm: '@sigx/lynx-icons-fa-free', name: 'FA Icons', category: 'ui',
-      hue: 40, glyph: '✷', status: 'beta', version: '0.26.0', downloads: '11k', shots: 0,
+      hue: 40, glyph: '✷', status: 'beta', version: '0.27.0', downloads: '11k', shots: 0,
       tag: 'Font Awesome adapter',
       blurb: 'Font Awesome Free adapter for @sigx/lynx-icons (solid / regular / brands).' },
     { id: 'icons-lucide', parent: 'lynx', npm: '@sigx/lynx-icons-lucide', name: 'Lucide Icons', category: 'ui',
-      hue: 200, glyph: '✶', status: 'beta', version: '0.26.0', downloads: '13k', shots: 0,
+      hue: 200, glyph: '✶', status: 'beta', version: '0.27.0', downloads: '13k', shots: 0,
       tag: 'Lucide adapter',
       blurb: 'Lucide adapter for @sigx/lynx-icons (SVG-mode only).' },
     { id: 'navigation', parent: 'lynx', npm: '@sigx/lynx-navigation', name: 'Navigation', category: 'ui',
-      hue: 232, glyph: '⌖', status: 'stable', version: '0.26.0', downloads: '48k', shots: 3,
+      hue: 232, glyph: '⌖', status: 'stable', version: '0.27.0', downloads: '48k', shots: 3,
       tag: 'Type-first native navigator',
       blurb: 'Stack, Tabs, Drawer, modals, lazy routes and deep links.' },
     { id: 'list', parent: 'lynx', npm: '@sigx/lynx-list', name: 'List', category: 'ui',
-      hue: 168, glyph: '☰', status: 'beta', version: '0.26.0', shots: 0,
+      hue: 168, glyph: '☰', status: 'beta', version: '0.27.0', shots: 0,
       tag: 'Data-driven virtualized list',
       blurb: 'Virtualized wrapper over the native list recycler — grid/waterfall, header/footer/empty slots, pull-to-refresh, chat mode and windowing over long histories.' },
     { id: 'sheet', parent: 'lynx', npm: '@sigx/lynx-sheet', name: 'Bottom Sheet', category: 'ui',
-      hue: 216, glyph: '⬓', status: 'beta', version: '0.26.0',
+      hue: 216, glyph: '⬓', status: 'beta', version: '0.27.0',
       tag: 'Route-free bottom sheet',
       blurb: 'Standalone bottom sheet with DetentSpec geometry (px / fraction / keyboard), persistent or dismissible modes, a backdrop, and handle / surface / grabber drag with inner-scroll arbitration and keyboard riding — the shared engine behind the navigation route sheet.' },
 
     // ---- Dev tooling ----
     { id: 'dev-client', parent: 'lynx', npm: '@sigx/lynx-dev-client', name: 'Dev Client', category: 'devtools',
-      hue: 158, glyph: '◵', status: 'stable', version: '0.26.0', downloads: '38k', shots: 1,
+      hue: 158, glyph: '◵', status: 'stable', version: '0.27.0', downloads: '38k', shots: 1,
       tag: 'On-device dev menu',
       blurb: 'Debug-only auto-linked module — dev menu, QR scanner and devtool wiring.' },
     { id: 'testing', parent: 'lynx', npm: '@sigx/lynx-testing', name: 'Testing', category: 'devtools',
-      hue: 138, glyph: '◷', status: 'stable', version: '0.26.0', downloads: '20k', shots: 0,
+      hue: 138, glyph: '◷', status: 'stable', version: '0.27.0', downloads: '20k', shots: 0,
       tag: 'Component testing',
       blurb: 'render, fireEvent and queries — no native runtime needed.' },
+    { id: 'observability', parent: 'lynx', npm: '@sigx/lynx-observability', name: 'Observability', category: 'devtools',
+      hue: 148, glyph: '◉', status: 'stable', version: '0.27.0', downloads: '—', shots: 0,
+      tag: 'Error capture, sinks & memory',
+      blurb: 'Opt-in production error capture, provider-agnostic log/error sinks, and Memory.query() — the engine-attributed memory reading.' },
 
     // ---- Additional native modules ----
     { id: 'appearance', parent: 'lynx', npm: '@sigx/lynx-appearance', name: 'Appearance', category: 'native',
-      hue: 280, glyph: '◐', status: 'stable', version: '0.26.0',
+      hue: 280, glyph: '◐', status: 'stable', version: '0.27.0',
       tag: 'System color scheme & bars',
       blurb: 'Observe the system color scheme and tint the status / navigation bars.' },
     { id: 'audio', parent: 'lynx', npm: '@sigx/lynx-audio', name: 'Audio', category: 'native',
-      hue: 8, glyph: '♫', status: 'stable', version: '0.26.0',
+      hue: 8, glyph: '♫', status: 'stable', version: '0.27.0',
       tag: 'Recording & playback',
       blurb: 'Record and play audio with metering and reactive handles.' },
     { id: 'background', parent: 'lynx', npm: '@sigx/lynx-background', name: 'Background Tasks', category: 'native',
-      hue: 214, glyph: '◴', status: 'stable', version: '0.26.0',
+      hue: 214, glyph: '◴', status: 'stable', version: '0.27.0',
       tag: 'Periodic sync & fetch',
       blurb: 'Schedule periodic background sync and fetch (BGTaskScheduler / WorkManager).' },
     { id: 'file-picker', parent: 'lynx', npm: '@sigx/lynx-file-picker', name: 'File Picker', category: 'native',
-      hue: 162, glyph: '◰', status: 'stable', version: '0.26.0',
+      hue: 162, glyph: '◰', status: 'stable', version: '0.27.0',
       tag: 'Document picker',
       blurb: 'Pick arbitrary files and documents from the system picker.' },
     { id: 'http', parent: 'lynx', npm: '@sigx/lynx-http', name: 'HTTP', category: 'native',
-      hue: 222, glyph: '⇄', status: 'stable', version: '0.26.0',
+      hue: 222, glyph: '⇄', status: 'stable', version: '0.27.0',
       tag: 'WHATWG fetch transport',
       blurb: 'A native fetch implementation with FormData uploads and streaming response bodies.' },
     { id: 'keyboard', parent: 'lynx', npm: '@sigx/lynx-keyboard', name: 'Keyboard', category: 'native',
-      hue: 104, glyph: '▭', status: 'stable', version: '0.26.0',
+      hue: 104, glyph: '▭', status: 'stable', version: '0.27.0',
       tag: 'Soft-keyboard handling',
       blurb: 'KeyboardAvoidingView, KeyboardStickyView and keyboard hooks.' },
 
     // ---- Additional UI modules ----
     { id: 'datetime-picker', parent: 'lynx', npm: '@sigx/lynx-datetime-picker', name: 'Date/Time Picker', category: 'ui',
-      hue: 188, glyph: '◷', status: 'stable', version: '0.26.0',
+      hue: 188, glyph: '◷', status: 'stable', version: '0.27.0',
       tag: 'Native date & time picker',
       blurb: 'Native date / time / datetime picker (UIDatePicker / DatePickerDialog).' },
     { id: 'emoji', parent: 'lynx', npm: '@sigx/lynx-emoji', name: 'Emoji Picker', category: 'ui',
-      hue: 45, glyph: '⊚', status: 'stable', version: '0.26.0',
+      hue: 45, glyph: '⊚', status: 'stable', version: '0.27.0',
       tag: 'Themable emoji picker',
       blurb: 'Headless categorized emoji grid with search, skin tones and recents.' },
     { id: 'maps', parent: 'lynx', npm: '@sigx/lynx-maps', name: 'Maps', category: 'ui',
-      hue: 152, glyph: '◍', status: 'stable', version: '0.26.0',
+      hue: 152, glyph: '◍', status: 'stable', version: '0.27.0',
       tag: 'Native map view',
       blurb: 'Native map view with markers and regions (MKMapView / Google Maps).' },
     { id: 'markdown', parent: 'lynx', npm: '@sigx/lynx-markdown', name: 'Markdown', category: 'ui',
-      hue: 258, glyph: '▤', status: 'stable', version: '0.26.0',
+      hue: 258, glyph: '▤', status: 'stable', version: '0.27.0',
       tag: 'Streaming markdown renderer',
       blurb: 'Zero-dependency markdown parsed in JS and rendered to native views, with streaming for AI output.' },
     { id: 'richtext', parent: 'lynx', npm: '@sigx/lynx-richtext', name: 'Rich Text', category: 'ui',
-      hue: 302, glyph: '¶', status: 'stable', version: '0.26.0',
+      hue: 302, glyph: '¶', status: 'stable', version: '0.27.0',
       tag: 'Native rich-text input',
       blurb: 'Attributed rich-text editing element with a span document model and formatting commands.' },
     { id: 'video', parent: 'lynx', npm: '@sigx/lynx-video', name: 'Video', category: 'ui',
-      hue: 2, glyph: '▷', status: 'stable', version: '0.26.0',
+      hue: 2, glyph: '▷', status: 'stable', version: '0.27.0',
       tag: 'Native video player',
       blurb: 'Native video player component (AVPlayer / ExoPlayer).' },
     { id: 'webview', parent: 'lynx', npm: '@sigx/lynx-webview', name: 'WebView', category: 'ui',
-      hue: 206, glyph: '◫', status: 'stable', version: '0.26.0',
+      hue: 206, glyph: '◫', status: 'stable', version: '0.27.0',
       tag: 'Native web view',
       blurb: 'Embed web content with a native WebView (WKWebView / android.webkit.WebView).' },
 
     // ---- Design systems ----
     { id: 'heroui', parent: 'lynx', npm: '@sigx/lynx-heroui', name: 'HeroUI', category: 'ui',
-      hue: 266, glyph: '❖', status: 'beta', version: '0.26.0',
+      hue: 266, glyph: '❖', status: 'beta', version: '0.27.0',
       tag: 'HeroUI design system',
       blurb: 'HeroUI-flavored component library, stylesheet and Tailwind preset for Lynx.' },
     { id: 'zero', parent: 'lynx', npm: '@sigx/lynx-zero', name: 'Zero', category: 'ui',
-      hue: 240, glyph: '○', status: 'stable', version: '0.26.0',
+      hue: 240, glyph: '○', status: 'stable', version: '0.27.0',
       tag: 'Headless design-system foundation',
       blurb: 'Headless-first primitives, theme engine and Tailwind preset that custom design systems build on.' },
 
     // ---- New in 0.7.0 ----
     { id: 'sqlite', parent: 'lynx', npm: '@sigx/lynx-sqlite', name: 'SQLite', category: 'native',
-      hue: 150, glyph: '⊡', status: 'stable', version: '0.26.0',
+      hue: 150, glyph: '⊡', status: 'stable', version: '0.27.0',
       tag: 'Embedded SQLite database',
       blurb: 'SQL, transactions, migrations and live queries for offline-first apps — openDatabase, parameterized execute, PRAGMA user_version migrations and a reactive useLiveQuery hook.' },
     { id: 'webrtc', parent: 'lynx', npm: '@sigx/lynx-webrtc', name: 'WebRTC', category: 'native',
-      hue: 8, glyph: '⊛', status: 'beta', version: '0.26.0',
+      hue: 8, glyph: '⊛', status: 'beta', version: '0.27.0',
       tag: 'W3C-shaped WebRTC',
       blurb: 'Peer connections, audio tracks and data channels — RTCPeerConnection, RTCDataChannel, mediaDevices.getUserMedia and a native audio session.' },
     { id: 'updates', parent: 'lynx', npm: '@sigx/lynx-updates', name: 'OTA Updates', category: 'native',
-      hue: 88, glyph: '⟳', status: 'beta', version: '0.26.0',
+      hue: 88, glyph: '⟳', status: 'beta', version: '0.27.0',
       tag: 'OTA bundle updates',
       blurb: 'Over-the-air bundle updates with pluggable backends, update modes, native streaming + SHA-256 verification and two-phase apply with crash rollback.' },
     { id: 'updates-ui', parent: 'lynx', npm: '@sigx/lynx-updates-ui', name: 'OTA Update UI', category: 'ui',
-      hue: 268, glyph: '⇩', status: 'beta', version: '0.26.0',
+      hue: 268, glyph: '⇩', status: 'beta', version: '0.27.0',
       tag: 'Prebuilt OTA update UI',
       blurb: 'Drop-in update gate, prompt modal, download progress and restart banner over @sigx/lynx-updates.' },
 
     // ---- New in 0.8.0 ----
     { id: 'updates-publisher', parent: 'lynx', npm: '@sigx/lynx-updates-publisher', name: 'OTA Publisher', category: 'devtools',
-      hue: 128, glyph: '⇧', status: 'beta', version: '0.26.0',
+      hue: 128, glyph: '⇧', status: 'beta', version: '0.27.0',
       tag: 'CI bundle publisher',
       blurb: 'Dependency-light publishUpdate() that packages a built bundle into the static-manifest OTA layout — the programmatic core of `sigx updates:publish` for CI pipelines.' },
 
     // ---- New in 0.9.1 ----
     { id: 'webauth', parent: 'lynx', npm: '@sigx/lynx-webauth', name: 'Web Auth', category: 'native',
-      hue: 270, glyph: '⊕', status: 'stable', version: '0.26.0',
+      hue: 270, glyph: '⊕', status: 'stable', version: '0.27.0',
       tag: 'System web-auth session for OAuth',
       blurb: 'System web-auth session for OAuth — openAuthSession drives ASWebAuthenticationSession (iOS) and Chrome Custom Tabs (Android), returning the callback URL inline, with an opt-in PKCE helper.' },
 
@@ -359,27 +381,27 @@ const RAW_MODULES: SigxModule[] = [
     // core is a collection meta-package, like lynx — the "web platform"
     // is just runtime-dom + the sigx umbrella living in here.
     { id: 'reactivity', parent: 'core', npm: '@sigx/reactivity', name: 'Reactivity', category: 'packages',
-      hue: 285, glyph: '◇', status: 'stable', version: '0.15.3', role: 'Primitives',
+      hue: 285, glyph: '◇', status: 'stable', version: '0.15.6', role: 'Primitives',
       tag: 'Signals, computed & effects',
       blurb: 'Signals, computed and effects — the reactive primitives everything is built on.' },
     { id: 'runtime-core', parent: 'core', npm: '@sigx/runtime-core', name: 'Runtime Core', category: 'packages',
-      hue: 264, glyph: '⊙', status: 'stable', version: '0.15.3', role: 'Shared base',
+      hue: 264, glyph: '⊙', status: 'stable', version: '0.15.6', role: 'Shared base',
       tag: 'Renderer-agnostic component model',
       blurb: 'Component model and renderer base shared across every render target.' },
     { id: 'runtime-dom', parent: 'core', npm: '@sigx/runtime-dom', name: 'Runtime DOM', category: 'packages',
-      hue: 232, glyph: '◧', status: 'stable', version: '0.15.3', role: 'Web renderer',
+      hue: 232, glyph: '◧', status: 'stable', version: '0.15.6', role: 'Web renderer',
       tag: 'The DOM renderer',
       blurb: 'The DOM renderer — this is SignalX on the web.' },
     { id: 'cache', parent: 'core', npm: '@sigx/cache', name: 'Cache', category: 'packages',
-      hue: 172, glyph: '◈', status: 'stable', version: '0.15.3', role: 'Cache policy',
+      hue: 172, glyph: '◈', status: 'stable', version: '0.15.6', role: 'Cache policy',
       tag: 'Cache policy for value-first async',
       blurb: 'A cache-policy pack for useData/useAction — staleTime, focus & interval revalidation, keepPreviousData, cache-aware invalidate() and optimistic mutate(). Renderer-portable; installs as one plugin without touching your call sites.' },
     { id: 'sigx', parent: 'core', npm: 'sigx', name: 'sigx', category: 'packages',
-      hue: 200, glyph: '◑', status: 'stable', version: '0.15.3', role: 'Umbrella', aliasFor: 'core',
+      hue: 200, glyph: '◑', status: 'stable', version: '0.15.6', role: 'Umbrella', aliasFor: 'core',
       tag: 'The public umbrella package',
       blurb: 'The public umbrella package you import in web apps (reactivity + runtime-core + runtime-dom).' },
     { id: 'vite', parent: 'core', npm: '@sigx/vite', name: 'Vite Plugin', category: 'packages',
-      hue: 318, glyph: '◮', status: 'stable', version: '0.15.3', role: 'Tooling', aliasFor: 'vite',
+      hue: 318, glyph: '◮', status: 'stable', version: '0.15.6', role: 'Tooling', aliasFor: 'vite',
       tag: 'Vite plugin & HMR',
       blurb: 'Vite plugin for dev and build with component HMR.' },
 
@@ -390,23 +412,23 @@ const RAW_MODULES: SigxModule[] = [
     // released in lockstep: the renderer, plus islands (the first-party
     // reference strategy pack built on the renderer's plugin API).
     { id: 'server-renderer', parent: 'server', npm: '@sigx/server-renderer', name: 'Server Renderer', category: 'packages',
-      hue: 210, glyph: '⊟', status: 'stable', version: '0.15.3', role: 'Renderer',
+      hue: 210, glyph: '⊟', status: 'stable', version: '0.15.6', role: 'Renderer',
       tag: 'Streaming SSR & hydration',
       blurb: 'Render components to an HTML string or stream on the server, hydrate the DOM on the client, manage the document head, and extend rendering through the plugin SPI.' },
     { id: 'ssr-islands', parent: 'server', npm: '@sigx/ssr-islands', name: 'Islands', category: 'packages',
-      hue: 40, glyph: '❖', status: 'stable', version: '0.15.3', role: 'Islands',
+      hue: 40, glyph: '❖', status: 'stable', version: '0.15.6', role: 'Islands',
       tag: 'Selective hydration via client:*',
       blurb: 'The first-party reference strategy pack for SignalX SSR, built on the @sigx/server-renderer plugin API — hydrate only interactive components with client:load / idle / visible / media / only, with per-island code splitting.' },
     { id: 'server', parent: 'server', npm: '@sigx/server', name: 'Server Functions', category: 'packages',
-      hue: 265, glyph: '⇅', status: 'stable', version: '0.15.3', role: 'RPC',
+      hue: 265, glyph: '⇅', status: 'stable', version: '0.15.6', role: 'RPC',
       tag: 'Type-safe server functions',
       blurb: 'Call server code from a component as a plain async function — serverFn / serverStream compile to typed RPC endpoints, run on the server, and return the result. Secure by default: POST-only JSON with a CSRF gate, origin checks, guards and prod error masking.' },
     { id: 'resume', parent: 'server', npm: '@sigx/resume', name: 'Resume', category: 'packages',
-      hue: 190, glyph: '⟳', status: 'stable', version: '0.15.3', role: 'Resumability',
+      hue: 190, glyph: '⟳', status: 'stable', version: '0.15.6', role: 'Resumability',
       tag: 'Resumable SSR & boundary refresh',
       blurb: 'The resumability layer — single-flight refresh of the server boundaries a mutation invalidated, driven by createBoundaryRefresh and the build-time resume manifest, so a write re-renders only the parts of the page that depend on it.' },
     { id: 'serialize', parent: 'server', npm: '@sigx/serialize', name: 'Serialize', category: 'packages',
-      hue: 320, glyph: '⧉', status: 'stable', version: '0.15.3', role: 'Codec',
+      hue: 320, glyph: '⧉', status: 'stable', version: '0.15.6', role: 'Codec',
       tag: 'Custom-type serialization codec',
       blurb: 'The codec behind the SSR state blob and server-function arguments — round-trips Date / Map / Set / bigint / URL / RegExp / undefined out of the box, and defineTypeHandler adds your own types with type-guard-driven inference.' },
 
@@ -449,63 +471,96 @@ const RAW_MODULES: SigxModule[] = [
     // the runtime on every platform is @sigx/server-renderer's
     // createFetchHandler. Node, Deno and Bun need no adapter package.
     { id: 'cloudflare', parent: 'deploy', npm: '@sigx/cloudflare', name: 'Cloudflare', category: 'adapters',
-      hue: 55, glyph: '≋', status: 'stable', version: '0.15.3', role: 'Workers',
+      hue: 55, glyph: '≋', status: 'stable', version: '0.15.6', role: 'Workers',
       tag: 'Bundled workerd worker + wrangler scaffold',
       blurb: 'The flagship adapter — a fully bundled, workerd-conditioned worker with a node-free render path, a wrangler.jsonc scaffolded once and validated on drift, and optional local binding proxies in dev. Deploy with wrangler deploy.' },
     { id: 'vercel', parent: 'deploy', npm: '@sigx/vercel', name: 'Vercel', category: 'adapters',
-      hue: 240, glyph: '▲', status: 'stable', version: '0.15.3', role: 'Node & Edge',
+      hue: 240, glyph: '▲', status: 'stable', version: '0.15.6', role: 'Node & Edge',
       tag: 'Build Output API v3 generation',
       blurb: 'Generates the complete .vercel/output layout on every build — static assets, the bundled render function and the route table — on the Node runtime (default) or the edge. Deploy with vercel deploy --prebuilt.' },
     { id: 'netlify', parent: 'deploy', npm: '@sigx/netlify', name: 'Netlify', category: 'adapters',
-      hue: 180, glyph: '⟡', status: 'stable', version: '0.15.3', role: 'Functions',
+      hue: 180, glyph: '⟡', status: 'stable', version: '0.15.6', role: 'Functions',
       tag: 'Frameworks API function generation',
       blurb: 'Emits the .netlify/v1/functions/sigx-ssr catch-all function with preferStatic routing — CDN files win, the raw outlet template stays off "/", and netlify.toml stays yours. Deploy with netlify deploy --prod.' },
 
     // ============ Actors (@sigx/actors*) — lockstep-versioned ============
-    // actors is a collection like terminal: signalxjs/actors publishes all ten
-    // in lockstep, and `@sigx/actors` is a real umbrella you install. The nine
+    // actors is a collection like terminal: signalxjs/actors publishes all twelve
+    // in lockstep, and `@sigx/actors` is a real umbrella you install. The eleven
     // satellites are all OPTIONAL — each one peer-depends on `@sigx/actors` and
     // adds a backend, a transport or a tool. A single-node app needs none of them.
     { id: 'actors', parent: 'actors', npm: '@sigx/actors', name: 'Actors', category: 'runtime',
-      hue: 116, glyph: '⬡', status: 'experimental', version: '0.7.0', role: 'Umbrella', aliasFor: 'actors',
+      hue: 116, glyph: '⬡', status: 'experimental', version: '0.9.2', role: 'Umbrella', aliasFor: 'actors',
       tag: 'The actor runtime',
       blurb: 'The package you install — actor definitions, the host, the client proxy, the Vite plugin, jobs and clustering under one @sigx/actors entry with twelve subpath exports.' },
     { id: 'actors-redis', parent: 'actors', npm: '@sigx/actors-redis', name: 'Redis', category: 'providers',
-      hue: 25, glyph: '◆', status: 'experimental', version: '0.7.0', role: 'Redis',
+      hue: 25, glyph: '◆', status: 'experimental', version: '0.9.2', role: 'Redis',
       tag: 'Membership, directory & storage on Redis',
       blurb: 'The usual first step out of one process — host membership, the distributed actor directory and etag-CAS actor storage, all on one ioredis client. Requires Redis 7 for SET NX GET.' },
     { id: 'actors-pg', parent: 'actors', npm: '@sigx/actors-pg', name: 'Postgres', category: 'providers',
-      hue: 230, glyph: '⬢', status: 'experimental', version: '0.7.0', role: 'Postgres',
+      hue: 230, glyph: '⬢', status: 'experimental', version: '0.9.2', role: 'Postgres',
       tag: 'Membership, directory, storage & reminders on Postgres',
       blurb: 'The whole cluster on the database you already run — state rows with etag compare-and-set, database-clock membership, the directory, and durable reminders claimed with SKIP LOCKED. Ships its DDL, and never runs it behind your back.' },
     { id: 'actors-surreal', parent: 'actors', npm: '@sigx/actors-surreal', name: 'SurrealDB', category: 'providers',
-      hue: 320, glyph: '⬢', status: 'experimental', version: '0.7.0', role: 'SurrealDB',
+      hue: 320, glyph: '⬢', status: 'experimental', version: '0.9.2', role: 'SurrealDB',
       tag: 'Membership, directory, storage & reminders on SurrealDB 3',
       blurb: 'The whole cluster on SurrealDB — etag compare-and-set storage, database-clock membership, the single-activation directory, and durable reminders on a due-time index. No lock primitive exists, so retry is part of the contract rather than tuning.' },
     { id: 'actors-k8s', parent: 'actors', npm: '@sigx/actors-k8s', name: 'Kubernetes', category: 'providers',
-      hue: 255, glyph: '⎈', status: 'experimental', version: '0.7.0', role: 'Kubernetes',
+      hue: 255, glyph: '⎈', status: 'experimental', version: '0.9.2', role: 'Kubernetes',
       tag: 'Host liveness on coordination.k8s.io Leases',
       blurb: 'Membership with no extra store — one Lease per host, renewed as a heartbeat and watched by label selector, so the cluster you are already running is the membership provider. Pairs with a Redis or Postgres directory.' },
     { id: 'actors-tcp', parent: 'actors', npm: '@sigx/actors-tcp', name: 'TCP', category: 'transports',
-      hue: 180, glyph: '⇄', status: 'experimental', version: '0.7.0', role: 'TCP',
+      hue: 180, glyph: '⇄', status: 'experimental', version: '0.9.2', role: 'TCP',
       tag: 'Framed, multiplexed host-to-host TCP',
       blurb: 'One connection per peer instead of one per in-flight request. Node-only by design, so the cluster core stays WinterCG-clean — reach for it when socket count is the pain, not when you want raw speed.' },
     { id: 'actors-ws', parent: 'actors', npm: '@sigx/actors-ws', name: 'WebSocket', category: 'client',
-      hue: 200, glyph: '⇌', status: 'experimental', version: '0.7.0', role: 'Client socket',
+      hue: 200, glyph: '⇌', status: 'experimental', version: '0.9.2', role: 'Client socket',
       tag: 'Browser to host, over one socket',
       blurb: 'The client-facing socket transport: every call and every live subscription on the page over one connection, with no preflight and no held-open POST. A link seam rather than a URL, so socket.io or any message channel can carry it.' },
     { id: 'actors-cloudflare', parent: 'actors', npm: '@sigx/actors-cloudflare', name: 'Cloudflare', category: 'platforms',
-      hue: 55, glyph: '⊛', status: 'experimental', version: '0.7.0', role: 'Durable Objects',
+      hue: 55, glyph: '⊛', status: 'experimental', version: '0.9.2', role: 'Durable Objects',
       tag: 'One Durable Object per actor',
       blurb: 'Cloudflare already guarantees one instance of a Durable Object globally and serializes its requests — which is the virtual-actor contract. So there is no membership, no directory and no authenticated host mount: the platform is the cluster.' },
     { id: 'actors-cli', parent: 'actors', npm: '@sigx/actors-cli', name: 'CLI', category: 'tooling',
-      hue: 264, glyph: '›', status: 'experimental', version: '0.7.0', role: 'Dashboard',
+      hue: 264, glyph: '›', status: 'experimental', version: '0.9.2', role: 'Dashboard',
       tag: 'sigx actors — a terminal dashboard',
       blurb: 'A @sigx/cli plugin: sigx actors top, stats and health. Reads a running host over its ops endpoint, or loads your app module in-process for zero-config local use.' },
+    { id: 'actors-monitor', parent: 'actors', npm: '@sigx/actors-monitor', name: 'Monitor', category: 'tooling',
+      hue: 195, glyph: '◔', status: 'experimental', version: '0.9.2', role: 'Data layer',
+      tag: 'The renderer-free dashboard data layer',
+      blurb: 'Poll a running host over its ops endpoint, normalise it into one MonitorSnapshot, derive rates across counter resets and say what is wrong — browser-safe, no renderer, no node: imports. What the CLI and the web dashboard both draw.' },
+    { id: 'actors-dashboard', parent: 'actors', npm: '@sigx/actors-dashboard', name: 'Dashboard', category: 'tooling',
+      hue: 210, glyph: '▤', status: 'experimental', version: '0.9.2', role: 'Web dashboard',
+      tag: 'The web dashboard, as sigx components',
+      blurb: 'Overview, Hosts, Actors, Cluster and Health in a browser — <ActorsDashboard /> as a drop-in, or one panel embedded in your own admin portal. Themed by --sigx-actors-* custom properties; reads ops() through a same-origin proxy so the secret never ships to the client.' },
     { id: 'actors-otel', parent: 'actors', npm: '@sigx/actors-otel', name: 'OpenTelemetry', category: 'tooling',
-      hue: 300, glyph: '⌁', status: 'experimental', version: '0.7.0', role: 'Exporters',
+      hue: 300, glyph: '⌁', status: 'experimental', version: '0.9.2', role: 'Exporters',
       tag: 'Prometheus exposition & OTel traces',
       blurb: 'Scrape-ready Prometheus text on an OTel-free entry, plus spans that join across hosts through the propagated traceparent. Labels are type and method — never actor keys.' },
+
+    // ============ Zero (@sigx/zero*) — lockstep-versioned ============
+    // zero is a collection like actors: signalxjs/zero publishes all four in
+    // lockstep, and `@sigx/zero` is the runtime you install. A design system
+    // (zero-basic, zero-daisyui, or one you compile with zero-kit) is a
+    // separate CSS artifact you add beside it. The runtime row's id is
+    // `zero-runtime` rather than `zero` because `moduleById` is one flat map
+    // and the lynx module `@sigx/lynx-zero` already owns the `zero` key; the
+    // row is an alias, so the id never becomes a URL.
+    { id: 'zero-runtime', parent: 'zero', npm: '@sigx/zero', name: 'Zero', category: 'runtime',
+      hue: 305, glyph: '◌', status: 'beta', version: '0.2.0-beta.1', role: 'Runtime', aliasFor: 'zero',
+      tag: 'Unstyled, accessible compound components',
+      blurb: 'The package you install — 51 headless compound components rendering a stable data-scope / data-part / data-state anatomy, the behaviors they are built from, the theme engine and the anatomy manifest.' },
+    { id: 'zero-kit', parent: 'zero', npm: '@sigx/zero-kit', name: 'Zero Kit', category: 'authoring',
+      hue: 264, glyph: '⌘', status: 'beta', version: '0.2.0-beta.1', role: 'Authoring kit',
+      tag: 'Tokens + recipes → plain layered CSS',
+      blurb: 'The Node-only authoring kit: defineTokens / defineRecipe / defineDesignSystem, the compiler that turns them into layered CSS against the anatomy manifest, the sigx zero:build / zero:validate CLI plugin, the JSON Schemas and the design-system generation skill.' },
+    { id: 'zero-basic', parent: 'zero', npm: '@sigx/zero-basic', name: 'Zero Basic', category: 'skins',
+      hue: 205, glyph: '▢', status: 'beta', version: '0.2.0-beta.1', role: 'Design system',
+      tag: 'The neutral starter design system',
+      blurb: 'Monograph — paper surfaces, hairline structure and one petrol ink. Readable defaults so an app looks sane on day one, and the reference input for generating a design system of your own.' },
+    { id: 'zero-daisyui', parent: 'zero', npm: '@sigx/zero-daisyui', name: 'Zero DaisyUI', category: 'skins',
+      hue: 24, glyph: '❂', status: 'beta', version: '0.2.0-beta.1', role: 'Design system',
+      tag: 'daisyUI’s look as pure tokens + recipes',
+      blurb: 'daisyUI 5’s palette and component look compiled to plain CSS over the zero anatomy — five themes, no Tailwind, no plugin — plus a generated daisy-native ./components module with daisy’s own prop names.' },
 ];
 
 /** Registry with live npm versions overlaid (falls back to the literal). */
@@ -600,6 +655,18 @@ export const COMPONENT_CATALOGS: Record<string, { cat: string; items: string[] }
         { cat: 'Sheet', items: ['BottomSheet'] },
         { cat: 'Parts', items: ['Backdrop'] },
     ],
+    // @sigx/zero — the 51 scopes of the anatomy manifest, tiered the way the
+    // library groups them. Names slugify to the scope ("Toggle Group" →
+    // "toggle-group"), which is also the page filename under
+    // src/pages/zero/docs/components/.
+    zero: [
+        { cat: 'Actions & disclosure', items: ['Button', 'Toggle', 'Toggle Group', 'Tabs', 'Collapsible', 'Accordion'] },
+        { cat: 'Overlays', items: ['Dialog', 'Drawer', 'Popover', 'Tooltip', 'Menu', 'Toast'] },
+        { cat: 'Form controls', items: ['Field', 'Input', 'Textarea', 'Number Input', 'Checkbox', 'Switch', 'Radio Group', 'Select', 'Native Select', 'Combobox', 'Slider', 'Rating Group', 'File Upload'] },
+        { cat: 'Navigation', items: ['Navbar', 'Breadcrumbs', 'Pagination', 'Steps', 'Tree View'] },
+        { cat: 'Content', items: ['Card', 'Alert', 'Badge', 'Divider', 'Avatar', 'Progress', 'Radial Progress', 'Skeleton', 'Spinner', 'Kbd', 'Status', 'Indicator', 'Stats', 'Timeline', 'Chat', 'Join'] },
+        { cat: 'Rich behavior', items: ['Table', 'Carousel', 'Swap', 'Countdown', 'Diff'] },
+    ],
 };
 
 export const moduleById: Record<string, SigxModule> =
@@ -618,6 +685,7 @@ export const moduleRoutePrefix = (m: SigxModule): string =>
         : m.parent === 'terminal' ? `/terminal/packages/${m.id}`
         : m.parent === 'deploy' ? `/deploy/packages/${m.id}`
         : m.parent === 'actors' ? `/actors/packages/${m.id}`
+        : m.parent === 'zero' ? `/zero/packages/${m.id}`
         : `/core/packages/${m.id}`;
 
 /**
@@ -634,4 +702,5 @@ export const moduleDocsCollection = (m: SigxModule): string | undefined =>
         : m.parent === 'terminal' ? `terminal-pkg-${m.id}-docs`
         : m.parent === 'deploy' ? `deploy-pkg-${m.id}-docs`
         : m.parent === 'actors' ? `actors-pkg-${m.id}-docs`
+        : m.parent === 'zero' ? `zero-pkg-${m.id}-docs`
         : `core-pkg-${m.id}-docs`;

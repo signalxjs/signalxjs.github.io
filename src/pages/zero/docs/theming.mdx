@@ -1,0 +1,149 @@
+---
+title: Theming
+description: "The @sigx/zero theme model — themes versus colour schemes, the registry that holds metadata and never values, installThemes / registerThemes, the controller, ThemeProvider and ThemeScope, light-dark() defaults, the first-paint script and swatches"
+layout: docs
+category: Styling
+order: 50
+---
+
+# Theming
+
+<p class="lede">A theme is a named block of token values in a design system's compiled CSS,
+selected by `data-theme` on any ancestor. Zero's theme engine holds *metadata* about themes —
+names, colour schemes, light/dark pairings, swatches — and a small controller that manages
+the user's explicit choice. Token values never pass through JavaScript.</p>
+
+## Scheme and theme are different axes
+
+The **colour scheme** is the closed CSS pair `'light' | 'dark'`: it maps onto `color-scheme`
+and `prefers-color-scheme`, which have exactly those values. **Theme names** are open —
+`dim` is a *theme* whose scheme is dark, not a third scheme. Selection is three-valued: an
+explicit theme name, or `null` = follow the system.
+
+The system default needs no JavaScript. A compiled design system writes its colour tokens on
+`:root` with `light-dark()` and `color-scheme: light dark`, so with no `data-theme` set the
+page follows the OS preference — `defaultLight` under a light system, `defaultDark` under a
+dark one. The controller only manages explicit choices.
+
+## Registering a design system's themes
+
+Every design system exports `installThemes()`, which hands its whole token declaration to
+the registry:
+
+```ts
+import { installThemes } from '@sigx/zero-daisyui';
+installThemes();   // light / dark (paired), dim, nord, sunset
+```
+
+Inside, that is one call — `registerThemes(tokens)` — and the registry derives the rest:
+
+```ts
+import { registerThemes } from '@sigx/zero';
+import { tokens } from './tokens.js';
+
+export function installThemes(): void {
+    registerThemes(tokens);
+}
+```
+
+`ThemeSource` is typed structurally on purpose: the kit's `TokensInput` is assignable to it,
+so a design system passes `tokens` straight through while `@sigx/zero` never imports the
+Node-only kit. The registry reads only the keys it needs: `themes` (name → `colorScheme`,
+`pair`, `colors`), `defaultLight` / `defaultDark`, and `roles` / `swatch` for the swatch.
+
+The **swatch** — the handful of colours a theme picker samples — is derived from the design
+system's own declaration: `tokens.swatch` if it declares one, otherwise the first four
+declared roles plus `base-100` and `base-content` (`defaultSwatch(roleNames)`, the same rule
+the compiler applies when writing the manifest). A design system whose distinguishing colours
+are its surfaces rather than `primary` declares a swatch that says so.
+
+`registerTheme(info)` registers one theme by hand; `clearThemes()` empties the registry (a
+runtime design-system swap calls it before installing the next); `getTheme(name)`,
+`listThemes()`, `pairOf(name)` and `pickThemeFor(scheme)` read it. `pickThemeFor` prefers the
+source's declared `defaultLight` / `defaultDark` over the first theme registered with that
+scheme.
+
+## The controller
+
+```ts
+import { themeController, useTheme } from '@sigx/zero';
+
+const theme = useTheme();          // inside a component — the injected controller
+theme.theme();                     // 'dim' | … | null (null = following the system)
+theme.resolvedScheme();            // 'light' | 'dark' — the effective scheme
+theme.setTheme('nord');            // explicit choice, persisted
+theme.setTheme(null);              // follow the system again
+theme.toggle();                    // the current theme's pair, else the other scheme's default
+```
+
+`themeController()` is a lazily created browser singleton (it throws under SSR). It reads the
+persisted choice from `localStorage` (key `zero-theme`, `DEFAULT_STORAGE_KEY`), stamps
+`data-theme` on `<html>` whenever the explicit theme changes, and follows the OS preference
+through `matchMedia` while `theme()` is `null`. `useTheme` is the injectable that resolves to
+it by default.
+
+Name typing follows one rule: **authoring is closed, anything that round-trips through
+storage or the registry is open.** `setTheme` takes `ZeroThemeName` — narrowed to the design
+system's real theme names by its [`/register`](/zero/docs/typed-vocabulary/) module, so
+`setTheme('dimm')` is a compile error — while `theme()`'s return, `getTheme` and
+`registerTheme` stay open, because a persisted name may come from an older app version or a
+runtime-registered tenant theme.
+
+## `ThemeProvider` and `ThemeScope`
+
+```tsx
+import { ThemeProvider, ThemeScope } from '@sigx/zero';
+
+<ThemeProvider theme={requestTheme} storageKey="acme-theme">
+    <App />
+</ThemeProvider>
+
+<ThemeScope theme="dark">
+    <Card.Root>…</Card.Root>      {/* an island that uses the dark theme's tokens */}
+</ThemeScope>
+```
+
+`ThemeProvider` creates a **separate** controller for its subtree (`createThemeController`)
+and provides it as `useTheme` — the per-request answer on the server, where the singleton
+cannot exist, seeded with `initial` from a cookie. `ThemeScope` is just a `data-theme`
+island: everything inside uses that theme's tokens, because theme blocks are emitted at
+`[data-theme="…"]` and inherit down.
+
+Every client controller writes the same `document.documentElement` attribute while holding
+its own signal state, and nothing synchronises the signals. Only the singleton listens for
+`clearThemes()`. If an app swaps design systems at runtime, capture the current theme before
+`clearThemes()` and re-apply it after `installThemes()` when the incoming system defines the
+same name.
+
+## First paint
+
+An explicit choice persisted in `localStorage` has to apply before the first frame, or an
+SSR/SSG page flashes the default theme. `themeInitScript()` returns a tiny inline IIFE for
+`<head>` that reads the key and stamps `data-theme`:
+
+```tsx
+import { themeInitScript } from '@sigx/zero';
+
+<script innerHTML={themeInitScript({ storageKey: 'acme-theme' })} />
+```
+
+The system preference needs no script — that is `light-dark()`'s job.
+
+## Multiple themes in one design system
+
+A design system declares any number of themes. Each theme block in the compiled CSS is
+diff-only — only the tokens that diverge from `:root` — with two deliberate exceptions
+restated per theme: scheme-divergent non-colour values (so a `data-theme="light"` island
+under a system-dark root does not inherit the dark shadow), and tokens whose values reference
+colour properties (a `var()` in a custom property substitutes where it is *declared*, so a
+shadow that reads `--color-primary` must be restated where `--color-primary` changes).
+`@sigx/zero-daisyui`'s five themes — `light` and `dark` as a pair, plus `dim` (dark), `nord`
+(light) and `sunset` (dark) — are the shipped exercise; under its `/register` import the
+theme union is exactly those five.
+
+## Non-colour tokens and dark
+
+`light-dark()` is a `<color>` function. A non-colour token that differs between the default
+light and dark themes — a heavier shadow, a thicker border — is emitted in a
+`prefers-color-scheme: dark` block instead, from the design system's `systemDark`
+declaration. See [Tokens](/zero/docs/tokens/).

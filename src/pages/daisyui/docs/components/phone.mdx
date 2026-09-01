@@ -1,0 +1,83 @@
+---
+title: Phone
+description: MockupPhone frames content in a phone with a camera notch and screen
+layout: docs
+category: ["Components", "Mockup"]
+order: 720
+---
+
+# Phone
+
+MockupPhone draws a phone frame — camera notch, display and a phone-sized
+artboard — around your content. Use it to present a mobile screen or
+screenshot. It is also available as `Mockup.Phone`.
+
+## Import
+
+```tsx
+import { MockupPhone } from '@sigx/daisyui';
+// or
+import { Mockup } from '@sigx/daisyui';
+```
+
+## Basic Usage
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { MockupPhone } from '@sigx/daisyui';
+
+const Demo = component(() => {
+    return () => (
+        <MockupPhone>
+            <div class="grid place-content-center h-full bg-base-100">Hi.</div>
+        </MockupPhone>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## With an App Screen
+
+```tsx preview code live
+import { component, render } from 'sigx';
+import { Mockup, Navbar, Menu, Button } from '@sigx/daisyui';
+
+const Demo = component(({ signal }) => {
+    const state = signal({ count: 0 });
+
+    return () => (
+        <Mockup.Phone class="border-primary">
+            <div class="flex flex-col h-full w-full bg-base-100">
+                <Navbar
+                    background="primary"
+                    slots={{ start: () => <span class="px-2 font-semibold">Counter</span> }}
+                />
+                <div class="grid place-content-center grow gap-4 text-center">
+                    <span class="text-5xl font-bold">{state.count}</span>
+                    <Button variant="primary" onClick={() => state.count++}>Tap</Button>
+                </div>
+                <Menu horizontal class="justify-around bg-base-200">
+                    <Menu.Item active>Home</Menu.Item>
+                    <Menu.Item>Stats</Menu.Item>
+                    <Menu.Item>Settings</Menu.Item>
+                </Menu>
+            </div>
+        </Mockup.Phone>
+    );
+});
+
+render(<Demo />, "#sandbox");
+```
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `class` | `string` | - | Additional CSS classes on the frame (e.g. `border-primary` to tint the bezel) |
+
+## Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | Screen content, rendered inside a phone-sized artboard |

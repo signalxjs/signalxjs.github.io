@@ -1,0 +1,145 @@
+---
+title: "Join"
+description: "The @sigx/zero Join component — a root / item pair that visually groups adjacent controls into one segmented shape, pure CSS composition where the item's asChild puts the attributes on the control itself."
+layout: docs
+category: ["Components", "Content"]
+order: 516
+---
+
+# Join
+
+<p class="lede">Visual grouping that collapses the radii of adjacent children into one
+segmented shape: a search field with its Go button, a button strip. The component is two
+attribute carriers and nothing else — every visual fact (the radius collapse, the seam
+borders) is the design system's, and `asChild` on the item is what lets those rules reach
+the control instead of a wrapper around it.</p>
+
+## Import
+
+```tsx
+import { Join } from '@sigx/zero/join';
+```
+
+`Join` is a compound: `Join.Root`, `Join.Item`. It is also re-exported from the
+`@sigx/zero` root, together with `joinAnatomy` and `useJoinContext`. The props types are
+exported as `JoinRootProps` and `JoinItemProps`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { Join } from '@sigx/zero/join';
+import { Button } from '@sigx/zero/button';
+
+const Search = component(({ signal }) => {
+    const state = signal({ query: '' });
+
+    return () => (
+        <Join.Root>
+            <Join.Item asChild>
+                {(p) => (
+                    <input
+                        {...p}
+                        placeholder="Search…"
+                        value={state.query}
+                        onInput={(e) => (state.query = e.currentTarget.value)}
+                    />
+                )}
+            </Join.Item>
+            <Join.Item asChild>
+                {(p) => <Button.Root {...p} onClick={() => search(state.query)}>Go</Button.Root>}
+            </Join.Item>
+        </Join.Root>
+    );
+});
+```
+
+Join takes no `model`: it has no state. The input's value is the input's, the button's click
+is the button's; Join only tells a recipe that these two controls share one outline.
+
+### `asChild` is the honest joint
+
+With `asChild`, `Join.Item` renders no element — the default slot receives the item's
+attribute bag (`data-scope`, `data-part`, `data-orientation`) and you spread it onto the
+control. That is the point, not a convenience: the corner rules only reach what carries the
+part attributes, and a wrapper cannot collapse the radius of the control *inside* it. Put
+the item attributes on the control.
+
+Without `asChild`, the item renders a `<div>` around its children. That works for content
+that has no radius of its own to collapse, and for a control whose recipe already reads its
+parent's seams.
+
+### Vertical join
+
+```tsx
+<Join.Root orientation="vertical">
+    <Join.Item asChild>{(p) => <Button.Root {...p}>Top</Button.Root>}</Join.Item>
+    <Join.Item asChild>{(p) => <Button.Root {...p}>Middle</Button.Root>}</Join.Item>
+    <Join.Item asChild>{(p) => <Button.Root {...p}>Bottom</Button.Root>}</Join.Item>
+</Join.Root>
+```
+
+`orientation` renders as `data-orientation` on the root **and on every item**. The collapse
+is directional CSS on the item (`item + item` seams, first / last corners), and a sibling
+selector cannot see the root — so the item carries the axis too. Descendants read it from
+`useJoinContext`.
+
+### Group semantics are yours
+
+Join adds no `role`. A join is *visual* grouping — a search field joined to its button is
+not a semantic group the reader needs announced. A consumer who means "toolbar" or "group"
+writes the role on the root.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | — | Carries the variant axes and `data-orientation`. |
+| `item` | `div` | — | — | Carries `data-orientation`. Inside `root`. `asChild`. |
+
+Every part carries `data-scope="join"` and `data-part="<part>"`. Both parts hint the
+`radius-field` token and nothing else: the join composes field-radius controls and paints
+no fill of its own. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+## Props
+
+### `Join.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Layout axis; rendered as `data-orientation` on root and items. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes. |
+
+Join has no `model`, no default-value prop and no change event: it has no state to bind.
+
+### `Join.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
+| `class` | `string` | — | Extra classes on the built-in `<div>` (not applied under `asChild`). |
+
+The default slot receives the part bag either way — as a function argument when rendering
+the built-in element, and as the sole render path under `asChild`.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (all eight recommended roles)
+and `size` (`xs`–`xl`) on the join root. Neither wires a `variant` or any `mods`; under a
+design system's `/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A join recipe reads `data-orientation` on the **item**: it zeroes the inline-end radii of
+every item but the last and the inline-start radii of every item but the first when
+horizontal, the block-end / block-start radii when vertical, and pulls adjacent items
+together by a border width so the seam is a single line. Because the attributes sit on the
+control under `asChild`, those rules override the control's own `radius-field` corners
+directly.
+
+## Related
+
+[`ToggleGroup`](/zero/docs/components/toggle-group/) is the segmented control with a
+selection model; Join is the segmented *shape* with none.
+[`Button`](/zero/docs/components/button/) and [`Input`](/zero/docs/components/input/) are
+the usual items.

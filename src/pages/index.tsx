@@ -44,8 +44,8 @@ export default HomePage;
  * The layout property tells SSG which layout to wrap this page with
  */
 export const meta = {
-    title: 'SignalX (sigx) - The Reactive TypeScript Framework',
-    description: 'SignalX (sigx) — a fine-grained reactive TypeScript framework with signals, TSX components, typed server functions and actors. One core for web, native (Lynx) and terminal apps.',
+    title: 'SignalX — Fine-grained reactive TypeScript framework',
+    description: 'SignalX (sigx) — a fine-grained reactive TypeScript framework: signals, TSX components, server functions and actors. Web, native and terminal.',
     layout: 'home',
     // The site-wide graph in index.html already describes the homepage.
     autoJsonLd: false,

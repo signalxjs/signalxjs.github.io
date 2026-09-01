@@ -1,0 +1,34 @@
+---
+title: "Overview"
+description: "Error capture, sinks & memory — the Observability module for SignalX Lynx (@sigx/lynx-observability): what it does, setup and API."
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Observability
+
+<p class="lede">Opt-in production error capture, provider-agnostic log/error sinks, and <code>Memory.query()</code> — the engine-attributed memory reading.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/lynx-observability" /> <span class="mmr-dot" /> iOS · Android · Web <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/lynx-observability
+sigx prebuild   # links the native memory module
+```
+
+## About
+
+`@sigx/lynx-observability` builds on the `@sigx/lynx-core` logger: uncaught errors are funnelled in as `error`-level records, and sinks are just `LogTransport`s, so any provider — Sentry, Datadog, your own backend — is an adapter away. Declare it under `logging.production` in `signalx.config.ts` and `@sigx/lynx-plugin` prepends the init in release builds; or call `initObservability()` once in your entry.
+
+`Memory` is the resource half: one process-global reading of what the Lynx engine is holding — total bytes, element-tree bytes and node count, runtime heaps, per-LynxView attribution — on demand with `Memory.query()` or on a timer with `Memory.startReporting()`. It is the package's native side, and the reason `sigx prebuild` is required after installing.
+
+It is versioned in lockstep with the rest of the Lynx module family.
+
+## Next steps
+
+Continue with [Installation](/lynx/modules/observability/installation) for project setup, [Usage](/lynx/modules/observability/usage) for the patterns, or jump to the [API reference](/lynx/modules/observability/api).

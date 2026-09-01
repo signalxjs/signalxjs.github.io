@@ -1,0 +1,123 @@
+---
+title: Variant axes
+description: "The color / size / variant props, custom axes and presence-only mods every @sigx/zero component carries — what they render, where they render (the carrier part), the reserved names, and how a design system's vocabulary is per-scope"
+layout: docs
+category: Styling
+order: 51
+---
+
+# Variant axes
+
+<p class="lede">Every component composes the same five styling props: `color`, `size` and
+`variant` (the axes almost every design language has), an `axes` bag for any further axis a
+design system declares, and `mods` for presence-only modifiers. All of them pass straight
+through as `data-*` attributes on one part; zero attaches no styling to any of them, and a
+design system's compiled CSS selects on exactly those attributes.</p>
+
+```tsx
+<Button.Root color="primary" size="lg" variant="outline"
+             axes={{ density: 'compact' }} mods={{ block: true }}>
+    Save
+</Button.Root>
+```
+
+```html
+<button data-scope="button" data-part="root"
+        data-color="primary" data-size="lg" data-variant="outline"
+        data-density="compact" data-mod-block="">Save</button>
+```
+
+## The five surfaces
+
+| Prop | Renders | Values |
+|---|---|---|
+| `color` | `data-color="<role>"` | A colour role the design system declares — the recommended eight are `primary`, `secondary`, `accent`, `neutral`, `info`, `success`, `warning`, `error`. |
+| `size` | `data-size="<step>"` | A step of the design system's size ramp — recommended `xs` … `xl`. |
+| `variant` | `data-variant="<value>"` | Whatever the design system defines: `solid`, `outline`, `soft`, `ghost`, … Zero does not interpret it. |
+| `axes` | `data-<axis>="<value>"` per entry | Any further axis the design system declares (`density`, `emphasis`, `radius`, Ant's `type`). |
+| `mods` | `data-mod-<name>=""` per truthy entry | Presence-only modifiers the design system declares (`block`, `icon-only`, `loading`). |
+
+By default the props are open unions: any string is valid and the recommended names
+autocomplete. Importing a design system's `/register` module narrows each of them, per
+component, to exactly what that design system's compiled CSS answers to — see
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+## Axes are valued, mods are presence
+
+An **axis** answers *which one* and always carries a value. A **modifier** answers *is it
+on* and carries none — daisyUI's `block` and `wide`, Radix's `high-contrast`, HeroUI's
+`icon-only`. Modifiers render in their own `data-mod-*` namespace rather than as bare
+`data-<name>` flags, and the prefix is the safety argument: zero's own flag vocabulary
+(`data-disabled`, `data-pressed`, …) is presence-only too and grows between versions, so an
+unprefixed modifier named `busy` would silently start matching a `data-busy` flag zero adds
+later, with exactly the right shape and no error. A valued axis cannot fail that way — a
+collision there simply never matches, and the runtime throws. Different hazard, different
+treatment: prefix modifiers, do not prefix axes. A modifier has no default; absence is its
+default.
+
+`false` and `undefined` in `mods` both mean absent; `undefined` values in `axes` are skipped.
+
+## Where the attributes land: the carrier part
+
+Each scope carries its axis attributes on one part, the **carrier**: the part named `root`,
+else the first declared part. For Dialog, Menu, Popover and Tooltip — whose Root renders a
+fragment — the carrier is the **trigger**, so the props live on `Dialog.Trigger`,
+`Menu.Trigger`, `Popover.Trigger` and `Tooltip.Trigger`, and colour on those scopes styles the
+trigger (the popup is a top-layer sibling the rules cannot reach). Toast routes the queue's
+`toast({ color })` through the same pass-through, with an explicit prop on a composed
+`Toast.Root` winning.
+
+A design system's compiled CSS reads the carrier's attribute for every part below it
+through an `@scope` donut, so nesting one instance of a scope inside another (a card in a
+card) resolves each part to its *nearest* carrier. See
+[The compiled CSS](/zero/docs/compiled-css/).
+
+## Reserved names
+
+An axis may not shadow a named prop (`color`, `size`, `variant`, `mods`, `axes`) or anything
+the anatomy contract owns — `scope`, `part`, `state`, `orientation`, or any flag
+(`disabled`, `selected`, …) — because a user-land `data-state` would silently repoint every
+`[data-state="open"]` rule a design system wrote. Names are kebab-case. `variantAttrs`
+(`@sigx/zero/contract`) is the single pass-through, and its guards are the runtime half of
+the contract: a reserved or non-kebab axis name throws. The list is exported as
+`RESERVED_AXES`; the three named axes as `VARIANT_AXES`; the modifier prefix as
+`MOD_ATTR_PREFIX`.
+
+## Vocabularies are per-scope
+
+A design system declares its vocabulary for each axis — and may narrow it per component
+scope, so `tokens.variants` is the **union** of every scope's vocabulary rather than one
+list every scope shares. In `@sigx/zero-basic`:
+
+| Scope | `variant` |
+|---|---|
+| `button` | `solid` \| `outline` \| `soft` \| `ghost` |
+| `select` | `outline` \| `soft` \| `ghost` |
+| `badge` | `solid` \| `soft` \| `outline` |
+
+Each omission is deliberate: a select filled with the role at full strength reads as a
+button; a badge has no hover and nothing to reveal. Every other scope in zero-basic wires no
+`variant` at all — `color` and `size`, which every scope wires, are the axes you can count on
+across the library.
+
+The `variant` vocabulary is the design system's own. `solid | outline | soft | ghost` is a
+convention the shipped design systems share, not a contract; a design system can just as
+well fuse colour into a seven-member `variant` and declare no colour axis at all. Where a
+design system declares an axis *empty* (`roles: {}`, `sizes: []`), the prop is typed `never`
+under its `/register` module and the component surfaces no such prop.
+
+## What each component accepts
+
+All 51 components accept all five surfaces at runtime. Which ones a given design system
+*styles* is the design system's decision, recorded in its manifest and its `/register`
+types; each [component page](/zero/docs/components/) lists what `@sigx/zero-basic` and
+`@sigx/zero-daisyui` wire. Passing a value nothing styles is harmless — the attribute renders
+and matches no rule.
+
+## For design-system authors
+
+Declaring a vocabulary closes it: a recipe value outside the declared set is a build error
+listing the set, and the harvest of what the recipes actually wire is what the `/register`
+types and the manifest describe. [Tokens](/zero/docs/tokens/) covers `roles`, `sizes`,
+`variants`, `axes`, `modifiers` and per-scope `scopes`; [Recipes](/zero/docs/recipes/) covers
+keying `variants` on any axis, `modifiers`, `compoundVariants` and `defaultVariants`.

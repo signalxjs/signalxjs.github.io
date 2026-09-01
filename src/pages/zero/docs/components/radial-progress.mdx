@@ -1,0 +1,141 @@
+---
+title: "Radial Progress"
+description: "The @sigx/zero RadialProgress component — circular progress as its own scope (root / label / value-text) that shares Progress's value model verbatim and publishes --progress-percent for a recipe to paint the arc from."
+layout: docs
+category: ["Components", "Content"]
+order: 507
+---
+
+# Radial Progress
+
+<p class="lede">Circular progress: [`Progress`](/zero/docs/components/progress/)'s value model
+on a radial anatomy. The root carries `role="progressbar"` with the ARIA value trio and
+publishes `--progress-percent`; the ring is one painted layer on the root, so there is no
+track and no range — a design system paints the arc from the custom property, and the
+children render in the ring's eye.</p>
+
+## Import
+
+```tsx
+import { RadialProgress } from '@sigx/zero/radial-progress';
+```
+
+`RadialProgress` is a compound: `RadialProgress.Root`, `RadialProgress.Label`,
+`RadialProgress.ValueText`. It is also re-exported from the `@sigx/zero` root, together with
+`radialProgressAnatomy` and `useRadialProgressContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { RadialProgress } from '@sigx/zero/radial-progress';
+
+const Upload = component(({ signal }) => {
+    const state = signal({ done: 62 });
+
+    return () => (
+        <RadialProgress.Root value={state.done} color="primary" size="lg">
+            <RadialProgress.Label>Upload</RadialProgress.Label>
+            <RadialProgress.ValueText />
+        </RadialProgress.Root>
+    );
+});
+```
+
+`value` is a plain prop, not a `model`: the app writes `state.done` and the ring follows.
+`RadialProgress.ValueText` with no children renders the rounded percent (`62%`); give it
+children to render your own text. Every recipe centres the children in the ring's eye, which
+is where the value text lives.
+
+### Indeterminate
+
+```tsx
+<RadialProgress.Root value={null}>
+    <RadialProgress.Label>Connecting…</RadialProgress.Label>
+</RadialProgress.Root>
+```
+
+`value={null}` (or no `value` at all) is indeterminate: the root renders
+`data-state="indeterminate"`, `aria-valuenow` is omitted, `--progress-percent` is not
+published and `ValueText` renders nothing. The design system spins the arc.
+
+### A custom range
+
+```tsx
+<RadialProgress.Root value={stepsDone} min={0} max={steps.length}>
+    <RadialProgress.Label>Setup</RadialProgress.Label>
+    <RadialProgress.ValueText>{stepsDone} / {steps.length}</RadialProgress.ValueText>
+</RadialProgress.Root>
+```
+
+`min` and `max` default to `0` and `100`. The percent is `(value - min) / (max - min)`,
+clamped to 0–100; a degenerate range (`max <= min`) has nothing left to fill, so any present
+value reads as `100` and `complete`.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | `loading` \| `complete` \| `indeterminate` | — | `role="progressbar"`, `aria-valuemin` / `aria-valuemax` / `aria-valuenow`, `aria-labelledby`. Carries the variant axes. Publishes `--progress-percent`. |
+| `label` | `div` | — | — | The accessible name; its id is the root's `aria-labelledby`. Inside `root`. |
+| `value-text` | `div` | — | — | Defaults to the rounded percent. Inside `root`. |
+
+Every part carries `data-scope="radial-progress"` and `data-part="<part>"`. The state is
+derived exactly as in Progress: `indeterminate` when the value is `null`, `complete` at 100
+percent, `loading` otherwise. When the value is present the root's inline style publishes
+`--progress-percent: <n>%`. See [The anatomy contract](/zero/docs/anatomy-contract/).
+
+### Why its own scope
+
+Linear progress paints a `range` *inside* a `track` — two rendered boxes whose geometry
+(width against channel) is the display. A radial has neither: the ring is one painted layer
+on the root, a conic sweep masked to an annulus, so reusing the progress anatomy would ship
+two dead parts no recipe could honestly style. And a `data-mod-*` is a design-system styling
+hook by contract, never a structural switch zero keys behaviour on. What *is* shared is the
+value model, verbatim — `value: number | null`, `min` / `max`, `role="progressbar"` with the
+ARIA value trio, the same three states and the same `--progress-percent` — so tooling that
+reads one progress component reads both.
+
+The root's `aria-labelledby` always points at the label's id; render a
+`RadialProgress.Label` so the reference resolves, or the ring has no accessible name.
+
+## Props
+
+### `RadialProgress.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `number \| null` | `null` | The current value; `null` is indeterminate. |
+| `min` | `number` | `0` | The lower bound; rendered as `aria-valuemin`. |
+| `max` | `number` | `100` | The upper bound; rendered as `aria-valuemax`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `RadialProgress.Label`
+
+Only `class`. Renders the `label` part around its children.
+
+### `RadialProgress.ValueText`
+
+Only `class`. Renders its children, or the rounded percent when it has none and the value
+is present.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on radial-progress, so `<RadialProgress.Root color="accent" size="xl">`
+is styled in both. Neither wires a `variant` or any `mods` on the scope; under a design
+system's `/register` import the `variant` prop is therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+A recipe paints the arc on the root from `--progress-percent`: a `conic-gradient` sweep
+over a background-colour ink, masked to an annulus so the eye stays clear for the children.
+`size` sets the ring's diameter. The `indeterminate` state rotates the arc in a loop, and a
+looping animation has to *stop* under `prefers-reduced-motion: reduce` — give the loop a
+literal duration and switch it off in the media query, rather than a `--duration-*` token,
+which collapses to near-zero under reduced motion and turns the rotation into a strobe.
+
+## Related
+
+[Progress](/zero/docs/components/progress/) is the linear bar with the same value model;
+[Spinner](/zero/docs/components/spinner/) is the ring with no value at all.

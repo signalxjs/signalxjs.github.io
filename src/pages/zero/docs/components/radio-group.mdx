@@ -1,0 +1,165 @@
+---
+title: "Radio Group"
+description: "The @sigx/zero RadioGroup component — native radios under a shared name and one value model, rendering root / label / item / item-control / item-indicator / item-label / hidden-input with orientation."
+layout: docs
+category: ["Components", "Form controls"]
+order: 307
+---
+
+# Radio Group
+
+<p class="lede">A `role="radiogroup"` of native `<input type="radio">` elements sharing one
+generated `name`, under a single string `model`. The platform provides the roving arrow keys
+and the one-of-many rule; each item's visible `item-control` and `item-indicator` are pure
+styling surfaces the design system paints.</p>
+
+## Import
+
+```tsx
+import { RadioGroup } from '@sigx/zero/radio-group';
+```
+
+`RadioGroup` is a compound: `RadioGroup.Root`, `RadioGroup.Label`, `RadioGroup.Item`. It is
+also re-exported from the `@sigx/zero` root, together with `radioGroupAnatomy` and
+`useRadioGroupContext`.
+
+## Usage
+
+```tsx
+import { component } from 'sigx';
+import { RadioGroup } from '@sigx/zero/radio-group';
+
+const Plan = component(({ signal }) => {
+    const state = signal({ plan: 'free' });
+
+    return () => (
+        <RadioGroup.Root model={() => state.plan} name="plan">
+            <RadioGroup.Label>Plan</RadioGroup.Label>
+            <RadioGroup.Item value="free">Free</RadioGroup.Item>
+            <RadioGroup.Item value="pro">Pro</RadioGroup.Item>
+            <RadioGroup.Item value="team" disabled>Team</RadioGroup.Item>
+        </RadioGroup.Root>
+    );
+});
+```
+
+`model={() => state.plan}` binds the selected value both ways — checking an item writes
+`state.plan`, and writing `state.plan` checks the item. Leave the model off and pass
+`defaultValue` to keep the state inside the component; `valueChange` fires either way. See
+[Models](/zero/docs/models/). Each item's default slot is its label text; with no children
+the `item-label` part is not rendered.
+
+### Horizontal
+
+```tsx
+<RadioGroup.Root defaultValue="s" orientation="horizontal">
+    <RadioGroup.Item value="s">S</RadioGroup.Item>
+    <RadioGroup.Item value="m">M</RadioGroup.Item>
+    <RadioGroup.Item value="l">L</RadioGroup.Item>
+</RadioGroup.Root>
+```
+
+`orientation` defaults to `vertical` and renders as `data-orientation` on the root, which is
+where a recipe switches the layout. The arrow keys are the platform's and move in both axes
+whatever the orientation.
+
+### Inside a Field
+
+```tsx
+<Field.Root required invalid={!state.shipping}>
+    <Field.Label>Shipping</Field.Label>
+    <RadioGroup.Root model={() => state.shipping}>
+        <RadioGroup.Item value="standard">Standard</RadioGroup.Item>
+        <RadioGroup.Item value="express">Express</RadioGroup.Item>
+    </RadioGroup.Root>
+    <Field.Error>Choose a shipping method.</Field.Error>
+</Field.Root>
+```
+
+Inside a [`Field.Root`](/zero/docs/components/field/) the group's `disabled`, `invalid` and
+`required` each derive as the group's own prop or the field's, and the root points its
+`aria-labelledby` at the field's label id and its `aria-describedby` at the description and
+error. A group has no single control for a `<label for>` to name, so the field labels the
+group itself; `RadioGroup.Label` is the standalone equivalent.
+
+## Anatomy
+
+| Part | Element | States | Flags | Notes |
+|---|---|---|---|---|
+| `root` | `div` | — | `disabled`, `invalid`, `required` | `role="radiogroup"`, `data-orientation`. Carries the variant axes. |
+| `label` | `div` | — | `disabled`, `invalid`, `required` | The group's caption. Inside `root`. |
+| `item` | `label` | `checked` \| `unchecked` | `disabled`, `focus-visible` | The label row of one option; the pointer target. Inside `root`. |
+| `item-control` | `span` | `checked` \| `unchecked` | `disabled`, `focus-visible`, `pressed`, `press-animating` | The circle a design system paints. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). Inside `item`. |
+| `item-indicator` | `span` | `checked` \| `unchecked` | — | Empty; the design system draws the dot. Inside `item-control`. |
+| `item-label` | `span` | `checked` \| `unchecked` | `disabled` | The option text; rendered only when the item's default slot is given. Inside `item`. |
+| `hidden-input` | `input` | — | — | The native radio, visually hidden and focusable; carries the shared `name`, the item's `value`, `required` and `aria-invalid`. Inside `item`. |
+
+Every part carries `data-scope="radio-group"` and `data-part="<part>"`. The root carries
+`data-orientation`; `orientation` is declared on the scope. The `hidden-input` is a
+real, styleable part: the native radios render so the group posts pre-hydration, hidden with
+an inline clip rather than `display: none` so they stay focusable. See
+[The anatomy contract](/zero/docs/anatomy-contract/).
+
+`invalid` is a fact about the group, not an option: it renders on the `root` and `label`
+only, and no item part declares it — an item cannot be wrong on its own. `disabled` is both:
+the group's flag reaches every item, and an item's own `disabled` applies to just that one.
+Press feedback is cross-element: a press anywhere in the item's label row, or Space on its
+hidden input, lands on the `item-control`, with the `--press-*` coordinates computed against
+its rect.
+
+## Props
+
+### `RadioGroup.Root`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Two-way binding of the selected item's `value`. |
+| `defaultValue` | `string` | `''` | Initial value when uncontrolled; the empty string selects nothing. |
+| `valueChange` | event `(value: string)` | — | Fires whenever the selection changes. |
+| `name` | `string` | generated | The shared form name on every hidden input; an SSR-safe id when unset. |
+| `required` | `boolean` | `false` | Renders `required` on every hidden input and `data-required` on root and label; a wrapping Field's `required` also applies. |
+| `invalid` | `boolean` | `false` | Renders `aria-invalid` on every hidden input and `data-invalid` on root and label; a wrapping Field's `invalid` also applies. |
+| `disabled` | `boolean` | `false` | Disables every item; renders `data-disabled` on root, label and each item; a wrapping Field's `disabled` also applies. |
+| `orientation` | `'horizontal' \| 'vertical'` | `'vertical'` | Layout direction; rendered as `data-orientation`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `class` | `string` | — | Extra classes on the root element. |
+
+### `RadioGroup.Label`
+
+Only `class`. Renders the `label` part around its children, mirroring the group's flags.
+
+### `RadioGroup.Item`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `value` | `string` | required | The value this item selects. |
+| `disabled` | `boolean` | `false` | Disables this item alone; renders `data-disabled` on item, item-control and item-label. |
+| `class` | `string` | — | Extra classes on the item element. |
+
+## Keyboard
+
+| Key | Action |
+|---|---|
+| ArrowDown / ArrowRight | Move focus to the next enabled radio and select it, wrapping at the end. |
+| ArrowUp / ArrowLeft | Move focus to the previous enabled radio and select it, wrapping at the start. |
+| Space | Select the focused radio if it is not yet selected. |
+| Tab | Enters the group on the selected radio (or the first enabled one when none is selected) and leaves it on the next press. |
+
+The roving comes from the platform: same-name native radios are one tab stop, so zero adds
+no key handling of its own beyond press feedback.
+
+## In the shipped design systems
+
+Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
+and `size` (`xs`–`xl`) on radio-group, so `<RadioGroup.Root color="secondary" size="sm">` is
+styled in both. Neither wires a `variant` or any `mods` on the scope; under a design system's
+`/register` import those props are therefore absent. See
+[Typed vocabulary](/zero/docs/typed-vocabulary/).
+
+The dot is the design system's: a recipe draws it on the `item-indicator` from
+`[data-state="checked"]` and lays the items out from the root's `data-orientation`.
+
+## Related
+
+[Checkbox](/zero/docs/components/checkbox/) · [Switch](/zero/docs/components/switch/) ·
+[Select](/zero/docs/components/select/) · [Field](/zero/docs/components/field/)
