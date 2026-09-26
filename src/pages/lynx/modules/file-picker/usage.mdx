@@ -16,17 +16,21 @@ This is the generic file picker (the Files app on iOS, the SAF document browser 
 
 ## Basic usage
 
-Call `pick` and check `cancelled` before reading `assets`. The promise always resolves — dismissing the picker gives you a cancelled result rather than an error.
+Call `pick` and check `cancelled` before reading `assets`. Dismissing the picker is not an error — it resolves a cancelled result. A picker that could not open at all (Android launcher not registered, no view controller to present from on iOS) **throws** a [`SigxError`](/lynx/modules/core/api#sigxerror) with `code: 'native_error'`, so wrap the call in `try`/`catch`.
 
 ```tsx
 import { FilePicker } from '@sigx/lynx-file-picker';
 
 async function pickOne() {
-  const result = await FilePicker.pick();
-  if (result.cancelled) return;
+  try {
+    const result = await FilePicker.pick();
+    if (result.cancelled) return;
 
-  const asset = result.assets[0];
-  console.log(asset.name, asset.mimeType, asset.size, asset.uri);
+    const asset = result.assets[0];
+    console.log(asset.name, asset.mimeType, asset.size, asset.uri);
+  } catch (err) {
+    console.warn('Could not open the file picker', err);
+  }
 }
 ```
 
@@ -111,7 +115,7 @@ if (FilePicker.isAvailable()) {
 
 ## Notes
 
-- The promise never rejects on user cancellation — branch on `result.cancelled`. `assets` is always an array, empty when cancelled.
+- The promise never rejects on user cancellation — branch on `result.cancelled`. `assets` is always an array, empty when cancelled. It rejects only when the picker could not open.
 - There are no permission methods by design. The picker UI is the consent, so there is no runtime permission to request.
 - With the default `copyToCache: true`, the picked bytes are copied into app storage and returned as a stable `file://` URI that survives an app restart.
 - With `copyToCache: false` the URI is ephemeral on both platforms. On Android the raw `content://` read grant is Activity-scoped and unreadable after the app is killed; on iOS you get a temporary `file://` copy that the OS may purge at any time.

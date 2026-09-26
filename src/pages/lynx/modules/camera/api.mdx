@@ -52,7 +52,7 @@ Both `takePicture` and `recordVideo` follow the same contract, so you narrow the
 
 - **Success** — resolves with a result that **always carries a `uri`** ([`PhotoResult`](#photoresult) / [`VideoResult`](#videoresult)).
 - **Cancel** — resolves with [`CameraCancelled`](#cameracancelled) (`{ cancelled: true }`, no `uri`) when the user dismisses the camera. The Android `{ error: "cancelled" }` sentinel is normalized into this shape.
-- **Failure** — **throws** on a real error (permission denied, no camera, native bridge missing, …).
+- **Failure** — **throws** a [`SigxError`](/lynx/modules/core/api#sigxerror) on a real error: `code: 'native_error'` for a failure the platform reported (permission denied, no camera, a FileProvider misconfiguration, or a payload matching none of the three outcomes), with the raw payload on `cause`; `code: 'module_unavailable'` when the native module isn't linked.
 
 So callers narrow on `result.uri` for the success path and `try` / `catch` failures:
 

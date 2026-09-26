@@ -41,7 +41,7 @@ Returns a single async snapshot of the current network connectivity state. This 
 getState(): Promise<NetworkState>
 ```
 
-**Returns** — a `Promise` resolving to a [`NetworkState`](#networkstate) describing connectivity, transport type, and internet reachability.
+**Returns** — a `Promise` resolving to a [`NetworkState`](#networkstate) describing connectivity, transport type, and internet reachability. Rejects with a [`SigxError`](/lynx/modules/core/api#sigxerror) (`code: 'native_error'`) when the platform can't read the state, rather than resolving a snapshot with `isConnected: undefined` — so an offline branch never runs by accident.
 
 **Platform notes**
 

@@ -37,6 +37,15 @@ import {
   useOrientation,
   readGlobalScreen,
   Orientation,
+  Breakpoint,
+  useWidthClass,
+  useHeightClass,
+  useWidthAtLeast,
+  useHeightAtLeast,
+  useWidthClassMT,
+  useHeightClassMT,
+  widthClassOf,
+  heightClassOf,
 } from '@sigx/lynx-core';
 import type {
   PermissionStatus,
@@ -51,6 +60,8 @@ import type {
   ScreenOrientation,
   CoarseOrientation,
   OrientationLock,
+  WidthClass,
+  HeightClass,
 } from '@sigx/lynx-core';
 ```
 
@@ -66,7 +77,7 @@ The bridge helpers read from a global `NativeModules` object that the Lynx runti
 export function getModule(name: string): Record<string, (...args: any[]) => any>
 ```
 
-Returns the native module proxy injected by the Lynx runtime as `NativeModules[name]`. Throws a descriptive, actionable error if the module is unavailable — the message names the package to install (mapping known module names through an internal table, e.g. `Haptics` to `@sigx/lynx-haptics`) and points at `sigx prebuild`.
+Returns the native module proxy injected by the Lynx runtime as `NativeModules[name]`. Throws a [`SigxError`](#sigxerror) with `code: 'module_unavailable'` and `package: 'lynx-core'` if the module is unavailable — the message names the package to install (mapping known module names through an internal table, e.g. `Haptics` to `@sigx/lynx-haptics`) and points at `sigx prebuild`.
 
 - **`name`** — the registered native module name (for example `'Haptics'`, `'Camera'`).
 - **Returns** — the module proxy, an object whose properties are its native methods. Never returns `undefined`; it throws when the module is missing.
@@ -78,7 +89,7 @@ Returns the native module proxy injected by the Lynx runtime as `NativeModules[n
 export function callSync<T = void>(module: string, method: string, ...args: any[]): T
 ```
 
-Invokes a synchronous bridge method on the named module and returns its result directly, cast to `T`.
+Invokes a synchronous bridge method on the named module and returns its result directly, cast to `T`. Throws `'module_unavailable'` (via `getModule`) when the module is not linked.
 
 - **`module`** — the native module name.
 - **`method`** — the method to invoke on that module.
@@ -94,7 +105,7 @@ export function callAsync<T = any>(module: string, method: string, ...args: any[
 
 Invokes an async bridge method that takes a result callback as its **last** argument, wrapping it in a Promise that resolves with the callback's value.
 
-The native method is expected to call a node-style callback that receives only a success value, not `(err, res)`. There is no native-side error channel in this signature, so the returned Promise only rejects if the synchronous invocation itself throws.
+The native method is expected to call a node-style callback that receives only a success value, not `(err, res)`. There is no native-side error channel in this signature, so the returned Promise only rejects if the synchronous invocation itself throws — including the `'module_unavailable'` `SigxError` when the module is not linked. A native module reports its own failures by resolving `{ error }`; pass the result through [`unwrapNative`](#unwrapnative) to turn that into a rejection.
 
 - **`module`** — the native module name.
 - **`method`** — the async method to invoke.
@@ -120,7 +131,7 @@ Feature-detects whether a native module is registered in the current runtime, wi
 export function guardModule(name: string): void
 ```
 
-Throws the descriptive "module not available" error if the module is not linked; meant for early failure at module-package entry points. Call it at the top of each public wrapper function so missing native linkage fails loudly and early.
+Throws the descriptive `'module_unavailable'` [`SigxError`](#sigxerror) if the module is not linked; meant for early failure at module-package entry points. Call it at the top of each public wrapper function so missing native linkage fails loudly and early.
 
 - **`name`** — the native module name to assert.
 - **Returns** — nothing. Throws if the module is missing.
@@ -216,6 +227,15 @@ export function isSigxError(e: unknown): e is SigxError
 ```
 
 The error base for anything a caller might branch on. `code` is stable; the message is for humans and may change. `isSigxError` narrows `unknown` in a `catch` block. `instanceof` works after transpilation (the constructor restores the prototype).
+
+Two codes cover every module's failures:
+
+| `code` | Raised by | Means |
+| --- | --- | --- |
+| `'module_unavailable'` | `getModule`, `callSync`, `callAsync`, `guardModule` | The native module isn't in this build. Feature-detect with the module's `isAvailable()` instead of catching it. |
+| `'native_error'` | `unwrapNative`, `unwrapNativeVoid` | The platform reported a failure; the raw payload is on `cause`. |
+
+Individual packages may add their own codes (for example `'invalid_argument'` in `@sigx/lynx-secure-storage`). See [Handling errors](/lynx/modules/core/usage#handling-errors) for the cancel-is-not-an-error rule.
 
 ```ts
 try {
@@ -346,6 +366,75 @@ Sheet detents (`@sigx/lynx-sheet`) and navigation transition geometry (`@sigx/ly
 
 - **Platform** — iOS and Android; degraded on web.
 
+## Window size classes
+
+Coarse, reactive buckets of the live window size, derived from [`useScreen`](#usescreen) — no second native subscription. They only notify when a threshold is crossed, so branching a layout on them doesn't re-render through a resize drag. All of these are re-exported from `@sigx/lynx`. See [Adapting layout to the window size](/lynx/modules/core/usage#adapting-layout-to-the-window-size) for guidance.
+
+### Breakpoint
+
+```ts
+export const Breakpoint: {
+  readonly WIDTH_MEDIUM: 600;
+  readonly WIDTH_EXPANDED: 840;
+  readonly WIDTH_LARGE: 1200;
+  readonly WIDTH_XLARGE: 1600;
+  readonly HEIGHT_MEDIUM: 480;
+  readonly HEIGHT_EXPANDED: 900;
+};
+```
+
+The lower bound of each bucket, in logical px (dp on Android, pt on iOS). Material's window-size-class thresholds.
+
+### WidthClass / HeightClass
+
+```ts
+export type WidthClass = 'compact' | 'medium' | 'expanded' | 'large' | 'xlarge';
+export type HeightClass = 'compact' | 'medium' | 'expanded';
+```
+
+Mobile-first: `compact` is the base case. Type-only exports.
+
+### useWidthAtLeast / useHeightAtLeast
+
+```ts
+export function useWidthAtLeast(dp: number): Computed<boolean>
+export function useHeightAtLeast(dp: number): Computed<boolean>
+```
+
+Background-thread reactive "is the window at least `dp` wide / tall?" — the primary read for layout branches. `dp` is compared against the real size, not snapped to a bucket, so any threshold is exact. The result is memoized per distinct `dp` for the life of the app, so pass a constant (typically a `Breakpoint` value), not a value derived per render.
+
+```tsx
+const isWide = useWidthAtLeast(Breakpoint.WIDTH_EXPANDED);
+return () => (isWide.value ? <SidebarLayout /> : <StackedLayout />);
+```
+
+### useWidthClass / useHeightClass
+
+```ts
+export function useWidthClass(): Computed<WidthClass>
+export function useHeightClass(): Computed<HeightClass>
+```
+
+Background-thread reactive bucket. Re-fires only when the bucket changes, never on a pixel move within one.
+
+### useWidthClassMT / useHeightClassMT
+
+```ts
+export function useWidthClassMT(): WidthClass
+export function useHeightClassMT(): HeightClass
+```
+
+Synchronous bucket for `'main thread'` worklet bodies, read against the current viewport on every invocation. There is no `useWidthAtLeastMT` — a worklet already has the number, so write `useScreenMT().width >= Breakpoint.WIDTH_EXPANDED`.
+
+### widthClassOf / heightClassOf
+
+```ts
+export function widthClassOf(width: number): WidthClass
+export function heightClassOf(height: number): HeightClass
+```
+
+Pure bucket functions, for code that already holds a width or height.
+
 ## Platform
 
 Synchronous platform information and a `select()` helper, read once from the Lynx `SystemInfo` global at module load. Use it for runtime branching between iOS and Android (which share one native bundle) and for reading display metrics.
@@ -358,7 +447,7 @@ const Platform: {
   OS: PlatformOS;
   /** OS version string, e.g. '17.4' / '14'. Empty when unknown. */
   Version: string;
-  /** Best-effort iPad detection (iOS + logical min edge ≥ 600dp). */
+  /** Best-effort iPad detection (iOS + logical min edge ≥ 600dp). Device identity, not a layout signal. */
   isPad: boolean;
   /** Device pixel ratio (physical px per dp). `1` when unknown. */
   pixelRatio: number;
@@ -373,6 +462,8 @@ const Platform: {
   select: typeof select;
 };
 ```
+
+`isPad` is device identity, frozen at load: it stays `true` for an iPad in a narrow Split View pane and is `false` on Android tablets. Branch layout on [window size classes](#window-size-classes) instead.
 
 Fields fall back to neutral defaults under tests, SSR, and non-Lynx hosts. On the web bundle, `OS` is `'web'`; on native it is `'ios'` or `'android'`, discriminated from `SystemInfo`.
 

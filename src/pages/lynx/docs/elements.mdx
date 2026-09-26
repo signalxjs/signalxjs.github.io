@@ -208,11 +208,13 @@ A native SVG element. It does not accept JSX children — pass the markup as a s
 
 - `content` — inline SVG XML (the engine parses it)
 - `src` — a URL to an SVG
+- `current-color` — the color `currentColor` resolves to inside the SVG (iOS and Android, Lynx 4.0+). It never overrides an explicit `fill` / `stroke`. The SVG is parsed in isolation and never inherits the host's CSS `color`, so this is the only way to color `currentColor` markup; pass a concrete color — `var(--token)` is not evaluated. Ignored on the web.
 - `width`, `height`, `viewBox` (sizing via `style` is preferred; `viewBox` only matters when `content` is omitted)
 
 ```tsx
 <svg
     content='<svg viewBox="0 0 24 24"><path d="…" fill="currentColor"/></svg>'
+    current-color="#0D9488"
     style={{ width: 24, height: 24 }}
 />
 ```

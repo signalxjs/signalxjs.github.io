@@ -52,6 +52,7 @@ ImagePicker.pickImage(options?: ImagePickerOptions): Promise<ImagePickerResult>
 
 - `options` — optional [`ImagePickerOptions`](#imagepickeroptions). `multiple` and `maxItems` control the selection limit (omitted or `false` picks one; `true` with no `maxItems` is unlimited; `true` with `maxItems` caps the count).
 - Returns a [`ImagePickerResult`](#imagepickerresult). The promise resolves with `cancelled: true` if the user dismisses the picker — it does not reject.
+- Rejects with a [`SigxError`](/lynx/modules/core/api#sigxerror) (`code: 'native_error'`) when the picker could not be opened.
 
 Platform: iOS uses `PHPicker` with the `.images` filter; Android uses `PickVisualMedia`. Picked files are copied into app storage and returned as `file://` URIs.
 

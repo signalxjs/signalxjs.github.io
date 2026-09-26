@@ -291,6 +291,11 @@ know before shipping:
 - **Standalone builds** embed the chunks into the native app so they resolve
   offline; no extra wiring.
 
+Chunks are plain JS loaded through `lynx.requireModuleAsync`, not Lynx lazy
+bundles — see [How dynamic `import()` chunks load](/lynx/modules/plugin/usage#how-dynamic-import-chunks-load)
+for the full model and the two error strings that mean the build plugins are
+out of step.
+
 ## Running on the web
 
 `sigx run:web` is the browser peer of `run:android` / `run:ios`: it builds your app for the web target and serves it locally with live reload, so you can iterate on layout and logic without a simulator or device.

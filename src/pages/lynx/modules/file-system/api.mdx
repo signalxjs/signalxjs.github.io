@@ -56,7 +56,7 @@ readFile(path: string): Promise<string>
 - **`path`** — file path. Relative paths resolve against the document directory.
 - **Returns** — a Promise resolving to the file's text content.
 
-Rejects if the file does not exist.
+Rejects with a `SigxError` (`code: 'native_error'`) if the file does not exist or can't be read.
 
 **Platform:** iOS and Android.
 
@@ -71,7 +71,7 @@ readFileBase64(path: string): Promise<string>
 - **`path`** — file path. Accepts plain paths, `file://` URIs, and (Android only) `content://` URIs, which are read via the `ContentResolver`.
 - **Returns** — a Promise resolving to the base64-encoded file contents.
 
-Throws an `Error` prefixed `[@sigx/lynx-file-system]` on read failure. The whole file is materialized in memory and base64 is roughly 33% larger crossing the bridge — use for small and medium files only.
+Throws a `SigxError` (`code: 'native_error'`) prefixed `[@sigx/lynx-file-system]` on read failure, and also when native returns anything other than a base64 string. The whole file is materialized in memory and base64 is roughly 33% larger crossing the bridge — use for small and medium files only.
 
 **Platform:** iOS and Android.
 
@@ -100,7 +100,7 @@ writeFile(path: string, content: string): Promise<void>
 
 - **`path`** — destination file path.
 - **`content`** — UTF-8 text to write.
-- **Returns** — a Promise that resolves when the write completes.
+- **Returns** — a Promise that resolves when the write completes. Rejects when the write fails — an unwritable path or a full volume.
 
 Text-only — there is no binary write API.
 
@@ -117,7 +117,7 @@ deleteFile(path: string): Promise<void>
 - **`path`** — file path to delete.
 - **Returns** — a Promise that resolves when the delete completes.
 
-Behavior for a missing file differs by platform: iOS rejects (the native `removeItem` throws), while Android resolves without throwing. Guard with `getInfo` if you need consistent behavior.
+Deleting a path that doesn't exist is a no-op on both platforms. A real failure — a read-only path, or a non-empty directory on Android (iOS removes those recursively) — rejects. A picker's `content://` URI is not a path the app owns, so deleting one **rejects on Android** rather than reporting a success that deleted nothing; `file://` URIs are unaffected.
 
 **Platform:** iOS and Android.
 
@@ -130,9 +130,9 @@ getInfo(path: string): Promise<FileInfo>
 ```
 
 - **`path`** — file or directory path.
-- **Returns** — a Promise resolving to a `FileInfo`. Always resolves — check the `exists` field for presence.
+- **Returns** — a Promise resolving to a `FileInfo` with all five fields populated on both platforms. A missing path resolves `exists: false` with `size`, `modifiedAt` zeroed and `isDirectory: false` — check `exists` for presence.
 
-On iOS, `size` / `isDirectory` / `modifiedAt` are only populated when the file exists; on Android all fields are always populated.
+A path that exists but can't be stat'd — a protected-data file on a locked iOS device, a permission-denied path — **rejects** rather than resolving something that would read as an empty file.
 
 **Platform:** iOS and Android.
 
@@ -192,10 +192,12 @@ interface FileInfo {
 }
 ```
 
-- **`uri`** — the resolved file URI.
-- **`size`** — file size in bytes.
-- **`exists`** — whether the path exists.
-- **`isDirectory`** — whether the path is a directory.
-- **`modifiedAt`** — last-modified time, in epoch milliseconds.
+| Field | Type | Meaning | Missing file |
+| --- | --- | --- | --- |
+| `uri` | `string` | The resolved file URI. | the resolved URI |
+| `size` | `number` | File size in **bytes**. | `0` |
+| `exists` | `boolean` | Whether the path exists. | `false` |
+| `isDirectory` | `boolean` | Whether the path is a directory. | `false` |
+| `modifiedAt` | `number` | Last-modified time in epoch **milliseconds** on both platforms — pass it straight to `new Date(info.modifiedAt)`. | `0` |
 
 **Platform:** iOS and Android.

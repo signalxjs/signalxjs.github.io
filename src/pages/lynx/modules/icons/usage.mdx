@@ -30,13 +30,23 @@ export function Toolbar() {
 
 `size` defaults to `16` and `color` defaults to `'currentColor'`. Both are optional; `set` and `name` are required.
 
-A glyph renders as inline SVG. Color is substituted directly into the SVG's `fill` — Lynx parses each SVG string in isolation and does not inherit a host `color`, so to plumb a theme token in, pass it explicitly:
+## Color
+
+A glyph renders as standard inline SVG that paints from `currentColor` (`fill="currentColor"` / `stroke="currentColor"`). `<Icon>` resolves one concrete color and hands it to the glyph: on iOS and Android through the `<svg>` element's `current-color` attribute (Lynx 4.0+), on the web by substituting it into the markup.
+
+Two things the engine does **not** do, probed on device on both platforms:
+
+- The SVG never inherits the host element's CSS `color`. Setting `color` on a parent view does nothing to the icon.
+- `var(--token)` is not evaluated in `current-color`. `color="var(--color-primary)"` does not paint the primary color.
+
+So pass a concrete color, or let a theme `variant` resolve the token to its palette value for you (see [Theme-driven color](#theme-driven-color)):
 
 ```tsx
-<Icon set="lucide" name="bell" color="var(--color-primary)" />
+<Icon set="lucide" name="bell" color="#0D9488" />
+<Icon set="lucide" name="bell" variant="primary" />   {/* with a theme that resolves variants */}
 ```
 
-Color values pass through an allow-list before substitution. Anything outside `currentColor`, named colors, `#hex` (3 to 8 digits), `rgb`/`rgba`/`hsl`/`hsla(...)`, or `var(--name)` falls back to `'currentColor'`.
+Color values pass through an allow-list first. Anything outside `currentColor`, named colors, `#hex` (3 to 8 digits), `rgb`/`rgba`/`hsl`/`hsla(...)`, or `var(--name)` falls back to `'currentColor'`.
 
 ## Declaring icon sets at build time
 
@@ -80,7 +90,7 @@ A missing glyph renders an empty `<view>` of the requested `size` rather than fa
 
 ## Registering an ad-hoc set at runtime
 
-For app-local or brand glyphs that you do not want to declare in `signalx.config.ts`, register a set at module load with `defineIconSet`. Each glyph's SVG should contain a `__COLOR__` placeholder where the `color` prop is substituted at render.
+For app-local or brand glyphs that you do not want to declare in `signalx.config.ts`, register a set at module load with `defineIconSet`. Each glyph is plain SVG: paint with `currentColor` wherever the `color` prop should apply, and keep explicit colors for any part that should stay fixed — `current-color` never overrides an explicit `fill` or `stroke`.
 
 ```tsx
 import { defineIconSet, Icon } from '@sigx/lynx-icons';
@@ -90,22 +100,24 @@ defineIconSet({
   glyphs: {
     logo: {
       svg: {
-        svg: '<svg viewBox="0 0 24 24" fill="__COLOR__"><path d="M3 12L12 3l9 9-9 9z"/></svg>',
+        svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 12L12 3l9 9-9 9z"/></svg>',
       },
     },
   },
 });
 
 export function Logo() {
-  return <Icon set="brand" name="logo" size={32} color="var(--color-primary)" />;
+  return <Icon set="brand" name="logo" size={32} color="#0D9488" />;
 }
 ```
+
+A `__COLOR__` placeholder in the markup is still honored as an alias of `currentColor`.
 
 Runtime-registered sets are checked after the build-time maps, so a `defineIconSet` glyph will not shadow one already produced by the pipeline.
 
 ## Theme-driven color
 
-Themes can map their own props (for example DaisyUI's `variant`) to a color. A theme provides a resolver via `useIconColorResolver`, and adds typed props by augmenting `IconPropsExtensions`. With such a theme installed, `<Icon>` accepts the augmented prop and the resolver turns it into a `fill` color:
+Themes can map their own props (for example DaisyUI's `variant`) to a color. A theme provides a resolver via `useIconColorResolver`, and adds typed props by augmenting `IconPropsExtensions`. With such a theme installed, `<Icon>` accepts the augmented prop and the resolver turns it into a concrete color — the palette value, not a `var()` reference:
 
 ```tsx
 <Icon set="lucide" name="bell" variant="primary" />

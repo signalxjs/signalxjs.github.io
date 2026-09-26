@@ -16,7 +16,7 @@ No special permissions are required on either platform. Run `sigx prebuild` once
 
 ## Basic usage
 
-`Network.getState()` returns a single snapshot of the current connectivity state. It is a one-shot Promise, not a subscription.
+`Network.getState()` returns a single snapshot of the current connectivity state. It is a one-shot Promise, not a subscription. If the platform can't read the state, the Promise rejects with a [`SigxError`](/lynx/modules/core/api#sigxerror) (`code: 'native_error'`) — wrap it in `try`/`catch` rather than treating a failure as "offline".
 
 ```ts
 import { Network } from '@sigx/lynx-network';

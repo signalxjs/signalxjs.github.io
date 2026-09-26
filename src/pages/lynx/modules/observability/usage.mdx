@@ -124,7 +124,16 @@ In a release build the global log level defaults to `warn`, so default `info` re
 
 ### What the Lynx performance API delivers
 
-Nothing, in a sigx-lynx app. Lynx does emit a `memory` performance entry, and `MemoryUsageEntry` is declared in `@lynx-js/types`, so `lynx.performance.createObserver(...).observe(['memory'])` type-checks — but the engine sends that entry to **platform observers only**, never to the JS runtimes, which is why this package needs native code at all. The same is true of every other entry type and of `addTimingListener`: the background-thread `PerformanceObserver` delivers no entries on either platform (device-verified; signalxjs/lynx#982). There is no first-paint / FCP story to build on yet; if you reach for the raw API, expect silence rather than assuming you have held it wrong.
+Lynx's own performance and timing APIs report the **page load** in a sigx app. What you can rely on today:
+
+- **Works:** `lynx.performance.createObserver(cb).observe(['pipeline'])` receives the `loadBundle` pipeline entry for the page load — `pipelineStart` / `pipelineEnd` / `paintEnd`, a nested `lynxFcp` first-paint metric and a populated `frameworkRenderingTiming`. The legacy `lynx.performance.addTimingListener` receives its setup callback with the `setup_timing` dictionary (`metrics.lynx_fcp` / `lynx_tti`). The platform perf/timing callbacks and Android's `forceGetPerf()` report too.
+- **Not yet:** pipelines for post-load **updates** (`updateTriggeredByBts`) and `metric.actualFmp`. Measure the load, not later re-renders.
+- **Never, from JS:** the `memory` and `jsBlocking` entries. The engine sends them to platform observers only. `MemoryUsageEntry` is declared in `@lynx-js/types`, so `observe(['memory'])` type-checks — and then delivers silence. Use [`Memory.query()` / `Memory.startReporting()`](#engine-memory) for memory.
+
+Two details worth knowing before you parse entries (measured on Lynx 4.0.1, release builds, a Pixel 9 Pro XL and the iPhone 16 Pro simulator):
+
+- There is no separate `metric.fcp` entry. First paint is the `lynxFcp` metric nested in the `loadBundle` pipeline entry — 241.7 ms on the Android device, 190.8 ms on the iOS simulator in that measurement.
+- `hostPlatformTiming` differs by platform: Android fills `measureStart/End`, `layoutStart/End` and `drawStart/End`; iOS reports only `hostPlatformType`.
 
 ## Notes
 

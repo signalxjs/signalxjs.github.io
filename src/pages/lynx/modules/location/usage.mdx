@@ -70,7 +70,7 @@ The status mapping is normalized across platforms: `granted`, `denied`, `undeter
 
 ## Getting the current position
 
-`getCurrentPosition` resolves with a single `LocationResult`. It rejects on timeout or when permission is denied, so wrap it in a try/catch.
+`getCurrentPosition` resolves with a single `LocationResult`. It rejects with a [`SigxError`](/lynx/modules/core/api#sigxerror) (`code: 'native_error'`) on timeout, when there is no fix, or when permission is denied — never with a result full of `undefined` fields — so wrap it in a try/catch.
 
 ```tsx
 import { Location } from '@sigx/lynx-location';
@@ -83,7 +83,7 @@ async function showMyLocation() {
     const loc = await Location.getCurrentPosition({ accuracy: 'high', timeout: 10000 });
     console.log(`lat ${loc.latitude}, lng ${loc.longitude} (±${loc.accuracy}m)`);
   } catch (err) {
-    // Thrown on timeout or denied permission.
+    // SigxError 'native_error': timeout, no fix, or denied permission.
     console.error('Could not get location:', err);
   }
 }

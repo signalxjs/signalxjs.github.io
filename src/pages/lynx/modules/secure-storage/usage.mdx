@@ -30,11 +30,13 @@ await SecureStorage.removeItem('refresh_token');
 await SecureStorage.clear();
 ```
 
-Keys and values are both strings. `setItem` throws on an empty/non-string key or a non-string value, so serialize structured data with `JSON.stringify` before storing it. `clear` only deletes keys owned by this module's service identifier — it never touches other apps' Keychain items or other Lynx packages' preferences.
+Keys and values are both strings. `setItem` throws a `SigxError` with `code: 'invalid_argument'` on an empty/non-string key or a non-string value, so serialize structured data with `JSON.stringify` before storing it. `clear` only deletes keys owned by this module's service identifier — it never touches other apps' Keychain items or other Lynx packages' preferences.
 
 ## Gating a key behind biometrics
 
-Pass `requireBiometric: true` to `setItem` and the OS will demand a biometric check (Face ID / Touch ID / Android `BiometricPrompt`) on every subsequent `getItem` of that key. The `setItem` call itself never prompts — only reads do.
+Pass `requireBiometric: true` to `setItem` and the OS will demand a biometric check (Face ID / Touch ID / Android `BiometricPrompt`) on every subsequent `getItem` of that key. The `setItem` call itself never prompts — only reads do, once per read.
+
+On Android the value is stored as an envelope: it is encrypted with a one-shot AES key, and that key is wrapped by a per-key Keystore RSA pair whose private half requires authentication. Wrapping uses the public half, which is why writing never prompts. The stored blob is somewhat larger than the plaintext. A biometric-gated value written on Android by `@sigx/lynx-secure-storage` before 0.28 is discarded and reads as "key not stored" (`null`) — write it again.
 
 When you read a biometric-gated key, supply a `biometricPrompt` so the OS prompt shows meaningful copy. `reason` is required (iOS prompt text and Android subtitle); `title` is Android-only and defaults to `"Authenticate"` (iOS ignores it — the Keychain prompt title is fixed).
 
@@ -60,7 +62,22 @@ try {
 }
 ```
 
-Reads reject when the user cancels or fails authentication, so always wrap a biometric `getItem` in `try/catch`. Native error codes are normalized to strings such as `userCancel`, `authenticationFailed` and `biometryLockout` (Android lockout only), and every message is prefixed `[@sigx/lynx-secure-storage]`.
+Reads reject when the user cancels or fails authentication, so always wrap a biometric `getItem` in `try/catch`. The rejection is a `SigxError` with `code: 'native_error'`; the native reason — a string such as `userCancel`, `authenticationFailed` or `biometryLockout` (Android lockout only) — is in the message, which is prefixed `[@sigx/lynx-secure-storage]`, and the raw payload is on `cause`. Dismissing the prompt is one of these failures: it throws rather than resolving `null`, which only ever means the key isn't stored.
+
+### Don't prompt twice
+
+Reading a gated key **authenticates by itself** — the OS prompt is part of decrypting it. Calling `Biometric.authenticate()` first and then `getItem` asks the user for the same thing twice:
+
+```tsx
+// ✗ Two prompts for one unlock
+const { success } = await Biometric.authenticate({ reason: 'Unlock your account' });
+if (success) token = await SecureStorage.getItem('access_token', { biometricPrompt: { reason: 'Unlock your account' } });
+
+// ✓ One prompt — the read is the check
+token = await SecureStorage.getItem('access_token', { biometricPrompt: { reason: 'Unlock your account' } });
+```
+
+Use [`@sigx/lynx-biometric`](/lynx/modules/biometric/usage) on its own only when there is no gated key behind the check — "confirm it's you before showing balances".
 
 Android note: a biometric `getItem` needs a foreground activity to host the prompt and requires a strong (Class 3) biometric sensor enrolled. If no biometric hardware is available or none is enrolled, the read rejects with a clean error rather than silently downgrading.
 
@@ -93,7 +110,7 @@ async function hasSession(): Promise<boolean> {
 
 ## Handling errors and key invalidation
 
-Both platforms invalidate a biometric-gated key when the user adds or removes a biometric enrollment. The encrypted blob stays on disk but `getItem` rejects — the right response is to delete the key and route the user back to sign-in. On Android the error message matches `/may be invalidated|KeyPermanentlyInvalidated/i`; on iOS, treat a repeated `authenticationFailed` the same way (iOS cannot yet distinguish a genuine mismatch from a changed biometric set).
+Both platforms invalidate a biometric-gated key when the user adds or removes a biometric enrollment (re-enrolling a fingerprint or face included), so the value must be written again. The encrypted blob stays on disk but `getItem` rejects — the right response is to delete the key and route the user back to sign-in. On Android the error message matches `/may be invalidated|KeyPermanentlyInvalidated/i`; on iOS, treat a repeated `authenticationFailed` the same way (iOS cannot yet distinguish a genuine mismatch from a changed biometric set).
 
 ```tsx
 import { SecureStorage } from '@sigx/lynx-secure-storage';
@@ -117,7 +134,7 @@ async function readAccessToken(): Promise<string | null> {
 
 ## Guarding for availability
 
-`isAvailable` reports whether the native module is wired into the current build. It is the only synchronous method (no Promise, no native round-trip), so use it to fail gracefully where the module was not linked.
+`isAvailable` reports whether the native module is wired into the current build. It is the only synchronous method (no Promise, no native round-trip), so use it to fail gracefully where the module was not linked — every other method throws a `SigxError` with `code: 'module_unavailable'` there, which is not worth catching since the build never recovers at runtime.
 
 ```tsx
 import { SecureStorage } from '@sigx/lynx-secure-storage';

@@ -134,8 +134,9 @@ See [Installation](/lynx/modules/biometric/installation) for the full setup walk
 - On iOS, biometrics enter lockout after 5 failed attempts and require the device passcode to reset.
 - The iOS simulator ships with biometrics disabled — enrol via Features → Face ID → Enrolled before testing.
 - Optic ID on Vision Pro (iOS 17+) is reported as `'iris'` for cross-platform symmetry; the flow is otherwise unchanged.
+- **Don't call `authenticate()` in front of a gated secret.** Reading a key stored with `SecureStorage.setItem(…, { requireBiometric: true })` raises the OS prompt itself, as part of decrypting it — authenticating first asks the user twice. Use `Biometric` on its own for an identity check with no stored key behind it ("confirm it's you before showing balances"); see [Secure Storage](/lynx/modules/secure-storage/usage#dont-prompt-twice).
 
 ## See also
 
 - [Biometric API reference](/lynx/modules/biometric/api) — every export and error code.
-- [Secure Storage](/lynx/modules/secure-storage/overview) — pair with Biometric to encrypt the unlocked credential at rest.
+- [Secure Storage](/lynx/modules/secure-storage/overview) — per-key biometric gating for a credential at rest; its gated read prompts by itself.

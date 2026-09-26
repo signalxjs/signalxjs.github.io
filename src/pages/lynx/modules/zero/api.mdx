@@ -22,8 +22,8 @@ Each component has its own page with usage, props, slots and events — see the 
 
 - [**ThemeProvider**](/lynx/modules/zero/components/themeprovider) — applies a theme's CSS vars to a subtree; the root provider binds the global singleton, nested providers are content sub-scopes.
 - [**StatusBarSync**](/lynx/modules/zero/components/statusbarsync) — side-effect-only component that keeps the OS status / navigation bar tint legible against the active global theme.
-- [**Row**](/lynx/modules/zero/components/row) — flex-row container (`flexDirection: row`).
-- [**Col**](/lynx/modules/zero/components/col) — flex-column container (`flexDirection: column`).
+- [**Row**](/lynx/modules/zero/components/row) — flex-row container (`flexDirection: row`, overridable per breakpoint with `direction`).
+- [**Col**](/lynx/modules/zero/components/col) — flex-column container (`flexDirection: column`, overridable per breakpoint with `direction`).
 - [**Center**](/lynx/modules/zero/components/center) — flex container centering its children on both axes.
 - [**Spacer**](/lynx/modules/zero/components/spacer) — spacing element: a fixed square of `size`, or `flex: 1` to fill when `size` is omitted.
 - [**ScrollView**](/lynx/modules/zero/components/scrollview) — scrollable container over the Lynx `<scroll-view>`.
@@ -43,9 +43,13 @@ import {
   registerTheme, extendTheme, listThemes, completeTheme,
   pickThemeFor, pairOf, variantOf, colorsOf, radiusOf, sizesOf,
   mixColors, useThemeColors, toHexColor, withAlpha,
-  // layout primitives
+  // layout primitives + responsive props
   Row, Col, Center, Spacer, ScrollView,
+  resolveResponsive,
+  // axis defaults
+  registerAxisDefaults, resolveVariantAxes,
 } from '@sigx/lynx-zero';
+import type { Responsive, AxisDefaults } from '@sigx/lynx-zero';
 
 // Tailwind preset (subpath only)
 import { zeroPreset, contractColors, contractFontSizes, lynxLayoutPlugin } from '@sigx/lynx-zero/preset';
@@ -199,17 +203,17 @@ Spacing input for padding / margin: a number applies to all sides, or pass a per
 
 ```ts
 interface BoxProps {
-  width?: number | string;
-  height?: number | string;
-  flex?: number;
-  background?: BackgroundValue;
-  borderRadius?: number;
-  padding?: SpacingValue;
-  margin?: SpacingValue;
+  width?: Responsive<number | string>;
+  height?: Responsive<number | string>;
+  flex?: Responsive<number>;
+  background?: Responsive<BackgroundValue>;
+  borderRadius?: Responsive<number>;
+  padding?: Responsive<SpacingValue>;
+  margin?: Responsive<SpacingValue>;
 }
 ```
 
-The box-model props shared by layout primitives and DS components.
+The box-model props shared by layout primitives and DS components. Every field takes a plain value or a per-breakpoint object ([`Responsive`](#responsive)).
 
 ### resolveSpacing
 
@@ -225,10 +229,59 @@ Expands a `SpacingValue` into long-form `{ paddingTop, ... }` / `{ marginTop, ..
 ### resolveBoxStyle
 
 ```ts
-function resolveBoxStyle(props: BoxProps): Record<string, unknown>;
+function resolveBoxStyle(props: BoxProps, cls?: WidthClass): Record<string, unknown>;
 ```
 
-Converts `BoxProps` to a Lynx style object: resolves color tokens and writes long-form flex (`flexGrow` / `flexShrink` / `flexBasis` / `minHeight`) to avoid Lynx flex-collapse.
+Converts `BoxProps` to a Lynx style object: resolves any per-breakpoint values against `cls` (the active width class from `useWidthClass()`, default `'compact'`; [`WidthClass`](/lynx/modules/core/api#window-size-classes) is a type export of `@sigx/lynx-core`, re-exported by `@sigx/lynx`), resolves color tokens and writes long-form flex (`flexGrow` / `flexShrink` / `flexBasis` / `minHeight`) to avoid Lynx flex-collapse.
+
+### Responsive
+
+```ts
+type Responsive<T> = T | {
+  initial?: T;   // the `compact` base case
+  medium?: T;
+  expanded?: T;
+  large?: T;
+  xlarge?: T;
+};
+```
+
+A plain value, or one value per [width class](/lynx/modules/core/api#window-size-classes). Resolution is mobile-first: a key applies at its breakpoint and every wider one. Width only — branch on height explicitly with `useHeightAtLeast()`. An object mixing breakpoint keys with plain keys (`{ initial: 4, top: 8 }`) logs a warning and is treated as a plain value; nest it instead (`{ initial: { top: 4 }, expanded: { top: 8 } }`).
+
+### resolveResponsive
+
+```ts
+function resolveResponsive<T>(value: Responsive<T> | undefined, cls: WidthClass): T | undefined;
+```
+
+Resolves a responsive value against a width class: from `cls`, the first key at or below it that is defined. Returns `undefined` when the object defines nothing at or below `cls` — so `{ expanded: 32 }` contributes nothing on a phone, exactly like an omitted prop, rather than forcing a zero. There is no `useResponsive()` hook; read the singleton class and resolve inline:
+
+```tsx
+const cls = useWidthClass();                                   // setup
+return () => <Grid columns={resolveResponsive(cols, cls.value) ?? 1} />;
+```
+
+## Axis defaults
+
+The design system's declared default axis values (`variant` / `size` / `color` and any custom axis), per anatomy scope. The compiled Lynx CSS has no `:not()` default twins, so an axis a recipe wires only matches when a concrete axis class is stamped — these defaults make sure one always is. A design-system shell package registers them at import; app code never calls these.
+
+### registerAxisDefaults
+
+```ts
+type AxisDefaults = Record<string, string>;   // axis name → default value
+
+function registerAxisDefaults(byScope: Record<string, AxisDefaults>): void;
+```
+
+Registers a design system's defaults keyed by anatomy scope, for example `{ button: { variant: 'solid', size: 'md', color: 'primary' } }`. Call it at module load, before first render. Re-registering a scope replaces it; identical values are silent, different values warn — the same semantics as `registerTheme`.
+
+### resolveVariantAxes
+
+```ts
+function resolveVariantAxes(scope: string, axes: VariantAxes): VariantAxes;
+```
+
+Fills a carrier's unset axes from the scope's registered defaults: `explicit prop ?? registered default`. Explicit values always win, and a default for an axis outside `color` / `size` / `variant` lands in the custom `axes` record. With nothing registered for the scope, the input passes through unchanged — unset axes stamp nothing. Every component carrier in `@sigx/lynx-zero` already calls this; you need it only when writing a carrier of your own.
 
 ## Shared press
 
@@ -575,23 +628,26 @@ Flexbox containers and a spacer, built on Lynx views, that consume the shared bo
 ### RowProps
 
 ```ts
+type FlexDirection = 'row' | 'column';
+
 type RowProps =
-  & Define.Prop<'gap', number, false>
-  & Define.Prop<'align', 'flex-start' | 'center' | 'flex-end' | 'stretch' | 'baseline', false>
-  & Define.Prop<'justify', 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly', false>
-  & Define.Prop<'wrap', boolean, false>
-  & Define.Prop<'padding', SpacingValue, false>
-  & Define.Prop<'margin', SpacingValue, false>
-  & Define.Prop<'width', number | string, false>
-  & Define.Prop<'height', number | string, false>
-  & Define.Prop<'flex', number, false>
-  & Define.Prop<'background', BackgroundValue, false>
-  & Define.Prop<'borderRadius', number, false>
+  & Define.Prop<'direction', Responsive<FlexDirection>, false>
+  & Define.Prop<'gap', Responsive<number>, false>
+  & Define.Prop<'align', Responsive<'flex-start' | 'center' | 'flex-end' | 'stretch' | 'baseline'>, false>
+  & Define.Prop<'justify', Responsive<'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly'>, false>
+  & Define.Prop<'wrap', Responsive<boolean>, false>
+  & Define.Prop<'padding', Responsive<SpacingValue>, false>
+  & Define.Prop<'margin', Responsive<SpacingValue>, false>
+  & Define.Prop<'width', Responsive<number | string>, false>
+  & Define.Prop<'height', Responsive<number | string>, false>
+  & Define.Prop<'flex', Responsive<number>, false>
+  & Define.Prop<'background', Responsive<BackgroundValue>, false>
+  & Define.Prop<'borderRadius', Responsive<number>, false>
   & Define.Prop<'class', string, false>
   & Define.Slot<'default'>;
 ```
 
-Row props.
+Row props. Every style prop takes a plain value or a per-breakpoint [`Responsive`](#responsive) object. `direction` overrides the main axis (`<Row>` defaults to `'row'`), so `direction={{ initial: 'column', expanded: 'row' }}` flips the layout in place instead of remounting the subtree.
 
 ### ColProps
 
@@ -599,17 +655,17 @@ Row props.
 type ColProps = /* identical shape to RowProps */;
 ```
 
-Col props — identical shape to `RowProps`.
+Col props — identical shape to `RowProps`; `direction` defaults to `'column'`.
 
 ### CenterProps
 
 ```ts
 type CenterProps =
-  & Define.Prop<'width', number | string, false>
-  & Define.Prop<'height', number | string, false>
-  & Define.Prop<'flex', number, false>
-  & Define.Prop<'background', BackgroundValue, false>
-  & Define.Prop<'borderRadius', number, false>
+  & Define.Prop<'width', Responsive<number | string>, false>
+  & Define.Prop<'height', Responsive<number | string>, false>
+  & Define.Prop<'flex', Responsive<number>, false>
+  & Define.Prop<'background', Responsive<BackgroundValue>, false>
+  & Define.Prop<'borderRadius', Responsive<number>, false>
   & Define.Prop<'class', string, false>
   & Define.Slot<'default'>;
 ```
@@ -620,7 +676,7 @@ Center props.
 
 ```ts
 type SpacerProps =
-  & Define.Prop<'size', number, false>
+  & Define.Prop<'size', Responsive<number>, false>
   & Define.Prop<'class', string, false>;
 ```
 
@@ -630,10 +686,10 @@ Spacer props (no default slot).
 
 ```ts
 type ScrollViewProps =
-  & Define.Prop<'direction', 'vertical' | 'horizontal', false>
-  & Define.Prop<'height', number | string, false>
-  & Define.Prop<'width', number | string, false>
-  & Define.Prop<'flex', number, false>
+  & Define.Prop<'direction', Responsive<'vertical' | 'horizontal'>, false>
+  & Define.Prop<'height', Responsive<number | string>, false>
+  & Define.Prop<'width', Responsive<number | string>, false>
+  & Define.Prop<'flex', Responsive<number>, false>
   & Define.Prop<'showScrollbar', boolean, false>
   & Define.Prop<'bounces', boolean, false>
   & Define.Prop<'class', string, false>
