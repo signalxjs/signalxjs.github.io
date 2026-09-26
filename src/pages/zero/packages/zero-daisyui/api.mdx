@@ -23,13 +23,14 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 ## `./components`
 
-The generated vendor-named module. `Button` and `Table` are `adapt()`ed; everything else is
+The generated vendor-named module. `Button`, `Table` and `Countdown` are `adapt()`ed; everything else is
 a plain re-export of the zero component.
 
 | Export | Props beyond zero's own |
 |---|---|
-| `Button` | `wide`, `block`, `square`, `circle`, `active`, `loading` (booleans → `data-mod-*`); `variant` narrowed to `solid` \| `outline` \| `soft` \| `ghost` \| `dash` \| `link`; `color` and `size` narrowed to the wired sets. |
+| `Button` | `wide`, `block`, `square`, `circle`, `active` (booleans → `data-mod-*`), beside zero's own `loading` prop; `variant` narrowed to `solid` \| `outline` \| `soft` \| `ghost` \| `dash` \| `link`; `color` and `size` narrowed to the wired sets. |
 | `Table` | `zebra`, `hover` on `Table.Root`. |
+| `Countdown` | `inline` on `Countdown.Root`, for a countdown inside a sentence. |
 | `Tabs`, `Dialog`, `Select`, … | zero's components, unchanged. |
 
 ## Stylesheets
@@ -55,7 +56,8 @@ a plain re-export of the zero component.
 | Scope | `color` | `size` | `variant` | `mods` |
 |---|---|---|---|---|
 | every scope | the eight recommended roles | `xs`–`xl` | — | — |
-| `button` | ✓ (default `primary`) | ✓ (default `md`) | `solid` (default) · `outline` · `soft` · `ghost` · `dash` · `link` | `wide` · `block` · `square` · `circle` · `active` · `loading` |
+| `button` | ✓ (default `primary`) | ✓ (default `md`) | `solid` (default) · `outline` · `soft` · `ghost` · `dash` · `link` | `wide` · `block` · `square` · `circle` · `active` |
 | `table` | ✓ | ✓ | — | `zebra` · `hover` |
+| `countdown` | ✓ | ✓ | — | `inline` |
 
 The manifest's `components` record is the authoritative version of this table.

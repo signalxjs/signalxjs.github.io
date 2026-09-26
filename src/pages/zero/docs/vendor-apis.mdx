@@ -11,7 +11,7 @@ order: 53
 <p class="lede">Zero's stance, stated once: visual and behavioral fidelity to a design language
 is guaranteed by the contract; API-surface fidelity is an adapter, not a contract change.
 The attributes a component renders (`data-color`, `data-variant`, `data-mod-*`) never change.
-A vendor's prop *names* — `kind`, `type`, `isIconOnly`, daisyUI's `wide` and `loading` — are
+A vendor's prop *names* — `kind`, `type`, `isIconOnly`, daisyUI's `wide` and `block` — are
 restored one layer up, by a generated `./components` module the design system ships.</p>
 
 ## Using a `./components` module
@@ -29,10 +29,11 @@ nothing augments `ZeroVocabulary`. `<Button wide>` renders `data-mod-wide=""`;
 re-exports of zero's own (`Tabs`, `Dialog`, …), so one import path covers the whole library.
 
 `@sigx/zero-daisyui` is the shipped design system with an api: its `Button` takes daisy's
-six documented modifiers — `wide`, `block`, `square`, `circle`, `active`, `loading` — as flat
-booleans beside `color`, `size` and `variant` (`solid` \| `outline` \| `soft` \| `ghost` \|
-`dash` \| `link`), and its `Table.Root` takes `zebra` and `hover`. `loading` is paint: pair it
-with `disabled` yourself.
+documented modifiers — `wide`, `block`, `square`, `circle`, `active` — as flat booleans beside
+`color`, `size` and `variant` (`solid` \| `outline` \| `soft` \| `ghost` \| `dash` \| `link`),
+its `Table.Root` takes `zebra` and `hover`, and its `Countdown.Root` takes `inline`. `loading`
+is not a modifier: it is zero's own [`Button.Root` prop](/zero/docs/components/button/#the-loading-button),
+so `<Button loading>` reaches zero directly and the recipe draws the `spinner` part.
 
 ## Register or components — one path per program
 

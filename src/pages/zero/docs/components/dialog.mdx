@@ -75,6 +75,56 @@ as `alertdialog`, a backdrop click does **not** dismiss (Escape still does, unde
 `Dialog.Cancel`, which closes like `Close` and carries `autofocus` in this mode so
 `showModal()`'s focusing steps land on it.
 
+### Why it closed
+
+`openChange(false)` says *that* the dialog closed; the `close` event that follows it says
+*why*. It fires once per close, right after `openChange(false)`, with a
+`DialogCloseDetail` — `{ reason, value? }`:
+
+| `reason` | What closed it |
+|---|---|
+| `close` | A `Dialog.Close` was activated. |
+| `cancel` | A `Dialog.Cancel` was activated. |
+| `escape` | Escape — the native `cancel` event, or zero's dismiss layer for a non-modal dialog. |
+| `backdrop` | A click on the `::backdrop`. |
+| `programmatic` | Every close zero did not start: the parent writing the model, a native `close()`, a `<form method="dialog">` submission. |
+
+`value` is the closing `Dialog.Close`'s `value` prop — the `<button value>` of a
+`<form method="dialog">`, as a prop. For a native close zero did not start, it is the
+element's non-empty `returnValue` instead (reset on every open, so a stale one never reads as
+the current close's). A controlled parent that refuses the close — its model stays `true` —
+gets no `close` event: only a close that took is reported.
+
+A confirm dialog reads the answer off the close instead of keeping a flag beside its model:
+
+```tsx
+<Dialog.Root model={() => state.open} onClose={(d) => { if (d.value === 'confirm') archive(); }}>
+    <Dialog.Trigger>Archive…</Dialog.Trigger>
+    <Dialog.Popup>
+        <Dialog.Title>Archive this project?</Dialog.Title>
+        <Dialog.Footer>
+            <Dialog.Cancel>Keep it</Dialog.Cancel>
+            <Dialog.Close value="confirm">Archive</Dialog.Close>
+        </Dialog.Footer>
+    </Dialog.Popup>
+</Dialog.Root>
+```
+
+`value` also renders as the button's native `value` attribute, so an `asChild` `<button>`
+keeps the `<form method="dialog">` semantics. A submit button of your own inside a
+`<form method="dialog">` closes the dialog through the platform: the event then reports
+`programmatic`, with the submitter's `value` from `returnValue`.
+
+### A title only assistive technology reads
+
+```tsx
+<Dialog.Title visuallyHidden>Keyboard shortcuts</Dialog.Title>
+```
+
+`visuallyHidden` keeps the title in the accessibility tree — it still names the popup through
+`aria-labelledby` — and takes it off the screen. See
+[Accessibility](/zero/docs/accessibility/#visually-hidden-still-named).
+
 ### Non-modal
 
 ```tsx
@@ -93,7 +143,7 @@ close itself.
 | `trigger` | `button` | `open` \| `closed` | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-haspopup="dialog"`, `aria-expanded`, `aria-controls`. Carries the variant axes. `asChild`. |
 | `popup` | `dialog` | `open` \| `closed` | — | `aria-labelledby` / `aria-describedby` while a Title / Description is rendered. |
 | `backdrop` | *pseudo* | `open` \| `closed` | — | Renders no element on the web; projects onto `popup::backdrop`. |
-| `title` | `h2` | — | — | Inside `popup`. |
+| `title` | `h2` | — | — | Inside `popup`. Offers `visuallyHidden` (`data-visually-hidden`). |
 | `description` | `p` | — | — | Inside `popup`. |
 | `footer` | `footer` | — | — | The action row. Inside `popup`. |
 | `close` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | Closes the dialog. `asChild`. |
@@ -123,6 +173,7 @@ while those parts are actually rendered, so omitting a title never leaves a dang
 | `model` | `boolean` | — | Two-way binding of the open state. |
 | `defaultOpen` | `boolean` | `false` | Initial state when uncontrolled. |
 | `openChange` | event `(open: boolean)` | — | Fires whenever the open state changes. |
+| `close` | event `(detail: DialogCloseDetail)` | — | Fires once per close, after `openChange(false)`: `{ reason, value? }`, `reason` one of `'close' \| 'cancel' \| 'escape' \| 'backdrop' \| 'programmatic'` (`DialogCloseReason`). |
 | `modal` | `boolean` | `true` | `showModal()` (focus trap, inert background, backdrop) or `show()`. |
 | `dismissible` | `boolean` | `true` | Whether Escape and, for a modal dialog, a backdrop click close it. |
 | `role` | `'dialog' \| 'alertdialog'` | `'dialog'` | The alert-dialog preset. |
@@ -138,12 +189,15 @@ while those parts are actually rendered, so omitting a title never leaves a dang
 
 ### `Dialog.Popup`, `Dialog.Title`, `Dialog.Description`, `Dialog.Footer`
 
-Only `class`.
+`class`. `Dialog.Title` also takes `visuallyHidden` (`boolean`), which renders
+`data-visually-hidden` and keeps the title as the popup's accessible name while it is off
+screen.
 
 ### `Dialog.Close`, `Dialog.Cancel`
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
+| `value` | `string` | — | `Dialog.Close` only. Reported as the `close` event's `value`; also rendered as the button's native `value`. |
 | `disabled` | `boolean` | `false` | Renders `data-disabled`. |
 | `asChild` | `boolean` | `false` | Render through the default slot. |
 | `class` | `string` | — | Extra classes. |

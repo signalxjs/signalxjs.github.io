@@ -68,6 +68,40 @@ id, its `disabled` / `invalid` / `required` flags and its `aria-describedby`, so
 `Input.Label` becomes optional — the `Field.Label` names it. Standalone, the component mints
 its own ids and `Input.Label` is the label.
 
+### Keys, composition and the element
+
+`Input.Input` forwards the native `onKeydown`, `onKeyup`, `onBeforeinput`, `onInput`,
+`onCompositionstart`, `onCompositionend`, `onFocus` and `onBlur` to the `<input>`, so
+`preventDefault()` works on the control itself. `onInput` runs after the model has taken the
+new value, and `onFocus` / `onBlur` compose with the part's own focus-visible tracking. It
+also forwards `aria-*`, `data-*`, `title` and `role` — the ARIA a search box or an
+autocomplete sets on its control — but not `id` or `aria-invalid`, which belong to the form
+contract; an app `aria-describedby` is joined to the Field's rather than replacing it.
+
+Its `ref` receives an `InputHandle` — `{ element, focus() }` — for what only the element can
+do: the caret, the selection, measuring. `element` is `null` before mount.
+
+```tsx
+import { Input, type InputHandle } from '@sigx/zero/input';
+
+let search: InputHandle | null = null;
+
+<Input.Root model={() => state.query} type="search">
+    <Input.Label visuallyHidden>Search</Input.Label>
+    <Input.Control>
+        <Input.Input
+            onKeydown={(e) => { if (e.key === 'Escape') state.query = ''; }}
+            ref={(h) => { search = h; }}
+        />
+    </Input.Control>
+</Input.Root>
+
+search?.focus();
+```
+
+`Input.Label visuallyHidden` keeps the label as the input's accessible name while it is off
+screen — see [Accessibility](/zero/docs/accessibility/#visually-hidden-still-named).
+
 ### The text types
 
 ```tsx
@@ -95,7 +129,7 @@ renders `data-disabled` on every part.
 | Part | Element | States | Flags | Notes |
 |---|---|---|---|---|
 | `root` | `div` | — | `disabled`, `invalid`, `required`, `readonly` | Carries the variant axes. |
-| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the input's id. Inside `root`. |
+| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the input's id. Offers `visuallyHidden`. Inside `root`. |
 | `control` | `div` | — | `disabled`, `invalid`, `readonly`, `focus-visible` | The field chrome. Mirrors the input's focus-visible so the ring draws on the box. Inside `root`. |
 | `input` | `input` | — | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` | The native text input; carries `name`, `aria-invalid` and `aria-describedby`. Inside `control`. |
 
@@ -131,13 +165,22 @@ because their visible control is not a form control or not the canonical value; 
 
 ### `Input.Label`, `Input.Control`
 
-Only `class`. Each renders its part around its children.
+`class`, and the forwarded HTML attributes (`Input.Label` refuses `id` — the input points at
+it). Each renders its part around its children. `Input.Label` also takes `visuallyHidden`
+(`boolean`), which renders `data-visually-hidden`.
 
 ### `Input.Input`
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `placeholder` | `string` | — | Native placeholder text. |
+| `onKeydown` / `onKeyup` | `(e: KeyboardEvent) => void` | — | Forwarded to the `<input>`. |
+| `onBeforeinput` | `(e: InputEvent) => void` | — | Forwarded; `preventDefault()` cancels the edit. |
+| `onInput` | `(e: Event) => void` | — | Runs after the model has taken the new value. |
+| `onCompositionstart` / `onCompositionend` | `(e: CompositionEvent) => void` | — | IME composition, forwarded. |
+| `onFocus` / `onBlur` | `(e: FocusEvent) => void` | — | Compose with the part's focus-visible tracking. |
+| `aria-*` / `data-*` / `title` / `role` | HTML attributes | — | Forwarded. Not `id` or `aria-invalid`; `aria-describedby` joins the Field's. |
+| `ref` | `(handle: InputHandle) => void` | — | Receives `{ element, focus() }`. |
 | `class` | `string` | — | Extra classes on the `<input>`. |
 
 Everything else the element needs — `type`, `name`, `autocomplete`, `maxlength`, the flags and

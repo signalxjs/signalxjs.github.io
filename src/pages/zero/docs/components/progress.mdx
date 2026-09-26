@@ -107,18 +107,19 @@ the reference resolves, or the bar has no accessible name.
 | `max` | `number` | `100` | The upper bound; rendered as `aria-valuemax`. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
 | `class` | `string` | — | Extra classes on the root element. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | Forwarded. An app `aria-labelledby` joins the Label's. `role` is refused — the root is the `progressbar`. |
 
 ### `Progress.Label`, `Progress.Track`
 
-Only `class`. Each renders its part around its children.
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). Each renders its part around its children. The Label refuses `id` — the root points at it.
 
 ### `Progress.Range`
 
-Only `class`. Renders the `range` part; it takes no children.
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). Renders the `range` part; it takes no children.
 
 ### `Progress.ValueText`
 
-Only `class`. Renders its children, or the rounded percent when it has none and the value
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). Renders its children, or the rounded percent when it has none and the value
 is present.
 
 ## In the shipped design systems

@@ -81,14 +81,50 @@ A drawer often has no visible heading. `label` on the root becomes the panel's `
 whenever no `Drawer.Title` is rendered; while a title is present, the panel is labelled by it
 instead and `label` is not rendered. Give every drawer one or the other.
 
+Or keep the title and hide it: `Drawer.Title visuallyHidden` stays in the accessibility tree —
+it still names the panel through `aria-labelledby` — and leaves the screen, which is the
+usual shape for a navigation sheet in an app shell:
+
+```tsx
+<Drawer.Panel measure="xs">
+    <Drawer.Title visuallyHidden>Navigation</Drawer.Title>
+    <nav>…</nav>
+</Drawer.Panel>
+```
+
+### Panel width
+
+`measure` on `Drawer.Panel` sizes the panel from the design system's `--measure-*` ramp:
+`xs`, `sm`, `md`, `lg`, `xl`, `prose` or `full`. It is the same `measure` layout attribute
+Container uses — rendered as `data-l-measure` — not the `size` axis, which rides the trigger
+and cannot reach a panel that is not inside it. The measure is a cap: the panel fills the space
+it is given up to it — its container inline, the viewport as a modal sheet — so
+`measure="full"` is a full-screen sheet. Unset, each design system's own drawer width applies. Every shipped skin
+sizes the panel `box-sizing: border-box`, so its padding never pushes it past the measure.
+
+### Why it closed
+
+The `close` event follows `openChange(false)` once per close with a `DrawerCloseDetail` —
+`{ reason, value? }` — exactly as on [Dialog](/zero/docs/components/dialog/#why-it-closed),
+without `cancel`: `reason` is `close` (a `Drawer.Close`), `escape`, `backdrop` (a scrim
+click) or `programmatic` (every close zero did not start). `Drawer.Close value="…"` comes back
+as `value`, and a close the parent refuses is not reported.
+
+```tsx
+<Drawer.Root model={() => state.filters} onClose={(d) => { if (d.value === 'apply') apply(); }}>
+    …
+    <Drawer.Close value="apply">Apply filters</Drawer.Close>
+</Drawer.Root>
+```
+
 ## Anatomy
 
 | Part | Element | States | Flags | Notes |
 |---|---|---|---|---|
 | `trigger` | `button` | `open` \| `closed` | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-haspopup="dialog"`, `aria-expanded`, `aria-controls`. Carries the variant axes. `asChild`. |
-| `panel` | `dialog` | `open` \| `closed` | — | `data-placement` from `start` \| `end`; `aria-labelledby` while a Title renders, else `aria-label` from `label`. |
+| `panel` | `dialog` | `open` \| `closed` | — | `data-placement` from `start` \| `end`; `data-l-measure` from `measure`; `aria-labelledby` while a Title renders, else `aria-label` from `label`. |
 | `backdrop` | *pseudo* | `open` \| `closed` | — | Renders no element on the web; projects onto `panel::backdrop`. |
-| `title` | `h2` | — | — | Inside `panel`. |
+| `title` | `h2` | — | — | Inside `panel`. Offers `visuallyHidden` (`data-visually-hidden`). |
 | `close` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | Closes the drawer. Inside `panel`. `asChild`. |
 
 Drawer's Root renders a fragment, so there is no `root` part. The **trigger** is the carrier
@@ -114,6 +150,7 @@ and `&:not(:modal)` for the in-flow one. Both close and trigger publish
 | `model` | `boolean` | — | Two-way binding of the open state. |
 | `defaultOpen` | `boolean` | `false` | Initial state when uncontrolled. |
 | `openChange` | event `(open: boolean)` | — | Fires whenever the open state changes. |
+| `close` | event `(detail: DrawerCloseDetail)` | — | Fires once per close, after `openChange(false)`: `{ reason, value? }`, `reason` one of `'close' \| 'escape' \| 'backdrop' \| 'programmatic'` (`DrawerCloseReason`). |
 | `modal` | `boolean` | `true` | `showModal()` (focus trap, inert background, backdrop) or inline `show()`. |
 | `dismissible` | `boolean` | `true` | Whether Escape and, for a modal drawer, a scrim click close it. |
 | `placement` | `'start' \| 'end'` | `'start'` | Which reading edge the panel sits on; rendered as `data-placement` on the panel. |
@@ -128,14 +165,25 @@ and `&:not(:modal)` for the in-flow one. Both close and trigger publish
 | `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
 | `class` | `string` | — | Extra classes. |
 
-### `Drawer.Panel`, `Drawer.Title`
+### `Drawer.Panel`
 
-Only `class`.
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `measure` | `'xs' \| 'sm' \| 'md' \| 'lg' \| 'xl' \| 'prose' \| 'full'` | — | Width cap from the `--measure-*` ramp, rendered as `data-l-measure`. Unset, the design system's own width. |
+| `class` | `string` | — | Extra classes. |
+
+### `Drawer.Title`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `visuallyHidden` | `boolean` | `false` | Off screen, still the panel's accessible name; renders `data-visually-hidden`. |
+| `class` | `string` | — | Extra classes. |
 
 ### `Drawer.Close`
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
+| `value` | `string` | — | Reported as the `close` event's `value`; also rendered as the button's native `value`. |
 | `disabled` | `boolean` | `false` | Renders `data-disabled`. |
 | `asChild` | `boolean` | `false` | Render through the default slot. |
 | `class` | `string` | — | Extra classes. |

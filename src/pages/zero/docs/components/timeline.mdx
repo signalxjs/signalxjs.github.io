@@ -120,16 +120,16 @@ default — so the contrast audit grades it on the non-text indicator floor. See
 | `class` | `string` | — | Extra classes. |
 
 Timeline has no `model`, no default-value prop and no change event: it has no state to
-bind.
+bind. Every part also forwards `aria-*`, your own `data-*`, `id`, `title` and `role`.
 
 ### `Timeline.Item`, `Timeline.Marker`
 
-Only `class`. Each renders its part around the default slot; `Item` mirrors the root's
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). Each renders its part around the default slot; `Item` mirrors the root's
 `data-orientation`.
 
 ### `Timeline.Connector`
 
-Only `class`. Renders empty, mirroring the root's `data-orientation`.
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). Renders empty, mirroring the root's `data-orientation`.
 
 ### `Timeline.Content`
 
@@ -149,6 +149,10 @@ A timeline recipe composes side × axis on the parts that carry both: the conten
 inline or block offset comes from `[data-placement]` narrowed by `[data-orientation]`, and
 the connector's length runs along the block axis when vertical and the inline axis when
 horizontal. The marker's fill on the `color` axis must clear the 3:1 non-text floor.
+
+A timeline whose content never sits on the start side is one-sided, and every shipped skin
+collapses the empty start track on its own — a `:has()` rule on the root, no prop — so the
+events sit against the axis instead of past an empty half of each item.
 
 ## Related
 

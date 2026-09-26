@@ -21,6 +21,7 @@ import {
     createPressFeedback, createSpinPress,
     createFocusRestore, focusFirst, getTabbables, isFocusVisible,
     useFieldContext, provideFieldContext, segmentOptions,
+    createVirtualList, createAutosize,
 } from '@sigx/zero/behaviors';
 ```
 
@@ -163,8 +164,94 @@ wherever the pointer is released, and dragging off the trigger stops the repeat.
 
 `useFieldContext()` / `provideFieldContext(ctx)` carry a [`Field`](/zero/docs/components/field/)'s
 control id and its `disabled` / `invalid` / `required` flags to the control inside it, plus
-`aria-describedby` for its description and error. Outside a Field the injectable falls back
+`aria-describedby` for its description and error, and the Field's `size()`, which a control
+with no `size` of its own renders. Outside a Field the injectable falls back
 to an inert context, so a bare control still renders.
+
+## Long lists
+
+`createVirtualList(options)` windows a list too long to keep in the document — a chat
+transcript, a log. It decides which rows to render; you render them, and the rows that are
+not rendered become the list's block padding. Call it from the setup of the component that
+renders the rows (it throws outside one).
+
+```tsx
+import { component } from 'sigx';
+import { createVirtualList } from '@sigx/zero/behaviors';
+
+const Transcript = component(({ props }) => {
+    const v = createVirtualList({
+        count: () => props.messages.length,
+        key: (i) => props.messages[i]!.id,
+        estimateSize: 72,        // px, until a row has been measured
+        stickToBottom: true,     // follow the tail until the reader scrolls up
+    });
+    return () => (
+        <section>
+            <div ref={v.viewportRef} role="log" aria-label="Transcript" tabIndex={0}
+                style="overflow-y: auto; height: 30rem">
+                <ol ref={v.listRef} style={`padding-block: ${v.before()}px ${v.after()}px`}>
+                    {v.rows().map((row) => (
+                        <li key={row.key} ref={v.measureRef(row.key)}>{/* props.messages[row.index] */}</li>
+                    ))}
+                </ol>
+            </div>
+            {!v.following() && <button type="button" onClick={() => v.scrollToEnd()}>Jump to latest</button>}
+        </section>
+    );
+});
+```
+
+**The render contract.** `viewportRef` goes on the scroll container. Inside it the list
+takes `before()` / `after()` as its block-start / block-end padding, and every row in
+`rows()` — `{ index, key, start, size }` — is rendered keyed, with `measureRef(key)` (stable
+per key). Wire `listRef` too when anything scrolls with the list above it, such as a "load
+earlier" button, so its offset is accounted for. `totalSize()` and `count()` report the
+whole list.
+
+| Option | Default | What |
+|---|---|---|
+| `count` | required | The row count, read reactively. |
+| `key` | required | `(index) => string` — the row's stable, unique identity. Heights are remembered by it. |
+| `estimateSize` | `40` | px, or `(index) => number`: the height of a row not yet measured. |
+| `gap` | `0` | Space between rows in px — the same `gap` the list's CSS lays out. |
+| `overscan` | `4` | Rows rendered beyond each edge of the viewport. |
+| `stickToBottom` | `false` | Follow the tail until the reader scrolls up. |
+| `threshold` | `24` | Distance from the end, in px, that still counts as at the end. |
+| `initialCount` | `20` | Rows rendered before mount, on the server and in the first client render. |
+
+- **Measured, keyed rows.** A row is measured in the task it renders in, then watched for
+  later changes (streamed text, a late image). Its height is remembered by key, so it
+  survives leaving the window. A row with no box — inside a closed popover or an inactive
+  tab — keeps its estimate until it is shown.
+- **The row being read stays still** when rows are prepended above it, or when a row above
+  it measures taller or shorter than its estimate. The browser's own scroll anchoring is
+  turned off on the viewport, because two correctors would fight.
+- **Stick to bottom.** Under `stickToBottom`, appends and a growing last row keep the end in
+  view until the reader scrolls up — only an upward scroll lets go, so content arriving faster
+  than scroll events is never mistaken for the reader leaving. `following()` says whether it
+  is following; scrolling back to within `threshold` of the end, or `scrollToEnd()`, resumes
+  it.
+- **`scrollToIndex(i, align)`** (`'start' | 'center' | 'end' | 'auto'`, default `auto`) jumps
+  to a row that may never have been measured and keeps it in place while the rows around it
+  measure.
+- **SSR.** Before mount the first `initialCount` rows render — the last ones under
+  `stickToBottom` — so the server and the first client render agree.
+- **Layout rules.** Rows stack in the block direction and have no margins; pass the list's
+  CSS `gap` as `gap`.
+- **Semantics are yours.** A transcript wants `role="log"`. A `listbox` or `feed` wants
+  `aria-setsize={v.count()}` and `aria-posinset={row.index + 1}` on each row, because only the
+  window is in the accessibility tree.
+
+## Autosize
+
+`createAutosize(textarea)` is the runtime half of
+[Textarea autosize](/zero/docs/components/textarea/#autosize); CSS does the growing. It
+measures the block padding and border a `border-box` element's row bounds must add and
+publishes it as `--textarea-block-chrome`, and on an engine without `field-sizing` it
+measures `scrollHeight` and writes the height inline. It returns `{ refresh(), dispose() }`:
+`refresh()` re-measures after the value changed without an `input` event (a model write, a
+form reset).
 
 ## Option segmentation
 

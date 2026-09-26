@@ -51,8 +51,8 @@ const Notifications = component(({ signal }) => {
 ```tsx
 <Field.Root disabled={saving()}>
     <Field.Label>Two-factor authentication</Field.Label>
-    <Switch.Root model={() => state.twoFactor}>Require a code at sign-in</Switch.Root>
-    <Field.Description>Applies to every device.</Field.Description>
+    <Switch.Root model={() => state.twoFactor} />
+    <Field.Description>Require a code at sign-in, on every device.</Field.Description>
 </Field.Root>
 ```
 
@@ -60,6 +60,28 @@ Inside a [`Field.Root`](/zero/docs/components/field/) the hidden input adopts th
 control id and `aria-describedby`, and the switch's `disabled`, `invalid` and `required`
 each derive as the switch's own prop or the field's — the prop wins when set, the field
 supplies the rest.
+
+**Name the switch once.** `Field.Label` (`for` the input) and `Switch.Root` (a `<label>`
+wrapping it) are both labels of the same input, and the accessible name concatenates every
+label. So give the name in one place: `Field.Label` with a `Switch.Root` that has no
+children, as above, or the switch's own text and no `Field.Label`.
+
+### A hidden label
+
+```tsx
+<Switch.Root model={() => state.airplane} hideLabel>Airplane mode</Switch.Root>
+```
+
+`hideLabel` keeps the `label` part in the accessibility tree — it still names the switch —
+and takes it off the screen, for a row where something else carries the visible text. It
+renders `data-visually-hidden` on the label. See
+[Accessibility](/zero/docs/accessibility/#visually-hidden-still-named).
+
+### Attributes
+
+`Switch.Root` splits forwarded attributes like `Table.Root`: `aria-*` goes on the input
+assistive technology reads (an app `aria-describedby` joins the Field's), and `id`, `title`
+and `data-*` go on the row. `role` is refused — the input is the `switch`.
 
 ### Form value
 
@@ -78,7 +100,7 @@ unchecked, exactly as a native checkbox does.
 | `hidden-input` | `input` | — | — | The native checkbox with `role="switch"`, visually hidden and focusable; carries `name`, `value`, `required`, `aria-invalid` and `aria-describedby`. Inside `root`. |
 | `control` | `span` | `checked` \| `unchecked` | `disabled`, `focus-visible`, `invalid`, `pressed`, `press-animating` | The track a design system paints. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). Inside `root`. |
 | `thumb` | `span` | `checked` \| `unchecked` | — | The knob; a recipe moves it on `data-state`. Inside `control`. |
-| `label` | `span` | `checked` \| `unchecked` | `disabled` | The label text; rendered only when the default slot is given. Inside `root`. |
+| `label` | `span` | `checked` \| `unchecked` | `disabled` | The label text; rendered only when the default slot is given. `data-visually-hidden` under `hideLabel`. Inside `root`. |
 
 Every part carries `data-scope="switch"` and `data-part="<part>"`. The `hidden-input` is a
 real, styleable part: the native input renders so the switch posts pre-hydration, hidden
@@ -107,7 +129,9 @@ computed against the track's rect.
 | `invalid` | `boolean` | `false` | Renders `aria-invalid` and `data-invalid` on root and control; a wrapping Field's `invalid` also applies. |
 | `disabled` | `boolean` | `false` | Renders `disabled` and `data-disabled`; a wrapping Field's `disabled` also applies. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `hideLabel` | `boolean` | `false` | Keep the `label` part as the accessible name, off screen. |
 | `class` | `string` | — | Extra classes on the root element. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | `aria-*` on the input; the rest on the row. `role` is refused. |
 
 ## Keyboard
 

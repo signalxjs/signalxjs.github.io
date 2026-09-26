@@ -22,7 +22,9 @@ compound (`Tabs`, with `Tabs.Root`, `Tabs.List`, …), its `xAnatomy`, the `XRoo
 `XPartProps` types, and where the component has one, its `useXContext` injectable. The
 [component pages](/zero/docs/components/) list each one. Toast additionally exports
 `createToaster`, `toaster`, `toast` and `useToaster`; FileUpload exports `acceptsFile` and
-`formatBytes`; Pagination exports `paginationRow`.
+`formatBytes`; Pagination exports `paginationRow`. `@sigx/zero/visually-hidden` exports `VisuallyHidden`, which is
+not a scope and has no anatomy — see
+[Accessibility](/zero/docs/accessibility/#visually-hidden-still-named).
 
 ## `@sigx/zero` (root)
 
@@ -45,7 +47,8 @@ token hints as typed objects with a `selector(part, state?)` builder and `toJSON
 | `dataAttr(bool)`, `stateAttr(bool, on, off)` | Render a presence flag / pick a state value. |
 | `variantAttrs(props)` | The single pass-through from `color` / `size` / `variant` / `axes` / `mods` to `data-*`, with the reserved-name guards. `RESERVED_AXES`, `VARIANT_AXES`, `MOD_ATTR_PREFIX`. |
 | `renderAsChild(slot, bag)`, `synthesizesClickFrom(target, key)` | The `asChild` helpers. |
-| `WithClass`, `WithDisabled`, `WithColor`, `WithSize`, `WithVariant`, `WithAxes`, `WithMods`, `WithVariantAxes<S>`, `WithVariantAxesOpen<S>`, `WithOrientation`, `WithAsChild`, `PartProps` | The prop fragments components compose. |
+| `htmlAttrs(props)`, `RESERVED_DATA_ATTRS` | The attribute pass-through: picks `aria-*`, the app's `data-*`, `id`, `title` and `role` out of a part's props, and throws on a contract-owned `data-*`. Types `WithHtmlAttrs`, `HtmlAttrValue`. See [Accessibility](/zero/docs/accessibility/#attribute-pass-through). |
+| `WithClass`, `WithDisabled`, `WithColor`, `WithSize`, `WithVariant`, `WithAxes`, `WithMods`, `WithVariantAxes<S>`, `WithVariantAxesOpen<S>`, `WithOrientation`, `WithAsChild`, `WithHtmlAttrs`, `WithVisuallyHidden`, `WithTextControlEvents`, `TextControlHandle<E>`, `PartProps` | The prop fragments components compose. |
 | `ZeroVocabulary`, `ColorValueFor<S>`, `SizeScaleFor<S>`, `VariantValueFor<S>`, `AxesFor<S>`, `ModsFor<S>`, `ZeroThemeName`, `ZeroThemeNameOrCustom`, `ZeroProperty`, `ZeroBreakpoint`, `ZeroTokenCategory`, `TokenKeyFor<C>` | The augmentation seam and its resolvers. `cssVar(name)`, `token(category, key)`. |
 | `RECOMMENDED_ROLE_LIST`, `BASE_SURFACE_TOKEN_LIST`, `SIZE_SCALE_LIST`, `TOKEN_CATEGORIES`, `TOKEN_KEY_PATTERN`, `TEXT_FIXED_PREFIX`, `CSS_COLOR_KEYWORDS`, `ROLE_NAME_PATTERN`, `tokenProperty`, `resolveColorToken`, `defaultSwatch` | The token contract. Types: `SizeScale`, `RecommendedSize`, `RecommendedRole`, `BaseSurfaceToken`, `ColorValue`, `BackgroundValue`, `TokenCategory`, `TokenCategoryId`, `TokenCategoryShape`, `TokenSyntax`. |
 | `CLASS_GRAMMAR_VERSION`, `HOST_CLASS`, `partClass`, `stateClass`, `flagClass`, `axisClass`, `modClass`, `orientationClass`, `placementClass`, `themeClass` | The class grammar. See [Lynx](/zero/docs/lynx/). |
@@ -69,6 +72,8 @@ the `asChild` helpers — importable without `lib.dom`.
 | `createSpinPress(options)` | Hold-to-repeat. Types `SpinPressOptions`, `SpinPressHandlers`. |
 | `isFocusVisible(el)`, `createFocusRestore(isOpen)`, `focusFirst(container)`, `getTabbables(container)` | Focus. |
 | `useFieldContext`, `provideFieldContext(ctx)` | The Field context. Type `FieldContext`. |
+| `createVirtualList(options)` | Windowing for long lists, with stick-to-bottom. Types `VirtualList`, `VirtualListOptions`, `VirtualRow`. See [Behaviors](/zero/docs/behaviors/#long-lists). |
+| `createAutosize(textarea)` | The runtime half of Textarea autosize. Type `Autosize`. |
 | `segmentOptions(options)` | Option grouping. Types `OptionInput`, `OptionSegment`. |
 | `useMediaQuery(query \| range, options?)`, `breakpointQuery(range, breakpoints?)` | A media query or a design-system breakpoint range as an SSR-safe reactive boolean, and the query string a range names. Types `BreakpointRange`, `MediaQueryInput`, `MediaQueryOptions`, `MediaQueryMatch`. See [Breakpoints in JS](/zero/docs/theming/#breakpoints-in-js). |
 

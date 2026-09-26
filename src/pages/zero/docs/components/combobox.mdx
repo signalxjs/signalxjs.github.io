@@ -111,6 +111,58 @@ already-narrowed array. Slot children win entirely when both are given. Name an
 options-driven Combobox through a [Field](/zero/docs/components/field/) — its label lands on
 the generated input via the control id.
 
+### Tags, and values the list does not hold
+
+```tsx
+<Field.Root>
+    <Field.Label>Tools</Field.Label>
+    <Combobox.Root
+        items={tools}
+        multiple
+        allowCustom
+        defaultValue={['search', 'shell']}
+        name="tools"
+        placeholder="Add a tool…"
+        emptyText="Press Enter to add it"
+    />
+</Field.Root>
+```
+
+Under `multiple`, the data expansion (a root with `items` and no children) renders one
+`Combobox.Tag` per chosen value, in selection order, in the control before the input. A tag's
+default content is a `Combobox.TagLabel` and a `Combobox.TagRemove` — a real `<button>` in the
+tab order, named `Remove <label>`, which hands focus back to the input. **Backspace on an
+empty input removes the last value**, so the remove buttons are how a keyboard user reaches
+any other tag. A tag keeps its label after a consumer-filtered item unmounts.
+
+The root's `tag` slot replaces a tag's content — for a per-tag control such as a mode
+select. It receives `{ value, label, item }`, where `item` is the data item (`undefined` for a
+custom value):
+
+```tsx
+<Combobox.Root items={tools} multiple slots={{
+    tag: ({ value, label }) => (
+        <>
+            <Combobox.TagLabel />
+            <ModePicker tool={value} />
+            <Combobox.TagRemove label={`Remove ${label}`} />
+        </>
+    ),
+}} />
+```
+
+A hand-written root places the tags itself: `Combobox.Tags` inside `Combobox.Control`
+renders one `Combobox.Tag value={key}` per chosen value (its default slot takes the same
+`{ value, label, item }`), or write individual `Combobox.Tag`s.
+
+**`allowCustom`** commits the typed text on Enter while no option is highlighted. A chosen
+value, or an option whose label the text names (case-insensitively), wins; otherwise the
+trimmed text itself becomes the value. Under `multiple` it adds a tag and clears the input;
+in single mode it sets the value and closes. A custom value posts through the hidden
+`<select>` like any other — data mode posts chosen values the `items` do not hold. The
+overloads type `allowCustom` only for a string model: hand-written items, string items, or a
+string `itemValue`.
+
 ## Anatomy
 
 | Part | Element | States | Flags | Notes |
@@ -118,6 +170,9 @@ the generated input via the control id.
 | `root` | `div` | — | `disabled`, `invalid`, `required` | Carries the variant axes. |
 | `control` | `div` | `open` \| `closed` | `disabled`, `invalid`, `focus-visible` | The field chrome wrapping input + trigger; mirrors the input's focus so the ring draws on the box. Inside `root`. |
 | `input` | `input` | `open` \| `closed` | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` | `role="combobox"`, `aria-autocomplete="list"`, `aria-expanded`, `aria-controls`, `aria-activedescendant`. Inside `control`. |
+| `tag` | `span` | — | `disabled` | One chosen value under `multiple`. Inside `control`, before the input. |
+| `tag-label` | `span` | — | — | The tag's text. Inside `tag`. |
+| `tag-remove` | `button` | — | `disabled`, `focus-visible`, `pressed`, `press-animating` | `aria-label` `Remove <label>`; removes the value and returns focus to the input. Inside `tag`. |
 | `trigger` | `button` | `open` \| `closed` | `disabled`, `pressed`, `press-animating`, `focus-visible` | `tabIndex=-1`, `aria-label`, `aria-expanded`, `aria-controls`. A pointer affordance. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). `asChild`. |
 | `popup` | `div` | `open` \| `closed` | — | `role="listbox"`, `popover="manual"`, `aria-labelledby` the input. `data-placement` on every placement. |
 | `group` | `div` | — | — | `role="group"`, `aria-labelledby` its label while one is rendered. Inside `popup`. |
@@ -188,6 +243,18 @@ input.
 
 Only `class`.
 
+### `Combobox.Tags`, `Combobox.Tag`, `Combobox.TagLabel`, `Combobox.TagRemove`
+
+| Member | Props |
+|---|---|
+| `Combobox.Tags` | A default slot receiving `{ value, label, item }`, rendered per chosen value. Renders no element of its own. |
+| `Combobox.Tag` | `value` (`string`, required — the chosen value's key), `class`, default slot (replaces label + remove). |
+| `Combobox.TagLabel` | `class`, default slot (replaces the label text). |
+| `Combobox.TagRemove` | `label` (`string`, default `Remove <label>`), `class`, default slot (replaces the `×` glyph). An app `aria-label` also replaces the default name. |
+
+On `Combobox.Root`, `multiple` (`boolean`) holds an array of values, and `allowCustom`
+(`boolean`) commits free text on Enter as described above.
+
 ### `Combobox.Item`
 
 | Prop | Type | Default | Description |
@@ -208,7 +275,8 @@ typing is the filter.
 | Typing | Writes `model:inputValue` and opens the popup. |
 | ArrowDown / ArrowUp (closed) | Open the popup with the highlight on the first / last enabled item. |
 | ArrowDown / ArrowUp (open) | Move the highlight to the next / previous enabled item. |
-| Enter | Select the highlighted item and close; otherwise not swallowed, so a form submits. |
+| Enter | Select the highlighted item and close; otherwise not swallowed, so a form submits. With `allowCustom` and no highlight, commit the typed text. |
+| Backspace (empty input) | Under `multiple`, remove the last chosen value. |
 | Escape | Close the popup (only swallowed while it is open). |
 | Tab | Close and leave; not swallowed. |
 | Home / End | Stay with the text caret. |

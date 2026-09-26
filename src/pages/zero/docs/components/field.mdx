@@ -68,6 +68,31 @@ A Checkbox, Switch or RadioGroup inside a Field disables, invalidates and requir
 control's own prop wins when set; the field supplies the rest — every consuming control
 derives each flag as `!!props.x || field.x()`.
 
+A Switch or Checkbox is a `<label>` of its input too, and an accessible name concatenates
+every label a control has — so name it once: `Field.Label` with a `Switch.Root` that has no
+children of its own, or the Switch's own text and no `Field.Label`. See
+[Accessibility](/zero/docs/accessibility/#visually-hidden-still-named).
+
+### A compact field
+
+```tsx
+<Field.Root size="xs">
+    <Field.Label visuallyHidden>Filter rows</Field.Label>
+    <Input.Root model={() => state.filter}>
+        <Input.Control>
+            <Input.Input />
+        </Input.Control>
+    </Input.Root>
+</Field.Root>
+```
+
+A control with no `size` of its own renders its Field's, the same way it adopts the Field's
+flags: Input, Textarea, Checkbox, Switch, RadioGroup, Slider, RatingGroup, NumberInput,
+Combobox, Select, ToggleGroup and FileUpload all do. The control's own `size` still wins.
+Only `size` is inherited — a Field's `color` accents its label, while a control's colour is
+its own checked or focus fill. With `Field.Label visuallyHidden`, which keeps the label as
+the control's accessible name while it is off screen, that is the whole compact field.
+
 ### Standalone controls
 
 A control outside any `Field.Root` reads an inert context and wires its own ids: `Input`,
@@ -80,7 +105,7 @@ description-and-error case, not a requirement.
 | Part | Element | States | Flags | Notes |
 |---|---|---|---|---|
 | `root` | `div` | — | `disabled`, `invalid`, `required` | Carries the variant axes. Provides the field context. |
-| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the field's control id; carries the field's label id. Inside `root`. |
+| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the field's control id; carries the field's label id. Offers `visuallyHidden`. Inside `root`. |
 | `description` | `p` | — | — | Carries the description id, referenced by the control's `aria-describedby`. Inside `root`. |
 | `error` | `p` | — | `invalid` | `role="alert"`; carries the error id. Inside `root`. |
 
@@ -95,8 +120,10 @@ announces the message the moment it appears. See
 
 `Field.Root` provides a `FieldContext` — `inert` (`true` only on the fallback a standalone
 control reads), `ids` (`control`, `label`, `description`, `error`), the `disabled()` /
-`invalid()` / `required()` accessors and `describedBy()`, the space-separated description
-and error ids. An ecosystem control that wants to sit inside a Field reads it through
+`invalid()` / `required()` accessors, `size()` (the Field's `size`, `undefined` on the
+fallback) and `describedBy()`, the space-separated description and error ids. A control built
+on `createFormControl` joins the size fallback by spreading `axisAttrs()` in place of
+`variantAttrs(props)`. An ecosystem control that wants to sit inside a Field reads it through
 `useFieldContext` and adopts the ids and flags exactly as the built-in controls do.
 
 ### Which controls consume it
@@ -120,20 +147,24 @@ group has no single control to name.
 | `disabled` | `boolean` | `false` | Renders `data-disabled` on root and label; every consuming control inside disables. |
 | `invalid` | `boolean` | `false` | Renders `data-invalid` on root, label and error; consuming controls render `data-invalid` and `aria-invalid`. |
 | `required` | `boolean` | `false` | Renders `data-required` on root and label; consuming controls render `required`. |
-| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. A control inside with no `size` of its own renders the Field's. |
 | `class` | `string` | — | Extra classes on the root element. |
 
 Field has no `model`: it holds no value. The value lives on the control inside it.
 
 ### `Field.Label`, `Field.Description`, `Field.Error`
 
-Only `class`. Each renders its part around its children with the field's id on it.
+`class`, and the forwarded HTML attributes except `id` (the control points at each one's id;
+`Field.Error` also refuses `role`, which is its `alert`). Each renders its part around its
+children with the field's id on it. `Field.Label` also takes `visuallyHidden` (`boolean`),
+which renders `data-visually-hidden` and keeps the label as the control's accessible name.
 
 ## In the shipped design systems
 
 Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
 and `size` (`xs`–`xl`) on field, so `<Field.Root color="error" size="sm">` is styled in both —
-typically as the label and helper text colour, with the control inside keeping its own axes.
+typically as the label and helper text colour, with the control inside keeping its own
+colour and taking the Field's `size` unless it sets one.
 Neither wires a `variant` or any `mods` on the scope; under a design system's `/register`
 import those props are therefore absent. See
 [Typed vocabulary](/zero/docs/typed-vocabulary/).

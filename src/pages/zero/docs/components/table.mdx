@@ -91,6 +91,51 @@ app owns — which row is chosen — so it is a flag on the row, not a mod on th
 attaches no behavior to it: the click handling, the checkbox column and the keyboard model
 of a selectable grid are yours.
 
+### A column spec
+
+```tsx
+<Table.Root columns={[
+    { label: 'Time', width: '8rem' },
+    { label: 'What' },
+    { key: 'cost', label: 'Cost', align: 'end' },
+]}>
+    <Table.Caption>Activity</Table.Caption>
+    <Table.Head />
+    <Table.Body>
+        <Table.Row>
+            <Table.Cell column={0}>09:12</Table.Cell>
+            <Table.Cell column={1}>Deployed</Table.Cell>
+            <Table.Cell column="cost">$0.42</Table.Cell>
+        </Table.Row>
+    </Table.Body>
+</Table.Root>
+```
+
+`columns` on `Table.Root` describes the columns once — per column an optional `label`,
+`width` (any CSS width, e.g. `8rem`, `12ch`, `20%`; `auto` when omitted), `align`
+(`'start' | 'center' | 'end'`) and `key`. `Table.Head` renders the widths as a `<colgroup>`
+of `<col>` parts just before its `<thead>`, and with no children it renders the header row
+from the labels. Each `<col>` carries its width as `--table-column-width`, which a rule in
+`@sigx/zero/css` (`@layer zero.structure`) applies — a custom property rather than a `width`
+literal, so a responsive rule can take it back without `!important`.
+
+A `Table.Cell` or `Table.HeaderCell` names its column by index (`column={2}`) or by key
+(`column="cost"`). It then takes the column's alignment as `--table-cell-align`, which every
+shipped design system's cell recipe reads (declared `start` on the root), and a header cell
+with no children renders the column's label. Naming a column the spec doesn't have throws.
+
+### Attributes, spans and row ids
+
+```tsx
+<Table.Row data-row-id={row.id}>…</Table.Row>
+<Table.Row><Table.Cell colSpan={5}>No results</Table.Cell></Table.Row>
+```
+
+Every Table part forwards `aria-*`, your own `data-*`, `id`, `title` and `role`.
+`Table.Root` splits them: `aria-*` and `role` go on the `<table>` — the element assistive
+technology reads — and the rest on the scroll wrapper. `Table.Cell` and `Table.HeaderCell`
+take the native `colSpan` and `rowSpan`.
+
 ### Zebra striping and hover
 
 ```tsx
@@ -109,12 +154,14 @@ not, the attributes match nothing and the table renders plain.
 | `root` | `div` | — | — | The scroll container. Carries the variant axes. |
 | `table` | `table` | — | — | The real table. Inside `root`. |
 | `caption` | `caption` | — | — | The accessible name. Inside `table`. |
+| `colgroup` | `colgroup` | — | — | Rendered by `Table.Head` from `columns`, before the `<thead>`. Inside `table`. |
+| `column` | `col` | — | — | One per column; carries `--table-column-width`. Inside `colgroup`. |
 | `head` | `thead` | — | — | Inside `table`. |
 | `body` | `tbody` | — | — | Inside `table`. |
 | `foot` | `tfoot` | — | — | Inside `table`. |
 | `row` | `tr` | — | `selected` | Inside whichever section holds it. |
-| `header-cell` | `th` | — | — | `scope="col"` by default. Inside `row`. |
-| `cell` | `td` | — | — | Inside `row`. |
+| `header-cell` | `th` | — | — | `scope="col"` by default; `--table-cell-align` when it names a `column`. Inside `row`. |
+| `cell` | `td` | — | — | `--table-cell-align` when it names a `column`. Inside `row`. |
 
 Every part carries `data-scope="table"` and `data-part="<part>"`. The **root** is the scroll
 container, not the table: a table is the one component whose natural content is wider than
@@ -133,12 +180,24 @@ column without shipping dead parts today.
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
+| `columns` | `readonly TableColumn[]` | — | The column spec: `{ key?, label?, width?, align? }` per column. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
 | `class` | `string` | — | Extra classes on the root element. |
+| `aria-*` / `role` | HTML attributes | — | Forwarded to the `<table>`. |
+| `data-*` / `id` / `title` | HTML attributes | — | Forwarded to the scroll wrapper. |
 
-### `Table.Caption`, `Table.Head`, `Table.Body`, `Table.Foot`, `Table.Cell`
+### `Table.Caption`, `Table.Head`, `Table.Body`, `Table.Foot`
 
-Only `class`.
+`class` and the forwarded HTML attributes. `Table.Head` with no children renders the header
+row from the `columns` labels; with `columns` set it also renders the `<colgroup>`.
+
+### `Table.Cell`
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `column` | `number \| string` | — | The column this cell belongs to, by index or `key`; takes its alignment. An unknown column throws. |
+| `colSpan` / `rowSpan` | `number` | — | The native spans. |
+| `class` | `string` | — | Extra classes. |
 
 ### `Table.Row`
 
@@ -152,7 +211,11 @@ Only `class`.
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `scope` | `'col' \| 'row'` | `'col'` | Which axis this header labels — the native `<th scope>`. |
+| `column` | `number \| string` | — | The column by index or `key`; takes its alignment, and renders its label when the cell has no children. |
+| `colSpan` / `rowSpan` | `number` | — | The native spans. |
 | `class` | `string` | — | Extra classes. |
+
+Every part also forwards `aria-*`, `data-*`, `id`, `title` and `role`.
 
 ## In the shipped design systems
 
@@ -168,7 +231,8 @@ both. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
 A recipe draws `zebra` on the even body rows, scoped under `[data-mod-zebra]` on the root,
 `hover` as a row highlight on `:hover`, and
 `[data-selected]` as a stronger tint that wins over both. The `size` axis scales cell
-padding and the text token on the cells; `color` tints the head.
+padding and the text token on the cells; `color` tints the head. Cell and header-cell recipes
+read `text-align: var(--table-cell-align)`.
 
 ## Related
 

@@ -1,6 +1,6 @@
 ---
 title: Accessibility
-description: "How @sigx/zero components get their accessibility — native elements first, APG keyboard patterns, presence-aware labelling, universal Escape, label props for glyph-only controls, Field integration, and what stays the app's job"
+description: "How @sigx/zero components get their accessibility — native elements first, APG keyboard patterns, presence-aware labelling, universal Escape, label props for glyph-only controls, visually hidden labels, the attribute pass-through, Field integration, and what stays the app's job"
 layout: docs
 category: Concepts
 order: 43
@@ -73,13 +73,131 @@ region is an axe violation. `RatingGroup` names each item through
 `Select.Trigger` takes a `label` prop for a Select used outside a Field: `role="combobox"`
 prohibits name-from-content, so the value text inside the trigger can never name it.
 
+A default name gives way to an app `aria-label`: Spinner's "Loading", `Alert.Close`'s
+"Close", Breadcrumbs' "Breadcrumb", Pagination's "Pagination", and the default name of every
+icon trigger — the Carousel triggers and dots, `Diff.Handle`, the NumberInput steppers,
+`FileUpload.ItemRemove`, a Carousel slide's "n of m". A `label` prop, where the part has one,
+still beats both. On `Status` and `Countdown.Root` an app `aria-label` names the part the way
+`label` does: a named status dot is an `img`, a named countdown a `timer`.
+
+## Visually hidden, still named
+
+A label or title can leave the screen and stay in the accessibility tree. `Field.Label`,
+`Input.Label`, `Textarea.Label`, `Dialog.Title` and `Drawer.Title` take `visuallyHidden`, and
+`Switch.Root` / `Checkbox.Root` take `hideLabel` for their `label` part. The label still names
+its control through `for`, and the title still names its popup through `aria-labelledby`.
+
+```tsx
+<Field.Root>
+    <Field.Label visuallyHidden>Search the docs</Field.Label>
+    <Input.Root>…</Input.Root>
+</Field.Root>
+```
+
+The part renders `data-visually-hidden`, and `@sigx/zero/css` clips it in
+`@layer zero.structure`, so no label recipe's `display`, margin or padding can put the box
+back and a design system has nothing to write. The selector is not scope-qualified: an app
+may stamp the attribute on any element of its own. For content that is not a part — an icon
+button's text — use `VisuallyHidden`:
+
+```tsx
+import { VisuallyHidden } from '@sigx/zero/visually-hidden';
+
+<button type="button"><CloseIcon /><VisuallyHidden>Close</VisuallyHidden></button>
+
+<VisuallyHidden asChild>{(p) => <h2 {...p}>Navigation</h2>}</VisuallyHidden>
+```
+
+It renders a `<span>` (or, under `asChild`, hands the attribute to your element) and is also
+exported from the `@sigx/zero` root. It is deliberately not a scope and has no anatomy, since
+there is nothing in it for a design system to style. Prefer the part's own `visuallyHidden`
+when the thing to hide *is* a part: the part keeps its wiring, where wrapping its text would
+leave an empty styled box behind.
+
+For design-system authors, `visuallyHidden` is a presentation request, not a
+[flag](/zero/docs/anatomy-contract/#flags-are-a-closed-vocabulary): the anatomy declares which
+parts offer it (`PartSpec.visuallyHidden`, carried into the manifest), it mints no selector,
+and the contrast and state-legibility tooling never cross it. `expectAnatomy` fails
+`data-visually-hidden` on a part that does not declare it.
+
+**Field and Switch share one accessible name — give it once.** Inside a Field, `Field.Label`
+(`for` the input) and `Switch.Root` (a `<label>` wrapping it) are both labels of the same
+input, and an accessible name concatenates every label a control has. Name it in exactly one
+place: `Field.Label` with a `Switch.Root` that has no children of its own, or the Switch's own
+text and no `Field.Label`. When a row elsewhere carries the visible text, keep the Switch's
+text as the name with `hideLabel`. The same holds for Checkbox.
+
+```tsx
+<Field.Root>
+    <Field.Label>Dark mode</Field.Label>
+    <Switch.Root />                    {/* name: "Dark mode" */}
+</Field.Root>
+
+<Switch.Root hideLabel>Airplane mode</Switch.Root>
+```
+
+## Attribute pass-through
+
+sigx forwards no rest props, so a part renders only what it declares. Every part an app
+writes declares the everyday attributes (`WithHtmlAttrs`) and forwards `aria-*`, the app's
+own `data-*`, `id`, `title` and `role` to the element it renders, or into its `asChild` bag:
+
+```tsx
+<Button.Root aria-label="Close" data-testid="close" onClick={close}>×</Button.Root>
+<Table.Row data-row-id={row.id}><Table.Cell colSpan={5}>No results</Table.Cell></Table.Row>
+<Card.Root role="region" aria-labelledby="report-title">…</Card.Root>
+<Alert.Close aria-label="Dismiss" />
+<Tabs.List aria-label="Settings">…</Tabs.List>
+<Checkbox.Root aria-label="Accept terms" data-testid="terms" />
+```
+
+Where the attributes land:
+
+- **On the part's own element**, for nearly every part. A root that renders no element
+  (`Dialog.Root`, `Drawer.Root`, …) takes none; its trigger and popup carry their own.
+- **Split, where the part wraps the element assistive technology reads.** `Table.Root` puts
+  `aria-*` and `role` on the `<table>` and the rest on its scroll wrapper. `Checkbox.Root`,
+  `Switch.Root` and `RadioGroup.Item` put `aria-*` on their input and `id`, `title` and
+  `data-*` on the row.
+- **Nowhere**, for parts zero renders on its own — hidden inputs, Pagination's page buttons,
+  a switch thumb, a backdrop. There is no component to take an attribute.
+
+The part's own attributes win where both set one, with three refinements:
+
+- **A name the part always sets is refused by the type**, not silently dropped. `role` is
+  refused where it is the component's semantics: `Divider`, `Spinner`, `Status`,
+  `Countdown.Root`, `Alert.Root`, the Progress and RadialProgress roots, the tablist, tabs and
+  tab panels, the tree and its items, the `group` roots of Steps and ToggleGroup, the Carousel
+  region and slides, the switch, checkbox, radio, toggle, slider-thumb and spinbutton parts,
+  and `Field.Error`'s `alert`. `id` is refused where another part points at it: every Label,
+  the Field description and error, the disclosure panels, `Tabs.Tab` / `Tabs.Panel`, and the
+  Field control of NumberInput, RatingGroup, Slider and FileUpload.
+- **A default name gives way** to an app `aria-label` — see
+  [labelling](#labelling-is-presence-aware).
+- **Wired references join.** An app `aria-labelledby` / `aria-describedby` is joined to the
+  one the part wires rather than replacing it: a progress bar's Label, a tab panel's tab, a
+  tree's or radio group's label, a rating control's, and a control's Field description.
+  State ARIA stays the component's — `aria-busy`, `aria-current`, `aria-valuenow`,
+  `aria-expanded`, `aria-selected`, `aria-checked`, `aria-pressed` and the like.
+
+A `data-*` name the anatomy contract owns — `data-scope`, `data-part`, `data-state`,
+`data-orientation`, `data-placement`, any flag, `data-color` / `data-size` / `data-variant`,
+and the `data-mod-*` / `data-l-*` prefixes — is a compile error where TypeScript can see it
+and throws at runtime either way: a design system selects on those, so an app writing
+`data-state="open"` from outside would make the skin say something the component never did.
+An `id`, `title` or `role` takes a string, and an `aria-*` boolean renders as its `"true"` /
+`"false"` token. To build a forwarding part of your own, intersect `WithHtmlAttrs` into its
+props (`Omit` the names it owns) and spread `htmlAttrs(props)` first — see
+[Building your own component](/zero/docs/ecosystem-components/).
+
 ## Field integration
 
 Inside a [`Field.Root`](/zero/docs/components/field/), a control adopts the field's control
 id — so `Field.Label` names it — and its `disabled`, `invalid` and `required` flags, and
 announces the field's description and error through `aria-describedby`. Input, Textarea,
-NumberInput, Checkbox, Switch, RadioGroup, Select, NativeSelect, Combobox, RatingGroup and
-FileUpload all consume the context. This is the wiring a raw `<input>` never gets, and the
+NumberInput, Checkbox, Switch, RadioGroup, Select, NativeSelect, Combobox, RatingGroup,
+ToggleGroup and FileUpload all consume the context — and a control with no `size` of its own
+renders the Field's, so `<Field.Root size="xs">` is a compact field, control included. This is the wiring a raw `<input>` never gets, and the
 main reason the text-field components exist.
 
 ## Live regions
@@ -103,11 +221,12 @@ it draws with). See [Recipes](/zero/docs/recipes/).
 
 ## What stays the app's job
 
-- The accessible name of a `Button.Root` with only an icon inside — give it `aria-label`
-  through your own markup, or visible text.
-- Announcing a long-running operation. The
-  [loading button](/zero/docs/components/button/#the-loading-button) composition keeps the
-  control `disabled`; announce progress with a live region or a labelled `Spinner`.
+- The accessible name of a `Button.Root` with only an icon inside — pass `aria-label`, or
+  put the text in a `VisuallyHidden`.
+- Announcing a long-running operation. A
+  [loading button](/zero/docs/components/button/#the-loading-button) says `aria-busy` and
+  keeps focus; announce progress with a live region or a labelled `Spinner` when a label
+  change alone won't be heard.
 - The `<nav>` around a `Navbar`'s link set — the bar itself is a `<header>` banner landmark
   because it holds non-navigation content too.
 - Writing a `Table.Caption`. It is the table's accessible name.

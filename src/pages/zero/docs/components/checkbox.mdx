@@ -65,8 +65,8 @@ on an indeterminate box writes the native toggle into the model, and the app dec
 
 ```tsx
 <Field.Root invalid={!!state.error}>
-    <Field.Label>Newsletter</Field.Label>
-    <Checkbox.Root model={() => state.subscribe}>Send me the monthly digest</Checkbox.Root>
+    <Field.Label>Send me the monthly digest</Field.Label>
+    <Checkbox.Root model={() => state.subscribe} />
     <Field.Description>We never spam.</Field.Description>
     <Field.Error>{state.error}</Field.Error>
 </Field.Root>
@@ -74,7 +74,20 @@ on an indeterminate box writes the native toggle into the model, and the app dec
 
 Inside a [`Field.Root`](/zero/docs/components/field/) the hidden input adopts the field's
 control id, its `disabled` / `invalid` / `required` flags and its `aria-describedby`. A
-prop set on the checkbox wins; the field supplies the rest.
+prop set on the checkbox wins; the field supplies the rest. The checkbox's own `<label>` and
+`Field.Label` both name the same input and the accessible name concatenates them, so name it
+in one place — here the `Field.Label`, with no children on the checkbox.
+
+`hideLabel` keeps the checkbox's own `label` part as its accessible name while taking it off
+screen (`data-visually-hidden`), for a row where something else carries the visible text:
+
+```tsx
+<Checkbox.Root model={() => state.selected} hideLabel>Select row {row.name}</Checkbox.Root>
+```
+
+Forwarded attributes split: `aria-*` lands on the input assistive technology reads (an app
+`aria-describedby` joins the Field's), and `id`, `title` and `data-*` on the row. `role` is
+refused — the input is the `checkbox`.
 
 ## Anatomy
 
@@ -84,7 +97,7 @@ prop set on the checkbox wins; the field supplies the rest.
 | `hidden-input` | `input` | — | — | The native checkbox, visually hidden and focusable; carries `name`, `value`, `required`, `aria-invalid` and `aria-describedby`. Inside `root`. |
 | `control` | `span` | `checked` \| `unchecked` \| `indeterminate` | `disabled`, `focus-visible`, `invalid`, `pressed`, `press-animating` | The box a design system paints. Publishes [press feedback](/zero/docs/behaviors/#press-feedback). Inside `root`. |
 | `indicator` | `span` | `checked` \| `unchecked` \| `indeterminate` | — | Empty; the design system draws the mark. Inside `control`. |
-| `label` | `span` | `checked` \| `unchecked` \| `indeterminate` | `disabled` | The label text; rendered only when the default slot is given. Inside `root`. |
+| `label` | `span` | `checked` \| `unchecked` \| `indeterminate` | `disabled` | The label text; rendered only when the default slot is given. `data-visually-hidden` under `hideLabel`. Inside `root`. |
 
 Every part carries `data-scope="checkbox"` and `data-part="<part>"`. The `hidden-input` is a
 real, styleable part: the native input renders so the box posts pre-hydration, and it is
@@ -114,7 +127,9 @@ computed against the control's rect. The `indicator` renders empty, so recipes k
 | `invalid` | `boolean` | `false` | Renders `aria-invalid` and `data-invalid` on root and control; a wrapping Field's `invalid` also applies. |
 | `disabled` | `boolean` | `false` | Renders `disabled` and `data-disabled`; a wrapping Field's `disabled` also applies. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `hideLabel` | `boolean` | `false` | Keep the `label` part as the accessible name, off screen. |
 | `class` | `string` | — | Extra classes on the root element. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | `aria-*` on the input; the rest on the row. `role` is refused. |
 
 ## Keyboard
 

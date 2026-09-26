@@ -20,4 +20,10 @@ every component composes the [variant axes](/zero/docs/variant-axes/) (`color`, 
 `variant`, `axes`, `mods`), which pass through as `data-*` attributes for a design system to
 style.
 
+Every part you write also forwards the everyday HTML attributes it does not model — `aria-*`,
+your own `data-*`, `id`, `title` and `role` — to the element it renders, or into its `asChild`
+bag. A name the part sets itself is refused by the type, and a `data-*` name the anatomy
+contract owns throws. See
+[Accessibility](/zero/docs/accessibility/#attribute-pass-through) for where each one lands.
+
 <ComponentCatalog catalogId="zero" collection="zero-docs" />

@@ -98,6 +98,7 @@ render it *as*.
 | `label` | `string` | `'Loading'` | The accessible name, rendered as `aria-label`. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
 | `class` | `string` | — | Extra classes. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | Forwarded. An app `aria-label` replaces the default `'Loading'` (`label` still wins). `role` is refused. |
 
 Spinner has no `model`, no default-value prop and no change event: it has no state to bind.
 

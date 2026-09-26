@@ -97,6 +97,7 @@ system's paint.
 | `label` | `string` | — | Accessible name. Present: `role="img"` with this name. Absent: `aria-hidden`. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
 | `class` | `string` | — | Extra classes. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | Forwarded. An app `aria-label` names the dot like `label` (a named dot is an `img`). `role` is refused. |
 
 Status has no `model`, no default-value prop and no change event: it has no state to bind.
 
