@@ -130,6 +130,10 @@ your own `state:` extra fields — mutate state in a turn so `watch()` pushes th
 nothing is persisted per tick. After a crash, progress honestly **regresses to the last
 checkpoint** rather than claiming ground the work did not keep.
 
+A job run's storage footprint is **one load and four saves**. Crash-resume liveness rides the
+host's [task roster](/actors/docs/tasks#crash-resume-is-built-in), so a running job costs
+nothing periodic.
+
 **`retainMs`** keeps the terminal record around for late `result()` readers, then a one-shot
 reminder clears the state and deactivates. `discard()` does it on demand.
 

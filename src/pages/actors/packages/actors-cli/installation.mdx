@@ -83,6 +83,30 @@ Detail is only requested while a drill-down is open, so the extra load is opt-in
 and expensive to get wrong. The `READY` column shows `FATAL` distinctly from not-ready, per
 [Health & readiness](/actors/docs/health-and-readiness).
 
+## What the screens show
+
+**Hosts and nodes.** When hosts publish
+[`meta.node`](/actors/docs/clustering#metanode-the-machine-a-host-runs-on), the Hosts table
+gains a `NODE` column — a short label, the tail that tells one node from another — the host
+drill-down a `node` row with the full name, and the Overview a `nodes` row. The scope reads
+`cluster · 3 host(s) / 1 node(s)`, and the non-TTY `top` summary carries the same spread. A
+fleet reporting no node shows `—` in the column and no `nodes` row.
+
+**Locality.** The Cluster screen has a `locality` row, `NN% local (N dispatches)` — the
+per-request fraction from `dispatchesLocal` / `dispatchesRemote`, described on
+[Locality routing](/actors/docs/locality-routing#measuring-it). A host on a build without those
+counters reads 0%.
+
+**Socket sessions.** Once some host publishes the `sockets` ops section
+(`registry.reportOps('sockets', () => stats.snapshot())`), the Hosts table gains a `SOCKETS`
+column of open sessions and the host drill-down shows the session rows: open sessions and in
+flight, subscriptions and throttle-quantized count, deliveries and bytes, buffered bytes,
+connections opened / closed / refused, evictions, and lifetime percentiles. Only the polled
+host can report them.
+
+`sigx actors stats` prints the same: a `nodes` line and a per-host `node`, and a
+`sockets — host <id> ONLY` block when the host publishes the section.
+
 ## Next steps
 
 - [API reference](/actors/packages/actors-cli/api) — the `/source` data layer.

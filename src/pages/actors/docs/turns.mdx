@@ -110,6 +110,31 @@ When it hurts, the three ways out, in order of preference:
    [`methodReentrancy`](/actors/docs/reentrancy) — the usual fit for a read that must not queue
    behind slow writes.
 
+## A turn that never awaits blocks the whole host
+
+An `await` blocks one actor. A turn that **computes synchronously** blocks the event loop, and
+on Node a host has one — shared by every actor on it, the health probes and the cluster
+membership heartbeat.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>A CPU-bound turn can fence its own host.</strong> Held past the membership TTL
+    (15 seconds on <code>redisCluster</code>'s defaults), it starves the host's heartbeat: peers
+    age the host out, and when the loop resumes the host
+    <a href="/actors/docs/clustering#a-cpu-bound-turn-can-fence-its-own-host">fences itself</a>
+    — taking every other actor on it along. A method whose cost scales with client input is a
+    denial-of-service surface even behind a guard; cap the work one call may ask for.
+  </div>
+</div>
+
+Chunk long computation and yield between slices —
+`await new Promise((resolve) => setImmediate(resolve))` every few hundred iterations on Node,
+`setTimeout(resolve, 0)` where `setImmediate` does not exist — or move
+genuinely heavy compute onto `worker_threads`. A [task](/actors/docs/tasks) takes the work off
+the caller but still runs on the same loop, so it must yield too; a
+[`defineWorker`](/actors/docs/stateless-workers) pool multiplies activations, not threads, and
+does not help. The `slowTurnMs` dev warning is the detector.
+
 ## What runs outside the turn sequence
 
 Not everything an actor does is a turn, and the exceptions are deliberate:

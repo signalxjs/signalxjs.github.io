@@ -98,6 +98,56 @@ of ~1.7M on a rolling restart.
 Set `terminationGracePeriodSeconds` above your preStop sleep plus the actor drain plus
 `taskGraceMs`.
 
+## One host per core
+
+A host is one Node process on one JS thread. Nothing in the runtime uses a second core — a
+[`defineWorker`](/actors/docs/stateless-workers) pool multiplies activations, not threads — so
+the way to use a multi-core node is **several hosts on it**. That is a supported shape: host
+identity is per process, so N processes on one machine are N cluster members that happen to
+share a kernel, each with its own listen port and `advertise` address.
+
+It scales: eight hosts on one box measured **5.93×** the throughput of one, with the shared
+components — directory, reminder table — flat across the ladder.
+
+**Size requests at ~1.4 cores per host**, not one: a saturated host is the JS loop plus V8's GC
+helpers, libuv and its store client's I/O. The rule is
+
+```
+sum(requests) ≤ allocatable − 1 core,   limits = requests
+```
+
+which on an 8-vCPU node is **five hosts at `requests.cpu: 1300m`**:
+
+```yaml
+resources:
+  requests: { cpu: 1300m }
+  limits:   { cpu: 1300m }
+```
+
+**Why not `worker_threads`?** They were measured and kept out of the runtime: a ~3.4× ceiling
+with a ~200µs crossover and a 1 MB payload cliff, where more hosts keep scaling.
+
+**The fence is the watchdog.** Packing does not create a new hazard — each host has its own
+loop, so a [CPU-bound turn](/actors/docs/clustering#a-cpu-bound-turn-can-fence-its-own-host)
+starves only its own heartbeat. The hazard is **oversubscription**: limits summing past the
+cores, so the CFS throttles a host across whole periods and its beat lands past the TTL with no
+turn being slow. That host fences, reports `fatal` on liveness, and the kubelet restarts it —
+no supervisor is needed beyond the kubelet. The answer to a host fencing under load is the
+sizing rule, not a longer TTL.
+
+Set [`meta.node`](/actors/docs/clustering#metanode-the-machine-a-host-runs-on) from the
+downward API so the monitor, CLI and dashboard show how many hosts share each node:
+
+```yaml
+env:
+  - name: NODE_NAME
+    valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+```
+
+```ts
+cluster({ providers, advertise, secret, meta: { node: process.env.NODE_NAME } });
+```
+
 ## Scaling
 
 An HPA works normally. Two things to know:
@@ -116,7 +166,9 @@ The public actor endpoint goes behind your ingress. `/_sigx/host`, `/_sigx/ops` 
 [`ops()`](/actors/docs/ops-endpoint) is authenticated but still not something to publish.
 
 If you configure [locality routing](/actors/docs/locality-routing), the ingress is where the
-routing token gets hashed.
+routing token gets hashed. On **ingress-nginx**, give that hash an empty-key fallback:
+[worker calls carry no token](/actors/docs/locality-routing#workers-carry-no-token), and its
+consistent hash otherwise pins every one of them onto a single pod.
 
 A worked rig — Helm chart with deployment, HPA, PDB, service, RBAC, Redis and a load
 generator, plus a runbook — is `perf/aks` in the actors repo.

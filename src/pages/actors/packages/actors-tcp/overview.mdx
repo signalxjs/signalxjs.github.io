@@ -37,34 +37,33 @@ cluster({
 
 ## Why you would use it
 
-Measured against a **tuned** HTTP baseline — pool bounded to the concurrency — at concurrency
-64:
+On Node this is the transport hosts should run on — for latency and CPU per hop as much as for
+socket count.
 
-| | Connections per peer | ops/s | p99 |
+Per hop, one machine, five runs, against HTTP with its pool tuned to the concurrency:
+
+| | Sockets | calls/s | p99 per call |
 |---|---:|---:|---:|
-| tuned HTTP | 64 | 14,287 | 9.6 ms |
-| **TCP** | **1** | **69,768** | **1.58 ms** |
+| tuned HTTP | 65 | ~15.6k | 10–13 ms |
+| **TCP** | **3** | **~91k** | **1.3 ms** |
 
-Two separate wins, worth different amounts.
+Across a sixteen-host fleet under an engine-bound workflow load, TCP completed 1.4–1.9× the
+runs per second past 200 offered, with start-latency p99 under 200 ms where HTTP's was over
+100 s — HTTP's per-peer fetch pool saturated, calls timed out, and retries duplicated
+directory claims (10,184 dispatch retries against 16; 16,024 claim conflicts against 16).
 
-**Socket count — real at any network.** HTTP's pool sizes to `concurrency × peers`, measured
-at *two* connections per in-flight request: roughly 12,600 per host at concurrency 64 across
-99 peers. That is file descriptors, kernel buffers, conntrack entries and a connection burst
-on every peer restart. One connection per peer does not change with RTT.
+**Socket count** is the other reason. HTTP's pool sizes to `concurrency × peers`: roughly
+12,600 sockets per host at concurrency 64 across 99 peers — file descriptors, kernel buffers,
+conntrack entries and a connection burst on every peer restart. One connection per peer does
+not change with RTT.
 
-**Throughput — real, but mostly a loopback effect.** The 4.9× is a *software* ratio: ~70µs per
-call versus ~14µs. On a LAN with a 200–1000µs round trip that difference is worth roughly
-**1.1×, not 4.9×**.
-
-> Take the socket property as the reason to choose this; treat the throughput as a bonus that
-> shrinks the further apart your hosts are.
+The full numbers are on [Host transports](/actors/docs/transports#hosts-run-tcp).
 
 ## HTTP remains the default
 
 And must: `@sigx/actors/cluster` stays zero-dependency and WinterCG-clean so Cloudflare
-Workers keep working, and HTTP is the only transport that runs everywhere. With
-[a bounded pool](/actors/docs/transports#bounding-the-http-pool) it is a perfectly reasonable
-choice.
+Workers keep working, and HTTP is the only transport that runs everywhere. It stays the client
+endpoint and the fallback the chain drops to during a rolling deploy.
 
 This package is **Node-only** by design — it uses `node:net`.
 
@@ -78,6 +77,18 @@ and the rollout is safe:
    still reached over HTTP.
 3. Once every host advertises `tcp`, drop `httpTransport()` from the chain if you want the
    internal HTTP mount gone entirely.
+
+## When a connection drops
+
+A unary call already on the wire when its connection drops rejects with an ordinary `Error` —
+`[sigx actors] host connection closed with this call in flight (<reason>): outcome unknown, not retried` —
+never `unreachable`, because the owner may have run it. Re-issue it only if the method is
+idempotent; see [when a call is retried](/actors/docs/clustering#when-a-call-is-retried).
+Streams and watches still fail `unreachable` before their first chunk.
+
+Two hosts dialling each other at once keep both sides' in-flight calls: the losing socket
+drains and closes once both ends are done. `handshakeTimeoutMs` bounds an outbound connect as
+well as an inbound handshake.
 
 ## Next steps
 

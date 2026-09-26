@@ -1,6 +1,6 @@
 ---
 title: Host transports
-description: "Which host-to-host transport to use — the measured table, why HTTP stays the default, and the two caveats to carry"
+description: "Which host-to-host transport to use — why hosts run TCP, the measured numbers, and why HTTP stays the default"
 layout: docs
 category: Clustering
 order: 520
@@ -9,24 +9,36 @@ order: 520
 # Host transports
 
 <p class="lede">How hosts talk to each other is a seam. HTTP is the default and the only
-portable option; TCP collapses connection count on Node.</p>
+portable option; on Node, hosts should run TCP.</p>
 
 ```ts
-cluster({ providers, advertise, secret, transport: httpTransport({ fetch: tuned }) });
+cluster({ providers, advertise, secret, transport: [tcpTransport(), httpTransport()] });
 ```
 
-## The measured comparison
+## Hosts run TCP
 
-| | Portable? | Connections per peer | Relative throughput |
-|---|---|---:|---:|
-| `httpTransport()` **(default)**, unbounded pool | **everywhere, incl. Workers** | 2 × concurrency | 0.9× |
-| `httpTransport()` with a bounded pool | **everywhere, incl. Workers** | concurrency | 1.0× (baseline) |
-| [`tcpTransport()`](/actors/packages/actors-tcp/overview) | Node only | **1** | 4.9× |
+On Node, chain **`[tcpTransport(), httpTransport()]`** for the host-to-host link. The reason is
+latency and CPU per hop as well as socket count.
 
-Throughput is relative to **bounded** HTTP, because that is the fair baseline — the shipped
-default is the first row, and bounding it is a free improvement.
+**Per hop**, one machine, five runs, against HTTP with a tuned pool:
 
-**On Node, prefer TCP.** It is the socket transport for hosts.
+| | calls/s | p99 per call | sockets |
+|---|---:|---:|---:|
+| `httpTransport()`, tuned pool | ~15.6k | 10–13 ms | 65 |
+| [`tcpTransport()`](/actors/packages/actors-tcp/overview) | **~91k** | **1.3 ms** | **3** |
+
+**Across a fleet** — sixteen hosts under an engine-bound workflow load — TCP completed
+**1.4–1.9×** the runs per second past 200 offered, with start-latency p99 under 200 ms where
+HTTP's was over 100 s. HTTP's per-peer fetch pool saturated, calls timed out and retries
+duplicated directory claims: dispatch retries went from 10,184 on HTTP to 16 on TCP, and claim
+conflicts from 16,024 to 16. One multiplexed connection per peer has no pool to saturate.
+
+**On the client-facing socket axis** the effect is smaller but in the same direction: at
+5,000 and 10,000 live subscribers, TCP between hosts delivered 4–5% more per second at 15–23%
+lower p50 and p99.
+
+**Socket count** still matters on its own: at concurrency 64 across 99 peers, HTTP wants
+roughly 12,600 sockets per host. TCP wants 99.
 
 <div class="alert alert-warning not-prose my-4">
   <div>
@@ -38,19 +50,12 @@ default is the first row, and bounding it is a free improvement.
   </div>
 </div>
 
-**HTTP stays the default, and must.** `@sigx/actors/cluster` is zero-dependency and
-WinterCG-clean so Cloudflare Workers keep working, and HTTP is the only transport that runs
-everywhere.
+## HTTP stays the default
 
-## Two caveats worth carrying
-
-> **The throughput ratio is a loopback *software* number.** TCP is ~70µs/call against ~14µs —
-> a 56µs difference that a real LAN round trip of 200–1000µs largely absorbs. On a real
-> network that is about **1.1×, not 4.9×**. Do not publish "4.9× faster" unqualified.
-
-The **connection-count** win is the one that survives a real network, and it is usually the
-reason to move: at concurrency 64 across 99 peers, HTTP wants roughly 12,600 sockets per host.
-TCP wants 99.
+`@sigx/actors/cluster` is zero-dependency and WinterCG-clean so Cloudflare Workers keep
+working, and HTTP is the only transport that runs everywhere. It is also the client endpoint,
+and the fallback the chain above drops to for a peer that does not advertise TCP — which is
+what makes a [rolling deploy](#fallback-chains-make-adoption-safe) of TCP safe.
 
 ## Bounding the HTTP pool
 
@@ -118,6 +123,13 @@ The public actor wire is unaffected by any of this.
 N-host cluster over your wire and every case runs against it. The rule it enforces throughout
 is *assert on the error `kind`, never on an HTTP status*, which is what makes the contract
 expressible off HTTP at all.
+
+One rule in it matters more than the rest: **answer `unreachable` only for a call that provably
+never executed** — no connection accepted it, or the request was provably never written. The
+placement [retries `unreachable`](/actors/docs/clustering#when-a-call-is-retried), so a
+transport that uses it for a call that was in flight when its connection dropped is asking for
+a non-idempotent method to run twice. That case rejects with an ordinary `Error` — outcome
+unknown, not retried — and the caller decides.
 
 It is currently **contributor-facing only**: reachable inside the actors workspace as
 `@sigx/actors/cluster/testing` through a tsconfig and vitest alias, but not in the published

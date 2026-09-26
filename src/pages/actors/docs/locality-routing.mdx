@@ -64,6 +64,33 @@ balance uri depth 4
 hash_policy: { header: { header_name: x-sigx-actor-route } }
 ```
 
+### Workers carry no token
+
+A [`defineWorker`](/actors/docs/stateless-workers) call carries **no routing token** in any
+`route` mode — no `/r/{token}/` segment and no `x-sigx-actor-route` header. A worker runs on
+whichever host the call lands on, so a token would pin every call for one worker key to one
+pod and cost the pool its fleet-wide spread. Stateful actor calls are unaffected.
+
+The build stamps the flag onto the client stub as `ActorCallInit.worker: true`; the proxy
+ignores a caller's `.with({ worker: … })`, so it cannot be set or unset per call. A custom
+transport that mints its own routing token should honour it and mint none.
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>"No token" spreads only on a balancer that falls back when the hash key is
+    empty</strong> — nginx core <code>hash</code>, HAProxy <code>balance hdr(…)</code>, Envoy's
+    ring hash. <strong>ingress-nginx</strong>'s consistent hash hashes the empty string
+    instead, and pins every untokened worker call onto one pod. On ingress-nginx, give the hash
+    an empty-key fallback — a <code>map</code> to <code>$request_id</code> — or carve the worker
+    types out of the hashed Ingress by path.
+  </div>
+</div>
+
+```nginx
+# ingress-nginx: http-snippet in the controller ConfigMap, then upstream-hash-by: "$sigx_hash"
+map $http_x_sigx_actor_route $sigx_hash { "" $request_id; default $http_x_sigx_actor_route; }
+```
+
 ## The token alone does nothing
 
 > **It must be paired with [`preferLocalPolicy()`](/actors/docs/placement-policies).**
@@ -79,6 +106,30 @@ Steady-state local fraction:
 The middle row is an **anti-pattern**, not a middle ground: the edge's hash and the cluster's
 rendezvous hash are different functions over different sets, so they disagree on most keys and
 guarantee a hop for every actor.
+
+### Measuring it
+
+The counters that measure this fraction are `dispatchesLocal` and `dispatchesRemote` in
+[`placement.counters()`](/actors/docs/cluster-stats#counters-worth-watching): once per call,
+stream or watch subscriber, so `dispatchesLocal / (dispatchesLocal + dispatchesRemote)` is the
+local fraction above. The [CLI](/actors/packages/actors-cli/overview) cluster screen and the
+[dashboard](/actors/packages/actors-dashboard/overview) cluster panel render it as a
+`locality` row — `NN% local (N dispatches)`.
+
+> **`routedLocal` is a placement count, not a request count** — the warm local path never
+> reaches it, so it reads near 0% on a perfectly local fleet. Do not derive locality from it.
+
+On Prometheus the pair is `sigx_actors_cluster_dispatches_total{locality="local"|"remote"}`,
+once you hand [`prometheusOps()`](/actors/docs/observability#cluster-dispatch-locality) a
+`cluster` thunk. There is deliberately no ratio gauge; the fraction is a query, which is what
+lets it aggregate across a fleet:
+
+```promql
+sum by (instance) (rate(sigx_actors_cluster_dispatches_total{locality="local"}[5m]))
+  / sum by (instance) (rate(sigx_actors_cluster_dispatches_total[5m]))
+```
+
+Drop the `by (instance)` for the fleet-wide number.
 
 ## Two limits not to bury
 

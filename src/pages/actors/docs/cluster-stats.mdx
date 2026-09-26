@@ -64,6 +64,28 @@ The one to put on a dashboard is **`locateRemote / locates`** — the miss rate 
 producing. If you have configured [locality routing](/actors/docs/locality-routing) and this
 is not near zero, the edge is not hashing the token, or placement is not `preferLocalPolicy()`.
 
+**`dispatchesLocal / (dispatchesLocal + dispatchesRemote)`** is the per-request locality
+fraction. Each call, stream or watch *subscriber* this host initiates counts once, in one of
+the two, decided at its first resolved target — on the warm local fast path and the routed
+path alike. A re-route after `wrong-host` or `unreachable` is a `retries` event, not a second
+dispatch. Stateless workers and `dispatchOn()` count in neither — nothing placed them — and a
+call that never resolves a target counts only in `routingFailures`. Reminder, task and topic
+deliveries go through the same path, so read the fraction rather than the sum against an
+inbound request rate.
+
+> **`routedLocal` does not measure locality.** It is a *placement* count: the warm fast path
+> never reaches the routing loop, so `routedLocal` reads near zero on a perfectly local fleet.
+> `remoteDispatches` is per *attempt*, retries included. Neither pair gives the fraction.
+
+`selfFences`, `rejoinAttempts` and `rejoins` cover [fencing](/actors/docs/clustering#fencing)
+— a worker-only host rejoins instead of fencing. `hostSweeps`, `sweptEntries`,
+`sweepsDelegated` and `sweepsSkippedGraceful` cover
+[directory hygiene when a host departs](/actors/docs/clustering#when-a-host-departs).
+
+`membershipVersion` is each host's own view version. A spread across hosts can mean views
+have not converged — or only that hosts observed a different number of changes nobody wrote,
+because the [version is per process](/actors/docs/clustering#what-version-means).
+
 `transportFallbacks` tells you a [transport chain](/actors/docs/transports) is doing real work
 — useful mid-deploy, worrying afterwards. `rebalanceRounds` and `rebalanceMigrations` cover
 [rebalancing](/actors/docs/rebalancing). `targetedDispatches` counts

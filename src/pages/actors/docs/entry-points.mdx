@@ -16,11 +16,11 @@ reach a browser and what may reach a Worker — not about tree-shaking.</p>
 | `@sigx/actors` | `defineActor`, `defineWorker`, `actor`, `useActor`, `actorKey`, `topic`, errors, types — isomorphic, light |
 | `@sigx/actors/host` | `defineActorApp`, `createHost`, `memoryStorage`, `metrics()`, `health()`, `ops()`, storage/placement/plugin seams — **server-only** |
 | `@sigx/actors/server` | `handleActorRequest`, `matchesActorRequest`, `createActorResolver`, `createFetchHandler` — WinterCG-clean |
-| `@sigx/actors/node` | `createAppHandler` (all mounts), `createActorHandler`, `attachSignalHandlers`, `fileStorage` |
+| `@sigx/actors/node` | `createAppHandler` (all mounts), `createActorHandler`, `attachSignalHandlers`, `fileStorage`, `nodeHmac()` |
 | `@sigx/actors/client` | `__actorRef`, `configureActors`, `fetchTransport`, the `ActorTransport` and `ActorRouter` seams — the build-swap target |
 | `@sigx/actors/app` | `actorsPlugin()`, `useActorState`, `useActorAction` — the sigx integration, and the only entry that imports `@sigx/runtime-core` |
 | `@sigx/actors/job` | `defineJob` — durable long-running operations |
-| `@sigx/actors/cluster` | `cluster()`, `clusterPlacement`, `clusterStats`, `handleHostRequest`, `memoryClusterHub`, provider seams — WinterCG-clean |
+| `@sigx/actors/cluster` | `cluster()`, `clusterPlacement`, `clusterStats`, `membersMemo`, `handleHostRequest`, `memoryClusterHub`, provider and HMAC seams — WinterCG-clean |
 | `@sigx/actors/cluster/frames` | the shared frame codec, for host-transport authors |
 | `@sigx/actors/socket-wire` | the client-facing socket protocol and codec, for adapter authors — WinterCG-clean |
 | `@sigx/actors/vite` | `sigxActors()`, `extractActors` |

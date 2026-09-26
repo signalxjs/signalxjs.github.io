@@ -41,7 +41,7 @@ is a peer dependency.
 **Prefer a `ws://` or `wss://` endpoint.** The HTTP engine re-authenticates on every request
 and cannot serve live queries, so membership push is unavailable over it.
 
-## Three things to get right
+## Four things to get right
 
 Each of these produces wrong behaviour silently rather than an error, so they are worth
 reading before the setup steps.
@@ -77,6 +77,17 @@ and at-most-once. A silent expiry also produces no write to notify on.
 **The poll is the guarantee.** Do not deploy multi-node expecting push-speed convergence; set
 `push: false` to turn it off entirely. It listens on the version *table* rather than a record,
 because record-scoped live queries fail to listen on 3.2.4 — and that table holds one record.
+
+### 4. A shared connection needs unlimited reconnect
+
+**If you pass your own connected `Surreal`, connect it with
+`reconnect: { enabled: true, attempts: -1 }`.** The SDK's default gives up after five attempts
+— about 31 seconds — and leaves a dead socket for the life of the process. The membership
+heartbeat then beats into it silently until the host's TTL lapses and it fences. A heartbeat is
+a process-lifetime obligation, so its connection may not have a finite retry budget.
+
+The `url` form of the providers connects this way itself; the requirement is for a connection
+whose lifecycle you own.
 
 ## State is stored as a JSON string
 

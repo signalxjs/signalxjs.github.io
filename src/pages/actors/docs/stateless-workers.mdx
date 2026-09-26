@@ -18,7 +18,7 @@ import { defineWorker } from '@sigx/actors';
 export const Resize = defineWorker({
     type: 'Resize',
     authorize: requireAuthenticated,
-    maxLocal: 8,             // pool cap; default: hardwareConcurrency (≤16)
+    maxLocal: 8,             // pool cap; default: hardwareConcurrency clamped to [4, 16]
     methods: () => ({
         async run(image: Uint8Array, width: number) {
             return transform(image, width);
@@ -36,10 +36,27 @@ up to `maxLocal` activations per `(type, key)`, spun up under load, and each dis
 member with the fewest queued turns. `ctx.key` is still the key the caller addressed — it just
 no longer names a single runner.
 
+**The default cap is `navigator.hardwareConcurrency` clamped to [4, 16]**, and 4 where that
+global does not exist. The floor matters in containers: under a cgroup CPU quota
+`hardwareConcurrency` reports the *quota*, not the machine, so a pod with
+`resources.limits.cpu: 1` reports 1. Pool members are activations that overlap at `await`
+points, not threads, so a single core still benefits from a pool. An explicit `maxLocal` —
+including `1` — is always honoured.
+
 **Always local, zero directory traffic.** A worker activates on whichever host — or Cloudflare
 isolate — received the call. No directory claim, no lookup, no routing, no `421` redirect, and
 nothing for a cluster to fence, migrate or rebalance. Both invariants are gated in CI:
 `directory_ops == 0`, pool ≤ cap.
+
+For the same reason a worker call carries **no
+[routing token](/actors/docs/locality-routing#workers-carry-no-token)**: calls for one key
+spread across the fleet instead of pinning to one pod. Check that your load balancer spreads
+an untokened request rather than hashing the empty key.
+
+**A pool is not a thread pool.** Every member runs on the host's one event loop, so a
+CPU-bound method blocks it exactly as one activation would — long enough, and it starves the
+[membership heartbeat](/actors/docs/clustering#a-cpu-bound-turn-can-fence-its-own-host). Heavy
+synchronous compute belongs on `worker_threads`.
 
 That locality is also what makes a worker the one thing a cluster can *target*: because it
 runs wherever the call lands, choosing the host is meaningful.

@@ -103,15 +103,42 @@ The sequence is deliberately not the obvious one:
 | `advertise` | — | this host's **internal** peer-reachable origin |
 | `publicAddress` | — | where *clients* reach this host; never guessed — see [Locality routing](/actors/docs/locality-routing) |
 | `secret` | — | **Required outside development.** HMAC for the host-to-host mount — see below |
+| `hmac` | `webCryptoHmac` | the implementation that signs and verifies under `secret`; on Node pass `nodeHmac()` — see [below](#a-synchronous-hmac-on-node) |
 | `internalBase` | `/_sigx/host` | where that mount lives |
 | `refreshCoalescer` | provider default | coalesces push-notification refreshes — see [below](#membership-refresh-coalescing) |
-| `transport` | `httpTransport()` | see [Transports](/actors/docs/transports) |
+| `transport` | `httpTransport()` | on Node, chain `[tcpTransport(), httpTransport()]` — see [Transports](/actors/docs/transports) |
 | `policy` / `typePolicies` | random | see [Placement policies](/actors/docs/placement-policies) |
 | `rebalance` | off | see [Rebalancing](/actors/docs/rebalancing) |
-| `retries` / `retryBackoffMs` | 3 / 100ms | |
+| `retries` / `retryBackoffMs` | 3 / 100ms | see [when a call is retried](#when-a-call-is-retried) |
+| `meta` | — | free-form placement hints, published in the host descriptor and on the ops channel — see [`meta.node`](#metanode-the-machine-a-host-runs-on) |
 
 `fetch` and `endpoint` remain as sugar for exactly those two `httpTransport()` options, and
 passing either *alongside* an explicit `transport` throws.
+
+### `meta.node`: the machine a host runs on
+
+`meta` is free-form, with one key that has an agreed meaning: **`node`**, the machine the host
+runs on. The [monitor](/actors/packages/actors-monitor/overview), the
+[CLI](/actors/packages/actors-cli/overview) and the
+[dashboard](/actors/packages/actors-dashboard/overview) count its distinct values into
+`3 host(s) / 1 node(s)` and show a per-host node column — the difference between three
+replicas spread over three machines and three replicas packed onto one, which a replica count
+reads the same either way.
+
+On Kubernetes, fill it from the downward API:
+
+```yaml
+env:
+  - name: NODE_NAME
+    valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+```
+
+```ts
+cluster({ providers, advertise, secret, meta: { node: process.env.NODE_NAME } });
+```
+
+A fleet that reports no `node` shows `—` in the node column and no `nodes` figure — "said
+nothing about where it runs", never a guess.
 
 ## The secret is not optional
 
@@ -134,11 +161,34 @@ included.
 
 The HMAC authenticates the **peer**, not the payload.
 
+### A synchronous HMAC on Node
+
+A sign and a verify sit on every secured cross-host call. The default implementation,
+`webCryptoHmac`, uses WebCrypto and runs everywhere — but `crypto.subtle.sign` is asynchronous,
+and on Node it runs on the libuv threadpool at ~27µs per call. `node:crypto` computes the same
+HMAC-SHA-256 synchronously, on the calling thread, in ~2µs. Node hosts should pass it:
+
+```ts
+import { nodeHmac } from '@sigx/actors/node';
+
+cluster({ providers, advertise, secret: process.env.HOST_SECRET, hmac: nodeHmac() });
+```
+
+The bytes on the wire are identical, so hosts on either implementation interoperate and a
+fleet can switch host by host during a rolling deploy.
+
+A transport built outside this repo signs and verifies through the same seam:
+`@sigx/actors/cluster` exports the `HostHmac` type, `webCryptoHmac`, and
+`signAuthWith` / `verifyAuthWith`; `signAuth` / `verifyAuth` keep their promise signature and
+take an optional implementation.
+
 ## Fencing
 
-A host fences itself when it can no longer prove it holds its place in membership. Fenced is
-**terminal**: activations are refused, liveness fails, and an orchestrator restart is the way
-back — a host that has been aged out by its peers cannot talk itself back in.
+A host fences itself when it can no longer prove it holds its place in membership. For a host
+that registers **any stateful actor type**, fenced is **terminal**: activations are refused,
+liveness fails, and an orchestrator restart is the way back — a host that has been aged out by
+its peers cannot talk itself back in, because a survivor may already be serving the actors it
+used to own.
 
 Three things trigger it:
 
@@ -150,6 +200,65 @@ Three things trigger it:
 
 A fenced host also **withdraws from membership**, so peers stop routing to it immediately
 rather than waiting out its TTL.
+
+### What a fenced host answers
+
+A call dispatched **on** a fenced host that would resolve to a local activation throws
+[`ActorFencedError`](/actors/docs/errors) (`kind: 'fenced'`). It is terminal — the routing loop
+does not retry it, since re-resolving lands on the same refusal and each attempt would cost a
+directory lookup and a membership refresh against the store that most likely just failed. On
+the public actor mount and on the host-to-host wire it answers **503**.
+
+A **peer** calling into a fenced host gets `unreachable` instead — the answer it can act on:
+go somewhere else.
+
+### Worker-only hosts rejoin
+
+Fencing defends the single-activation invariant, so it applies to hosts that hold directory
+claims. A host that registers **no stateful actor type** — a
+[`defineWorker`](/actors/docs/stateless-workers)-only tier, such as a web tier that only calls
+actors other hosts own — holds no claim by construction: nothing anywhere names it, and
+nothing was re-placed when it vanished.
+
+So on a membership lapse such a host **rejoins under the same identity**, retrying with capped
+backoff until the store takes it back, and keeps serving its worker pools throughout. It never
+throws `ActorFencedError`. One stateful registration brings the terminal fence back.
+
+`placement.counters()` reports both paths: `selfFences`, and beside it `rejoinAttempts` (lapses
+answered by rejoining, counted at the decision) and `rejoins` (those that got back in).
+`rejoinAttempts − rejoins` is the number of rejoin loops still running — 0 or 1; a store that
+is down shows as attempts climbing while `rejoins` stays put.
+
+### A CPU-bound turn can fence its own host
+
+Actor turns, health probes and the membership heartbeat share **one event loop**. A turn that
+computes synchronously past the membership TTL — `redisCluster` defaults to a 5-second beat and
+a 15-second TTL — starves the host's own liveness signal. While the loop is held, peers age the
+host out and release its claims; when it resumes, the host sees its beat landed past the TTL
+and fences, by design.
+
+So a method that blocks long enough does not merely go slow: **it removes its host from the
+cluster and takes every other actor on that host with it.** Treat a method whose CPU cost
+scales with client input as a denial-of-service surface — a [guard](/actors/docs/guards) keeps
+anonymous callers out, but not a signed-in caller from wedging the host — and cap the work a
+single call may ask for.
+
+Mitigations, in the order to reach for them:
+
+1. **Chunk the work and yield between slices.** Every few hundred iterations,
+   `await new Promise((resolve) => setImmediate(resolve))` on Node, or
+   `await new Promise((resolve) => setTimeout(resolve, 0))` where `setImmediate` does not
+   exist. The yield is the load-bearing
+   detail: it is what lets the heartbeat, the probes and every other actor's turns run.
+2. **Move long work off the request turn with [`ctx.tasks`](/actors/docs/tasks)**, so the
+   caller is not held. A detached task still runs on the same loop, so it must chunk and yield
+   too.
+3. **Move genuinely heavy compute onto `worker_threads`.** A `defineWorker` pool does *not* do
+   this: it multiplies activations — concurrency at `await` points — not threads, so a pool of
+   synchronous hashers blocks exactly like one.
+
+Development builds flag offenders: a turn that holds the loop longer than `slowTurnMs`
+(default 5s) logs a warning naming the actor and method.
 
 ### Writing a provider
 
@@ -309,6 +418,100 @@ Three rules keep it honest:
 The use case this exists for: a per-pod relay or fan-out worker on the web-tier members — a
 WebSocket relay that must reach *every* pod holding connections — without a hand-rolled pod
 registry.
+
+## Reading membership on a hot path
+
+`members()` is cheap, but a fan-out concurrency cap or a per-call routing decision reads it on
+every call. Cache what you derive from the view — and key the cache on the **view object**,
+never on `view().version`.
+
+A provider builds a **new** `MembershipView` object for every change it observes — including a
+peer expiring on the store's TTL clock, which no host writes — and hands back the same object
+until the next one. Object identity is the invalidation key that is always right.
+
+**`membersMemo(placement, filter?)`** is that pattern, exported from `@sigx/actors/cluster`.
+Create it once — at module or actor scope — and call the thunk on the hot path:
+
+```ts
+import { membersMemo } from '@sigx/actors/cluster';
+
+const relays = membersMemo(placement, { registers: 'WebsocketRelay' });
+
+// per call: recomputes only when placement.view() hands back a new object
+const cap = relays().length * 8;
+```
+
+The filter is `members()`'s (`status: 'active' | 'any'`, `registers`). It accepts anything with
+a `view()` method, so it works against any placement.
+
+**`placement.onChange(cb)`** covers anything derived from the view beyond what the memo does.
+It passes the provider's membership change stream straight through, firing with the **new**
+view object on every observed change, and returns the unsubscribe:
+
+```ts
+const off = placement.onChange((view) => { rebuildRing(view.hosts); });
+```
+
+The callback runs **synchronously** inside the provider's refresh path and **must not
+throw** — a throw aborts the remaining subscribers and rejects that refresh. `onChange` is
+optional on the `ClusterPlacement` interface, as `members` is.
+
+### What `version` means
+
+`MembershipView.version` is a **per-process change token**. It strictly increases on every
+change this process's view observes — expiry included — and is unchanged when nothing changed.
+
+It is monotonic per process view, **not per cluster**: on a change nobody wrote, a provider
+advances it locally past the store's counter, so two hosts can hold different values for the
+same converged membership. Compare it only with earlier values from the same handle. The same
+reason means `membershipVersion` in [cluster stats](/actors/docs/cluster-stats) can spread
+across hosts without their views having diverged.
+
+## When a call is retried
+
+The routing loop (`retries`, default 3) re-dispatches a call on exactly three answers, and each
+is a claim about execution, not about the network:
+
+| Answer | Why it is safe to retry |
+|---|---|
+| `wrong-host` | the target refused it before running it, and said who owns it |
+| `unreachable` | the call **provably never executed** — no transport accepted it, or the one that did can prove its request was never written |
+| `host-shutdown` from a remote peer | refused at the door of a draining host |
+
+Everything else surfaces to the caller unchanged. So a call cannot run twice because of a
+retry: a retried call is one that never ran.
+
+**A call already on the wire when its connection drops is not `unreachable`.** The owner may
+have run it and the reply died with the socket. Over a connection-oriented transport such as
+[`tcpTransport()`](/actors/packages/actors-tcp/overview), a unary call in that state rejects
+with an ordinary, un-branded `Error` — `isActorError()` is false for it:
+
+```
+[sigx actors] host connection closed with this call in flight (<reason>): outcome unknown, not retried
+```
+
+You know whether the method is idempotent; the runtime does not, so re-issuing it is your
+decision. Streams and watches are unchanged: they fail `unreachable` before the first chunk,
+so a watch re-subscribes.
+
+## When a host departs
+
+A host that leaves the view leaves its directory claims behind unless it released them itself.
+Two mechanisms clean up:
+
+- **Lazy eviction on lookup** — always on, and the backstop. A caller that finds a claim whose
+  host is gone evicts it and re-resolves.
+- **The departure sweep** — proactive hygiene. **One** live host sweeps each departure: the one
+  whose id sorts first among the hosts that saw it leave. The others leave it to that host.
+
+A host seen announcing **`leaving`** is not swept at all: `host.stop()` released every claim as
+it drained. A sweeper that dies before sweeping, or a graceful leaver that died mid-drain,
+falls back to lazy eviction — no actor is lost, only a few stale entries wait for a lookup.
+
+In `placement.counters()`, `hostSweeps` and `sweptEntries` count the sweeps this host ran and
+the entries they removed — across a fleet, `hostSweeps` sums to the departures.
+`sweepsDelegated` counts departures this host left to the elected sweeper, and
+`sweepsSkippedGraceful` the departures nobody swept because the host left gracefully.
 
 ## What clustering does not change
 

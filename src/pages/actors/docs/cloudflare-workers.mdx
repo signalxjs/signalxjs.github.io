@@ -223,7 +223,9 @@ describe the runtime surface structurally.
 
 The same applies to [tasks](/actors/docs/tasks): a fiber does not survive eviction, so a task
 here is checkpoint-and-resume with short gaps rather than one continuous run. Same
-at-least-once contract — checkpoint aggressively.
+at-least-once contract — checkpoint aggressively. The object selects
+`reminderTaskLiveness()` for task liveness: its alarm is already the wake-up, where the
+default per-host roster would be a roster of one.
 
 ## `wrangler.jsonc`
 

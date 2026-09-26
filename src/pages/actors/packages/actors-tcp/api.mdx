@@ -31,7 +31,8 @@ interface TcpTransportOptions {
 
 `handshakeTimeoutMs` and `maxPendingInbound` bound what an unauthenticated peer can hold open:
 a connection that never completes its handshake is dropped, and the number of in-flight
-inbound connections awaiting one is capped.
+inbound connections awaiting one is capped. `handshakeTimeoutMs` also bounds an outbound
+connect.
 
 <div class="alert alert-warning not-prose my-4">
   <div>
