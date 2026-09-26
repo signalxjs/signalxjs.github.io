@@ -1,0 +1,147 @@
+---
+title: Plugins
+description: "The RichTextPlugin contract — node types, per-platform renderers, editor behaviour and per-format syntax — with the mention plugin as the reference"
+layout: docs
+category: Guides
+order: 60
+---
+
+# Plugins
+
+<p class="lede">A plugin extends the vocabulary once — for every format, every renderer and the editor. It is one object: the node types it adds, how they render per platform, how they edit, and how each format writes them.</p>
+
+## The contract
+
+```ts
+interface RichTextPlugin {
+    name: string;                                  // unique; a duplicate is dropped with a dev warning
+    nodes?: readonly NodeSpec[];                   // node types it adds to the schema
+    components?: { dom?, lynx?, terminal? };       // renderers per platform
+    editor?: EditorPluginSlice;                    // editing behaviour (typed by @sigx/richtext/editor)
+    formats?: { markdown?: MarkdownPluginSlice; html?: HtmlPluginSlice };   // syntax, keyed by format id
+}
+```
+
+A plugin is format-agnostic: `nodes`, `components` and `editor` describe the tree; how its nodes are written in a given syntax lives under `formats[<format id>]`. Each format package types its own slot by merging into `PluginFormats` — installing `@sigx/richtext-markdown` types `formats.markdown`, installing `@sigx/richtext-html` types `formats.html`.
+
+Plugins go in the same `plugins` array everywhere — `RichTextView`, `RichTextEditor`, `createEditor`, a format's `parse` / `serialize`, and the Lynx `MarkdownView` / `MarkdownEditor`. Pass a stable array; a view re-parses from scratch when its identity changes.
+
+## A worked example: callouts
+
+```ts
+import type { RichTextPlugin } from '@sigx/richtext';
+
+const callout: RichTextPlugin = {
+    name: 'callout',
+    nodes: [{
+        type: 'callout',
+        role: 'container',
+        fillsWith: 'paragraph',
+        menu: { label: 'Callout', create: () => ({ type: 'callout', children: [] }) },
+    }],
+    components: { dom: { callout: CalloutView } },
+    formats: { markdown: calloutMarkdown },   // the syntax, typed by @sigx/richtext-markdown
+};
+```
+
+- **`nodes`** registers the type: its [role](/richtext/docs/documents#roles), editing flags, render props and menu entry. A `container` with `fillsWith` gets a caret-ready paragraph when empty; `menu` puts it in the slash and block menus.
+- **`components.dom`** is merged into `RichTextView`'s component map (and the DOM editor's read-only rendering). A plugin carrying several platforms only bundles the one the app imports.
+- **`formats.markdown`** is the markdown syntax — below.
+
+A plugin node without a component renders its spec's `text` projection, else its children.
+
+## The markdown slice
+
+`formats.markdown` is a `MarkdownPluginSlice`:
+
+| Field | Description |
+|---|---|
+| `inline` | `InlineSyntaxExtension[]` — inline syntax, tried after backslash escapes and before the built-in inline scanners |
+| `block` | `BlockSyntaxExtension[]` — block syntax, tried before the built-in block starts |
+| `serialize` | Serializer rules keyed by node type — `(node, ctx) => string`; a rule for a built-in type overrides it |
+| `entities` | Extra named character references, `name → replacement` |
+| `transformBlock` | Rewrite a top-level block once it is parsed (a finalized block is transformed once, ever). Must be pure. |
+| `transformDocument` | A document-wide transform. Honoured by `parseMarkdown` only — the incremental engine cannot run it and warns in dev. |
+
+An inline extension is trigger-character gated, so a plugin costs nothing on text that never contains its trigger:
+
+```ts
+interface InlineSyntaxExtension<N> {
+    name: string;
+    triggerChars: readonly string[];      // non-empty
+    match(text: string, pos: number, ctx: InlineMatchContext): { node: N; end: number } | null;
+}
+```
+
+`ctx.parseInline(text)` parses nested content (a label) and `ctx.position(start, end)` builds a position for a range. A block extension has `start(line, ctx)`, `continue(line, state)` (returning `'continue'`, `'close'` or `'consume-and-close'`) and `finish(state, ctx)`, plus `interruptsParagraph`.
+
+**Extensions must be pure and streaming-safe.** The incremental engine reuses finalized blocks by reference and only re-parses the live tail, so `match`, `start`, `continue` and `finish` must give the same answer for the same input every time, and return "no match" on a partial tail instead of guessing. `finish` must tolerate `ctx.open === true` — a half block at the end of the input. The parser hardens against extensions that throw, do not advance or overrun (treated as no match, with a dev warning), so a parse never throws.
+
+## The HTML slice
+
+`formats.html` is an `HtmlPluginSlice` — reading is by element, writing by node type:
+
+```ts
+import type { HtmlPluginSlice } from '@sigx/richtext-html';
+
+const mention: HtmlPluginSlice = {
+    elements: {
+        span: (el, ctx) => (el.attrs['data-mention']
+            ? { type: 'mention', id: el.attrs['data-mention'], label: ctx.text().slice(1) }
+            : null),
+    },
+    serialize: {
+        mention: (node, ctx) => `<span data-mention="${ctx.attr(node.id)}">@${ctx.escape(node.label)}</span>`,
+    },
+};
+```
+
+An element rule returns the node it recognises (block or phrasing, told apart by the node's schema role) or `null` to let the next rule — and finally the built-in table — have it. `ctx` offers `inlines()`, `blocks()`, `text()` and `sanitizeUrl()` when reading; `inlines()`, `blocks()`, `escape()`, `attr()` and `sanitizeUrl()` when writing.
+
+## The editor slice
+
+`editor` adds editing behaviour: `commands`, `keymap`, `inputRules`, `enterRules`, `toolbar` items, `triggers` (suggestion sessions such as `@` or `/`), a `clipboard` writer, and `onTransaction` to inspect or rewrite a transaction before it applies. On the web, `editor.dom.atoms` ships chip renderers for atom nodes and `editor.dom.containers` ships container views. See [Editor](/richtext/docs/editor#plugins).
+
+## The reference plugin: mentions
+
+Mentions are split across the packages so each half lives where it belongs:
+
+| Piece | Where | What |
+|---|---|---|
+| `Mention`, `mentionNode` | `@sigx/richtext` | The node `{ type: 'mention', id, label }` and its spec: an atom that renders as `@label` without a component |
+| `mentionSyntax`, `mentionMarkdown`, `mentionPlugin` | `@sigx/richtext-markdown` | `@[label](id)` in and out; `mentionPlugin` is `{ name: 'mention', nodes: [mentionNode], formats: { markdown: mentionMarkdown } }` |
+| `mentionHtml` | `@sigx/richtext-html` | `<span data-mention="id">@label</span>` in and out |
+| `createMentionPlugin` | `@sigx/richtext/editor` | The `@` trigger whose pick inserts a chip |
+| `createDomMentionPlugin` | `@sigx/richtext/editor/dom` | The same, plus the DOM chip renderer |
+
+Rendering mentions read-only:
+
+```tsx
+import { mentionPlugin } from '@sigx/richtext-markdown';
+
+const plugins = [mentionPlugin];
+
+<RichTextView
+    value="ping @[Ada](u1)"
+    format={markdownFormat}
+    plugins={plugins}
+    components={{ mention: ({ node }) => <a href={`/u/${node.id}`}>@{node.label}</a> }}
+/>
+```
+
+The markdown syntax refuses `]`, CR and LF in a label and `)`, CR and LF in an id, and the serializer strips exactly those characters, so round-trips are idempotent.
+
+## Typing plugin nodes
+
+The package does not widen the mdast unions itself. Augment `@sigx/richtext` in your app to type a plugin node as phrasing content and its component slot:
+
+```ts
+import type { Mention, NodeProps, RenderChild } from '@sigx/richtext';
+
+declare module '@sigx/richtext' {
+    interface PhrasingContentMap { mention: Mention }
+    interface PluginComponents<E> {
+        mention(p: NodeProps<E, Mention>): RenderChild<E>;
+    }
+}
+```

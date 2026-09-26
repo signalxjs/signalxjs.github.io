@@ -16,11 +16,14 @@ order: 20
 pnpm add @sigx/lynx-markdown
 ```
 
-## Native setup
+`@sigx/richtext` and `@sigx/richtext-markdown` come along as dependencies; their `@sigx/reactivity` / `@sigx/runtime-core` peers are the ones `@sigx/lynx` already requires.
 
-Rebuild your development client after installing:
+## The editor
+
+The renderer is pure JS and needs no native setup. The editor subpath (`@sigx/lynx-markdown/editor`) needs its two optional peers — the native rich-text field and the keyboard module:
 
 ```bash
+pnpm add @sigx/lynx-richtext @sigx/lynx-keyboard
 sigx prebuild
 ```
 

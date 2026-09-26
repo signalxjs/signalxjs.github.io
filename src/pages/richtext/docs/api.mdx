@@ -1,0 +1,131 @@
+---
+title: API reference
+description: "Every export of @sigx/richtext, @sigx/richtext-markdown, @sigx/richtext-html and @sigx/richtext-shiki, grouped by entry point"
+layout: docs
+category: Reference
+order: 200
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports grouped by entry point. <code>@sigx/richtext</code> <PkgVersion npm="@sigx/richtext" /> — the four packages share one version line.</p>
+
+## `@sigx/richtext`
+
+Platform-free: runs on the web, on Lynx and in the terminal.
+
+| Export | Kind | Description |
+|---|---|---|
+| `Root`, `Paragraph`, `Heading`, `List`, `ListItem`, `Code`, `Link`, `Image`, … | types | The mdast-shaped node types; `PhrasingContentMap` / `BlockContentMap` for augmentation |
+| `visit`, `map`, `SKIP`, `EXIT` | functions | Walk or transform a tree |
+| `sliceSource`, `point`, `position`, `LineIndex` | functions | Positions and source slices |
+| `topKey`, `childKey`, `assignKeys` | functions | Reconciliation keys |
+| `createSchema`, `standardNodes`, `standardSchema` | schema | [The schema](/richtext/docs/documents#the-schema) |
+| `NodeSpec`, `NodeRole`, `Schema`, `InlineFlatSpec`, `InlineFlat`, `InlineSpan`, `BlockMenuEntry`, `HtmlTagHint` | types | Schema contracts |
+| `ATOM_CHAR`, `inlineAttrsOf`, `phrasingText`, `phrasingToText`, `paragraphOf`, `tableAlign` | helpers | Flat-model and text helpers |
+| `DocumentFormat`, `FormatParseOptions`, `FormatSerializeOptions` | types | [The format contract](/richtext/docs/documents#formats) |
+| `plainTextFormat`, `parsePlainText`, `serializePlainText` | format | The plain-text format |
+| `createLineEngine`, `createReparseEngine`, `IncrementalEngine`, `LineBlockParser` | streaming | [Incremental engines](/richtext/docs/streaming#engines-for-your-own-formats) |
+| `toJSON`, `fromJSON`, `CURRENT_VERSION`, `DocumentFormatError`, `RichTextDocument` | save format | [Saving documents](/richtext/docs/documents#saving-documents) |
+| `createTextStream`, `TextStream`, `CreateTextStreamOptions` | streaming | [`createTextStream`](/richtext/docs/streaming#createtextstream) |
+| `RichTextPlugin`, `PluginFormats`, `PlatformComponents`, `PlatformComponentMap` | types | [The plugin contract](/richtext/docs/plugins) |
+| `renderDocument`, `renderBlock`, `renderInline`, `collectEnv`, `missingComponents`, `RenderContext` | render | [The render engine](/richtext/docs/rendering#component-maps) |
+| `ComponentMap`, `StandardComponents`, `PluginComponents`, `PluginComponent`, `RenderChild`, `NodeProps`, `HeadingProps`, `ListProps`, `ListItemProps`, `CodeProps`, `TableProps`, `TableRowProps`, `TableCellProps`, `LinkProps`, `ImageProps`, `LinkHandler` | types | Component-map contracts |
+| `sanitizeUrl`, `DEFAULT_SAFE_SCHEMES`, `UrlKind` | functions | URL allow-list |
+| `mentionNode`, `Mention` | plugin | The mention node and its spec |
+| `decodeEntities`, `decodeEntity`, `NAMED_ENTITIES`, `normalizeLabel`, character classes | helpers | Text helpers formats build on |
+
+## `@sigx/richtext/dom`
+
+| Export | Description |
+|---|---|
+| `RichTextView`, `RichTextViewProps` | [The web renderer](/richtext/docs/rendering#richtextview) |
+| `createDomComponents`, `defaultComponents`, `DomComponents`, `DomComponentsOptions`, `DomLinkHandler` | The default DOM component map |
+| `pluginDomComponents` | Merge the `components.dom` of a plugin list |
+| `CodeBlock`, `CodeBlockProps` | Code-block chrome (language label, copy button) |
+| `highlightedCodeBlock`, `HighlightedCodeBlockOptions`, `DEFAULT_DEBOUNCE_MS` | A `code` slot over any `CodeHighlighter` |
+| `CodeHighlighter`, `HighlightedToken`, `plainTokens` | The highlighter contract |
+| `partAttrs`, `SCOPE`, `PartAttrs` | The `data-scope` / `data-part` helpers |
+
+## `@sigx/richtext/editor`
+
+| Export | Description |
+|---|---|
+| `createEditor`, `Editor`, `EditorOptions`, `EditorListener` | [The editor instance](/richtext/docs/editor#createeditor) |
+| `EditorState`, `EditorSelection`, `TextSelection`, `BlockSelection`, `textSelection`, `blockSelection`, `createState`, `selectionRange`, `selectionEquals`, … | State and selections |
+| `Step`, `applyStep`, `invertStep`, `Transaction`, `transaction`, `applyTransaction`, `mapSelection` | Steps and transactions |
+| `createHistory`, `History`, `HistoryOptions` | Undo history |
+| `toFlat`, `toInline`, `sliceFlat`, `spliceFlat`, `concatFlat`, `marksAt`, `addMark`, `removeMark`, `toggleFlatMark`, `mergeAdjacent`, `flatEquals` | The flat inline model |
+| `commands` (namespace), `commandRegistry`, `chain`, `selectedBlockKeys`, `Command`, `CommandContext`, `CommandName`, `Dispatch` | [Commands](/richtext/docs/editor#commands) |
+| `baseKeymap`, `resolveKeymap`, `runKeymap`, `keyName`, `normalizeKeyName`, `Keymap` | [Keymap](/richtext/docs/editor#keymap) |
+| `InputRule`, `EnterRule`, `applyInputRules`, `applyEnterRules`, `triggerChars` | [Input rules](/richtext/docs/editor#input-rules) |
+| `PasteData`, `pickPasteFormat` | [Paste](/richtext/docs/editor#paste-and-clipboard) |
+| `toolbarState`, `defaultToolbarItems`, `ToolbarItem`, `ToolbarState`, `ToolbarContext` | Toolbar items |
+| `createTriggerSessionManager`, `placeSuggestionPopup`, `TriggerSpec`, `TriggerItem`, `TriggerSession`, `TriggerSelectApi` | [Trigger sessions](/richtext/docs/editor#trigger-sessions) |
+| `EditorPlugin`, `EditorPluginSlice`, `ClipboardWriter`, `editorSlice` | [The editor slice](/richtext/docs/editor#plugins) |
+| `createSlashPlugin`, `SlashPluginOptions`, `SlashItem`, `turnIntoCommand`, `filterMenu` | Slash commands |
+| `createMentionPlugin`, `MentionPluginOptions`, `MentionItem` | Mentions |
+| `InlineSurface`, `CodeSurface`, `BoundaryKey`, `createInlineBridge`, `createCodeBridge`, … | [Surface contracts](/richtext/docs/editor#hosting-the-editor-on-a-platform) |
+
+## `@sigx/richtext/editor/dom`
+
+| Export | Description |
+|---|---|
+| `RichTextEditor`, `RichTextEditorProps`, `RichTextEditorController`, `RichTextEditorChange` | [The web block editor](/richtext/docs/dom-editor) |
+| `BlockView`, `InlineBlock`, `CodeBlockEditor` | Block components |
+| `standardContainerViews`, `defaultContainerView`, `ContainerView` | Container views |
+| `EditorToolbar`, `BlockMenu`, `SuggestionPopup` | Chrome |
+| `createEditorView`, `useEditorView` | The view context |
+| `createDomInlineSurface`, `createDomCodeSurface` | The DOM surfaces |
+| `renderInline`, `readInline`, `offsetToPoint`, `pointToOffset`, `caretClientRect`, `onEdgeLine`, `pointFromClient`, … | DOM mapping and caret helpers |
+| `createDomMentionPlugin`, `mentionChip`, `DomMentionOptions` | Mentions with a DOM chip |
+| `domEditorSlice`, `pluginAtomRenderers`, `pluginContainerViews` | Read plugins' `editor.dom` slices |
+| `EDITOR_SCOPE`, `TOOLBAR_SCOPE`, `BLOCK_MENU_SCOPE`, `SUGGEST_SCOPE`, `editorPart`, `toolbarPart`, `blockMenuPart`, `suggestPart` | The styling seam |
+
+## `@sigx/richtext/testing`
+
+| Export | Description |
+|---|---|
+| `strip`, `stripPositions` | Compare trees structurally |
+| `feed`, `seededChunks` | Drive an engine in chunks |
+| `createFakeInlineSurface`, `createFakeCodeSurface` | Fake surfaces for editor tests |
+| `runInlineSurfaceConformance` | The suite every inline surface passes |
+
+## `@sigx/richtext-markdown`
+
+| Export | Description |
+|---|---|
+| `markdownFormat`, `MarkdownFormatOptions` | [The markdown format](/richtext/docs/markdown) |
+| `parseMarkdown`, `parseBlocks`, `parseInline`, `toPlainText`, `normalizeSource` | Parser |
+| `createIncrementalEngine`, `IncrementalEngineOptions` | Streaming parser |
+| `toMarkdown`, `ToMarkdownOptions`, `escapeText` | Serializer |
+| `markdownNodes`, `markdownSchema`, `collectDefinitions` | Markdown node specs |
+| `MarkdownPluginSlice`, `InlineSyntaxExtension`, `BlockSyntaxExtension`, `SerializeRule`, `SerializeContext`, … | [The markdown slice](/richtext/docs/plugins#the-markdown-slice) |
+| `resolveMarkdownPlugins`, `NO_MARKDOWN_PLUGINS` | Merge plugins' markdown slices |
+| `mentionPlugin`, `mentionMarkdown`, `mentionSyntax`, `serializeMention` | `@[label](id)` mentions |
+
+`@sigx/richtext-markdown/editor`: `markdownPreset`, `markdownInputRules`, `markdownEnterRules`.
+
+## `@sigx/richtext-html`
+
+| Export | Description |
+|---|---|
+| `htmlFormat`, `HtmlFormatOptions` | [The HTML format](/richtext/docs/html) |
+| `parseHtml`, `ParseHtmlOptions` | Parser |
+| `toHtml`, `ToHtmlOptions`, `escapeHtml`, `normalizeUri` | Serializer |
+| `HtmlPluginSlice`, `HtmlElementRule`, `HtmlElementContext`, `HtmlSerializeRule`, `HtmlSerializeContext` | The HTML slice |
+| `resolveHtmlPlugins`, `mentionHtml` | Plugins |
+| `tokenize`, `buildTree`, `textOf`, `HtmlNode`, `HtmlElement`, `HtmlText`, `HtmlToken` | Tokenizer and tree |
+
+`@sigx/richtext-html/editor`: `htmlPreset`.
+
+## `@sigx/richtext-shiki`
+
+| Export | Description |
+|---|---|
+| `shikiPlugin`, `ShikiPluginOptions` | [A plugin contributing the highlighted `code` slot](/richtext/docs/rendering#code-blocks-and-highlighting) |
+| `createShikiHighlighter`, `ShikiOptions`, `ShikiThemes` | The highlighter on its own |
+| `DEFAULT_THEMES`, `DEFAULT_LANGS` | Defaults |
+| `ShikiModule`, `ShikiHighlighterLike`, `ShikiTokenLike` | Minimal shiki shapes (no shiki types leak into the public `.d.ts`) |

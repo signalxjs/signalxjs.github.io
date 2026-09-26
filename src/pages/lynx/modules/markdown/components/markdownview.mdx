@@ -8,7 +8,7 @@ order: 101
 
 # MarkdownView
 
-<p class="lede">SignalX-native, streaming-aware markdown renderer. Parses markdown in JS and renders to Lynx primitives — identical on iOS, Android, and Harmony, with no native module.</p>
+<p class="lede">SignalX-native, streaming-aware markdown renderer. A Lynx component map over the <a href="/richtext/">@sigx/richtext</a> render engine — identical on iOS, Android and Harmony, with no native module.</p>
 
 ## Import
 
@@ -16,7 +16,7 @@ order: 101
 import { MarkdownView } from '@sigx/lynx-markdown';
 ```
 
-`MarkdownView` lives on the package root, which pulls in no runtime peers — renderer-only consumers pay nothing and have nothing to prebuild.
+`MarkdownView` lives on the package root, which pulls in no runtime peers beyond `@sigx/lynx` — renderer-only consumers have nothing to prebuild.
 
 ## Basic usage
 
@@ -32,11 +32,11 @@ function Doc() {
 }
 ```
 
-Supports CommonMark + GFM: headings, bold/italic/strike, inline code, links, images, autolinks, nested ordered/unordered lists, GFM task lists, blockquotes, fenced code, thematic breaks, and tables with per-column alignment. Unsupported constructs (raw HTML, reference-style links, setext headings, syntax highlighting) render as literal text rather than throwing.
+Supports CommonMark + GFM: headings, emphasis, strong, strikethrough, inline code, links and reference links, images, autolinks, nested ordered and unordered lists, task lists, blockquotes, fenced and indented code, thematic breaks, and tables with per-column alignment. Raw HTML renders as literal text.
 
 ## Handling link and image taps
 
-The default renderers never navigate on their own — wire `onLink` and `onImageTap` to act on taps. Hrefs are sanitized first: only `http(s):`, `mailto:`, `tel:`, and scheme-less links reach `onLink`; `javascript:`/`data:` collapse to `#`.
+The default renderers never navigate on their own — wire `onLink` and `onImageTap` to act on taps. URLs are sanitised by the engine first: only `http(s):`, `mailto:`, `tel:` and scheme-less links reach `onLink`; `javascript:` and friends become `#`.
 
 ```tsx
 import { MarkdownView } from '@sigx/lynx-markdown';
@@ -45,23 +45,23 @@ function Article(props: { source: string }) {
   return (
     <MarkdownView
       value={props.source}
-      onLink={(href) => openInBrowser(href)}
-      onImageTap={(src) => showLightbox(src)}
+      onLink={(url) => openInBrowser(url)}
+      onImageTap={(url) => showLightbox(url)}
     />
   );
 }
 ```
 
-The default image renderer shows the alt text (or `src`) as a tappable link, not a real `<image>` — supply your own `image` component via `components` for inline pictures.
+The default image renderer shows the alt text (or the URL) as a tappable label, not a real `<image>` — supply your own `image` component via `components` for inline pictures.
 
 ## Streaming AI output
 
-Pair `MarkdownView` with [`createMarkdownStream`](/lynx/modules/markdown/api#createmarkdownstream) to render a token loop flicker-free: finalized blocks keep stable keys and are never re-parsed or remounted, so completed paragraphs and code blocks never reflow.
+Pair `MarkdownView` with [`createTextStream`](/richtext/docs/streaming#createtextstream) to render a token loop flicker-free: finalized blocks keep their identity and keys and are never re-parsed or remounted, so completed paragraphs and code blocks never reflow.
 
 ```tsx
-import { MarkdownView, createMarkdownStream } from '@sigx/lynx-markdown';
+import { MarkdownView, createTextStream } from '@sigx/lynx-markdown';
 
-const stream = createMarkdownStream({ flushIntervalMs: 16 });
+const stream = createTextStream({ flushIntervalMs: 16 });
 
 async function generate(prompt: string) {
   stream.reset();
@@ -76,18 +76,16 @@ function ChatBubble() {
 
 ## Theming with a component map
 
-`MarkdownView` is design-system agnostic. It ships neutral `defaultComponents` and merges your partial `components` map over them — any node type you omit falls back to the default. Block renderers return a `JSXElement`; inline renderers return a `MarkdownChild` (a JSX element or a string).
+`MarkdownView` is design-system agnostic. It ships neutral `defaultComponents` and merges your partial `components` map over them — any slot you omit falls back to the default. Slots are keyed by mdast node type; block components return a `JSXElement`, inline components may return a string.
 
 ```tsx
-import { MarkdownView } from '@sigx/lynx-markdown';
+import { MarkdownView, type LynxMarkdownComponents } from '@sigx/lynx-markdown';
 
-const components = {
-  heading: (p) => (
-    <text style={{ fontSize: p.level === 1 ? 28 : 20, fontWeight: 'bold' }}>
-      {p.children}
-    </text>
+const components: Partial<LynxMarkdownComponents> = {
+  heading: ({ depth, children }) => (
+    <text style={{ fontSize: depth === 1 ? 28 : 20, fontWeight: 'bold' }}>{children}</text>
   ),
-  strong: (p) => <text style={{ fontWeight: 'bold', color: '#7c3aed' }}>{p.children}</text>,
+  strong: ({ children }) => <text style={{ fontWeight: 'bold', color: '#7c3aed' }}>{children}</text>,
 };
 
 function Themed(props: { source: string }) {
@@ -95,25 +93,24 @@ function Themed(props: { source: string }) {
 }
 ```
 
-For a ready-made theme, `@sigx/lynx-daisyui` exports `markdownComponents` — a complete daisyUI-styled map you can pass straight to `components`.
+For a ready-made theme, `@sigx/lynx-daisyui` ships `markdownComponents` — a complete daisyUI-styled map you can pass straight to `components`.
 
-## Mention previews via a parser extension
+## Plugins
 
-`MarkdownView` is not plugin-aware, but it accepts raw parser extensions plus an `extension` component map, so you can render plugin syntax in read-only output. To show `@[label](id)` chips, pass the standalone `mentionSyntax` extension and map its node to the plugin's preview component.
+`plugins` takes `@sigx/richtext` plugins: node specs, and markdown syntax under `formats.markdown`. A plugin node renders through `components[node.type]`. To show `@[label](id)` mentions as chips:
 
 ```tsx
-import { MarkdownView, createMentionPlugin, mentionSyntax } from '@sigx/lynx-markdown';
+import { MarkdownView, mentionPlugin, type Mention } from '@sigx/lynx-markdown';
 
-const plugin = createMentionPlugin({ search: (q) => findPeople(q) });
-const components = { extension: { mention: plugin.inline.component } };
-const extensions = [mentionSyntax] as const;
+const plugins = [mentionPlugin];
+const components = { mention: ({ node }: { node: Mention }) => <text class="chip">@{node.label}</text> };
 
 function Transcript(props: { source: string }) {
-  return <MarkdownView value={props.source} extensions={extensions} components={components} />;
+  return <MarkdownView value={props.source} plugins={plugins} components={components} />;
 }
 ```
 
-> Keep `extensions` a **stable** array reference (a module constant, not an inline literal). Changing its identity recreates the parse engine and re-parses from scratch, defeating the incremental streaming optimization.
+> Keep `plugins` a **stable** array reference (a module constant, not an inline literal). Changing its identity recreates the parse engine and re-parses from scratch, defeating incremental streaming.
 
 ## Props
 
@@ -122,9 +119,9 @@ All props are optional.
 | Prop | Type | Description |
 |------|------|-------------|
 | `value` | `string` | The markdown source. Reactive and parsed incrementally. |
-| `onLink` | `(href: string) => void` | Called with a sanitized href when a link is tapped. |
-| `onImageTap` | `(src: string) => void` | Called with the image `src` when an image is tapped. |
-| `components` | `Partial<MarkdownComponents>` | Per-node render overrides, merged over `defaultComponents`. |
-| `extensions` | `readonly ParserInlineExtension[]` | Stable array of inline parser extensions (e.g. `mentionSyntax`). |
+| `onLink` | `(url: string, node) => void` | Called with the sanitised URL and the `link` node when a link is tapped. |
+| `onImageTap` | `(url: string) => void` | Called with the image URL when an image is tapped. |
+| `components` | `Partial<LynxMarkdownComponents>` | Per-slot render overrides, merged over `defaultComponents`. |
+| `plugins` | `readonly RichTextPlugin[]` | Stable array of `@sigx/richtext` plugins (e.g. `mentionPlugin`). |
 
-See the [API reference](/lynx/modules/markdown/api#markdownviewprops) for the full `MarkdownComponents` map and the parser/AST types.
+See the [API reference](/lynx/modules/markdown/api#lynxmarkdowncomponents) for the component-map types, and [Rendering](/richtext/docs/rendering#component-maps) for every slot's props.

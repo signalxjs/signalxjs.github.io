@@ -1,0 +1,182 @@
+---
+title: Editor
+description: "The @sigx/richtext block-tree editor core — createEditor, key-addressed selections, commands, keymap, input rules, history, paste and clipboard, triggers and the surface contracts"
+layout: docs
+category: Guides
+order: 70
+---
+
+# Editor
+
+<p class="lede">A block-tree editor over the same document every view renders. The core in <code>@sigx/richtext/editor</code> is platform-neutral: it owns state, history, commands, keymap, input rules and suggestion sessions. A platform supplies the surfaces — <a href="/richtext/docs/dom-editor"><code>RichTextEditor</code></a> on the web, <a href="/lynx/modules/markdown/components/markdowneditor"><code>MarkdownEditor</code></a> on Lynx.</p>
+
+Most apps use a platform component and never call the core directly. Read this page to write commands, keymaps, input rules or plugins — or to host the editor on a new platform.
+
+## The model
+
+- **The document is the tree.** An immutable mdast `Root` with structural sharing: an edit replaces the blocks it touches and their ancestors; every other block keeps its identity, so a view never re-renders or re-mounts it.
+- **Selections are key-addressed.** A `TextSelection` is `{ mode: 'text', anchor, head }` where each point is `{ key, offset }` inside a text block; a `BlockSelection` is `{ mode: 'block', anchorKey, headKey }` over contiguous sibling blocks. `textSelection(key, from, to?)` and `blockSelection(anchorKey, headKey?)` build them.
+- **Text blocks are flat.** A surface edits a text block as `InlineFlat` — its text plus ranged spans, with atoms (images, mentions) occupying one U+FFFC character. The mapping is lossless both ways and comes from each node spec's [`inline` field](/richtext/docs/documents#the-flat-inline-model).
+- **Changes are transactions.** Invertible steps plus a selection and meta; `dispatch(tr)` applies one, records its inverse in history and bumps the editor's signals.
+
+## `createEditor`
+
+```ts
+import { createEditor } from '@sigx/richtext/editor';
+import { markdownFormat } from '@sigx/richtext-markdown';
+import { markdownPreset } from '@sigx/richtext-markdown/editor';
+
+const editor = createEditor({
+    format: markdownFormat,
+    plugins: [markdownPreset],
+    doc: markdownFormat.parse('# Hi'),
+    onChange: ({ state }) => save(markdownFormat.serialize(state.doc)),
+});
+```
+
+| Option | Description |
+|---|---|
+| `doc` | The initial document. Default: empty. |
+| `format` | The primary format: what `setSource` without an id parses with, and the first paste candidate. |
+| `formats` | Further formats the editor reads (pasted flavours), tried after the primary one. |
+| `plugins` | Node types, syntax and editor slices — format presets go here. |
+| `schema` | Override the derived schema (default: the standard specs plus the formats' and plugins' `nodes`). |
+| `keymap` | Extra bindings layered over the base and plugin keymaps (wins). |
+| `inputRules` | `false` disables every input rule, the plugins' included; an array adds rules. |
+| `history` | `{ groupDelayMs?, depth? }` — defaults 500 ms and 500 entries. |
+| `readOnly` | Refuse document edits (external writes still apply). |
+| `onChange` | `({ state, transaction })` after every committed document change — never mid-composition. |
+| `onSelectionChange` | `(selection)` whenever the selection changes. |
+
+The editor knows no syntax. `format` is only the codec for source text; what makes it a *markdown* editor — the input rules and the `text/markdown` clipboard flavour — is `markdownPreset`. An editor without it interprets no markdown syntax.
+
+### The `Editor` instance
+
+| Member | Description |
+|---|---|
+| `state` | The current `EditorState` (`doc`, `selection`, …). |
+| `rev` / `selRev` | Signals bumped on every document change / every selection change. A view reads `state` in its render and touches one of them to subscribe; the tree itself is never proxied. |
+| `dispatch(tr)` | Apply a transaction. |
+| `run(command \| name)` | Run a command (or a registered name) against the current state. |
+| `runKey(name)` / `enter()` | Run a keymap binding; run Enter handling (the plugins' Enter rules first, then the keymap). |
+| `undo()` / `redo()` / `undoInputRule()` | History; `undoInputRule` undoes only the rule that just fired (Backspace right after it). |
+| `setDocument(doc)` / `setSource(source, formatId?)` | Replace the document; `setSource` returns `false` when no such format is installed. |
+| `paste(data)` / `clipboard(root)` | Paste clipboard flavours; collect the flavours the plugins write for a tree. |
+| `setSelection(sel)`, `flatOf(key)`, `valueOf(key)` | Selection and per-block reads. |
+| `listen(listener)` | Subscribe to committed transactions; returns the unsubscribe. |
+| `schema`, `formats`, `commands`, `keymap`, `inputRules`, `toolbarItems`, `triggers`, `history`, `readOnly` | The resolved configuration. |
+| `destroy()` | Tear down. |
+
+Model write-back is suppressed while an IME composition is open and flushed when it ends; an external document write arriving mid-composition waits for it.
+
+## Commands
+
+A command is `(state, dispatch?, ctx) => boolean` — it inspects the state, optionally dispatches, and reports whether it applies (call it without `dispatch` to ask "would this work?"). `chain(...commands)` runs the first that applies.
+
+The commands split into a generic core — which never names a node type and reads roles, `schema.defaultBlock` and the [editing flags](/richtext/docs/documents#editing-flags) instead — and the standard vocabulary for lists, quotes, tables, headings and links. `commandRegistry` names them all, and the `commands` namespace exports every function:
+
+| Group | Commands |
+|---|---|
+| Text | `splitBlock`, `insertHardBreak`, `joinBackward`, `joinForward`, `exitCode` |
+| Marks | `toggleStrong`, `toggleEmphasis`, `toggleDelete`, `toggleInlineCode`, `unsetLink` |
+| Block types | `setParagraph`, `setHeading1` … `setHeading6`, `setCodeBlock`, `insertThematicBreak` |
+| Lists | `toggleBulletList`, `toggleOrderedList`, `toggleTaskList`, `toggleTaskChecked`, `indentListItem`, `outdentListItem` |
+| Quotes | `wrapInBlockquote`, `liftOutOfBlockquote` |
+| Tables | `addRowBefore`, `addRowAfter`, `deleteRow`, `addColumnBefore`, `addColumnAfter`, `deleteColumn` |
+| Blocks | `deleteBlock`, `duplicateBlock`, `moveBlockUp`, `moveBlockDown` |
+| Selection & focus | `escapeToBlockSelection`, `escapeToText`, `extendBlockSelectionUp`, `extendBlockSelectionDown`, `selectAll`, `focusUp`, `focusDown`, `focusStart`, `focusEnd`, `clear` |
+
+`splitBlock` is `chain(splitListItem, liftOutOfBlockquoteAtEnd, splitTextBlock)` and `joinBackward` is `chain(joinBackwardInList, liftOutOfBlockquoteAtStart, joinTextBackward)`; the parts are registered too.
+
+## Keymap
+
+`baseKeymap` binds key names to commands (or `'undo'` / `'redo'`); `Mod` is Cmd on macOS and Ctrl elsewhere.
+
+| Keys | Command |
+|---|---|
+| `Enter` / `Shift-Enter` / `Mod-Enter` | `splitBlock` / `insertHardBreak` / `exitCode` |
+| `Backspace` / `Delete` | `joinBackward` / `joinForward` |
+| `Tab` / `Shift-Tab` | `indentListItem` / `outdentListItem` |
+| `Mod-b` / `Mod-i` / `Mod-e` / `Mod-Shift-x` | Strong / emphasis / inline code / strikethrough |
+| `Mod-Alt-0` … `Mod-Alt-6` | Paragraph, headings 1–6 |
+| `Mod-Shift-7` / `8` / `9` | Ordered / bullet / task list |
+| `Mod-Shift-.` | Blockquote |
+| `Mod-z` / `Mod-Shift-z` / `Mod-y` | Undo / redo / redo |
+| `Escape` | Select the block |
+| `Mod-a` | Select every block (the DOM surface first selects the block's own text) |
+| `ArrowUp` / `ArrowDown` | Move to the neighbouring block off the first / last line |
+| `Shift-ArrowUp` / `Shift-ArrowDown` | Extend a block selection |
+
+Plugin keymaps layer over it, and the `keymap` option over those. A binding is a command, a registered command name, or `'undo'` / `'redo'`.
+
+## Input rules
+
+An `InputRule` fires as you type: `scope: 'blockStart'` rules match the text from the block start to the caret, `'inline'` rules match a suffix of it, and `triggers` lists the characters that, typed last, make the editor try it. An `EnterRule` is consulted on Enter against the whole block text. Both come from plugins' `editor.inputRules` / `editor.enterRules`.
+
+`markdownPreset` (from `@sigx/richtext-markdown/editor`) carries markdown's:
+
+- **As you type** — `# ` … `###### ` heading, `- ` / `* ` / `+ ` bullet list, `1. ` (or `1) `) ordered list, `- [ ] ` task, `> ` blockquote, `**x**` strong, `*x*` emphasis, `` `x` `` inline code, `~~x~~` strikethrough, `[text](url)` link.
+- **On Enter** — a code fence line (three backticks or `~~~`, with an optional language) becomes a code block, and `---`, `***` or `___` a thematic break.
+- **On copy** — `text/markdown` (and the same text as `text/plain`).
+
+Backspace right after a rule fired undoes just the rule, leaving the typed characters.
+
+## History
+
+Typing groups into one undo entry per burst (consecutive same-group entries within `groupDelayMs` merge), and an IME composition is one entry. Backspace right after an input rule fired undoes only the rule (`undoInputRule`).
+
+## Paste and clipboard
+
+`editor.paste(data)` takes a `PasteData` — `{ text, [mime]: string }` built from the platform clipboard. The first format that reads a flavour present parses it, with **specific flavours winning over plain text across every format**: a markdown editor that also reads HTML parses a browser's `text/html` rather than the `text/plain` it ships alongside. Plain text falls to the first format claiming `text/plain` (markdown lists it last, so a markdown editor claims it), else to `plainTextFormat`. `pickPasteFormat(data, formats)` exposes the decision.
+
+Copying a block selection writes every flavour the plugins' clipboard writers produce — `markdownPreset` writes `text/markdown`, `htmlPreset` writes `text/html`, and the primary format is written as `text/plain` when no writer sets it.
+
+```ts
+import { createEditor } from '@sigx/richtext/editor';
+import { markdownFormat } from '@sigx/richtext-markdown';
+import { markdownPreset } from '@sigx/richtext-markdown/editor';
+import { htmlFormat } from '@sigx/richtext-html';
+import { htmlPreset } from '@sigx/richtext-html/editor';
+
+createEditor({ format: markdownFormat, formats: [htmlFormat], plugins: [markdownPreset, htmlPreset] });
+```
+
+## Plugins
+
+A plugin's `editor` slice:
+
+| Field | Description |
+|---|---|
+| `commands` | Named commands, callable from keymaps and toolbars (a duplicate name warns in dev) |
+| `keymap` | Bindings layered over the base keymap |
+| `inputRules` / `enterRules` | Rules that fire as you type / on Enter |
+| `toolbar` | `ToolbarItem`s appended to the toolbar |
+| `triggers` | Suggestion sessions (`TriggerSpec`) |
+| `clipboard` | `{ write(root, ctx) }` — the flavours to put on the clipboard |
+| `onTransaction` | Inspect or rewrite a transaction before it applies; return `null` to drop it |
+
+Two plugins ship ready-made:
+
+- **`createSlashPlugin({ trigger?, nodes?, items?, exclude? })`** — `/` opens a block menu built from the schema's `menu` entries (pass plugin specs in `nodes` to include their blocks), plus custom `items` (`{ id, label, create() }` or `{ id, label, run }`).
+- **`createMentionPlugin({ onQuery, trigger?, debounce?, attrsOf?, formats? })`** — `@` opens a session whose pick inserts a mention chip. Pass `formats: { markdown: mentionMarkdown }` so the editor reads and writes `@[label](id)`; without a slice a format writes the node's text projection.
+
+### Trigger sessions
+
+A `TriggerSpec` has a `char` (or a `pattern`), an optional `debounce`, `onQuery(query)` (may be async — stale results are discarded) and `onSelect(item, api)`. Sessions are derived from each block's text and caret, so whitespace, a caret leaving the run, blur and a selection all close them.
+
+`onSelect` receives a `TriggerSelectApi`: `replaceQuery(slice)` replaces the whole trigger run with an `InlineFlat` slice (end it with a boundary, usually a trailing space, or the run re-opens the session), `range` (`{ key, from, to }`), `run(command)`, `dispatch`, `state` and `commands`.
+
+## Toolbar state
+
+`toolbarState(state, ctx, history)` derives a `ToolbarState` — `activeMarks`, `blockType`, `attrs`, `ancestors`, `listKind`, `inBlockquote`, `canUndo`, `canRedo`, `mode` — and a `ToolbarItem` is `{ id, label?, icon?, group?, isActive?(tb), isEnabled?(tb), run(tc) }`. `defaultToolbarItems` is the neutral set every platform shares: bold, italic, strike, inline code, link, H1–H3, paragraph, bullet / ordered / task list, quote, code block, divider, table, undo and redo.
+
+## Hosting the editor on a platform
+
+The core owns block structure; a platform implements two surfaces and renders the blocks:
+
+- An **`InlineSurface`** edits one text block (a `contenteditable` on the web, a native `<sigx-richtext>` field on Lynx): it renders an `InlineFlat`, reports changes, selections and IME composition, and accepts `setInline`, `setSelection`, `focus`, `caretRect`, `offsetAtX` and friends.
+- A **`CodeSurface`** edits one code block (a `<textarea>`).
+
+Every cross-block behaviour — Enter, Backspace at the start, Delete at the end, arrows off the first or last line, Tab, Escape — reaches the core as a **boundary** event (`BoundaryKey`), which it answers by running its keymap. `createInlineBridge` / `createCodeBridge` connect a surface to the editor with echo suppression and the IME contract.
+
+`@sigx/richtext/testing` ships `createFakeInlineSurface` / `createFakeCodeSurface` and `runInlineSurfaceConformance(harness)` — the suite the DOM surface, the Lynx surface and the fake all pass. Run it against yours.

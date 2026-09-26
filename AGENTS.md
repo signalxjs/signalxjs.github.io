@@ -202,6 +202,7 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 | `devtools/` | [`signalxjs/devtools`](https://github.com/signalxjs/devtools) | No |
 | `terminal/` (`docs`, `packages`) | [`signalxjs/terminal`](https://github.com/signalxjs/terminal) | **Yes** — `parent: 'terminal'` rows (`@sigx/terminal`, `@sigx/runtime-terminal`, `@sigx/terminal-zero`, `@sigx/terminal-ui`, `@sigx/terminal-dev`, `@sigx/args`); the terminal core publishes in lockstep, but **`@sigx/args` versions independently** (it has run ahead of `@sigx/terminal`) — so `scripts/fetch-versions.mjs` self-anchors it |
 | `monaco/` | [`signalxjs/monaco-editor`](https://github.com/signalxjs/monaco-editor) | No |
+| `richtext/` (`docs`) | [`signalxjs/richtext`](https://github.com/signalxjs/richtext) (`@sigx/richtext`, `@sigx/richtext-markdown`, `@sigx/richtext-html`, `@sigx/richtext-shiki` — one version line) | No — hand-written guide/API pages; `@sigx/lynx-markdown` (in `lynx/`) renders and edits the same trees |
 | `blog/` | (this repo) | n/a |
 
 **The npm → repo rule:** the web umbrella package is **`sigx`** (published from
@@ -213,7 +214,8 @@ fetching a version number — it's knowing **which repo a doc area comes from** 
 `@sigx/runtime-terminal`, `@sigx/terminal-zero`, `@sigx/terminal-ui`,
 `@sigx/terminal-dev` and `@sigx/args`; `signalxjs/actors` publishes
 `@sigx/actors` plus its eleven satellites; and `signalxjs/zero` publishes
-`@sigx/zero`, `@sigx/zero-kit`, `@sigx/zero-basic` and `@sigx/zero-daisyui`. The
+`@sigx/zero`, `@sigx/zero-kit`, `@sigx/zero-basic` and `@sigx/zero-daisyui`. `signalxjs/richtext` publishes `@sigx/richtext`,
+`@sigx/richtext-markdown`, `@sigx/richtext-html` and `@sigx/richtext-shiki` in lockstep. The
 authoritative package lists are `src/lib/modules.ts` (core + lynx + server +
 terminal + deploy + actors + zero) and the
 `@sigx/*` entries in `package.json` (what the site builds against).

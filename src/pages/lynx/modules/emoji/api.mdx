@@ -12,7 +12,7 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Every export of `@sigx/lynx-emoji` <PkgVersion npm="@sigx/lynx-emoji" />. The package is pure JS — no native module or permissions. The API is identical across iOS, Android and web, though glyph **ink density differs per platform** (Android's Noto emoji sit lighter than Apple's), so the cell geometry adapts per platform.</p>
 
-The package is named-exports only; there is no default export at the root. Three subpaths exist: `.` (the full public API documented below), `./markdown` (the editor plugin — these four exports are NOT re-exported from root), and `./data/en` (the bundled English dataset). The dataset module exports the data as both a named `data` and a default export; the root re-exports it as `enData`.
+The package is named-exports only; there is no default export at the root. Three subpaths exist: `.` (the full public API documented below), `./markdown` (the markdown plugin pieces — NOT re-exported from root), and `./data/en` (the bundled English dataset). The dataset module exports the data as both a named `data` and a default export; the root re-exports it as `enData`.
 
 ## Components
 
@@ -102,37 +102,60 @@ Platform: both.
 
 ## Markdown subpath (`@sigx/lynx-emoji/markdown`)
 
-These four exports integrate with `@sigx/lynx-markdown`'s editor and are NOT re-exported from the package root. The markdown peer is referenced only via `import type`, so importing this subpath does not load the markdown package at runtime.
+These exports integrate with `@sigx/lynx-markdown` and are NOT re-exported from the package root. The markdown peer is referenced only via `import type`, so importing this subpath does not load the markdown package at runtime.
 
 ### createEmojiPlugin
 
-Builds the editor plugin: a `:` trigger whose suggestion popup is ranked like the picker's search (inserts the glyph by default; `insert: 'shortcode'` keeps `:smile:` source), plus an optional 😊 toolbar item when `onPickerRequest` is set. Shortcode mode degrades to the glyph when an emoji has no shortcode, never emitting invalid `:<glyph>:`.
+Builds the editor plugin: a `RichTextPlugin` whose `editor` slice carries a `:` trigger — its suggestion popup is ranked like the picker's search (inserts the glyph by default; `insert: 'shortcode'` keeps `:smile:` source) — plus an optional 😊 toolbar item when `onPickerRequest` is set. Shortcode mode degrades to the glyph when an emoji has no shortcode, never emitting invalid `:<glyph>:`.
 
 ```ts
-export function createEmojiPlugin(options?: EmojiPluginOptions): MarkdownEditorPlugin;
+export function createEmojiPlugin(options?: EmojiPluginOptions): EditorPlugin & RichTextPlugin;
 ```
 
 Platform: both.
 
 ### createEmojiSyntax
 
-The `:shortcode:` parser extension for `MarkdownView`. Streaming-safe: a partial tail (`:smi`) or an unknown shortcode stays literal text. The matched node carries the resolved glyph in `attrs.glyph`. Defaults to the bundled `en` dataset.
+The `:shortcode:` inline syntax for a plugin's `formats.markdown.inline`. Streaming-safe: a partial tail (`:smi`) or an unknown shortcode stays literal text. The matched node is `{ type: 'emoji', name, glyph }` with the resolved glyph. Defaults to the bundled `en` dataset.
 
 ```ts
-export function createEmojiSyntax(data?: EmojiData): ParserInlineExtension;
+export function createEmojiSyntax(data?: EmojiData): InlineSyntaxExtension<EmojiNode>;
 ```
 
 Platform: both.
 
-### emojiExtensionComponent
+### emojiNode
 
-The preview renderer for the `emoji` extension node — pass it to `MarkdownView`'s `components={{ extension: { emoji: emojiExtensionComponent } }}`. Returns the glyph, falling back to `:name:` when no glyph is present.
+The `emoji` node spec: an inline leaf that renders as its glyph (or `:name:`) without a component. Register it in a plugin's `nodes`.
 
 ```ts
-export function emojiExtensionComponent(props: ExtensionProps): string;
+export const emojiNode: NodeSpec;
+```
+
+### emojiComponent
+
+The preview renderer for `MarkdownView`'s `components.emoji` slot. Returns the glyph, falling back to `:name:`.
+
+```ts
+export function emojiComponent(props: { node: EmojiNode }): string;
 ```
 
 Platform: both.
+
+### EmojiNode
+
+The node `createEmojiSyntax` produces. To type it as phrasing content and its `components.emoji` slot, augment `@sigx/richtext`: `declare module '@sigx/richtext' { interface PhrasingContentMap { emoji: EmojiNode } }`.
+
+```ts
+export interface EmojiNode {
+  type: 'emoji';
+  /** The shortcode as written (without the colons). */
+  name: string;
+  /** The resolved glyph. */
+  glyph: string;
+  position?: Position;
+}
+```
 
 ### EmojiPluginOptions
 

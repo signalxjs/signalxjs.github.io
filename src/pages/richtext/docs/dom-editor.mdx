@@ -1,0 +1,157 @@
+---
+title: DOM editor
+description: "RichTextEditor — the web block editor of @sigx/richtext: formats, two-way source and document models, plugins, chrome, keyboard, controller and the data-scope styling seam"
+layout: docs
+category: Guides
+order: 80
+---
+
+# DOM editor
+
+<p class="lede"><code>RichTextEditor</code> is the web host of the <a href="/richtext/docs/editor">editor core</a>: a Notion-class block editor with one <code>contenteditable</code> per paragraph or heading, a <code>&lt;textarea&gt;</code> per code block, a toolbar, block handles with a menu, <code>/</code> commands and <code>@</code> mentions.</p>
+
+```tsx
+import { signal } from 'sigx';
+import { createSlashPlugin } from '@sigx/richtext/editor';
+import { RichTextEditor, createDomMentionPlugin } from '@sigx/richtext/editor/dom';
+import { markdownFormat, mentionMarkdown } from '@sigx/richtext-markdown';
+import { markdownPreset } from '@sigx/richtext-markdown/editor';
+
+const plugins = [
+    markdownPreset,
+    createDomMentionPlugin({ onQuery: (q) => people(q), formats: { markdown: mentionMarkdown } }),
+    createSlashPlugin(),
+];
+const note = signal({ md: '# Hi' });
+
+<RichTextEditor format={markdownFormat} model:source={[note, 'md']} plugins={plugins} placeholder="Write…" />
+```
+
+The editor knows no syntax. `format` is what the `source` model and the controller read and write with; a format's preset in `plugins` (`markdownPreset`) brings the input rules and the clipboard flavour. Without `markdownPreset` the editor still reads and writes markdown source, but typing `# ` does not make a heading.
+
+## Props
+
+| Prop | Type | Description |
+|---|---|---|
+| `format` | `DocumentFormat` | **Required.** The primary format — what `source`, `defaultSource` and the controller read and write. |
+| `formats` | `readonly DocumentFormat[]` | Further formats pasted flavours are read with (e.g. `[htmlFormat]`). |
+| `model:source` | `string` | Two-way bound source in the primary format. |
+| `model:document` | `Root` | Two-way bound mdast document (wins over `source` for the initial value). |
+| `defaultSource` / `defaultDocument` | `string` / `Root` | Initial content when not bound. |
+| `plugins` | `readonly RichTextPlugin[]` | Node types, syntax, components and editor slices; the format presets go here. Captured at mount. |
+| `components` | `Partial<DomComponents>` | Components for void blocks and the server / read-only rendering. |
+| `atoms` | `Record<string, AtomRenderer>` | Extra atom (chip) renderers by node type. |
+| `containers` | `Record<string, ContainerView>` | Extra container views by block type, over the standard and plugin ones. |
+| `toolbar` | `boolean \| 'top' \| 'bottom'` | `true` / `'top'` renders the toolbar above the content, `'bottom'` below, `false` none. Default `true`. |
+| `toolbarItems` | `readonly ToolbarItem[]` | Base items (default: `defaultToolbarItems`). |
+| `renderToolbarItem` | `(item, tb, run) => JSXElement` | Render each toolbar button yourself. |
+| `renderSuggestion` | `(item, active) => JSXElement` | Render each suggestion row yourself. |
+| `blockHandles` | `boolean` | The ⋮⋮ handle that opens the block menu. Default `true`. |
+| `readOnly` | `boolean` | Read-only mode. |
+| `placeholder` | `string` | Placeholder for an empty document. |
+| `autofocus` | `boolean` | Focus on mount. |
+| `keymap` | `Keymap` | Extra bindings layered over the base and plugin keymaps. |
+| `inputRules` | `readonly InputRule[] \| false` | `false` disables input rules (the presets' included); an array adds to them. |
+| `onChange` | `(e) => void` | `{ source, document, transaction }` after every committed change. |
+| `onSelectionChange` | `(selection) => void` | The key-addressed `EditorSelection`. |
+| `onReady` | `(controller) => void` | The `ready` event, once mounted. |
+
+Any other attribute lands on the root element. Both models write back after every committed transaction (never mid-composition) and ignore their own echo, so binding either or both is safe.
+
+## Controller
+
+The component exposes a `RichTextEditorController` through `ref` (and the `ready` event):
+
+| Member | Description |
+|---|---|
+| `editor` | The core `Editor` instance. |
+| `getSource(formatId?)` / `setSource(source, formatId?)` | Serialize / replace with the primary format, or any installed format by id. |
+| `getDocument()` / `setDocument(doc)` | Read / replace the tree. |
+| `run(command \| name)` | Run a command. |
+| `focus(target?)` / `blur()` | `target` is `'start'` or `'end'`. |
+| `clear()`, `undo()`, `redo()` | |
+
+```tsx
+import { htmlFormat } from '@sigx/richtext-html';
+
+<RichTextEditor format={markdownFormat} formats={[htmlFormat]} plugins={[markdownPreset]}
+    onReady={(c) => { ctrl = c; }} />
+
+ctrl.getSource();          // markdown
+ctrl.getSource('html');    // the same document as HTML
+```
+
+## Blocks
+
+Every root block renders as a keyed `BlockView`, dispatching on the node's schema role: text blocks (paragraph, heading, table cell) as `contenteditable` hosts, code blocks (and markdown's `html` blocks) as a `<textarea>` with a language field, void blocks through the `components` map (selectable as a whole), lists (with task checkboxes), blockquotes and tables. Structural sharing in the state means an untouched block is never re-rendered or re-mounted.
+
+List, list item and blockquote wrappers are **container views** (`standardContainerViews`, `defaultContainerView`). A plugin adds its own under `editor.dom.containers`, and the `containers` prop overrides both. A `ContainerView` receives `{ node, children, wrapperAttrs, handle, view }` and returns the element around the child blocks.
+
+Marks render as the element their spec's `html` hint names (`strong`, `em`, `del`, `code`, `a`), and read back with the aliases browsers insert on their own (`b` for `strong`); without a hint a mark is a `span[data-mark]`.
+
+## Keyboard
+
+- **Enter** splits the block (a heading continues as a paragraph); **Shift-Enter** inserts a hard break.
+- **Backspace** at a block's start and **Delete** at its end join with the neighbour; in a list or quote they lift out first.
+- **Arrow keys** cross code and void blocks and move between blocks off the first / last line, keeping the horizontal position.
+- **Tab / Shift-Tab** indent and outdent list items, and indent inside code.
+- **Escape** selects the block; **Shift-Arrow** extends the block selection; **Backspace / Delete** removes selected blocks; copy and cut write every clipboard flavour.
+- **Mod-a** is progressive: the block's own text first, every block on the next press.
+- Clicking below the last block focuses its end.
+
+Virtual keyboards and native format and history commands arrive through `beforeinput`; IME composition is handled with the post-`compositionend` deduplication browsers need.
+
+## Chrome
+
+- **Toolbar** — `EditorToolbar`, `role="toolbar"`, over the core's `defaultToolbarItems` plus plugin items. Buttons carry `data-state="on|off"` and `disabled`.
+- **Block handles and menu** — the handle opens `BlockMenu` (`role="menu"`, roving focus): turn into, move up / down, duplicate, delete.
+- **Suggestions** — `SuggestionPopup` (`role="listbox"`) is driven by trigger sessions while the caret stays in the surface.
+- **Slash commands** — `createSlashPlugin()` from `@sigx/richtext/editor`.
+- **Mentions** — `createDomMentionPlugin(options)`: the core mention plugin plus a DOM chip renderer (`renderChip`, default `mentionChip` — a `span` with `data-part="mention"` and `data-id`).
+
+A plugin ships a chip for its own atom nodes through `editor.dom.atoms`:
+
+```ts
+const tagPlugin = {
+    name: 'tag',
+    nodes: [tagNode],
+    editor: {
+        dom: {
+            atoms: {
+                tag: (span, doc) => {
+                    const el = doc.createElement('span');
+                    el.textContent = `#${span.attrs?.name ?? ''}`;
+                    return el;
+                },
+            },
+        },
+    },
+};
+```
+
+## Styling
+
+No CSS ships. Every element carries `data-scope` and `data-part`; the repository playground's `editor.css` is the reference stylesheet.
+
+| Scope | Parts |
+|---|---|
+| `richtext-editor` | `root`, `content`, `block`, `handle`, `inline`, `code`, `code-header`, `code-lang`, `code-body`, `void`, `blockquote`, `container`, `list`, `list-item`, `task-check`, `table`, `table-row`, `table-cell`, `live`, `mention` |
+| `richtext-toolbar` | `root`, `group`, `item` |
+| `richtext-block-menu` | `root`, `item`, `label`, `separator` |
+| `richtext-suggest` | `root`, `list`, `item`, `empty`, `loading` |
+
+State goes in `data-state` (`on` / `off` on toolbar items, `open` on the menu and popup) and boolean flags in bare attributes: `data-selected` on selected blocks, `data-empty` on an empty text block (style your placeholder with it), `data-readonly`, and `data-active` on the highlighted suggestion. Blocks also carry `data-type` (the node type) and `data-key`.
+
+```css
+[data-scope="richtext-editor"][data-part="block"][data-selected] { outline: 2px solid var(--accent); }
+[data-scope="richtext-toolbar"][data-part="item"][data-state="on"] { background: var(--accent-soft); }
+[data-scope="richtext-suggest"][data-part="item"][data-active] { background: var(--hover); }
+```
+
+## Server rendering
+
+On the server — and before mount — the editor renders its document through `RichTextView`, so SSR output is the read-only markup (marked `data-ssr`) and the editable blocks take over on mount.
+
+## Lower-level pieces
+
+For a custom layout or a single editable field, the entry also exports `BlockView`, `InlineBlock`, `CodeBlockEditor`, `createEditorView` / `useEditorView`, and the surfaces themselves: `createDomInlineSurface()` (one `contenteditable` host) and `createDomCodeSurface()` (one `<textarea>`), with the DOM mapping helpers (`renderInline`, `readInline`, `offsetToPoint`, `pointToOffset`) and caret helpers (`caretClientRect`, `onEdgeLine`, `pointFromClient`).

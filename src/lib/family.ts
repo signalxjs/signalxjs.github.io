@@ -132,6 +132,10 @@ const RAW_PACKAGES: SigxPackage[] = [
       hue: 96, glyph: '◈', status: 'beta', version: '0.3.0',
       tag: 'Diagrams for sigx and SSG',
       blurb: 'A <Mermaid> component for any sigx app, plus drop-in ```mermaid fence support for @sigx/ssg — loaded lazily, only on pages that have a diagram.' },
+    { id: 'richtext', npm: '@sigx/richtext', title: 'Rich Text', cat: 'ui', target: 'foundation',
+      hue: 336, glyph: '¶', status: 'beta', version: '0.4.0',
+      tag: 'Documents, formats, streaming view & block editor',
+      blurb: 'One schema-driven, mdast-shaped document with pluggable formats (markdown, HTML, plain text), an incremental engine that keeps finalized blocks stable while AI output streams in, a renderer-neutral view and a block-tree editor.' },
 
     // ---- Tooling (foundation unless target-specific) ----
     { id: 'cli', npm: '@sigx/cli', title: 'CLI', cat: 'tooling', target: 'foundation',

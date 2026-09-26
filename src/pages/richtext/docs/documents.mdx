@@ -1,0 +1,170 @@
+---
+title: Documents & formats
+description: "The mdast-shaped document, the schema (NodeSpec and roles), the DocumentFormat contract and the JSON save format of @sigx/richtext"
+layout: docs
+category: Guides
+order: 30
+---
+
+# Documents & formats
+
+<p class="lede">Everything in the family works on one tree. A <em>format</em> turns source text into that tree and back; a <em>schema</em> says what each node type in it is. Renderers and the editor only ever see the tree.</p>
+
+## The tree
+
+A document is an mdast `Root`: `paragraph`, `heading`, `blockquote`, `list` / `listItem`, `code`, `thematicBreak`, `table` / `tableRow` / `tableCell` for blocks, and `text`, `emphasis`, `strong`, `delete`, `inlineCode`, `break`, `link`, `image` for phrasing content. The types are structurally assignable to `@types/mdast`, so a tree is valid `remark` input and vice versa.
+
+Two sigx extensions sit on top of mdast:
+
+- **`key`** — a stable reconciliation key on every block-level node (`b-0`, `b-1`, … at the top level, path-based below). Renderers and the editor reconcile by it.
+- **`Code.open`** — `true` only while a fenced code block is unterminated, i.e. the source is still streaming. It is absent once the closing fence arrives.
+
+Every node parsed from source also carries a `position`; `sliceSource(source, node)` returns the exact source text of a node.
+
+```ts
+import { markdownFormat } from '@sigx/richtext-markdown';
+
+const root = markdownFormat.parse('# Hi\n\nSome **markdown**.');
+// { type: 'root', children: [
+//     { type: 'heading', depth: 1, key: 'b-0', children: [{ type: 'text', value: 'Hi' }], position: … },
+//     { type: 'paragraph', key: 'b-1', children: [ … { type: 'strong', … } … ] } ] }
+```
+
+Walk a tree with `visit(tree, visitor)` or `visit(tree, test, visitor)` (return `SKIP` or `EXIT` to prune or stop) or transform it with `map`.
+
+### Plugin nodes
+
+A plugin adds node types of its own — a mention is `{ type: 'mention', id, label }`. The package does not widen the mdast unions itself, so a plain tree stays exactly mdast; register a plugin node in your app to type it as phrasing content:
+
+```ts
+import type { Mention } from '@sigx/richtext';
+
+declare module '@sigx/richtext' {
+    interface PhrasingContentMap { mention: Mention }
+}
+```
+
+## The schema
+
+One `Schema` says what every node type is. Key assignment, the editor's block index, steps and transactions, the flat inline model, the render engine and the menus all read it instead of carrying their own lists.
+
+A schema is built from `NodeSpec`s. `createSchema(specs)` implies nothing — it contains exactly the specs you pass (a later spec with the same `type` replaces an earlier one, with a dev warning). `standardNodes` / `standardSchema` are the mdast vocabulary the core owns; a format adds what its syntax needs (`markdownFormat.nodes`: `html`, `definition`, `linkReference`, `imageReference`), and plugins add theirs through `RichTextPlugin.nodes`.
+
+Views and the editor derive their schema for you — the standard specs, the format's `nodes` and every plugin's `nodes`. Pass `schema` only to override that.
+
+### Roles
+
+Every spec has a `role`:
+
+| Role | Meaning | Standard examples |
+|---|---|---|
+| `textblock` | A block edited as a run of text with marks | `paragraph`, `heading`, `tableCell` |
+| `container` | A block whose children are keyed blocks | `blockquote`, `list`, `listItem`, `tableRow` |
+| `table` | A container rendered and edited as a grid | `table` |
+| `code` | A literal block edited through a code surface | `code`, markdown's `html` |
+| `void` | A block with no editable content, selectable as a whole | `thematicBreak`, `definition` |
+| `inline` | Leaf phrasing content without a span | `text`, `break` |
+| `mark` | A ranged span over text | `strong`, `emphasis`, `delete`, `inlineCode`, `link` |
+| `atom` | Phrasing content that occupies exactly one character | `image`, `mention` |
+
+### Editing flags
+
+The generic editor commands never name a node type; they read these flags instead.
+
+| Field | Meaning |
+|---|---|
+| `fillsWith` | Containers: the block an empty one is filled with so a caret has somewhere to live (list item and blockquote → `paragraph`) |
+| `isolating` | Caret edits never cross this block's boundary — it neither splits nor joins with its neighbours (a table, its rows and cells) |
+| `collapsesWhenEmpty` | A container removed along with its last child (list item, list, blockquote) |
+| `moveAsUnit` | Moving this container's only child moves the container (a list item) |
+| `allowsHardBreak` | Text blocks: may hold hard breaks (a paragraph yes, a heading no) |
+| `splitsTo` | Enter at the end creates a block of this type after it (heading → paragraph) |
+| `keyed` / `editable` | Override the role defaults (keyed: every role except `inline`, `mark`, `atom`; editable: `textblock` and `code`) |
+| `entry`, `toInline`, `fromInline` | Where the caret lands when entering a container, and how a block converts to and from phrasing content (used by "turn into") |
+| `isSelectable` | Void blocks: can be selected as a block (default `true`) |
+| `menu` | The slash / block-menu entry: `{ label, icon?, group?, keywords?, create() }` |
+
+### Rendering hooks
+
+| Field | Meaning |
+|---|---|
+| `props(node, ctx)` | Extra props the node's component receives beyond `node` and `children` (a heading's `depth`, a list item's `number`, a link's sanitised `url`) |
+| `render(node, api, key)` | Render by hand instead of through a component — the escape hatch references use; return `null` to fall through |
+| `text(node)` | The plain-text projection a node renders as when no component exists for it |
+| `collect(node, env)` | Fold document-wide facts into the render env before rendering (a definition registers its label) |
+| `textOutput` | The component may return a plain string (raw HTML rendered as text) |
+| `html` | An `HtmlTagHint { tag, aliases? }` — the element a mark renders as in the DOM editor, and what an HTML format reads back (`strong` has `aliases: ['b']`) |
+
+### The flat inline model
+
+The editor edits a text block as `InlineFlat` — a string plus ranged spans, with each atom occupying one U+FFFC character (`ATOM_CHAR`). A phrasing spec says how it maps through `inline`:
+
+```ts
+interface InlineFlatSpec {
+    kind?: 'text' | 'break';          // role `inline` only
+    literal?: boolean;                // a mark whose content is its own value (inline code)
+    wrapsLiteral?: boolean;           // a mark that may enclose a literal one (a link over inline code)
+    priority?: number;                // nesting order when extents tie (lower sits outermost), default 99
+    toFlat?(node): Record<string, string>;                // the attrs the node carries
+    fromFlat?(span, children): PhrasingContent;           // build the node back
+}
+```
+
+The default `toFlat` keeps every string, number and boolean own property except `type`, `children`, `value`, `position`, `data` and `key`.
+
+## Formats
+
+A format is a codec between source text and the tree:
+
+```ts
+interface DocumentFormat<O = {}> {
+    readonly id: string;                   // 'markdown', 'html', 'text' — also its slot in RichTextPlugin.formats
+    readonly mime: readonly string[];      // clipboard types it reads, most specific first
+    readonly nodes?: readonly NodeSpec[];  // specs its syntax needs beyond the standard ones
+    parse(source: string, options?: FormatParseOptions & O): Root;
+    serialize(node: Root | RootContent, options?: FormatSerializeOptions & O): string;
+    createIncrementalEngine?(options?: FormatParseOptions & O): IncrementalEngine;
+}
+```
+
+Both `parse` and `serialize` take `plugins`, whose `formats[id]` slice extends the syntax. A format that lists `text/plain` in `mime` claims plain-text pastes in an editor.
+
+| Format | Package | `id` | `mime` | Incremental engine |
+|---|---|---|---|---|
+| `markdownFormat` | `@sigx/richtext-markdown` | `markdown` | `text/markdown`, `text/x-markdown`, `text/plain` | Yes — streaming-stable |
+| `htmlFormat` | `@sigx/richtext-html` | `html` | `text/html` | No — re-parses |
+| `plainTextFormat` | `@sigx/richtext` | `text` | `text/plain` | Re-parses |
+
+`plainTextFormat` is the smallest format: blank-line-separated paragraphs, where a newline inside a paragraph is a hard break. It is what an editor falls back to for `text/plain` when no other format claims it.
+
+### Converting between formats
+
+Every format parses into the same tree, so converting is parse then serialize:
+
+```ts
+import { markdownFormat } from '@sigx/richtext-markdown';
+import { htmlFormat } from '@sigx/richtext-html';
+
+htmlFormat.serialize(markdownFormat.parse('# Hi\n\nSome **markdown**.'));
+// '<h1>Hi</h1>\n<p>Some <strong>markdown</strong>.</p>\n'
+
+markdownFormat.serialize(htmlFormat.parse('<h1>Hi</h1><p>Some <b>html</b>.</p>'));
+// '# Hi\n\nSome **html**.\n'
+```
+
+See [Markdown](/richtext/docs/markdown) and [HTML](/richtext/docs/html) for each format's options and syntax slice.
+
+## Saving documents
+
+`toJSON(root, options?)` returns the save format: a deep clone of the tree, without the transient parts (reconciliation keys, the streaming `open` flag and — unless `position: true` — positions), with `data.version` set to `CURRENT_VERSION` (`1`). Pass `format` to record the source format's id in `data.format`; it is informational, since the tree is the same whatever the format.
+
+```ts
+import { fromJSON, toJSON } from '@sigx/richtext';
+
+const saved = JSON.stringify(toJSON(root, { format: 'markdown' }));
+// { "type": "root", "children": [ … ], "data": { "version": 1, "format": "markdown" } }
+
+const restored = fromJSON(saved);   // accepts the object or the JSON string
+```
+
+`fromJSON(input, { schema? })` validates the shape and version and re-assigns keys, so the tree is ready to render or edit. It throws a `DocumentFormatError` whose `code` is `'invalid-shape'` or `'unsupported-version'` (a document written by a newer version).

@@ -1,0 +1,78 @@
+---
+title: Overview
+description: "@sigx/richtext — one schema-driven, mdast-shaped document with pluggable formats, a streaming-stable view and a block-tree editor for SignalX"
+layout: docs
+category: Getting Started
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Rich Text
+
+<p class="lede">One document model for everything that is more than a string: parse markdown or HTML into it, stream AI output through it without flicker, render it on the web or on Lynx, and edit it in a block editor — all against the same tree.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/richtext" /> <span class="mmr-dot" /> ESM-only <span class="mmr-dot" /> MIT</p>
+
+```bash
+pnpm add @sigx/richtext @sigx/richtext-markdown
+```
+
+## The packages
+
+The family ships from one repository ([`signalxjs/richtext`](https://github.com/signalxjs/richtext)) on one version line. The core knows no syntax; a format is a package on top.
+
+| Package / entry | What it gives you |
+|---|---|
+| `@sigx/richtext` | The foundation: the mdast-shaped AST, the schema (`NodeSpec` — the one table that says what every node type is), the `DocumentFormat` contract with a generic incremental engine, `plainTextFormat`, `toJSON` / `fromJSON`, `createTextStream`, the renderer-neutral render engine and the `RichTextPlugin` contract |
+| `@sigx/richtext/dom` | `RichTextView` for the web, the default DOM components (styled through `data-scope` / `data-part`), the `CodeBlock` chrome and the `CodeHighlighter` contract |
+| `@sigx/richtext/editor` | The platform-neutral block-tree editor core: state, steps, history, commands, keymap, input rules, trigger sessions, toolbar items and the surface contracts a platform implements |
+| `@sigx/richtext/editor/dom` | `RichTextEditor` for the web: `contenteditable` block surfaces, toolbar, block handles and menu, slash commands, mentions |
+| `@sigx/richtext/testing` | `strip()`, `feed()`, fake surfaces and the surface conformance suite |
+| `@sigx/richtext-markdown` | Markdown as a format: the CommonMark + GFM parser, `toMarkdown`, `markdownFormat`, the markdown slice plugins fill; `./editor` has `markdownPreset` |
+| `@sigx/richtext-html` | HTML as a format: a platform-free parser, `toHtml`, `htmlFormat`, the HTML slice plugins fill; `./editor` has `htmlPreset` |
+| `@sigx/richtext-shiki` | [Shiki](https://shiki.style/) highlighting as a plugin: `shikiPlugin()` and `createShikiHighlighter()` |
+
+## Quick start
+
+Stream a model's answer into a view. `createTextStream` coalesces tokens into one signal write per frame, and `RichTextView` parses with the format you give it:
+
+```tsx
+import { component } from 'sigx';
+import { createTextStream } from '@sigx/richtext';
+import { RichTextView } from '@sigx/richtext/dom';
+import { markdownFormat } from '@sigx/richtext-markdown';
+
+const stream = createTextStream({ flushIntervalMs: 16 });
+
+async function ask(prompt: string) {
+    stream.reset();
+    await stream.pipe(completion(prompt));   // any AsyncIterable<string>
+}
+
+export const Answer = component(() => () => (
+    <RichTextView value={stream.value.value} format={markdownFormat} />
+));
+```
+
+Every finalized block keeps its identity as tokens arrive, so only the block still being written re-renders.
+
+## Why it exists
+
+- **One tree, every surface.** The same document renders on the web, on Lynx and in a terminal renderer; a plugin adds its syntax, node types, components, commands and toolbar items once.
+- **Streaming-stable.** Finalized blocks are the same objects between parses and their keys never change, so the UI never remounts completed content.
+- **mdast-shaped.** The document is a standard mdast `Root`, so it round-trips through `remark` tooling and saves as plain JSON.
+- **Formats are codecs.** Markdown, HTML and plain text all parse into the one tree and serialize out of it — converting between them is parse, then serialize.
+- **A real editor.** A block-tree editor core with platform surfaces, not a textarea with a preview.
+
+## On Lynx
+
+[`@sigx/lynx-markdown`](/lynx/modules/markdown/overview) renders and edits the same trees with native views: `MarkdownView` is a Lynx component map over this render engine, and `MarkdownEditor` is the Lynx host of the editor core. Plugins written against `RichTextPlugin` work on both.
+
+## Where next
+
+- [Installation](/richtext/docs/installation) — packages, entries and peers.
+- [Documents & formats](/richtext/docs/documents) — the tree, the schema and the format contract.
+- [Streaming](/richtext/docs/streaming) — `createTextStream` and the incremental engine.
+- [Rendering](/richtext/docs/rendering) — `RichTextView`, component maps and styling.
+- [Editor](/richtext/docs/editor) — the block-tree editor and `RichTextEditor`.

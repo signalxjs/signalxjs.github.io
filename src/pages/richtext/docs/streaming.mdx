@@ -1,0 +1,106 @@
+---
+title: Streaming
+description: "Streaming AI output with @sigx/richtext — createTextStream, the incremental engine and its stability guarantees"
+layout: docs
+category: Guides
+order: 40
+---
+
+# Streaming
+
+<p class="lede">Render a model's answer token by token without re-parsing or re-rendering what is already finished. The stream buffers text; the view's incremental engine keeps every finalized block the same object between parses.</p>
+
+## `createTextStream`
+
+A one-line bridge between a token loop and a view. It owns a reactive `value` signal and coalesces bursts of `append()` calls into one signal write per window, so a fast stream re-renders at a bounded rate instead of once per token. It is format-agnostic: it accumulates text, and the view parses it with whatever format it was given.
+
+```tsx
+import { createTextStream } from '@sigx/richtext';
+import { RichTextView } from '@sigx/richtext/dom';
+import { markdownFormat } from '@sigx/richtext-markdown';
+
+const text = createTextStream({ flushIntervalMs: 16 });
+
+// producer — by hand…
+for await (const token of completion) text.append(token);
+text.done();
+
+// …or piped, with cancellation
+await text.pipe(completion, controller.signal);
+
+// consumer
+<RichTextView value={text.value.value} format={markdownFormat} />
+```
+
+| Member | Description |
+|---|---|
+| `value` | Reactive accumulated source (a `PrimitiveSignal<string>`). Pass `text.value.value` to a view. |
+| `finished` | Reactive completion flag, set by `done()`. |
+| `append(chunk)` | Append a token or chunk; buffered and coalesced into `value`. |
+| `done()` | Flush any pending buffer and mark the stream complete. |
+| `reset()` | Clear the buffer, `value` and `finished` — for a regenerate. |
+| `pipe(source, signal?)` | Append every chunk of an `AsyncIterable<string>`, then `done()`. |
+
+`flushIntervalMs` (default `0`) coalesces appends within that many milliseconds; `0` flushes synchronously on every append, and `16` caps re-renders to about 60 per second.
+
+`pipe` stops consuming when `signal` aborts — even while a `next()` is still pending on a stalled stream. It then flushes the buffer and does **not** call `done()`. It rejects only when the source throws, after flushing.
+
+## The incremental engine
+
+A view does not re-parse the whole source on every change. `RichTextView` (and the Lynx `MarkdownView`) create one engine per instance — the format's `createIncrementalEngine`, or a re-parse engine for a format without one — and feed it the growing source.
+
+The core invariant: for an append-only stream, only blocks that were still open when the input ended can change. The block parser reports how many trailing top-level blocks may still change; everything before them is finalized, cached by reference and never rebuilt. Each new chunk re-parses only the trailing region.
+
+```ts
+import { createIncrementalEngine } from '@sigx/richtext-markdown';
+
+const engine = createIncrementalEngine();
+const a = engine.parse('# Hi\n\nSome **mark');
+const b = engine.parse('# Hi\n\nSome **markdown**.');
+a.children[0] === b.children[0];   // true: the finalized heading keeps its identity
+```
+
+What that guarantees:
+
+- **Finalized blocks keep identity.** The same object is returned on every later parse, so a reconciler skips it.
+- **Keys never change.** Top-level keys are the absolute block index (`b-<i>`) and nested keys are path-based, so a block keeps its key when it moves from open to finalized.
+- **A half-written block is still valid.** An unterminated code fence parses as a `code` node with `open: true`; a partial construct (half a link, `**mark`) stays literal text until it completes.
+
+The markdown engine is proved against the whole CommonMark and GFM corpus, fed character by character and in random chunks.
+
+| Engine member | Description |
+|---|---|
+| `parse(src)` | Parse `src`, reusing finalized blocks from earlier calls. |
+| `reset()` | Drop cached state — call it when the source is replaced rather than appended. |
+| `inspect()` | `{ cut, finalized }` — the cut offset and the number of finalized blocks, for tests and devtools. |
+
+### Stable inputs
+
+An engine captures its format and plugins when it is created. `RichTextView` re-creates it when the `format` or `plugins` prop changes identity, which re-parses from scratch. Keep both as module constants, not literals built during render:
+
+```tsx
+const plugins = [shikiPlugin()];   // module scope — one identity
+
+<RichTextView value={text.value.value} format={markdownFormat} plugins={plugins} />
+```
+
+### Engines for your own formats
+
+A format gets streaming for free if its block parser is line-oriented:
+
+- `createLineEngine(parser)` — the streaming-stable engine over a `LineBlockParser` (`normalize`, `parseBlocks(tail, base)` returning `{ children, end, openCount }`, and an optional `transform`). Markdown's `createIncrementalEngine` is a thin wrapper over it.
+- `createReparseEngine(parse)` — the fallback for a format without one: it re-parses on every call.
+
+## Testing streaming code
+
+`@sigx/richtext/testing` feeds a source through an engine in chunks:
+
+```ts
+import { feed, seededChunks, strip } from '@sigx/richtext/testing';
+import { createIncrementalEngine, parseMarkdown } from '@sigx/richtext-markdown';
+
+const roots = feed(createIncrementalEngine(), source, seededChunks(42, 1, 8));
+expect(strip(roots.at(-1)!)).toEqual(strip(parseMarkdown(source)));
+```
+
+`feed(engine, source, chunk)` returns every intermediate `Root`; `chunk` is a size or a function of the step index. `seededChunks(seed, min, max)` makes those sizes reproducible from the seed alone. `strip()` deep-clones a node without keys, positions, `open` and `data.autolink`, so trees can be compared structurally.

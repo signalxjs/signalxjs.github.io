@@ -63,6 +63,8 @@ sigx prebuild
 
 `sigx prebuild` auto-discovers the package and registers the native element from its `signalx-module.json` (the iOS UI component and the Android behavior for the `sigx-richtext` tag). After adding the package you must run a native rebuild before the element will render. The only peer dependency is `@sigx/lynx`.
 
+The module also ships an R8 keep rule through `signalx-module.json` (`android.proguardRules`), so Android release builds keep the element's native classes. Run `sigx prebuild` again after upgrading the package so a release build picks it up.
+
 On web the element is a real `contenteditable` field (v0.19.0+). No wiring is needed — `@sigx/lynx-cli` serves the web element automatically when your app depends on `@sigx/lynx-richtext`; for a hand-written host page, import the self-registering `@sigx/lynx-richtext/web-element`. A few operations differ on web: a collapsed `toggleFormat` is a no-op (select text first), and `confirm-type` is advisory. One known limitation: a `Pressable` nested inside a bottom sheet is still inert on web ([lynx#764](https://github.com/signalxjs/lynx/issues/764)), so a send button or popup inside a sheet may not respond there yet.
 
 ## Building a formatting toolbar
@@ -230,6 +232,60 @@ void changed;
 
 `decodeDoc` is defensive: it clamps offsets into range, drops unknown types and empty/inverted ranges, clamps heading levels to 1–6, and falls back to `emptyDoc()` on bad input. `docEquals` ignores the version field `v` (the echo-suppression comparison) and is order-sensitive, so `normalizeDoc` both sides if your producers may emit spans in different orders.
 
+## Growing with the content
+
+Lynx sizes the element from its styles, so `minHeight` / `maxHeight` alone do not make the field grow: feed `onHeightChange` back into `style.height`, clamped to your bounds.
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { RichTextInput } from '@sigx/lynx-richtext';
+
+export const GrowingField = component(() => {
+  const state = signal({ height: 44 });
+
+  return () => (
+    <RichTextInput
+      minHeight={44}
+      maxHeight={120}
+      style={{ height: Math.max(44, Math.min(state.height, 120)) }}
+      onHeightChange={(h) => { state.height = h; }}
+    />
+  );
+});
+```
+
+`heightchange` is reported once the element has its width, so a multi-line initial `value` reports its real height rather than one line.
+
+## Block editors: boundary keys
+
+A block editor renders one field per paragraph and decides itself what Enter or Backspace at the edge of a block means — split the block, join it with the previous one, move to the next. `boundaryKeys` puts the field in that single-block mode: the keys that cross the block's edge are **reported, not acted on**, through `onBoundaryKey({ key, start, end })`.
+
+| Key | Reported when |
+|---|---|
+| `Enter`, `Shift-Enter` | Always — Return never inserts a newline in this mode |
+| `Backspace` | The selection is collapsed at offset 0 |
+| `Delete` | The selection is collapsed at the end |
+| `ArrowUp` / `ArrowDown` | The caret is on the first / last visual line |
+| `ArrowLeft` / `ArrowRight` | The caret is at the start / end |
+| `Tab`, `Shift-Tab`, `Escape` | Always |
+
+Everything else stays native — a Backspace mid-text deletes as usual. Keys are not reported while an IME composition is active. iOS (`deleteBackward`, `pressesBegan`, the Return delegate), Android (soft keyboards through the input connection, hardware keyboards through `onKeyDown`) and the web element (`keydown`) share the same table.
+
+```tsx
+import { RichTextInput, type RichTextBoundaryKeyEvent } from '@sigx/lynx-richtext';
+
+function BlockField(props: { onSplit: (at: number) => void; onJoinBackward: () => void }) {
+  const onBoundaryKey = (e: RichTextBoundaryKeyEvent['detail']) => {
+    if (e.key === 'Enter') props.onSplit(e.start);
+    else if (e.key === 'Backspace') props.onJoinBackward();
+  };
+
+  return <RichTextInput boundaryKeys onBoundaryKey={onBoundaryKey} placeholder="Type, then press Return…" />;
+}
+```
+
+This is the mode `@sigx/lynx-markdown`'s [`MarkdownEditor`](/lynx/modules/markdown/components/markdowneditor) runs its paragraph and heading fields in. The showcase's "Rich text: boundary keys" screen logs every reported key.
+
 ## Notes
 
 - **Commands are fire-and-forget.** Every `RichTextMethods` call returns `void`; it does not report success. State reconciles through the next `onChange` / `onSelection`. A `null`/`undefined` handle no-ops silently.
@@ -241,8 +297,9 @@ void changed;
 - **`applyFormat` is link-only.** Only `type: 'link'` is supported; an empty/missing `href` unlinks, and links are refused inside a `codeBlock`.
 - **Mention chips need `id` + `label`.** Both must be non-empty. The visible label lives in `attrs.label`, not in the covered text — a copied chip degrades to a bare object-replacement character in plain text.
 - **Colors are hex strings.** `textColor`, `accentColor`, and `placeholderColor` accept `#RGB`, `#RRGGBB`, or `#RRGGBBAA` (leading `#` optional). `accentColor` is the caret tint and the link color.
-- **Auto-grow.** `minHeight` / `maxHeight` clamp the frame in px; content past `maxHeight` scrolls internally. `onHeightChange` fires only when the clamped height moves by at least 0.5px.
-- **No serialization format of its own.** `RichDoc` is plain text + spans + blocks; the meaning is yours to define. `@sigx/lynx-markdown`'s editor layers markdown semantics on top of this same field, and a chat input can store the doc JSON directly.
+- **Auto-grow.** `minHeight` / `maxHeight` clamp the frame in px; content past `maxHeight` scrolls internally. `onHeightChange` fires only when the clamped height moves by at least 0.5px — feed it back into `style.height` (see [Growing with the content](#growing-with-the-content)).
+- **Focus events on every platform.** `onFocus` / `onBlur` fire on iOS, Android and web.
+- **No serialization format of its own.** `RichDoc` is plain text + spans + blocks; the meaning is yours to define. `@sigx/lynx-markdown`'s editor runs one of these fields per block in `boundaryKeys` mode, and a chat input can store the doc JSON directly.
 
 ## See also
 
