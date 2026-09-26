@@ -93,7 +93,7 @@ as literals (also materialized as `dist/server/sigx-app.js`, so a Node
 `server.mjs` collapses four `readFile`s into one import):
 
 ```ts
-import { template, assets, manifest, islandsManifest, resumeManifest }
+import { template, assets, assetsFor, manifest, islandsManifest, resumeManifest }
     from 'virtual:sigx-app';
 ```
 
@@ -101,24 +101,34 @@ import { template, assets, manifest, islandsManifest, resumeManifest }
 |---|---|
 | `template` | the built `index.html` with the outlet marker |
 | `assets` | precomputed `collectAssets()` preloads for every client entry |
+| `assetsFor(entries, base?)` | per-route preloads — `collectAssets` over the inlined manifest, with its body baked in; `base` defaults to the build's `config.base` |
 | `manifest` | the client `.vite/manifest.json` |
 | `islandsManifest` | the islands pack manifest, or `undefined` |
 | `resumeManifest` | the resume pack manifest, or `undefined` |
 
-To resolve preloads yourself instead — per route, say — import `collectAssets`
-from **`@sigx/vite/assets`**:
+Per-route preloads come from `assetsFor`, so the module still imports nothing
+on any platform:
 
 ```ts
-import { collectAssets } from '@sigx/vite/assets';
-import { manifest } from 'virtual:sigx-app';
+import { assetsFor } from 'virtual:sigx-app';
 
-const resolvedAssets = collectAssets(manifest, ['src/entry-client.tsx']);
+document: (url) => ({ assets: assetsFor(ROUTE_MODULES[url] ?? []) })
 ```
 
-That entry imports nothing at all — no `node:` builtins, no `process` — so it
-runs on workerd, Deno and Bun. Keep `@sigx/vite/ssr` for the dev half
-(`createDevRequestHandler`), which is Node-only by nature; it re-exports
-`collectAssets` as well, so an existing import keeps working.
+### What a deployed server imports
+
+A deployed server imports its **runtime dependencies** (`sigx`, the server
+packs it uses) and the **modules the build emitted** — never `@sigx/vite`,
+which is a build tool and a devDependency. Manifest-derived data reaches
+production only through `virtual:sigx-app` / `dist/server/sigx-app.js`, so a
+server installed with `npm ci --omit=dev` or copied into a slim Docker layer
+boots the same as one with dev dependencies present.
+
+`@sigx/vite/assets` stays as the lower-level escape hatch for build-time and
+dev tooling — `collectAssets` over a manifest you hold yourself. It imports
+nothing at all (no `node:` builtins), so it runs on workerd, Deno and Bun. Keep
+`@sigx/vite/ssr` for the dev half (`createDevRequestHandler`), which is
+Node-only by nature.
 
 `virtual:sigx-app` is a **build artifact**: importing it under `vite dev` throws, pointing you at
 `createDevRequestHandler` (dev resolves template and assets live). The narrower

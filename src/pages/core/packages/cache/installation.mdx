@@ -18,7 +18,7 @@ import { PkgVersion } from '@/components/PkgVersion';
 pnpm add @sigx/cache
 ```
 
-Its only dependencies are `@sigx/runtime-core` and `@sigx/reactivity` — the two packages any SignalX renderer already builds on (web apps get them through the `sigx` umbrella). It never pulls in a renderer of its own, which is what makes it [portable](/core/packages/cache/usage#renderer-portability).
+It peers on `@sigx/runtime-core` and `@sigx/reactivity` (`^1.0.0`) — the two packages any SignalX renderer already builds on (web apps get them through the `sigx` umbrella) — and resolves to your app's copy of both. It never pulls in a renderer of its own, which is what makes it [portable](/core/packages/cache/usage#renderer-portability).
 
 ## Register the plugin
 

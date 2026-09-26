@@ -82,6 +82,27 @@ runtime tier — `sigx`, `@sigx/reactivity`, `@sigx/runtime-core`,
 the result. This keeps the runtime out of your bundle and preserves singleton
 reactivity for consumers.
 
+Pair it with the manifest side: a published library lists the core packages it
+imports under `peerDependencies` (`^1.0.0`) — `sigx` for a web-only library,
+`@sigx/reactivity` + `@sigx/runtime-core` for a renderer-neutral one — and
+never under `dependencies`, so it resolves to the app's single copy. See
+[the install shape](/core/docs/stability#the-install-shape--the-app-owns-the-copy).
+
+## Build-time Defines
+
+`defineLibConfig` defines two compile-time constants in both the development
+and the `prod-dist` pass:
+
+- `__DEV__` — the compile-time dev flag: a runtime `process.env.NODE_ENV !== 'production'`
+  check in the development dist, `false` in the production one (so guarded blocks are stripped).
+- `__SIGX_VERSION__` — the `version` from the root's `package.json` (left
+  undefined when the root has no versioned manifest). Read it guarded, so an
+  unbundled evaluation of your source never throws:
+
+```ts
+const version = typeof __SIGX_VERSION__ === 'string' ? __SIGX_VERSION__ : 'unknown';
+```
+
 ## Bundling Sibling Packages with Aliases
 
 When you need to bundle sibling packages in a monorepo, use `alias` to map

@@ -138,8 +138,9 @@ patched in place.
 ## Why This Matters
 
 The deeper guarantee behind HMR is a **single physical copy** of
-`@sigx/reactivity`. In dev the plugin aliases the SignalX runtime packages to
-their `src` entries and excludes **all** `@sigx/*` packages from `optimizeDeps`
+`@sigx/reactivity`. In dev the plugin pins every installed `@sigx/*` package —
+and each of its `exports` subpaths — to one physical copy, and excludes **all**
+`@sigx/*` packages from `optimizeDeps`
 pre-bundling — the core tier plus every `@sigx/*` dependency declared in your
 `package.json` (store, router, daisyui, …) — so no pre-bundled chunk can carry a
 second reactivity copy. It also sets `ssr.noExternal: ['sigx', /^@sigx\//]` so the
@@ -149,6 +150,20 @@ it into a single `sigx` chunk. Without that single copy, signal mutations from
 `onMounted`, observers, `setTimeout`, or event handlers would silently fail to
 re-render after hydration. Your own `optimizeDeps.exclude` / `ssr.noExternal`
 entries are merged with the plugin's, never replaced.
+
+The dev pin is a resolver step (a `resolveId` hook), not a set of
+`resolve.alias` entries. Your own `resolve.alias` entries therefore always win,
+in any form — an exact key, a scope or prefix such as `'@sigx': '/my/fork'`, a
+RegExp, even a key on the queried form (`'@sigx/x/css?url'`) — because Vite
+applies aliases before any plugin's `resolveId`. Your alias map is passed
+through unchanged, so a plugin ordered after `sigx()` that reads
+`config.resolve.alias` sees exactly what you wrote. Query-suffixed imports of a
+package subpath (`import css from '@sigx/zero-basic/css?url'`, `?raw`,
+`?inline`, `?worker`) resolve like any other file.
+
+If a second copy does get in, the runtime says so: `@sigx/reactivity` and
+`@sigx/runtime-core` throw in development when a second copy evaluates — see
+[Stability & versioning](/core/docs/stability#two-copies-of-sigxreactivity-are-loaded).
 
 ## Next Steps
 

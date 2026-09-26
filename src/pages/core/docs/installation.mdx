@@ -45,6 +45,12 @@ pnpm add sigx @sigx/vite
 yarn add sigx @sigx/vite
 ```
 
+### Apps install `sigx`; libraries peer on it
+
+`sigx` is the one package that brings `@sigx/reactivity`, `@sigx/runtime-core` and `@sigx/runtime-dom` into a project. Every other `@sigx/*` package — `@sigx/vite`, `@sigx/cache`, the server packs, `@sigx/router`, `@sigx/store` and the rest of the ecosystem — declares the core packages as **`peerDependencies`** (`^1.0.0`) and uses the copy your app installed. So an app installs `sigx` plus the packs it uses, and nothing else from core.
+
+If you are publishing a **library**, do the same thing the ecosystem does: list `sigx` (web-only) or `@sigx/reactivity` + `@sigx/runtime-core` (renderer-neutral) under `peerDependencies` at `^1.0.0`, never under `dependencies`. A page must load exactly one copy of the reactive core — a second copy throws in development. See [Stability & versioning](/core/docs/stability#the-install-shape--the-app-owns-the-copy) for the full table and the fix for a duplicate.
+
 ## Configure Vite
 
 Add the SignalX plugin to your Vite configuration:
@@ -73,9 +79,11 @@ For the best TypeScript experience, update your `tsconfig.json`:
 }
 ```
 
+`jsxImportSource: "sigx"` is the setting for web apps: tags are typed by the DOM renderer's HTML and SVG table, so an unknown tag such as `<blink>` is a type error. A headless or non-web renderer built on `@sigx/runtime-core` alone uses `"@sigx/runtime-core"` and declares its own elements — see [JSX setup per consumer kind](/core/docs/stability#jsx-setup-per-consumer-kind).
+
 ## Package Versions
 
-SignalX follows semantic versioning. The versions below are pulled from npm at build time, so they track the current `latest` release without hand-editing (falling back to the last committed values if npm is unreachable):
+SignalX follows semantic versioning — from `1.0.0`, breaking changes happen only at a major; [Stability & versioning](/core/docs/stability) spells out what is covered. The versions below are pulled from npm at build time, so they track the current `latest` release without hand-editing (falling back to the last committed values if npm is unreachable):
 
 | Package | Version | Description |
 |---------|---------|-------------|
@@ -106,3 +114,4 @@ There's nothing to configure in your app — devtools and dev-only warnings simp
 
 - [Quick Start](/core/docs/getting-started) - Build your first component
 - [Signals](/core/docs/signals) - Learn about reactive state
+- [Stability & versioning](/core/docs/stability) - What 1.0 promises, and upgrading from 0.15

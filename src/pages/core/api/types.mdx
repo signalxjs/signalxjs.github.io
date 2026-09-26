@@ -460,6 +460,31 @@ let modalApi: ModalApi;
 
 ---
 
+## CombinedOf / PropsOf / RefOf / SlotsOf
+
+Read the parameters a component factory was built with — for types that derive one factory from another.
+
+```tsx
+type CombinedOf<F extends AnyComponentFactory>; // the combined declaration the factory was built from
+type PropsOf<F extends AnyComponentFactory>;    // the props view (what ctx.props is typed with)
+type RefOf<F extends AnyComponentFactory>;      // the exposed ref — the same as Exposed<F>
+type SlotsOf<F extends AnyComponentFactory>;    // the slot table
+```
+
+These are the supported way to take a factory apart; the internal `__`-prefixed brands they read may be renamed.
+
+### Examples
+
+```tsx
+import type { AnyComponentFactory, ComponentFactory, CombinedOf, RefOf, SlotsOf } from 'sigx';
+
+// Swap an event on a factory, keeping its ref and slots.
+type Adapted<F extends AnyComponentFactory, TRemove extends string, TAdd> =
+    ComponentFactory<Omit<CombinedOf<F>, TRemove> & TAdd, RefOf<F>, SlotsOf<F>>;
+```
+
+---
+
 ## Ref
 
 Ref type accepting both object and callback refs.

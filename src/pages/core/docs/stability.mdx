@@ -1,0 +1,141 @@
+---
+title: Stability & versioning
+description: "What SignalX 1.0 promises — the three tiers of public surface, the semver policy, the install shape (apps own the copy, libraries peer), and upgrading from 0.15."
+layout: docs
+category: Getting Started
+order: 30
+---
+
+# Stability & versioning
+
+<p class="lede">From `1.0.0`, SignalX's core packages are a stability contract: breaking changes happen only at a major, and every package says exactly which part of it is covered.</p>
+
+All fourteen core packages — `sigx`, `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`, `@sigx/cache`, `@sigx/serialize`, the server packs (`@sigx/server-renderer`, `@sigx/server`, `@sigx/ssr-islands`, `@sigx/resume`), `@sigx/vite` and the three deploy adapters — ship on **one version line**. A `1.x` of one is built and tested with the same `1.x` of the others.
+
+## What is covered — three tiers
+
+**Tier A — the public API. Semver applies in full.**
+
+- Every value and type exported from a package's root entry, and from every subpath in its `package.json` `exports` **except** `./internals`.
+- The compile-time surface: the `sigx` / `@sigx/runtime-core` JSX runtime and the `JSX` namespace each package contributes ([below](#jsx-setup-per-consumer-kind)), the `virtual:sigx-*` modules `@sigx/vite` generates, the `client:*` island directives, the `*.server.*` file convention and the `serverFn` / `serverStream` options form, and the `data-sigx-*` attribute names resume stamps.
+- Documented behaviour — what a public function does with an input it already accepts.
+- The SSR plugin contract a strategy pack is written against (`SSRPack`, `SSRContext`'s typed methods, `createSSRContext`, the plugin hooks).
+
+**Tier B — the pack contract. Additive in minors, breaking only in majors.**
+
+- The `globalThis` seams (see [Globals on the page](/core/docs/advanced/globals)). A seam's *shape* is frozen, and it is reached only through the one accessor that owns it — a pack that reads the global directly is outside the contract.
+- The DI tokens (`provideAsyncEngine`, `provideTypeHandlers`) and the engine interfaces behind them.
+
+**Not covered — may change in any release, and the changelog says so when it does.**
+
+- The `./internals` subpaths (`@sigx/runtime-core/internals`, `@sigx/reactivity/internals`).
+- **Wire formats between server and client**: the SSR state blob (`__SIGX_ASYNC__`, `__SIGX_BOUNDARIES__` payloads), resume's handler descriptors and boundary props, the server-function envelope and the key encoding. Both ends ship from the same build — a page rendered by 1.2 is hydrated by 1.2. The *names* are Tier A; the *bytes* are not.
+- `__DEV__`-only warning text, devtools hook payloads, bundle sizes, benchmark numbers, the `dist/` file layout, and the internal structure of exported types beyond what a public name observes — a TypeScript brand's spelling is not public (that is why [`CombinedOf` / `RefOf` / `SlotsOf`](/core/packages/runtime-core/api#taking-a-component-factory-apart) exist).
+
+## The semver policy
+
+- **Breaking changes only at a major.** Breaking means an existing, non-deprecated Tier A or Tier B usage fails to compile, throws, or observably does something different — a stricter type, a warning that becomes a throw, and a changed return value for an input that already worked all count.
+- **Deprecate before removing.** An API slated for removal is marked `@deprecated` with its replacement named, warns once in development when called, and keeps working through at least one minor before the next major removes it.
+- **Node**: the floor is the oldest Node LTS still in maintenance. Raising it to drop an end-of-life line is a **minor**, announced in the changelog one minor ahead.
+- **TypeScript**: raising the minimum supported version is a **minor**, announced one minor ahead, and never past the latest stable minus two minors.
+- **Vite**: `@sigx/vite` peers on a Vite major (`vite >= 8`). Following a new Vite major is a **minor** while the previous one keeps working; dropping one is a major.
+- **Security fixes** may tighten behaviour in a patch when the looser behaviour was the vulnerability; the changelog lists them under `Security`.
+
+## The install shape — the app owns the copy
+
+`@sigx/reactivity` (the tracking context, the batch queue) and `@sigx/runtime-core` (the current instance, app contexts, DI tokens, the SSR restore blob) hold per-process state that must exist **exactly once**. Every package is laid out so that one copy is all there is to resolve to:
+
+- **`sigx` is the one package that brings the singletons in** — it depends on `@sigx/reactivity`, `@sigx/runtime-core` and `@sigx/runtime-dom`.
+- **Every other package peers on them** at `^1.0.0` and resolves against the app's copy.
+
+| Package | Peers on (`^1.0.0`) |
+|---|---|
+| `sigx` | — (depends on reactivity, runtime-core, runtime-dom) |
+| `@sigx/reactivity`, `@sigx/serialize` | — |
+| `@sigx/runtime-core` | `@sigx/reactivity` |
+| `@sigx/runtime-dom`, `@sigx/cache` | `@sigx/reactivity`, `@sigx/runtime-core` |
+| `@sigx/server-renderer`, `@sigx/server` | `sigx` |
+| `@sigx/ssr-islands`, `@sigx/resume` | `sigx`, `@sigx/server-renderer` |
+| `@sigx/vite` | `sigx` and `vite >= 8`; the four server/strategy packs are optional peers |
+| `@sigx/cloudflare`, `@sigx/vercel`, `@sigx/netlify` | `@sigx/vite` |
+
+`@sigx/serialize` stays a plain dependency wherever it is used — it is a zero-dependency leaf, so a duplicate is harmless.
+
+**An app** installs `sigx` plus the packs it uses:
+
+```bash
+pnpm add sigx @sigx/router @sigx/store
+pnpm add -D @sigx/vite vite
+```
+
+**A library** — anything published for other apps to install — declares what it needs from the family as `peerDependencies` and never depends on it:
+
+```json
+{
+    "peerDependencies": {
+        "@sigx/reactivity": "^1.0.0",
+        "@sigx/runtime-core": "^1.0.0"
+    }
+}
+```
+
+Peer on `@sigx/reactivity` + `@sigx/runtime-core` for a renderer-neutral library (one that runs on the web, terminal and lynx alike), or on `sigx` for a web-only one. Add the same packages as `devDependencies` so the library builds and tests on its own. From 1.0 core minors are additive, so one wide `^1.0.0` range is correct for the whole major — whichever `1.x` the app installs is the copy every library resolves to. A library that lags shows up as a named unmet-peer notice at install time, not as a second copy at runtime.
+
+A project that installs only `@sigx/runtime-core`, `@sigx/cache`, a pack or an adapter — and never `sigx` — still resolves (npm 7+ and pnpm auto-install missing peers) with an unmet-peer notice naming what to add. Add `sigx` (or the named package) to the app's `dependencies`.
+
+## "Two copies of @sigx/reactivity are loaded"
+
+A second copy is caught at runtime. `@sigx/reactivity` and `@sigx/runtime-core` each stamp a hidden global when they first evaluate; a second copy evaluating in the same realm — two installed versions, or a library that bundled its own — **throws in development**, naming both versions and both module URLs:
+
+```text
+[sigx] Two copies of @sigx/reactivity are loaded: 0.15.0 at file:///…/.pnpm/…/dist/index.js and 1.0.0 at file:///…/@sigx/reactivity/dist/index.js.
+```
+
+(`@sigx/runtime-core` has the same message with its own name.) In production it **warns once** and keeps running. The same file evaluating again — a Vite restart, an HMR re-import — is not a second copy and stays silent.
+
+Two copies mean split state: signals written through one copy never reach effects tracked by the other, and the current instance, app contexts and DI tokens of one are invisible to the other. The fix is always on the install side:
+
+1. Install `sigx` once, in the app's `dependencies`.
+2. Make every `@sigx/*` library a **peer** of it — including your own workspace packages.
+3. Look for two `@sigx/reactivity` (or `@sigx/runtime-core`) entries in the lockfile, and find what pulls in the second one (`pnpm why @sigx/reactivity`, `npm ls @sigx/reactivity`). A library still on a `0.x` range is the usual cause — upgrade it to a release that peers on `^1.0.0`.
+
+## JSX setup per consumer kind
+
+`@sigx/runtime-core` owns the platform-neutral base of the global `JSX` namespace — `JSX.Element`, `IntrinsicAttributes` (`key`) and `ElementChildrenAttribute` — and ships it in its published types. It declares **no** `IntrinsicElements`: the renderer declares the elements it can render.
+
+| You are building | `jsxImportSource` | What types your tags |
+|---|---|---|
+| A web app (`sigx`) | `"sigx"` | `@sigx/runtime-dom`'s HTML and SVG table. An unknown tag such as `<blink>` is a type error. |
+| A headless or non-web renderer on `@sigx/runtime-core` alone | `"@sigx/runtime-core"` | Nothing until you declare your own `IntrinsicElements` — see [Non-web renderers](/core/packages/runtime-core/usage#non-web-renderers). |
+| An app on another renderer (terminal, lynx) | that renderer's documented source | The elements that renderer declares. |
+
+```json
+// tsconfig.json — a web app
+{
+    "compilerOptions": {
+        "jsx": "react-jsx",
+        "jsxImportSource": "sigx"
+    }
+}
+```
+
+## Upgrading from 0.15
+
+Each breaking change below shows the pattern that breaks and what to write instead. Server functions have their own consolidated form in 1.0 — see [`@sigx/server`](/server/packages/server/overview).
+
+| Area | 0.15 | 1.0 |
+|---|---|---|
+| Library `package.json` | `@sigx/*` in `dependencies` (or a single-minor peer such as `^0.15.0`) | `@sigx/reactivity` / `@sigx/runtime-core` (or `sigx`) in `peerDependencies` at `^1.0.0`; see [the install shape](#the-install-shape--the-app-owns-the-copy) |
+| An app with two installed copies of core | Silently split reactive state | Throws in development, naming both copies; see [above](#two-copies-of-sigxreactivity-are-loaded) |
+| An unknown JSX tag in an app (`<blink>`) | Typechecked as `any` wherever runtime-core's source was in the program | Type error — runtime-dom's table types every tag |
+| A headless renderer on `@sigx/runtime-core` | Every tag was `any` (or no `JSX` namespace at all from the published types) | Declare your renderer's own `JSX.IntrinsicElements`; see [Non-web renderers](/core/packages/runtime-core/usage#non-web-renderers) |
+| A hand-assembled vnode literal passed as a prop (`{ type, props, key: null, children: [], dom: null }`) | Handed to the renderer raw | Reaches the renderer as a reactive proxy, which it must not receive — build the element with `jsx()` / TSX or by calling the component factory |
+| A plain data prop shaped like a vnode (`type` / `props` / `children` / `dom` keys) | Returned raw and stopped tracking | A reactive prop like any other; see [Element-valued props](/core/docs/components#element-valued-props) |
+| A plugin ordered after `sigx()` that reads `config.resolve.alias` | Saw the `@sigx/vite` dev pin's entries merged into yours | Sees your alias map unchanged — the pin is a resolver step; see [the dev pin](/vite/docs/hmr#why-this-matters) |
+| A production Node server that imports `@sigx/vite/ssr` | Worked only while dev dependencies were installed | Read `template` / `assetsFor` from `dist/server/sigx-app.js`; see [Vite SSR](/vite/docs/ssr#in-production) |
+| Resume: a duplicate component name across modules, a component reachable only as `export default`, or a handler binding `$scope` / `$el` | A warning, and the component was dropped or left non-resumable | A build error naming the file |
+
+## Next steps
+
+- [Installation](/core/docs/installation) — installing an app and configuring TypeScript
+- [Globals on the page](/core/docs/advanced/globals) — the seams, and which of them are covered

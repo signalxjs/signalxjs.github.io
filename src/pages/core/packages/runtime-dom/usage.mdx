@@ -17,8 +17,10 @@ Most apps install the `sigx` umbrella, which bundles `@sigx/reactivity`, `@sigx/
 You only import `@sigx/runtime-dom` directly for custom setups — for example, mounting without the app/plugin layer, or wiring up portals and directives by hand.
 
 ```bash
-pnpm add @sigx/runtime-dom
+pnpm add @sigx/runtime-dom @sigx/runtime-core @sigx/reactivity
 ```
+
+It peers on `@sigx/reactivity` and `@sigx/runtime-core` (`^1.0.0`) rather than bringing its own copy.
 
 Importing the package is impure by design. The entry module wires up the DOM platform globally the moment it loads: it sets `HTMLElement` as the default element type for core, installs the singleton DOM renderer as the default mount target, registers the built-in `show` directive, and enables v-model on form elements. Import it once and the rest of SignalX targets the browser.
 
@@ -133,6 +135,7 @@ A `use:` prop accepts three shapes: a directive definition directly, a `[definit
 
 ## Notes
 
+- **JSX types are layered.** `JSX.Element`, `IntrinsicAttributes` (`key`) and `ElementChildrenAttribute` come from `@sigx/runtime-core`; this package adds the HTML/SVG `IntrinsicElements` table and the `use:*` directive extension point. With `jsxImportSource: "sigx"` every real tag is typed by that table, and an unknown tag (`<blink>`) is a type error. A non-DOM renderer declares its own `IntrinsicElements` instead — see [Non-web renderers](/core/packages/runtime-core/usage#non-web-renderers).
 - DOM property semantics — styles, `on*` handlers, `className`, `.prop`/`prop:` bindings, SVG/xlink attributes and form `value`/`checked` — are covered in [DOM properties](/core/docs/dom-properties).
 - Two-way `value` binding is documented in [Two-way binding](/core/docs/two-way-binding).
 - For low-level renderer primitives (SSR/hydration), see the [API reference](/core/packages/runtime-dom/api) and the `@sigx/runtime-dom/internals` subpath — those are not stable public API.

@@ -16,6 +16,18 @@ order: 20
 pnpm add @sigx/reactivity
 ```
 
+`@sigx/reactivity` has no peers of its own. In a web app you rarely add it directly — `sigx` depends on it and re-exports its API. A **library** that uses it declares it as a peer (`"@sigx/reactivity": "^1.0.0"` under `peerDependencies`) so it resolves to the app's copy; see [the install shape](/core/docs/stability#the-install-shape--the-app-owns-the-copy).
+
+## One copy per page
+
+The tracking context lives in this module, so an app must hold exactly one copy of it: signals written through a second copy never reach effects tracked by the first. A second copy evaluating in the same realm — two installed versions, a bundler that inlined one — **throws in development** with both versions and both module URLs, and warns once in production:
+
+```text
+[sigx] Two copies of @sigx/reactivity are loaded: 0.15.0 at file:///…/.pnpm/…/dist/index.js and 1.0.0 at file:///…/@sigx/reactivity/dist/index.js.
+```
+
+The fix is on the install side: install `sigx` once in the app and keep every `@sigx/*` library a peer of it, so there is one copy to resolve to. Two `@sigx/reactivity` entries in the lockfile are the thing to look for. See [Stability & versioning](/core/docs/stability#two-copies-of-sigxreactivity-are-loaded).
+
 ## Verify
 
 ```tsx

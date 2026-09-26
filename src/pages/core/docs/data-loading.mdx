@@ -147,6 +147,14 @@ const results = useData(() => query.value && ['search', query.value], searchApi)
 
 A tuple exists to carry parameters, so a *static* tuple is rejected by design — a static key is a plain string; parameters that change belong in a reactive getter.
 
+A tuple element is any **JSON value**: a string, number, boolean or `null`, an array, or a plain object of JSON values. Identity is canonical JSON with **object keys sorted**, so property order never matters — `{ userId, page }` and `{ page, userId }` are the same key:
+
+```tsx
+const orders = useData(() => ['orders', { userId: props.userId, page: page.value }], fetchOrders);
+```
+
+Values with no JSON identity — class instances, `Date`, `Map`, `undefined`, `bigint` — throw in development. Convert them first (a `Date` to its ISO string, say).
+
 ### Stale-while-revalidate with refresh
 
 `refresh()` re-runs the fetcher **in place**. It keeps the current `value` visible and moves `state` to `refreshing` (not `pending`), so a revalidation indicator reads `state === 'refreshing'` while the ready arm keeps rendering. It never rejects — a failed refresh lands on `.error`:
@@ -204,6 +212,7 @@ For arguments, return a `[fn, ...args]` tuple from a getter. It's reactive and i
 
 ```tsx
 const post = useData(() => [getPost, props.id]);   // re-runs when props.id changes
+const cart = useData(() => [getCart, { userId }]); // an input object keys directly
 ```
 
 The build stamps each server function with a stable key derived from its id and name, so these reads are SSR-transferable and deduped just like string-keyed ones. (Move a function between files without pinning an explicit `id` and its key changes — set `id` on anything you invalidate by reference.)
@@ -214,7 +223,9 @@ To refresh a server-function read after a write, declare what it invalidates **b
 
 An `invalidates` pattern matches a read's **canonical key**, and that is the
 whole rule. A pattern is an exact key string, a tuple prefix, or a bare
-server-function reference that matches every read of that function:
+server-function reference that matches every read of that function. Object
+elements are compared key-sorted on both sides, so a pattern such as
+`[getCart, { userId, region }]` matches a read spelled `[getCart, { region, userId }]`:
 
 ```ts
 export const addItem = serverFn({

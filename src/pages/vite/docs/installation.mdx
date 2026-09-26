@@ -27,17 +27,22 @@ yarn add -D @sigx/vite
 
 ## Peer Dependencies
 
-Both peer dependencies are required and are not bundled — install them
-yourself:
+`vite` and `sigx` are required peers and are not bundled — install them
+yourself. The server and strategy packs are optional peers: install the ones
+your app uses.
 
 | Peer | Version range | Notes |
 |---|---|---|
 | `vite` | `>= 8.0.0` | The plugin targets Vite 8 (Rolldown). |
-| `sigx` | `*` | The SignalX runtime the plugin shares as a singleton. |
+| `sigx` | `^1.0.0` | The SignalX runtime the plugin shares as a singleton. Your app installs it once and owns the copy. |
+| `@sigx/server-renderer`, `@sigx/ssr-islands`, `@sigx/resume`, `@sigx/server` | `^1.0.0` | Optional — only for SSR, islands, resume or server functions. |
 
 ```bash
 npm install vite sigx
 ```
+
+`@sigx/vite` is a build tool: keep it in `devDependencies`. A production server
+never imports it — see [Vite SSR mode](/vite/docs/ssr#in-production).
 
 ## Configure Vite
 
