@@ -167,6 +167,11 @@ export default defineSSGConfig({
             showDrafts: 'dev',
             sectionOrder: ['Getting Started', 'Guides', 'Reference'],
         },
+        'richtext-docs': {
+            path: '/richtext/docs',
+            showDrafts: 'dev',
+            sectionOrder: ['Getting Started', 'Guides', 'Formats', 'Reference'],
+        },
         'ssg-docs': {
             path: '/ssg/docs',
             showDrafts: 'dev',
@@ -338,6 +343,12 @@ export default defineSSGConfig({
         '/server/docs/authoring/': '/server/packages/server/usage/',
         '/server/docs/deployment': '/server/packages/server/deployment/',
         '/server/docs/deployment/': '/server/packages/server/deployment/',
+        // `@sigx/markdown` (renamed to the @sigx/richtext family) and the
+        // richtext READMEs point at these short URLs.
+        '/markdown': '/richtext/',
+        '/markdown/': '/richtext/',
+        '/richtext/editor': '/richtext/docs/editor/',
+        '/richtext/editor/': '/richtext/docs/editor/',
         '/lynx/modules/device-info': '/lynx/modules/core/overview/',
         '/lynx/modules/device-info/': '/lynx/modules/core/overview/',
         '/lynx/modules/device-info/overview': '/lynx/modules/core/overview/',
@@ -401,6 +412,7 @@ export default defineSSGConfig({
             { title: 'Use', collections: ['use-docs'] },
             { title: 'Internationalization', collections: ['i18n-docs'] },
             { title: 'Mermaid Diagrams', collections: ['mermaid-docs'] },
+            { title: 'Rich Text (documents, markdown & HTML, streaming view, block editor)', collections: ['richtext-docs'] },
             { title: 'daisyUI Components', collections: ['daisyui-docs', 'daisyui-api'] },
             { title: 'Zero (unstyled components + design systems)', collections: ['zero-docs'] },
             { title: 'Zero Packages (authoring kit & design systems)', links: moduleLlmsLinks('zero') },

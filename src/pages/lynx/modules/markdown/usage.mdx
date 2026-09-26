@@ -1,6 +1,6 @@
 ---
 title: "Usage"
-description: "Using Markdown in a SignalX Lynx app — streaming markdown renderer patterns and examples with @sigx/lynx-markdown."
+description: "Using Markdown in a SignalX Lynx app — streaming rendering, theming, plugins and the block-tree editor with @sigx/lynx-markdown."
 layout: module-docs
 category: "Guides"
 order: 30
@@ -8,11 +8,11 @@ order: 30
 
 # Using Markdown
 
-<p class="lede">Render markdown to native views, stream AI output without flicker, theme every node, and — when you opt in — edit markdown WYSIWYG on a native field.</p>
+<p class="lede">Render markdown to native views, stream AI output without flicker, theme every node, and edit markdown in a block-tree editor on native fields.</p>
 
-`@sigx/lynx-markdown` is pure JavaScript and zero-dependency. It parses markdown in JS and renders to Lynx `<view>` and `<text>` primitives, so output looks identical on iOS, Android, and Harmony. There is no native module and no `ios/` or `android/` directory — nothing to prebuild or link for the renderer, and no permissions to request.
+`@sigx/lynx-markdown` renders and edits [`@sigx/richtext`](/richtext/) trees natively. The incremental parser, the streaming controller, the render engine and the editor core live in `@sigx/richtext` and `@sigx/richtext-markdown` — shared with the web — and this package maps them onto Lynx `<view>`, `<text>` and `<image>` primitives. Output looks identical on iOS, Android and Harmony. The renderer has no native module: nothing to prebuild or link, and no permissions to request.
 
-The package has two entry points. The root (`@sigx/lynx-markdown`) is the renderer, parser, streaming bridge, and plugins; it pulls in no runtime peers, so renderer-only consumers pay nothing. The `@sigx/lynx-markdown/editor` subpath is the WYSIWYG editor surface — importing it is what turns the optional peers (`@sigx/lynx-keyboard`, `@sigx/lynx-richtext`) into real requirements. The only always-required peer is `@sigx/lynx`.
+The package has two entry points. The root (`@sigx/lynx-markdown`) is the renderer, the mention plugin and the richtext re-exports; it pulls in no runtime peers beyond `@sigx/lynx`. The `@sigx/lynx-markdown/editor` subpath is the editor — importing it is what turns the optional peers (`@sigx/lynx-richtext`, `@sigx/lynx-keyboard`) into real requirements. `@sigx/richtext` and `@sigx/richtext-markdown` come along as dependencies; their `@sigx/reactivity` / `@sigx/runtime-core` peers are the ones `@sigx/lynx` already requires.
 
 ## Basic rendering
 
@@ -28,9 +28,7 @@ function Doc() {
 }
 ```
 
-`MarkdownView` supports CommonMark plus GFM: headings, paragraphs, bold/italic/strike, inline code, links, images, autolinks (angle and bare), ordered and unordered nested lists, GFM task lists, blockquotes, fenced code, thematic breaks, and GFM tables with per-column alignment. Unsupported constructs — raw HTML, reference-style links, setext headings, syntax highlighting — render as literal text rather than throwing.
-
-Link hrefs are sanitized before they reach `onLink`: only `http(s):`, `mailto:`, `tel:`, and scheme-less links pass through; `javascript:` and `data:` collapse to `#`.
+`MarkdownView` supports CommonMark plus GFM: ATX and setext headings, emphasis, strong, strikethrough, inline code, links, reference links and definitions, images, autolinks (angle and bare), nested ordered and unordered lists, task lists, blockquotes, fenced and indented code, thematic breaks, and tables with per-column alignment. Raw HTML renders as literal text. The tree is mdast — see [Documents & formats](/richtext/docs/documents) for its shape.
 
 ## Handling link and image taps
 
@@ -43,32 +41,31 @@ function Article(props: { source: string }) {
   return (
     <MarkdownView
       value={props.source}
-      onLink={(href) => openInBrowser(href)}
-      onImageTap={(src) => showLightbox(src)}
+      onLink={(url, node) => openInBrowser(url)}
+      onImageTap={(url) => showLightbox(url)}
     />
   );
 }
 ```
 
-Note that the default image renderer shows the alt text (or the `src`) as a tappable link, not a real `<image>` element — supply your own `image` component if you need inline pictures.
+URLs are sanitised by the render engine before a component or `onLink` sees them: only `http(s):`, `mailto:`, `tel:` and scheme-less links pass through (`http(s):` and relative for images); `javascript:` and friends become `#`.
+
+The default image renderer shows the alt text (or the URL) as a tappable label, not a real `<image>` element — supply your own `image` component if you need inline pictures.
 
 ## Streaming AI output
 
-`createMarkdownStream()` bridges a token loop to `MarkdownView`. It owns a reactive `value` signal and coalesces `append()` bursts into bounded re-renders. Pass `stream.value.value` to the view and feed chunks as they arrive.
+`createTextStream()` (re-exported from `@sigx/richtext`) bridges a token loop to `MarkdownView`. It owns a reactive `value` signal and coalesces `append()` bursts into bounded re-renders.
 
-Streaming is incremental and flicker-free: as the source grows token-by-token, finalized blocks keep stable keys (`b-<i>`) and are never re-parsed or remounted. Only the last top-level block can still change, so completed paragraphs and code blocks never reflow.
+Streaming is incremental and flicker-free: as the source grows token by token, finalized blocks keep their identity and their keys (`b-<i>`) and are never re-parsed or remounted. Only the trailing blocks that can still change are re-parsed, so completed paragraphs and code blocks never reflow.
 
 ```tsx
-import { MarkdownView, createMarkdownStream } from '@sigx/lynx-markdown';
+import { MarkdownView, createTextStream } from '@sigx/lynx-markdown';
 
-const stream = createMarkdownStream({ flushIntervalMs: 16 });
+const stream = createTextStream({ flushIntervalMs: 16 });
 
 async function generate(prompt: string) {
   stream.reset();
-  for await (const token of askModel(prompt)) {
-    stream.append(token);
-  }
-  stream.done();
+  await stream.pipe(askModel(prompt));   // or: for await … stream.append(token); stream.done();
 }
 
 function ChatBubble() {
@@ -76,22 +73,24 @@ function ChatBubble() {
 }
 ```
 
-`flushIntervalMs` controls coalescing. `0` (the default) flushes synchronously on every `append`; `16` caps updates at roughly 60fps under a fast stream. `done()` sets `finished`; `reset()` clears everything for a regenerate. Unterminated fenced code renders while streaming (with `closed: false` on the code node) and closes cleanly once the final fence arrives.
+`flushIntervalMs` controls coalescing: `0` (the default) flushes on every `append`; `16` caps updates at roughly 60 per second. An unterminated code fence renders while streaming (the `code` slot gets `open: true`) and closes cleanly once the final fence arrives. See [Streaming](/richtext/docs/streaming) for `pipe`, cancellation and the engine's guarantees.
 
 ## Theming with a component map
 
-`MarkdownView` is design-system agnostic. It ships neutral, inline-styled `defaultComponents` and merges your partial `components` map over them — any node type you omit falls back to the default. Block renderers return a `JSXElement`; inline renderers return a `MarkdownChild` (a JSX element or a string).
+`MarkdownView` is design-system agnostic. It ships neutral, inline-styled `defaultComponents` and merges your partial `components` map over them — any slot you omit falls back to the default. The map is `@sigx/richtext`'s `ComponentMap` over Lynx elements (`LynxMarkdownComponents`), keyed by mdast node type:
+
+`root`, `paragraph`, `heading` (`depth`), `blockquote`, `list` (`ordered`, `start`, `spread`), `listItem` (`ordered`, `index`, `number`, `checked`, `spread`), `code` (`value`, `lang`, `meta`, `open`), `thematicBreak`, `table` (`align`), `tableRow` (`header`, `index`), `tableCell` (`header`, `align`, `index`), `html` (`value`), `text` (`value`), `emphasis`, `strong`, `delete`, `inlineCode` (`value`), `break`, `link` (`url`, `title`, `autolink`, `onLink`) and `image` (`url`, `alt`, `title`, `onImageTap`) — plus one slot per plugin node type (`mention`, `emoji`).
+
+Every component also receives `node` and, for parents, the rendered `children`. Block components return a `JSXElement`; inline components may return a string.
 
 ```tsx
-import { MarkdownView } from '@sigx/lynx-markdown';
+import { MarkdownView, type LynxMarkdownComponents } from '@sigx/lynx-markdown';
 
-const components = {
-  heading: (p) => (
-    <text style={{ fontSize: p.level === 1 ? 28 : 20, fontWeight: 'bold' }}>
-      {p.children}
-    </text>
+const components: Partial<LynxMarkdownComponents> = {
+  heading: ({ depth, children }) => (
+    <text style={{ fontSize: depth === 1 ? 28 : 20, fontWeight: 'bold' }}>{children}</text>
   ),
-  strong: (p) => <text style={{ fontWeight: 'bold', color: '#7c3aed' }}>{p.children}</text>,
+  strong: ({ children }) => <text style={{ fontWeight: 'bold', color: '#7c3aed' }}>{children}</text>,
 };
 
 function Themed(props: { source: string }) {
@@ -99,73 +98,75 @@ function Themed(props: { source: string }) {
 }
 ```
 
-For a ready-made theme, `@sigx/lynx-daisyui` exports `markdownComponents` — a complete daisyUI-styled map you can pass straight to `components`.
+The default `text` slot collapses a soft line break (kept as `\n` inside mdast `text`) to a space. For a ready-made theme, `@sigx/lynx-daisyui` ships `markdownComponents` — a complete daisyUI-styled map you can pass straight to `components`.
+
+## Plugins
+
+`MarkdownView` takes `@sigx/richtext` plugins (`RichTextPlugin[]`): node specs under `nodes`, markdown syntax and serializer rules under `formats.markdown`. A plugin node renders through `components[node.type]`, else its spec's text projection. See [Plugins](/richtext/docs/plugins) for the contract.
+
+`mentionPlugin` (the `@[label](id)` syntax, re-exported from `@sigx/richtext-markdown`) is the reference:
 
 ```tsx
-import { MarkdownView } from '@sigx/lynx-markdown';
-import { markdownComponents } from '@sigx/lynx-daisyui';
+import { MarkdownView, mentionPlugin, type Mention } from '@sigx/lynx-markdown';
 
-function DaisyDoc(props: { source: string }) {
-  return <MarkdownView value={props.source} components={markdownComponents} />;
-}
-```
-
-## Mention previews via a parser extension
-
-`MarkdownView` is not plugin-aware, but it accepts raw parser extensions and an `extension` component map, so you can render plugin syntax in read-only output. To show `@[label](id)` mention chips, pass the standalone `mentionSyntax` extension and map its rendered node to the plugin's preview component.
-
-```tsx
-import { MarkdownView, createMentionPlugin, mentionSyntax } from '@sigx/lynx-markdown';
-
-const plugin = createMentionPlugin({
-  search: (query) => findPeople(query), // returns MentionCandidate[]
-});
-
+const plugins = [mentionPlugin];
 const components = {
-  extension: { mention: plugin.inline.component },
+  mention: ({ node }: { node: Mention }) => <text class="chip">@{node.label}</text>,
 };
 
-const extensions = [mentionSyntax] as const;
-
 function Transcript(props: { source: string }) {
-  return (
-    <MarkdownView value={props.source} extensions={extensions} components={components} />
-  );
+  return <MarkdownView value={props.source} plugins={plugins} components={components} />;
 }
 ```
 
-The `extensions` array must be a stable reference — a module constant, not an inline literal that changes identity on every render. Changing its identity recreates the parse engine and re-parses from scratch, defeating the incremental streaming optimization. The same applies if you ever rebuild `mentionSyntax`'s match impurely. A partial `@[lab` stays literal until the syntax completes, so it is streaming-safe.
+The `plugins` array must be a stable reference — a module constant, not an inline literal that changes identity on every render. Changing its identity recreates the parse engine and re-parses from scratch, defeating incremental streaming. A partial `@[lab` stays literal until the syntax completes, so plugin syntax is streaming-safe.
 
-## Editing markdown (WYSIWYG)
+To type a plugin node as phrasing content, augment `@sigx/richtext` in your app:
 
-The `@sigx/lynx-markdown/editor` subpath provides `MarkdownEditor`, a true-WYSIWYG editor over the `<sigx-richtext>` element (native on iOS/Android, `contenteditable` on web in v0.19.0+; a `Pressable` inside a bottom sheet is still inert on web, [lynx#764](https://github.com/signalxjs/lynx/issues/764)). It is lightly controlled: pass `value` in and read `onChange(markdown)` out. The `value` prop is initial-only / lightly-controlled — an incoming value equal to the last emitted markdown is treated as the editor's own echo and ignored.
+```ts
+import type { Mention } from '@sigx/lynx-markdown';
+
+declare module '@sigx/richtext' {
+  interface PhrasingContentMap { mention: Mention }
+}
+```
+
+## Editing markdown
+
+`MarkdownEditor` (from `@sigx/lynx-markdown/editor`) is the Lynx host of the [`@sigx/richtext` editor core](/richtext/docs/editor): one `createEditor()` per component, the mdast `Root` as the document, and every root block rendered as a keyed `BlockView` — paragraphs and headings as native `<sigx-richtext boundary-keys>` fields, code blocks as a `<textarea>`, lists, quotes and tables as views. State, history, commands, keymap, input rules (`# `, `- `, `1. `, `- [ ] `, `> `, `**bold**`, …), plugins and trigger sessions all live in the core and behave the same as on the web. Untouched blocks are never re-rendered.
 
 ```tsx
-import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
+import { MarkdownEditor, createSlashPlugin, type MarkdownEditorController } from '@sigx/lynx-markdown/editor';
+import { createMentionPlugin } from '@sigx/lynx-markdown';
+
+const mention = createMentionPlugin({ search: (q) => users.filter((u) => u.label.includes(q)) });
+const plugins = [mention, createSlashPlugin()];
+let ctrl: MarkdownEditorController | null = null;
 
 function Composer() {
   return (
     <MarkdownEditor
-      value={'# Draft\n\nStart typing…'}
-      placeholder="Write something"
-      onChange={(markdown) => saveDraft(markdown)}
+      value={draft.value}
+      onChange={(md) => { draft.value = md; }}
+      plugins={plugins}
+      toolbar="bottom"
+      placeholder="Write…"
+      controllerRef={(c) => { ctrl = c; }}
     />
   );
 }
 ```
 
-### Native setup and gotchas for the editor
+- **Document in, document out.** `value` / `onChange(markdown)` for markdown, `document` / `onDocumentChange(doc, transaction)` for the tree. Bind either or both; an inbound value equal to what the editor last emitted is ignored, so feeding `onChange` output back in is safe.
+- **Markdown is built in.** The editor reads and writes through `markdownFormat` and installs `markdownPreset` (the input rules and the `text/markdown` clipboard flavour) itself — you do not pass it.
+- **Keyboard.** Enter splits, Backspace at a block's start and Delete at its end join, ArrowUp / ArrowDown off the first / last line move between blocks, Tab / Shift-Tab indent list items, Escape selects the block. These reach the core through the field's [boundary keys](/lynx/modules/richtext/usage#block-editors-boundary-keys); on a native build without `bindboundarykey`, a typed newline still splits the block but the edge deletes stay in-block and arrows do not cross blocks.
+- **Plugins.** The same `RichTextPlugin[]` `MarkdownView` takes; a plugin's `editor` slice adds triggers, toolbar items, commands, keymap bindings and input rules. A baseline mention plugin is always registered, so `controller.insertChip()` round-trips even without `createMentionPlugin`.
 
-These apply only to the `/editor` subpath — the renderer needs none of them.
+See [MarkdownEditor](/lynx/modules/markdown/components/markdowneditor) for every prop and the controller.
 
-- **Peers become required.** Importing `/editor` makes `@sigx/lynx-richtext` (the native `<sigx-richtext>` element) and `@sigx/lynx-keyboard` real dependencies. Install both alongside the package.
-- **SafeAreaProvider for the suggestion popup.** The suggestion popup's keyboard hook reads keyboard height through `@sigx/lynx-keyboard`'s `useKeyboard()`, which needs a `<SafeAreaProvider>` ancestor. Without one it reads height `0` and the under-keyboard clamp is disabled (no crash, no warning). The hook only runs while the fullscreen overlay is open, so non-fullscreen editors don't need a provider.
-- **`ignore-focus` keeps the keyboard up.** The toolbar root, suggestion popup, and the fullscreen close affordance carry `ignore-focus` so taps never blur the editor (iOS folds the keyboard on touch-down to any non-`ignore-focus` target).
-- **Fullscreen restyles in place.** Going fullscreen re-styles the same mounted element (a `position: fixed` inset overlay); it is never re-parented, because re-parenting recreates the native view and loses the document.
+### Mentions in the editor
 
-## Mentions in the editor
-
-`createMentionPlugin` is the reference `MarkdownEditorPlugin`. Wired into the editor it adds parser syntax, document mapping, serialization, and a trigger that opens a suggestion session (default trigger `@`). Pass it through the editor's plugin surface (see the API reference for the exact prop on `MarkdownEditorProps`).
+`createMentionPlugin` is the Lynx half of the reference mention plugin: candidate search, the popup row renderer, and a node spec (`lynxMentionNode`) that keeps the candidate's `kind` on the chip. The node comes from `@sigx/richtext` and the `@[label](id)` syntax from `@sigx/richtext-markdown`.
 
 ```tsx
 import { createMentionPlugin } from '@sigx/lynx-markdown';
@@ -175,26 +176,106 @@ const mention = createMentionPlugin({
   debounce: 150,
   search: async (query) => {
     const people = await searchDirectory(query);
-    return people.map((p) => ({ id: p.id, label: p.name, kind: 'user' }));
+    return people.map((p) => ({ id: p.id, label: p.name, kind: 'user', avatar: p.avatarUrl }));
   },
+  component: ({ node }) => <text class="chip">@{node.label}</text>,   // for MarkdownView
 });
 ```
 
-The v1 mention rule forbids `]`, `)`, CR, and LF in both `label` and `id`; the parser regex and the serializer's cleaner enforce the same set, so round-trips are idempotent. Registering two plugins with a duplicate `name`, `syntax.name`, `docMapping.spanType`, or `trigger` emits a `console.warn`, because resolution would be ambiguous.
+A label cannot contain `]`, CR or LF, and an id cannot contain `)`, CR or LF; candidates are cleaned on the way in (and one that cleans to empty is never offered), so round-trips are idempotent. Extra candidate fields (`avatar`, `subtitle`, …) reach a custom `renderItem` but never the chip or the markdown. The returned plugin's `component` is the preview renderer for `<MarkdownView components={{ mention: plugin.component }}>`.
 
-## Markdown ⇄ RichDoc conversion
+### Rendering suggestions yourself
 
-The editor subpath also exports `mdToDoc` / `docToMd`, which bridge markdown and the `@sigx/lynx-richtext` `RichDoc` model. The round-trip contract is that `mdToDoc(docToMd(doc))` is structurally equal to a normalized doc: emphasis markers, hard breaks (which become paragraph breaks), and blank lines normalize, and italic serializes as `_`. Anything the flat model can't hold — nested, loose, or multi-paragraph lists, quotes with non-paragraph content, tables, thematic breaks, images — round-trips byte-for-byte as `raw` blocks.
+The built-in popup renders inside the block the session belongs to (`suggestionPopup` styles it). A host that docks its own list — a row above the keyboard in a chat composer, say — passes `suggestions="none"` and draws from `renderSuggestions`, or observes sessions with `onTriggerSession`:
+
+```tsx
+import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
+
+function ChatComposer() {
+  return (
+    <MarkdownEditor
+      plugins={plugins}
+      suggestions="none"
+      renderSuggestions={({ session, activeIndex, pick, close }) => (
+        <scroll-view scroll-x class="suggest-row">
+          {session.items.map((item, i) => (
+            <view key={item.id} class={i === activeIndex ? 'pill active' : 'pill'} bindtap={() => pick(item)}>
+              <text>{item.label}</text>
+            </view>
+          ))}
+        </scroll-view>
+      )}
+    />
+  );
+}
+```
+
+`renderSuggestions(api)` receives `session` (the plugin, block key, query, items and a `loading` flag), `activeIndex`, `setActive(index)`, `pick(item)` and `close()`. The docked list renders below the content and above a bottom toolbar. `onTriggerSession(session | null)` fires as a session opens, updates and closes, for hosts that render the list somewhere else entirely.
+
+### Native setup and gotchas for the editor
+
+These apply only to the `/editor` subpath — the renderer needs none of them.
+
+- **Peers become required.** Importing `/editor` makes `@sigx/lynx-richtext` (the native `<sigx-richtext>` element) and `@sigx/lynx-keyboard` real dependencies. Install both, then `sigx prebuild`.
+- **SafeAreaProvider for the keyboard hooks.** The suggestion popup and the fullscreen overlay read keyboard height through `@sigx/lynx-keyboard`'s `useKeyboard()`, which needs a `<SafeAreaProvider>` ancestor. Without one it reads height `0` (no crash, no warning).
+- **`ignore-focus` keeps the keyboard up.** The toolbar, the suggestion popup and the fullscreen close affordance carry `ignore-focus` so taps never blur the editor.
+- **Fullscreen restyles in place.** Going fullscreen re-styles the same mounted element (a `position: fixed` inset overlay); it is never re-parented, because re-parenting recreates the native views and loses the document.
+- **Text size follows the OS.** `fontSize` (default 16) is the size at the default system setting, multiplied by the effective font scale — and the `minLines` / `maxLines` window scales with it, live.
+
+## Upgrading from 0.28
+
+`@sigx/lynx-markdown` 0.29–0.31 moved the parser, streaming and editor core into `@sigx/richtext` / `@sigx/richtext-markdown` and made the AST mdast. `MarkdownView` and `MarkdownEditor` kept their names.
+
+**AST and component slots**
+
+| Before | Now |
+|---|---|
+| `heading.level` | `heading.depth` (the `heading` slot receives `depth`) |
+| `codeBlock` node (`closed`, `lang?`) | `code` (`open?: true` only while unterminated; `lang: string \| null`, plus `meta`) |
+| `em` / `del` / `codeSpan` / `br` | `emphasis` / `delete` / `inlineCode` / `break` |
+| `autolink` node + `components.autolink` | a `link` node; the `link` slot receives `autolink: boolean` |
+| `link.href` / `image.src` | `link.url` / `image.url` |
+| `extension { name, attrs, raw }` + `components.extension[name]` | plugin node types (`{ type: 'mention', id, label }`) rendered by `components[type]` |
+| `node.raw` | `node.position` (`sliceSource(source, node)`) |
+| `list.tight` / `list.items` | `list.spread` (inverted) / `list.children` of `listItem` |
+| `table.header` / `table.rows` | `table.children` (`tableRow`s, the first is the header) of `tableCell` |
+| — | new slots `text` and `html` |
+
+**Exports and props**
+
+| Before | Now |
+|---|---|
+| `createMarkdownStream` | `createTextStream` |
+| `parseBlocks` / `parseInline` (root) | `parseMarkdown(src, { plugins })`, or `markdownFormat` |
+| `<MarkdownView extensions={[syntax]}>` | `<MarkdownView plugins={[plugin]}>` (`RichTextPlugin[]`) |
+| `ParserInlineExtension` (`match(text, pos)` → node with `raw`) | `InlineSyntaxExtension` (`match(text, pos, ctx)` → `{ node, end }`), under a plugin's `formats.markdown.inline` |
+| `MarkdownComponents` / `MarkdownChild` | `LynxMarkdownComponents` (`ComponentMap<JSXElement>`, only `root` required) / `LynxMarkdownChild` (`RenderChild<JSXElement>`) |
+| `StrongProps`, `EmProps`, `RootProps`, … | the richtext prop types (`HeadingProps`, `ListProps`, `LinkProps`, `NodeProps`, …); `LynxImageProps` adds `onImageTap` |
+| `onLink(href)` | `onLink(url, node)` with the sanitised URL |
+| `InlineKindSpec` / `mentionInlineKind` | a `NodeSpec` with an `inline` mapping / `lynxMentionNode` |
+| `declare module '@sigx/lynx-markdown'` for plugin nodes | `declare module '@sigx/richtext'` |
+
+**Editor**
+
+| Before | Now |
+|---|---|
+| `MarkdownEditorPlugin { name, inline, trigger, toolbar }` | a `RichTextPlugin` with an `editor` slice (`{ triggers, toolbar, commands, keymap, inputRules }`) |
+| `createMentionPlugin(…)` → `MarkdownEditorPlugin` | same options → a `RichTextPlugin` (`LynxMentionPlugin`, with `component` for `MarkdownView`) |
+| `mdToDoc` / `docToMd` | `parseMarkdown` / `toMarkdown` (or `markdownFormat`); the per-block `flatToDoc` / `docToFlat` map one field |
+| `onSelectionChange(SelectionState)` | `onSelectionChange(EditorSelection)` — key-addressed |
+| `<EditorToolbar controller selection>` | `<EditorToolbar controller>` — active and enabled states come from the core's `toolbarState` |
+| `renderItem(item, active, run)` | `renderItem(item, active, run, enabled)` |
+| Lynx `createTriggerSessionManager` | the core's, re-exported under the same name |
 
 ## Notes
 
-- Renderer is pure JS: no native module, no prebuild, no permissions.
+- The renderer is pure JS: no native module, no prebuild, no permissions.
 - `value` is reactive and incremental — finalized blocks never re-parse, so streaming doesn't flicker.
-- Keep `extensions` a stable array reference; recreating it resets incremental parse state.
-- Link hrefs are sanitized — only `http(s):`, `mailto:`, `tel:`, and scheme-less links survive.
+- Keep `plugins` a stable array reference; recreating it resets incremental parse state.
+- URLs are sanitised at render time — only `http(s):`, `mailto:`, `tel:` and scheme-less links survive.
 - The `/editor` subpath turns `@sigx/lynx-richtext` and `@sigx/lynx-keyboard` into required peers; the root does not.
 
 ## See also
 
 - [API reference](/lynx/modules/markdown/api) — every export and its signature.
-- [Installation](/lynx/modules/markdown/installation) — project setup.
+- [`@sigx/richtext`](/richtext/) — the document model, formats, plugins and editor core this package hosts.

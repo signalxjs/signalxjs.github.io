@@ -178,7 +178,7 @@ function ReactionSheet({ react }: { react: (glyph: string) => void }) {
 
 ## Markdown editor integration
 
-The `@sigx/lynx-emoji/markdown` subpath integrates with `@sigx/lynx-markdown`'s editor — a separate entry so the core picker stays decoupled (the markdown peer is referenced only via `import type`, erased at runtime). `createEmojiPlugin()` adds a `:` trigger that opens a suggestion popup ranked the same way the picker's search is. Selecting inserts the glyph by default (`insert: 'shortcode'` keeps `:smile:` source). Pass `onPickerRequest` to add a 😊 toolbar button that asks your app to open a picker surface — the editor does not own that UI.
+The `@sigx/lynx-emoji/markdown` subpath integrates with `@sigx/lynx-markdown` — a separate entry so the core picker stays decoupled (the markdown peer is referenced only via `import type`, erased at runtime). `createEmojiPlugin()` returns a `RichTextPlugin` whose editor slice adds a `:` trigger that opens a suggestion popup ranked the same way the picker's search is. Selecting inserts the glyph by default (`insert: 'shortcode'` keeps `:smile:` source). Pass `onPickerRequest` to add a 😊 toolbar button that asks your app to open a picker surface — the editor does not own that UI.
 
 ```tsx
 import { createEmojiPlugin } from '@sigx/lynx-emoji/markdown';
@@ -195,24 +195,23 @@ function Editor({ openSheet }: { openSheet: () => void }) {
 }
 ```
 
-To render `:shortcode:` source as glyphs in a read-only view, wire the syntax extension and component into `MarkdownView`. The syntax is streaming-safe — a partial tail like `:smi` or an unknown shortcode stays literal text.
+To render `:shortcode:` source as glyphs in a read-only view, give `MarkdownView` a plugin carrying the `emoji` node and its syntax, and map the node to `emojiComponent`. The syntax is streaming-safe — a partial tail like `:smi` or an unknown shortcode stays literal text.
 
 ```tsx
-import { createEmojiSyntax, emojiExtensionComponent } from '@sigx/lynx-emoji/markdown';
+import { createEmojiSyntax, emojiComponent, emojiNode } from '@sigx/lynx-emoji/markdown';
 import { MarkdownView } from '@sigx/lynx-markdown';
 
+const plugins = [{ name: 'emoji', nodes: [emojiNode], formats: { markdown: { inline: [createEmojiSyntax()] } } }];
+const components = { emoji: emojiComponent };
+
 function Message({ source }: { source: string }) {
-    return (
-        <MarkdownView
-            value={source}
-            extensions={[createEmojiSyntax()]}
-            components={{ extension: { emoji: emojiExtensionComponent } }}
-        />
-    );
+    return <MarkdownView value={source} plugins={plugins} components={components} />;
 }
 ```
 
-Glyph-mode inserts are plain text and need neither extension; only shortcode mode and parsing messages that carry shortcodes do.
+Keep `plugins` a module constant — a new array identity makes the view re-parse from scratch.
+
+Glyph-mode inserts are plain text and need no syntax plugin; only shortcode mode and parsing messages that carry shortcodes do.
 
 ## Headless search
 

@@ -1,0 +1,177 @@
+---
+title: Rendering
+description: "RichTextView, the schema-driven render engine, component maps, the data-scope styling seam, links and highlighted code in @sigx/richtext"
+layout: docs
+category: Guides
+order: 50
+---
+
+# Rendering
+
+<p class="lede"><code>RichTextView</code> renders source text (or a tree) on the web. Underneath it is a renderer-neutral engine that walks the tree through a component map — the same engine the Lynx <code>MarkdownView</code> uses.</p>
+
+## `RichTextView`
+
+```tsx
+import { RichTextView } from '@sigx/richtext/dom';
+import { markdownFormat } from '@sigx/richtext-markdown';
+
+<RichTextView value={source} format={markdownFormat} onLink={(url) => router.push(url)} />
+```
+
+The view owns one incremental engine per instance, so a growing `value` re-parses only the live tail and re-renders only the block still being written — see [Streaming](/richtext/docs/streaming). The DOM entry knows no format: `format` is required and decides how `value` is parsed.
+
+| Prop | Type | Description |
+|---|---|---|
+| `format` | `DocumentFormat` | **Required.** The format `value` is written in; its `nodes` join the schema. A new identity re-creates the engine. |
+| `value` | `string` | Source text in `format`. Reactive: append to it and only the live block re-renders. |
+| `root` | `Root` | A parsed tree instead of source (wins over `value`). Keys are assigned if missing. |
+| `plugins` | `readonly RichTextPlugin[]` | Node types, syntax and renderers. Pass a stable array — a new identity re-parses from scratch. |
+| `schema` | `Schema` | The schema to render with. Default: the standard specs plus the format's and every plugin's `nodes`. |
+| `components` | `Partial<DomComponents>` | Overrides for any slot of the default map, plus renderers for plugin node types. |
+| `onLink` | `(url, node, event) => void` | Link clicks are routed here (with `preventDefault`) instead of navigating. `url` is the sanitised URL. |
+| `linkTarget` | `'_blank' \| '_self'` | `target` for external (`http(s)`) links when no `onLink` is given. |
+| `sanitizeUrl` | `(url, kind) => string` | Replace the default URL allow-list. |
+| `classPrefix` | `string` | Adds `<prefix>-<part>` classes next to the `data-part` attributes. |
+| `copyButton` | `boolean` | Show the copy button on code blocks. Default `true`. |
+
+Any other attribute (`id`, `style`, `aria-*`, `class`) lands on the root element; `class` composes with the part class.
+
+Render a saved document by passing it as `root`:
+
+```tsx
+import { fromJSON } from '@sigx/richtext';
+
+<RichTextView root={fromJSON(saved)} format={markdownFormat} />
+```
+
+## Component maps
+
+The engine is generic over the element type `E` — a sigx VNode on the web and on Lynx, a string or layout node in a terminal renderer. A platform supplies one `ComponentMap<E>`; the engine owns the recursion, the props each node type carries (from the schema) and the reconciliation keys, so a component only decides which element wraps its already-rendered `children`.
+
+Only `root` is required. A node type without a component renders its spec's `text` projection, else its children. Block components must return an element (the engine stamps the block's key on it); inline components may return a plain string.
+
+| Slot | Props beyond `node` |
+|---|---|
+| `root`, `paragraph`, `blockquote` | `children` |
+| `heading` | `depth`, `children` |
+| `list` | `ordered`, `start`, `spread`, `children` |
+| `listItem` | `ordered`, `index`, `number` (`start + index`), `checked` (`boolean \| null`), `spread`, `children` |
+| `code` | `value`, `lang`, `meta`, `open` (`true` while the fence is unterminated) |
+| `thematicBreak` | — |
+| `table` | `align` (one entry per column), `children` (`children[0]` is the header row) |
+| `tableRow` | `header`, `index`, `children` |
+| `tableCell` | `header`, `align`, `index`, `children` |
+| `html` | `value` (raw HTML — the default DOM renderer shows it as literal text) |
+| `definition` | — (renders nothing without a component) |
+| `text`, `inlineCode` | `value` |
+| `emphasis`, `strong`, `delete` | `children` |
+| `break` | — |
+| `link` | `url` (sanitised), `title`, `autolink`, `onLink`, `children` |
+| `image` | `url` (sanitised), `alt`, `title` |
+
+Plugin node types get a flat slot keyed by `node.type` — `components.mention`, `components.emoji`.
+
+```tsx
+import type { DomComponents } from '@sigx/richtext/dom';
+
+const components: Partial<DomComponents> = {
+    heading: ({ depth, children }) => <h2 class={`title-${depth}`}>{children}</h2>,
+    mention: ({ node }) => <a class="chip" href={`/u/${node.id}`}>@{node.label}</a>,
+};
+
+<RichTextView value={source} format={markdownFormat} plugins={[mentionPlugin]} components={components} />
+```
+
+`createDomComponents({ classPrefix, linkTarget, copyButton })` builds the default DOM map; `defaultComponents` is that map with no options. To render outside a view — a terminal renderer, a server string — call the engine directly:
+
+```ts
+import { renderDocument, standardSchema } from '@sigx/richtext';
+
+renderDocument(root, { components, schema: standardSchema });
+```
+
+`RenderContext` also takes `env`, `onLink`, `sanitizeUrl` and `stampKey` (how a key is stamped on an element — a string renderer passes a no-op). `renderBlock` and `renderInline` render a single block or phrasing run; `missingComponents(schema, components)` lists node types a map has no slot for.
+
+## Links, images and URL safety
+
+URLs are sanitised at render time, before a component sees them. The default allow-list is `http`, `https`, `mailto` and `tel` for links, `http` and `https` for images, plus relative URLs; anything else becomes `#`. The check follows how browsers parse URLs, so a scheme split by a tab or newline is still caught. Pass `sanitizeUrl` to replace it.
+
+Reference links (`[text][ref]`) are emitted as `linkReference` / `imageReference` nodes whether or not a definition exists, and resolve against the document's definitions at render time.
+
+## Styling
+
+The default DOM components carry no classes and no CSS. Every element has `data-scope="richtext"` and a `data-part` naming what it is:
+
+`root`, `paragraph`, `heading`, `blockquote`, `list`, `list-item`, `checkbox`, `code`, `code-header`, `code-lang`, `copy`, `pre`, `code-body`, `thematic-break`, `table`, `table-head`, `table-body`, `table-row`, `table-cell`, `emphasis`, `strong`, `delete`, `inline-code`, `break`, `link`, `image`.
+
+State rides on attributes:
+
+| Attribute | On | Meaning |
+|---|---|---|
+| `data-depth` | `heading` | `1`–`6` |
+| `data-ordered`, `data-spread` | `list` | Ordered list; loose list |
+| `data-task`, `data-checked` | `list-item` | A GFM task item; its box is ticked |
+| `data-header` | `table-row` | The header row |
+| `data-align` | `table-cell` | `left`, `center` or `right` |
+| `data-autolink` | `link` | A `<…>` or bare autolink |
+| `data-lang`, `data-open`, `data-copied` | `code` | Fence language; still streaming; just copied |
+
+```css
+[data-scope="richtext"][data-part="heading"][data-depth="1"] { font-size: 2rem; }
+[data-scope="richtext"][data-part="list-item"][data-task] { list-style: none; }
+[data-scope="richtext"][data-part="code"][data-open] { opacity: 0.8; }
+```
+
+Prefer class selectors? `classPrefix="rt"` adds `rt-heading`, `rt-code`, … next to the attributes.
+
+## Code blocks and highlighting
+
+The default `code` slot is `CodeBlock`: a header with the language label and a clipboard copy button, then `pre > code`. The copy button is omitted when the Clipboard API is absent, or with `copyButton={false}`.
+
+For syntax highlighting, add `shikiPlugin()` from `@sigx/richtext-shiki` — it contributes a highlighted `code` slot through `components.dom`:
+
+```tsx
+import { shikiPlugin } from '@sigx/richtext-shiki';
+
+const plugins = [shikiPlugin({ themes: { light: 'github-light', dark: 'github-dark' } })];
+
+<RichTextView value={source} format={markdownFormat} plugins={plugins} />
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `themes` | `{ light: 'github-light', dark: 'github-dark' }` | The dual theme pair |
+| `langs` | `DEFAULT_LANGS` | Grammars preloaded with the highlighter (`javascript`, `typescript`, `jsx`, `tsx`, `json`, `css`, `html`, `markdown`, `bash`, `shell`) |
+| `loadLanguages` | `true` | Load other bundled grammars on demand |
+| `load` | `() => import('shiki')` | How to load shiki — pass your own for a fine-grained bundle |
+| `cacheSize` | `200` | LRU cache entries, one per distinct `(lang, code)` |
+| `debounceMs` | `120` | Delay before highlighting an unterminated (streaming) fence; `0` highlights immediately |
+| `classPrefix`, `copyButton` | — | Forwarded to `CodeBlock` |
+
+How it behaves:
+
+- `shiki` loads on the first code block. Until then a block renders as plain tokens and swaps in place.
+- While a fence is still open, highlighting is debounced; the last result stays on screen with the new tail plain, so a block never flashes back to unhighlighted text. A closed fence highlights at once, and a cached result renders synchronously.
+- Highlighting never rejects: if the import, grammar or tokenizer fails, the block renders as plain text.
+- Tokens are `span` elements with inline styles — never `innerHTML`.
+
+Tokens are produced in shiki's dual-theme mode: each carries the light colour in `color` and the dark one as the `--shiki-dark` CSS variable. Switch with one rule:
+
+```css
+[data-theme="dark"] [data-scope="richtext"][data-part="code-body"] span { color: var(--shiki-dark); }
+```
+
+### Any other highlighter
+
+`highlightedCodeBlock(highlighter, options?)` in `@sigx/richtext/dom` turns anything implementing `CodeHighlighter` into a `code` slot:
+
+```ts
+interface CodeHighlighter {
+    peek(code: string, lang: string | null): HighlightedToken[][] | null;       // cached tokens, synchronously
+    highlight(code: string, lang: string | null): Promise<HighlightedToken[][]>; // never rejects
+    supports?(lang: string): boolean;
+}
+```
+
+`createShikiHighlighter(options)` is the shiki implementation on its own, and `plainTokens(code)` gives the one-token-per-line fallback.

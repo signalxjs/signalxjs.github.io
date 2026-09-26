@@ -1,6 +1,6 @@
 ---
 title: "MarkdownEditor"
-description: "MarkdownEditor — true-WYSIWYG markdown editing on iOS, Android and web"
+description: "MarkdownEditor — a block-tree markdown editor on native fields for iOS, Android and web"
 layout: module-docs
 category: ["Components", "Editing"]
 order: 102
@@ -8,7 +8,7 @@ order: 102
 
 # MarkdownEditor
 
-<p class="lede">True-WYSIWYG markdown editing on the native <code>&lt;sigx-richtext&gt;</code> element. Lightly controlled: markdown in via <code>value</code>, <code>onChange(markdown)</code> out.</p>
+<p class="lede">A block-tree markdown editor on native fields — the Lynx host of the <a href="/richtext/docs/editor">@sigx/richtext editor core</a>. Markdown in via <code>value</code>, <code>onChange(markdown)</code> out; or the mdast tree via <code>document</code>.</p>
 
 ## Import
 
@@ -16,11 +16,17 @@ order: 102
 import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
 ```
 
-`MarkdownEditor` lives on the `@sigx/lynx-markdown/editor` subpath. Importing the subpath turns the optional peers `@sigx/lynx-richtext` (the rich-text element — native on iOS/Android, `contenteditable` on web) and `@sigx/lynx-keyboard` into real, required dependencies — install both alongside the package.
+`MarkdownEditor` lives on the `@sigx/lynx-markdown/editor` subpath. Importing the subpath turns the optional peers `@sigx/lynx-richtext` (the rich-text element — native on iOS/Android, `contenteditable` on web) and `@sigx/lynx-keyboard` into real, required dependencies — install both alongside the package and run `sigx prebuild`.
+
+## How it works
+
+One `createEditor()` per component, with the mdast `Root` as the document. Every root block renders as a keyed `BlockView`: paragraphs and headings as native `<sigx-richtext>` fields in [`boundary-keys` mode](/lynx/modules/richtext/usage#block-editors-boundary-keys), code blocks as a `<textarea>`, lists, quotes and tables as views. State, history, commands, keymap, input rules, plugins and trigger sessions are the core's and behave as on the web; untouched blocks are never re-rendered.
+
+The editor reads and writes markdown through `markdownFormat` and installs `markdownPreset` itself, so markdown shortcuts work out of the box: `# ` for a heading, `- ` / `1. ` / `- [ ] ` for lists, `> ` for a quote, `**bold**`, `*italic*`, `` `code` ``, `~~strike~~`, `[text](url)`, and a code fence or `---` on Enter.
 
 ## Basic usage
 
-`value` is initial / lightly-controlled — an incoming value equal to the last emitted markdown is treated as the editor's own echo and ignored, so you can safely feed `onChange` output back in.
+An incoming `value` equal to the last emitted markdown is treated as the editor's own echo and ignored, so you can feed `onChange` output straight back in. Any other change to `value` replaces the document.
 
 ```tsx
 import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
@@ -28,88 +34,136 @@ import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
 function Composer() {
   return (
     <MarkdownEditor
-      value={'# Draft\n\nStart typing…'}
+      value={draft.value}
       placeholder="Write something"
-      onChange={(markdown) => saveDraft(markdown)}
+      onChange={(markdown) => { draft.value = markdown; }}
     />
   );
 }
 ```
 
+To store the tree rather than markdown, bind `document` / `onDocumentChange(doc, transaction)` instead — or both.
+
+## Keyboard
+
+| Key | Behaviour |
+|---|---|
+| Enter | Split the block (a heading continues as a paragraph; in a list, a new item) |
+| Backspace at a block's start / Delete at its end | Join with the neighbouring block |
+| ArrowUp / ArrowDown on the first / last line | Move to the neighbouring block |
+| Tab / Shift-Tab | Indent / outdent a list item |
+| Escape | Select the block |
+
+These keys reach the core through the field's `bindboundarykey` event. On a native build without it, a typed newline still splits the block, but Backspace / Delete at a block's edges stay in-block and arrows do not cross blocks.
+
 ## Toolbar
 
-Pass `toolbar` to mount the built-in [`EditorToolbar`](/lynx/modules/markdown/components/editortoolbar), or render your own toolbar standalone against the editor's controller.
+Pass `toolbar` (`true` or `'bottom'` below the content, `'top'` above) to mount the built-in [`EditorToolbar`](/lynx/modules/markdown/components/editortoolbar) over the core's `defaultToolbarItems` plus plugin items. `toolbarItems` replaces the base items and `renderToolbarItem` skins each button; `@sigx/lynx-daisyui` ships `daisyToolbarItem` for that.
 
 ```tsx
-<MarkdownEditor value={draft} onChange={save} toolbar />
+<MarkdownEditor value={draft.value} onChange={save} toolbar="bottom" />
 ```
 
-## Mentions and plugins
+## Plugins
 
-Wire [`createMentionPlugin`](/lynx/modules/markdown/api#creatementionplugin) (or any `MarkdownEditorPlugin`) through the editor's plugin surface to add parser syntax, document mapping, serialization, and a trigger that opens a [`SuggestionPopup`](/lynx/modules/markdown/components/suggestionpopup) session.
+`plugins` takes the same `RichTextPlugin[]` `MarkdownView` does. A plugin's `editor` slice adds triggers, toolbar items, commands, keymap bindings and input rules. Two ship ready-made: [`createMentionPlugin`](/lynx/modules/markdown/api#creatementionplugin) (`@` with candidate search) and the core's `createSlashPlugin` (`/` block menu), both importable from here. A baseline mention plugin is always registered so `insertChip` round-trips without one. Plugins are captured at mount.
 
 ```tsx
-import { MarkdownEditor } from '@sigx/lynx-markdown/editor';
+import { MarkdownEditor, createSlashPlugin } from '@sigx/lynx-markdown/editor';
 import { createMentionPlugin } from '@sigx/lynx-markdown';
 
-const mention = createMentionPlugin({
-  trigger: '@',
-  debounce: 150,
-  search: async (q) => (await searchDirectory(q)).map((p) => ({ id: p.id, label: p.name })),
-});
+const plugins = [
+  createMentionPlugin({ search: async (q) => (await searchDirectory(q)).map((p) => ({ id: p.id, label: p.name })) }),
+  createSlashPlugin(),
+];
 
 function Composer() {
-  return <MarkdownEditor value={draft} onChange={save} plugins={[mention]} toolbar />;
+  return <MarkdownEditor value={draft.value} onChange={save} plugins={plugins} toolbar />;
 }
 ```
 
+## Suggestions
+
+By default a [`SuggestionPopup`](/lynx/modules/markdown/components/suggestionpopup) opens inside the block the trigger session belongs to. Style it with the optional `suggestionPopup` prop — surface, border, active and text colours plus `width`, `maxHeight`, `placement` and `class`. Every field is optional: any colour you omit auto-tints from the editor's `textColor`, so the popup matches a dark or light field without configuration. (daisyUI wires concrete theme colours through `useMarkdownEditorTheme().suggestionPopup`.) Per-row content is the plugin's `renderItem`.
+
+To draw the list yourself — docked above the keyboard in a chat composer, say — pass `suggestions="none"` and `renderSuggestions`:
+
+```tsx
+<MarkdownEditor
+  plugins={plugins}
+  suggestions="none"
+  renderSuggestions={({ session, activeIndex, pick }) => (
+    <view class="suggest-row">
+      {session.items.map((item, i) => (
+        <view key={item.id} class={i === activeIndex ? 'pill active' : 'pill'} bindtap={() => pick(item)}>
+          <text>{item.label}</text>
+        </view>
+      ))}
+    </view>
+  )}
+/>
+```
+
+`onTriggerSession(session | null)` reports sessions as they open, update and close, for a host that renders the list elsewhere.
+
 ## Imperative control
 
-Grab the editor's [`MarkdownEditorController`](/lynx/modules/markdown/api#markdowneditorcontroller) via `controllerRef` to drive formatting, insertion, and fullscreen programmatically.
+`controllerRef` yields a [`MarkdownEditorController`](/lynx/modules/markdown/api#markdowneditorcontroller):
 
 | Method | Description |
 |--------|-------------|
 | `toggleBold()` / `toggleItalic()` / `toggleStrike()` / `toggleCode()` | Toggle inline marks on the selection. |
-| `setHeading(level)` | Set the block heading level (`0`–`6`; `0` clears). |
+| `setHeading(level)` | `1`–`6` sets a heading; `0` reverts to paragraph. |
 | `setList(kind)` | `'bullet' \| 'ordered' \| 'task' \| 'none'`. |
 | `toggleQuote()` | Toggle a blockquote. |
-| `insertLink(href, text?)` / `insertText(text)` / `replaceRange(start, end, text)` | Insert or replace content. |
-| `insertChip(chip, replace?)` | Insert a mention/chip span. |
-| `clear()` | Empty the document. |
+| `insertLink(href, text?)` / `insertText(text)` / `replaceRange(start, end, text)` | Insert or replace content in the current block. |
+| `insertChip(chip, replace?)` | Insert a mention chip at the caret, optionally replacing `[from, to)`. |
+| `getMarkdown()` / `setMarkdown(md)` | Read / replace as markdown. |
+| `getDocument()` / `setDocument(doc)` | Read / replace the mdast tree. |
+| `getSelection()` | The key-addressed `EditorSelection`. |
+| `undo()` / `redo()` | History. |
+| `run(command \| name)` | Run any core command by function or registered name. |
+| `editor` | The core `Editor` instance. |
+| `focus()` / `blur()` / `clear()` | Focus and reset. |
 | `openFullscreen()` / `closeFullscreen()` / `isFullscreen()` | Fullscreen control — restyles the same element in place, never re-parented. |
-
-## Styling the suggestion popup
-
-The trigger suggestion popup (mentions, etc.) is themed through the optional `suggestionPopup` prop — surface/border/active/text colors, plus `width`/`maxHeight`/`class`. **Every field is optional, and so is the prop itself:** any color you omit auto-tints from the editor's active `textColor`, so a popup reads as light-on-dark or dark-on-light to match the field without you setting anything. (daisyUI wires concrete theme colors through here via `useMarkdownEditorTheme().suggestionPopup`, mirroring how `textColor`/`accentColor` theme the editor body.) Per-row content stays a plugin concern (`trigger.renderItem`).
-
-```tsx
-// Auto-tinted from the dark editor text — no popup colors needed.
-<MarkdownEditor value={draft} onChange={save} textColor="#e5e7eb" plugins={[mention]} />
-
-// Or set only the fields you care about; the rest still auto-tint.
-<MarkdownEditor value={draft} onChange={save} suggestionPopup={{ width: 280 }} plugins={[mention]} />
-```
 
 ## Native setup & gotchas
 
 These apply only to the editor subpath — the renderer needs none of them.
 
-- **`SafeAreaProvider` for the suggestion popup.** The popup's keyboard hook reads keyboard height via `@sigx/lynx-keyboard`'s `useKeyboard()`, which needs a `<SafeAreaProvider>` ancestor while the fullscreen overlay is open. Without one it reads height `0` (no crash, no warning).
-- **`ignore-focus` keeps the keyboard up.** The toolbar, popup, and fullscreen close affordance carry `ignore-focus` so taps never blur the editor.
-- **Fullscreen restyles in place.** Going fullscreen re-styles the same mounted element (a fixed inset overlay); it is never re-parented, which would recreate the native view and lose the document.
+- **`SafeAreaProvider` for the keyboard hooks.** The popup and the fullscreen overlay read keyboard height via `@sigx/lynx-keyboard`'s `useKeyboard()`, which needs a `<SafeAreaProvider>` ancestor. Without one it reads height `0` (no crash, no warning).
+- **`ignore-focus` keeps the keyboard up.** The toolbar, popup and fullscreen close affordance carry `ignore-focus` so taps never blur the editor.
+- **Fullscreen restyles in place.** Going fullscreen re-styles the same mounted element (a fixed inset overlay); it is never re-parented, which would recreate the native views and lose the document.
+- **Text size follows the OS.** `fontSize` (default 16) is multiplied by the effective font scale, and the `minLines` / `maxLines` window scales with it, live.
 
 ## Props
 
 | Prop | Type | Description |
 |------|------|-------------|
-| `value` | `string` | Initial markdown (lightly-controlled; echoes of the last emitted value are ignored). |
-| `onChange` | `(markdown: string) => void` | Fired with serialized markdown as the document changes. |
+| `value` | `string` | Markdown source. An external change replaces the document; echoes of `onChange` are ignored. |
+| `document` | `Root` | An mdast document instead of `value` (wins for the initial content). |
+| `onChange` | `(markdown: string) => void` | Markdown after every committed change (never mid-composition). |
+| `onDocumentChange` | `(doc: Root, transaction: Transaction) => void` | The tree after every committed change. |
+| `onSelectionChange` | `(selection: EditorSelection) => void` | Key-addressed selection changes. |
 | `placeholder` | `string` | Placeholder shown while empty. |
-| `minLines` / `maxLines` | `number` | Line bounds for the native field. |
-| `mode` | `MarkdownEditorMode` | Editor mode. |
-| `toolbar` | `boolean` | Mount the built-in `EditorToolbar`. |
-| `plugins` | `MarkdownEditorPlugin[]` | Trigger/inline plugins (e.g. mentions). |
-| `suggestionPopup` | `SuggestionPopupStyle` | Optional. Style the trigger suggestion popup; omitted colors auto-tint from `textColor`. |
+| `minLines` / `maxLines` | `number` | Height window in lines; content past `maxLines` scrolls. |
+| `mode` | `'auto' \| 'fixed' \| 'fullscreen'` | Layout mode. |
+| `fontSize` / `textColor` / `accentColor` / `placeholderColor` | `number` / `string` | Field typography and colours. |
+| `confirmType` | `'send' \| 'search' \| 'next' \| 'go' \| 'done'` | Return-key label hint. |
+| `autoFocus` / `disabled` | `boolean` | Focus on mount; read-only. |
+| `toolbar` | `boolean \| 'top' \| 'bottom'` | Mount the built-in toolbar. |
+| `toolbarItems` / `renderToolbarItem` | `readonly ToolbarItem[]` / `ToolbarRenderItem` | Base items; per-item renderer. |
+| `plugins` | `readonly RichTextPlugin[]` | Plugins with an editor slice. Captured at mount. |
+| `components` | `Partial<LynxMarkdownComponents>` | Components for void blocks (dividers, definitions). |
+| `keymap` | `Keymap` | Extra bindings over the core's. |
+| `inputRules` | `readonly InputRule[] \| false` | `false` disables input rules; an array adds to them. |
+| `suggestionPopup` | `SuggestionPopupStyle` | Style the built-in popup; omitted colours auto-tint from `textColor`. |
+| `suggestions` | `'popup' \| 'none'` | `'none'` leaves rendering to `renderSuggestions` / `onTriggerSession`. |
+| `renderSuggestions` | `(api: SuggestionsApi) => JSXElement \| null` | Render the suggestion list yourself. |
+| `onTriggerSession` | `(session: TriggerSession \| null) => void` | Observe trigger sessions. |
+| `fullscreenClass` / `onFullscreenChange` | `string` / `(open: boolean) => void` | Fullscreen overlay styling and notification. |
+| `onFocus` / `onBlur` | `() => void` | Focus changes. |
+| `class` | `string` | Root class. |
 | `controllerRef` | `(c: MarkdownEditorController) => void` | Receives the imperative controller. |
 
-See the [API reference](/lynx/modules/markdown/api#markdowneditorprops) for the full prop list and the editor-subpath exports (`mdToDoc`, `docToMd`, plugin contract types).
+See the [API reference](/lynx/modules/markdown/api#editor-subpath) for the types and the editor-subpath exports.

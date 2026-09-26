@@ -443,18 +443,18 @@ Reactively resolves the active theme to concrete hex color props for `@sigx/lynx
 ### markdownComponents
 
 ```ts
-const markdownComponents: MarkdownComponents;
+const markdownComponents: LynxMarkdownComponents;
 ```
 
-DaisyUI render mapping for `@sigx/lynx-markdown`'s `<MarkdownView components={...}>` (headings to `Heading`, text to `Text`, layout to `Col`/`Row`, themed surfaces). Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
+DaisyUI render mapping for `@sigx/lynx-markdown`'s `<MarkdownView components={...}>` (headings to `Heading`, text to `Text`, layout to `Col`/`Row`, themed surfaces), keyed by the mdast slot names (`heading`, `emphasis`, `delete`, `inlineCode`, `text`, `html`, …). Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
 
 ### daisyToolbarItem
 
 ```ts
-const daisyToolbarItem: ToolbarRenderItem; // (item, active, run) => JSX
+const daisyToolbarItem: ToolbarRenderItem; // (item, active, run, enabled) => JSX
 ```
 
-DaisyUI item renderer for `MarkdownEditor`'s `renderToolbarItem`; renders a square ghost/primary `Button` per toolbar item. Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
+DaisyUI item renderer for `MarkdownEditor`'s `renderToolbarItem`; renders a square ghost/primary `Button` per toolbar item, disabled when the item is not enabled. Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
 
 ### emojiClasses
 
@@ -1217,12 +1217,11 @@ type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 ```ts
 type EditorToolbarProps =
     & Define.Prop<'controller', MarkdownEditorController | null, false>
-    & Define.Prop<'selection', SelectionState | null, false>
-    & Define.Prop<'items', ToolbarItem[], false>
+    & Define.Prop<'items', readonly ToolbarItem[], false>
     & Define.Prop<'class', string, false>;
 ```
 
-EditorToolbar props (sub-types from `@sigx/lynx-markdown/editor`).
+EditorToolbar props (sub-types from `@sigx/lynx-markdown/editor`). Active and enabled states come from the editor core's `toolbarState`, so the controller is all the toolbar needs.
 
 ### EmojiPickerSheetProps
 

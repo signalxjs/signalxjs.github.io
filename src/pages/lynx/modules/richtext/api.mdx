@@ -37,6 +37,8 @@ import type {
   RichTextSelectionEvent,
   RichTextHeightChangeEvent,
   RichTextFocusEvent,
+  RichTextBoundaryKey,
+  RichTextBoundaryKeyEvent,
   SigxRichTextAttributes,
 } from '@sigx/lynx-richtext';
 ```
@@ -68,6 +70,7 @@ type RichTextInputProps =
   & Define.Prop<'placeholderColor', string, false>
   & Define.Prop<'confirmType', 'send' | 'search' | 'next' | 'go' | 'done', false>
   & Define.Prop<'autoFocus', boolean, false>
+  & Define.Prop<'boundaryKeys', boolean, false>
   & Define.Prop<'class', string, false>
   & Define.Prop<'style', string | Record<string, string | number>, false>
   & Define.Prop<'onElement', (el: RichTextHandle) => void, false>
@@ -75,7 +78,8 @@ type RichTextInputProps =
   & Define.Prop<'onSelection', (sel: SelectionState) => void, false>
   & Define.Prop<'onHeightChange', (height: number, lines: number) => void, false>
   & Define.Prop<'onFocus', () => void, false>
-  & Define.Prop<'onBlur', () => void, false>;
+  & Define.Prop<'onBlur', () => void, false>
+  & Define.Prop<'onBoundaryKey', (e: RichTextBoundaryKeyEvent['detail']) => void, false>;
 ```
 
 - **`value`** — a [`RichDoc`](#richdoc) or a JSON string. Initial-only: once the user has edited (or after any applied `setDocument`), `value` is ignored — use [`RichTextMethods.setDocument`](#richtextmethodssetdocument) for later programmatic replacement. A `RichDoc` is JSON-stringified for you.
@@ -86,12 +90,14 @@ type RichTextInputProps =
 - **`textColor`** / **`accentColor`** / **`placeholderColor`** — hex color strings (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`; leading `#` optional). `accentColor` is the caret tint and the link color.
 - **`confirmType`** — the keyboard return-key style: `'send'`, `'search'`, `'next'`, `'go'`, or `'done'`.
 - **`autoFocus`** — raises the keyboard on mount.
+- **`boundaryKeys`** — single-block mode: the keys that cross the block's edge are reported through `onBoundaryKey` instead of acted on (see [`RichTextBoundaryKey`](#richtextboundarykey)). Off by default.
 - **`class`** / **`style`** — standard styling props.
 - **`onElement`** — receives the [`RichTextHandle`](#richtexthandle) for command calls.
 - **`onChange`** — receives a decoded [`RichDoc`](#richdoc) plus `isComposing`. Do not echo writes while `isComposing` is `true`.
 - **`onSelection`** — receives a [`SelectionState`](#selectionstate); drives toolbar active state and popup anchoring.
-- **`onHeightChange`** — receives `(height, lines)` for auto-grow.
-- **`onFocus`** / **`onBlur`** — fire on focus / blur.
+- **`onHeightChange`** — receives `(height, lines)` for auto-grow. Lynx sizes the element from its styles, so feed the height back into `style.height` for the field to grow.
+- **`onFocus`** / **`onBlur`** — fire on focus / blur, on iOS, Android and web.
+- **`onBoundaryKey`** — in `boundaryKeys` mode, receives `{ key, start, end }` for each reported key.
 
 Platform notes: shared type. The runtime behavior backing it runs on iOS, Android and web.
 
@@ -495,6 +501,48 @@ interface RichTextFocusEvent {
 
 `RichTextInput` forwards these to `onFocus()` / `onBlur()`. Platform: shared (event type).
 
+### `RichTextBoundaryKey`
+
+The keys `boundary-keys` mode reports instead of acting on.
+
+```ts
+type RichTextBoundaryKey =
+  | 'Enter' | 'Shift-Enter'
+  | 'Backspace' | 'Delete'
+  | 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
+  | 'Tab' | 'Shift-Tab'
+  | 'Escape';
+```
+
+| Key | Reported when |
+|---|---|
+| `Enter`, `Shift-Enter` | Always — Return never inserts `\n` in this mode |
+| `Backspace` | The selection is collapsed at offset 0 |
+| `Delete` | The selection is collapsed at the end |
+| `ArrowUp` / `ArrowDown` | The caret is on the first / last visual line |
+| `ArrowLeft` / `ArrowRight` | The caret is at the start / end |
+| `Tab`, `Shift-Tab`, `Escape` | Always |
+
+Every other key stays native (a Backspace mid-text deletes as usual). Keys are not reported while an IME composition is active. Platform: iOS, Android and web share one table.
+
+### `RichTextBoundaryKeyEvent`
+
+Raw `bindboundarykey` payload — only in `boundary-keys` mode; the element performed no default action.
+
+```ts
+interface RichTextBoundaryKeyEvent {
+  type: 'boundarykey';
+  detail: {
+    key: RichTextBoundaryKey;
+    /** The selection when the key was pressed (UTF-16 offsets). */
+    start: number;
+    end: number;
+  };
+}
+```
+
+`RichTextInput` forwards `detail` to `onBoundaryKey`. Platform: shared (event type).
+
 ## JSX element
 
 ### `SigxRichTextAttributes`
@@ -514,11 +562,13 @@ interface SigxRichTextAttributes extends LynxCommonAttributes {
   'placeholder-color'?: string;
   'confirm-type'?: 'send' | 'search' | 'next' | 'go' | 'done';
   'auto-focus'?: boolean;
+  'boundary-keys'?: boolean;
   bindchange?: LynxEventHandler<RichTextChangeEvent>;
   bindselection?: LynxEventHandler<RichTextSelectionEvent>;
   bindheightchange?: LynxEventHandler<RichTextHeightChangeEvent>;
   bindfocus?: LynxEventHandler<RichTextFocusEvent>;
   bindblur?: LynxEventHandler<RichTextFocusEvent>;
+  bindboundarykey?: LynxEventHandler<RichTextBoundaryKeyEvent>;
 }
 ```
 

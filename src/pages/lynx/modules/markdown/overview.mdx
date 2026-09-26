@@ -10,7 +10,7 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 # Markdown
 
-<p class="lede">Zero-dependency markdown parsed in JS and rendered to native views, with streaming for AI output.</p>
+<p class="lede">Streaming markdown rendered to native views and a block-tree editor on native fields — the Lynx host of <a href="/richtext/">@sigx/richtext</a>.</p>
 
 <p class="mod-meta-row"><PkgVersion npm="@sigx/lynx-markdown" /> <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
 
@@ -22,7 +22,7 @@ pnpm add @sigx/lynx-markdown
 
 ## About
 
-`@sigx/lynx-markdown` is a Lynx module — streaming markdown renderer. It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.
+`@sigx/lynx-markdown` renders and edits [`@sigx/richtext`](/richtext/) trees natively. The parser, the streaming controller, the render engine and the editor core are shared with the web through `@sigx/richtext` and `@sigx/richtext-markdown` (regular dependencies); this package maps them onto Lynx views and native rich-text fields. `MarkdownView` renders a growing source without re-rendering finished blocks, and `MarkdownEditor` (from `@sigx/lynx-markdown/editor`) edits the same mdast tree block by block. It is versioned in lockstep with the rest of the Lynx module family.
 
 ## Next steps
 

@@ -135,6 +135,7 @@ Every prop is optional. See [`RichTextInputProps`](/lynx/modules/richtext/api#ri
 | `placeholderColor` | `string` | Placeholder text color (hex). |
 | `confirmType` | `'send' \| 'search' \| 'next' \| 'go' \| 'done'` | Keyboard return-key style. |
 | `autoFocus` | `boolean` | Raises the keyboard on mount. |
+| `boundaryKeys` | `boolean` | Single-block mode: keys that cross the block's edge are reported through `onBoundaryKey` instead of acted on. Off by default. See [Block editors](/lynx/modules/richtext/usage#block-editors-boundary-keys). |
 | `class` | `string` | Standard styling class. |
 | `style` | `string \| Record<string, string \| number>` | Standard inline style. |
 
@@ -145,9 +146,10 @@ Every prop is optional. See [`RichTextInputProps`](/lynx/modules/richtext/api#ri
 | `onElement` | `(el: RichTextHandle) => void` | Receives the [`RichTextHandle`](/lynx/modules/richtext/api#richtexthandle) for command calls. |
 | `onChange` | `(doc: RichDoc, isComposing: boolean) => void` | Fired after every edit with a decoded [`RichDoc`](/lynx/modules/richtext/api#richdoc). Do not echo writes while `isComposing` is `true`. |
 | `onSelection` | `(sel: SelectionState) => void` | Caret/selection moved; drives toolbar active state and popup anchoring via [`SelectionState`](/lynx/modules/richtext/api#selectionstate). |
-| `onHeightChange` | `(height: number, lines: number) => void` | Intrinsic content height changed (auto-grow). |
-| `onFocus` | `() => void` | Fired when the field gains focus. |
-| `onBlur` | `() => void` | Fired when the field loses focus. |
+| `onHeightChange` | `(height: number, lines: number) => void` | Intrinsic content height changed (auto-grow). Feed it back into `style.height` — Lynx sizes the element from its styles. |
+| `onFocus` | `() => void` | Fired when the field gains focus (iOS, Android and web). |
+| `onBlur` | `() => void` | Fired when the field loses focus (iOS, Android and web). |
+| `onBoundaryKey` | `(e: { key, start, end }) => void` | In `boundaryKeys` mode: a [boundary key](/lynx/modules/richtext/api#richtextboundarykey) was pressed; the field did nothing. |
 
 ## See also
 

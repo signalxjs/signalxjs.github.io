@@ -1,0 +1,84 @@
+---
+title: Installation
+description: "Installing @sigx/richtext and its format packages — entry points, peer dependencies and what each import pulls in"
+layout: docs
+category: Getting Started
+order: 20
+---
+
+# Installation
+
+<p class="lede">Install the core plus the formats you read and write. Every package is ESM-only, has no dependencies beyond the sigx runtime, and uses no <code>node:</code> imports — the root entries run on the web, on Lynx and in the terminal alike.</p>
+
+## Markdown (the common case)
+
+```bash
+pnpm add @sigx/richtext @sigx/richtext-markdown
+```
+
+## Adding HTML or highlighting
+
+```bash
+pnpm add @sigx/richtext-html                 # read and write HTML
+pnpm add @sigx/richtext-shiki shiki          # Shiki code highlighting in the DOM view
+```
+
+`shiki` is a peer of `@sigx/richtext-shiki` (`>=3.7.0`) and nothing else in the family imports it. It is loaded lazily, on the first code block.
+
+## Peer dependencies
+
+Every package peers on the sigx runtime your app already has, so the app owns the single copy:
+
+| Package | Peers |
+|---|---|
+| `@sigx/richtext` | `@sigx/reactivity`, `@sigx/runtime-core` (`^1.0.0`); `@sigx/runtime-dom` (optional — needed by `./dom` and `./editor/dom`) |
+| `@sigx/richtext-markdown` | `@sigx/richtext`, `@sigx/reactivity`, `@sigx/runtime-core` |
+| `@sigx/richtext-html` | `@sigx/richtext`, `@sigx/reactivity`, `@sigx/runtime-core` |
+| `@sigx/richtext-shiki` | `@sigx/richtext`, `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`, `shiki` |
+
+The packages target sigx core 1.x. An app on `sigx` 1.x satisfies them all.
+
+## Entry points
+
+Import only what a screen needs — the entries are split so a renderer-only page never loads the editor, and the DOM entries never load a parser.
+
+| Import | Contents |
+|---|---|
+| `@sigx/richtext` | AST types, schema, `DocumentFormat`, `plainTextFormat`, `toJSON` / `fromJSON`, `createTextStream`, `renderDocument`, `RichTextPlugin`, `mentionNode` |
+| `@sigx/richtext/dom` | `RichTextView`, `defaultComponents` / `createDomComponents`, `CodeBlock`, `highlightedCodeBlock`, `CodeHighlighter` |
+| `@sigx/richtext/editor` | `createEditor`, state and steps, `commands`, `baseKeymap`, input rules, `createSlashPlugin`, `createMentionPlugin`, trigger sessions, toolbar items, surface contracts |
+| `@sigx/richtext/editor/dom` | `RichTextEditor`, `EditorToolbar`, `BlockMenu`, `SuggestionPopup`, `createDomMentionPlugin`, the DOM surfaces |
+| `@sigx/richtext/testing` | `strip`, `stripPositions`, `feed`, `seededChunks`, fake surfaces, `runInlineSurfaceConformance` |
+| `@sigx/richtext-markdown` | `markdownFormat`, `parseMarkdown`, `createIncrementalEngine`, `toMarkdown`, `markdownNodes`, `mentionPlugin` / `mentionMarkdown` |
+| `@sigx/richtext-markdown/editor` | `markdownPreset`, `markdownInputRules`, `markdownEnterRules` |
+| `@sigx/richtext-html` | `htmlFormat`, `parseHtml`, `toHtml`, `mentionHtml`, the tokenizer and tree |
+| `@sigx/richtext-html/editor` | `htmlPreset` |
+| `@sigx/richtext-shiki` | `shikiPlugin`, `createShikiHighlighter` |
+
+## Styles
+
+No CSS ships. The DOM view and the DOM editor mark every element with `data-scope` and `data-part` attributes for you to style — see [Rendering](/richtext/docs/rendering#styling) and [the DOM editor](/richtext/docs/dom-editor#styling). The repository's playground stylesheets (`examples/playground/src/styles.css` and `editor.css`) are the reference.
+
+## Coming from `@sigx/markdown`
+
+`@sigx/markdown` 0.1–0.2 was the first release of this code. It is now three packages, and the names are format-neutral:
+
+| `@sigx/markdown` | Now |
+|---|---|
+| `@sigx/markdown` (root) | `@sigx/richtext` (core) + `@sigx/richtext-markdown` (parser, serializer, `markdownFormat`) |
+| `@sigx/markdown/dom` · `/editor` · `/editor/dom` · `/testing` | `@sigx/richtext/dom` · `/editor` · `/editor/dom` · `/testing` |
+| `@sigx/markdown/shiki` | `@sigx/richtext-shiki` |
+| `<MarkdownView value>` | `<RichTextView value format={markdownFormat}>` — `format` is required |
+| `<MarkdownEditor model:markdown defaultMarkdown>` | `<RichTextEditor format={markdownFormat} model:source defaultSource plugins={[markdownPreset]}>` |
+| `getMarkdown()` / `setMarkdown()` | `getSource(formatId?)` / `setSource(source, formatId?)` |
+| `MarkdownPlugin` | `RichTextPlugin` — syntax moves under `formats.markdown` |
+| `MarkdownComponents` / `MarkdownChild` | `ComponentMap` / `RenderChild` (only `root` is required) |
+| `createMarkdownStream` / `MarkdownStream` | `createTextStream` / `TextStream` |
+| `MarkdownDocument` / `MarkdownFormatError` | `RichTextDocument` / `DocumentFormatError` |
+| `shikiCodeBlock()` | `highlightedCodeBlock()` in `./dom`, or `shikiPlugin()` |
+| `baseInputRules` / `enterInputRules` | `markdownPreset` (`@sigx/richtext-markdown/editor`) |
+| `resolvePlugins` / `ResolvedPlugins` | `resolveMarkdownPlugins` / `ResolvedMarkdownPlugins` |
+| `mentionInlineKind` / `InlineKindSpec` | `mentionNode` / a `NodeSpec` with an `inline` mapping |
+| `data-scope="markdown"`, `markdown-editor`, `markdown-toolbar`, `markdown-block-menu`, `markdown-suggest` | `richtext`, `richtext-editor`, `richtext-toolbar`, `richtext-block-menu`, `richtext-suggest` |
+
+There are no aliases for the old names.

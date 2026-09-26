@@ -8,7 +8,7 @@ order: 103
 
 # EditorToolbar
 
-<p class="lede">The neutral, theme-agnostic formatting toolbar for <a href="/lynx/modules/markdown/components/markdowneditor">MarkdownEditor</a>. The items are data and each item's rendering is replaceable.</p>
+<p class="lede">The neutral, theme-agnostic formatting toolbar for <a href="/lynx/modules/markdown/components/markdowneditor">MarkdownEditor</a>. The items are data from the editor core; each item's rendering is replaceable.</p>
 
 ## Import
 
@@ -16,33 +16,29 @@ order: 103
 import { EditorToolbar, defaultToolbarItems } from '@sigx/lynx-markdown/editor';
 ```
 
-Like the renderer's component map, the toolbar follows an override pattern: items are [`ToolbarItem`](#toolbaritem) data and each item renders via `renderItem`. The root carries `ignore-focus` so toolbar taps never blur the editor.
+Items are the core's [`ToolbarItem`](/richtext/docs/editor#toolbar-state) data — the same `defaultToolbarItems` every platform shares, plus whatever the editor's plugins contribute. Active and enabled states come from the core's `toolbarState`, derived from the editor state, so the toolbar needs nothing but the controller. The root carries `ignore-focus` so toolbar taps never blur the editor.
 
 ## Usage
 
 The simplest path is to let `MarkdownEditor` mount it for you:
 
 ```tsx
-<MarkdownEditor value={draft} onChange={save} toolbar />
+<MarkdownEditor value={draft.value} onChange={save} toolbar />
 ```
 
-To place it yourself, render it standalone and pass the editor's `controller` plus the current `selection`:
+To place it yourself, render it standalone and pass the editor's controller:
 
 ```tsx
 import { component } from '@sigx/lynx';
-import { MarkdownEditor, EditorToolbar } from '@sigx/lynx-markdown/editor';
-import type { MarkdownEditorController } from '@sigx/lynx-markdown/editor';
+import { MarkdownEditor, EditorToolbar, type MarkdownEditorController } from '@sigx/lynx-markdown/editor';
 
 export const Composer = component(({ signal }) => {
-  const state = signal({ controller: null as MarkdownEditorController | null, selection: null });
+  const state = signal({ controller: null as MarkdownEditorController | null });
 
   return () => (
     <>
-      <EditorToolbar controller={state.controller} selection={state.selection} />
-      <MarkdownEditor
-        value={'# Draft'}
-        controllerRef={(c) => (state.controller = c)}
-      />
+      <EditorToolbar controller={state.controller} />
+      <MarkdownEditor value={'# Draft'} controllerRef={(c) => (state.controller = c)} />
     </>
   );
 });
@@ -50,44 +46,43 @@ export const Composer = component(({ signal }) => {
 
 ## Custom items
 
-`items` defaults to [`defaultToolbarItems`](/lynx/modules/markdown/api#defaulttoolbaritems) (bold, italic, strike, code, link, headings, lists, quote). Pass your own array to add or reorder commands, and `renderItem` to skin each button.
+`items` defaults to `defaultToolbarItems`: bold, italic, strike, inline code, link, H1–H3, paragraph, bullet / ordered / task list, quote, code block, divider, table, undo and redo. The editor's plugin items are appended. Pass your own array to add or reorder commands, and `renderItem` to skin each button.
 
 ```tsx
 <EditorToolbar
   controller={controller}
-  selection={selection}
   items={myItems}
-  renderItem={(item, active, run) => (
-    <pressable class={active ? 'tb-on' : 'tb'} bindtap={run}>
+  renderItem={(item, active, run, enabled) => (
+    <view class={active ? 'tb-on' : 'tb'} style={{ opacity: enabled ? 1 : 0.4 }} bindtap={run}>
       <text>{item.label ?? item.id}</text>
-    </pressable>
+    </view>
   )}
 />
 ```
+
+An item is data, not chrome:
+
+```ts
+interface ToolbarItem {
+  id: string;
+  label?: string;                        // short text: 'B', 'H1', …
+  icon?: string;                         // an icon-set name, for skins
+  group?: string;                        // items with the same group render adjacent
+  isActive?(tb: ToolbarState): boolean;
+  isEnabled?(tb: ToolbarState): boolean; // default: enabled whenever there is a selection
+  run(tc: ToolbarContext): void;         // tc.run(command) runs a core command
+}
+```
+
+`ToolbarState` carries `activeMarks`, `blockType`, `attrs`, `ancestors`, `listKind`, `inBlockquote`, `canUndo`, `canRedo` and `mode`.
 
 ## Props
 
 | Prop | Type | Description |
 |------|------|-------------|
-| `controller` | `MarkdownEditorController \| null` | The editor's controller — the toolbar drives the editor through it. |
-| `selection` | `SelectionState \| null` | Current selection (from `@sigx/lynx-richtext`); drives each item's active state. |
-| `items` | `ToolbarItem[]` | Command set; defaults to `defaultToolbarItems`. |
-| `renderItem` | `ToolbarRenderItem` | Per-item render override: `(item, active, run) => JSXElement`. |
+| `controller` | `MarkdownEditorController \| null` | The editor's controller — the toolbar reads state and runs commands through it. |
+| `items` | `readonly ToolbarItem[]` | Base items; defaults to `defaultToolbarItems`. The editor's plugin items append. |
+| `renderItem` | `ToolbarRenderItem` | Per-item render override: `(item, active, run, enabled) => JSXElement`. |
 | `class` | `string` | Extra classes on the toolbar root. |
 
-### ToolbarItem
-
-A single toolbar command — data, not chrome. `label` is neutral short text (`B`, `H1`, …; falls back to `id`), `icon` is a hint for design-system skins, and `group` keeps related items adjacent.
-
-```ts
-export interface ToolbarItem {
-  id: string;
-  label?: string;
-  icon?: string;
-  group?: string;
-  isActive?(ctx: ToolbarContext): boolean;
-  run(ctx: ToolbarContext): void;
-}
-```
-
-See the [API reference](/lynx/modules/markdown/api#editortoolbar) for `ToolbarContext`, `ToolbarRenderItem`, and `defaultToolbarItems`.
+A daisyUI skin ships in `@sigx/lynx-daisyui` (`EditorToolbar`, `daisyToolbarItem`).

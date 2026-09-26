@@ -89,6 +89,11 @@ const FEATURES: Record<string, LandingFeature[]> = {
         { icon: 'bolt', title: 'Live code', body: 'Powers the runnable, editable samples across these docs.' },
         { icon: 'cube', title: 'Bundled or CDN', body: 'Prebundle for offline or load from a CDN — your choice.' },
     ],
+    richtext: [
+        { icon: 'layers', title: 'One document, many formats', body: 'An mdast-shaped tree that markdown, HTML and plain text parse into and serialize out of.' },
+        { icon: 'bolt', title: 'Streaming-stable', body: 'Finalized blocks keep their identity while AI tokens arrive, so only the live block re-renders.' },
+        { icon: 'sparkle', title: 'A real block editor', body: 'Commands, history, input rules, slash menus and mentions over the same tree, on the web and on Lynx.' },
+    ],
     cli: [
         { icon: 'terminal', title: 'Scaffolding', body: 'npm create @sigx@latest — new projects in seconds.' },
         { icon: 'layers', title: 'Plugin discovery', body: 'Add platforms and integrations with a single command.' },

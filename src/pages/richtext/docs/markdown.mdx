@@ -1,0 +1,98 @@
+---
+title: Markdown
+description: "@sigx/richtext-markdown — the CommonMark + GFM parser, toMarkdown, markdownFormat, the markdown node specs and the editor preset"
+layout: docs
+category: Formats
+order: 90
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Markdown
+
+<p class="lede"><code>@sigx/richtext-markdown</code> is markdown as a format: a CommonMark + GFM parser that keeps finalized blocks stable while a source string grows, a deterministic serializer, and <code>markdownFormat</code> — the <code>DocumentFormat</code> views and editors take.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/richtext" /> <span class="mmr-dot" /> ESM-only <span class="mmr-dot" /> MIT</p>
+
+```bash
+pnpm add @sigx/richtext @sigx/richtext-markdown
+```
+
+## Parse and serialize
+
+```ts
+import { createIncrementalEngine, parseMarkdown, toMarkdown } from '@sigx/richtext-markdown';
+
+const root = parseMarkdown('# Hi\n\nSome **markdown**.');   // an mdast Root, keyed and positioned
+toMarkdown(root);                                            // '# Hi\n\nSome **markdown**.\n'
+```
+
+- **`parseMarkdown(src, { plugins? })`** never throws and puts a position on every node.
+- **`toMarkdown(node, options?)`** serializes a tree or any single node. A non-empty result ends with exactly one line ending. The round trip is stable: `parseMarkdown(toMarkdown(parseMarkdown(md)))` is structurally equal to `parseMarkdown(md)`.
+- **`createIncrementalEngine({ plugins? })`** is the streaming parser — see [Streaming](/richtext/docs/streaming#the-incremental-engine).
+
+`markdownFormat` wraps all three as a `DocumentFormat` (`id: 'markdown'`, `mime: ['text/markdown', 'text/x-markdown', 'text/plain']`), which is what `RichTextView`, `createEditor` and `RichTextEditor` take. Listing `text/plain` last means plain text pasted into a markdown editor is read as markdown.
+
+### Serializer options
+
+`toMarkdown` — and `markdownFormat.serialize` — take:
+
+| Option | Default | Values |
+|---|---|---|
+| `bullet` | `-` | `-`, `*`, `+` |
+| `emphasis` | `*` | `*`, `_` |
+| `strong` | `**` | `**`, `__` |
+| `fence` | `` ` `` | `` ` ``, `~` (a tilde fence is used anyway when the info string contains a backtick) |
+| `rule` | `---` | `---`, `***`, `___` |
+| `incrementListMarker` | `true` | `true` writes `1. 2. 3.`, `false` writes `1. 1. 1.` |
+| `lineEnding` | `\n` | `\n`, `\r\n` |
+| `plugins` | — | Plugins whose serializer rules handle extra node types or override built-in ones |
+
+Delimiters and escaping are deterministic, so serializing the same tree always gives the same text.
+
+## Supported syntax
+
+CommonMark block parsing (ATX and setext headings, indented and fenced code, blockquotes with laziness, loose and tight lists, link reference definitions, thematic breaks), the CommonMark emphasis algorithm, entity and numeric character references, reference links and images, and GFM tables, strikethrough, task list items and autolink literals (URL and email).
+
+The parser is checked against the vendored CommonMark spec examples and every GFM fixture. The few examples it deliberately answers differently are enumerated in the repository's `known-failures.json`, for these reasons:
+
+- **Raw HTML is literal text.** HTML blocks and inline HTML parse (the `html` node) but render as text — there is no HTML sink.
+- **References are emitted whether or not a definition exists.** A `linkReference` / `imageReference` resolves against the document's definitions at render time — the one deliberate deviation from remark.
+- **Single `~` is not strikethrough** — only `~~text~~` is.
+- **The named-entity table is the HTML 4.01 set** (plus `&apos;`), not the full HTML5 list. A plugin can add names through its `entities`.
+- **GFM autolink literals are on**, so bare URLs link even where CommonMark alone would not.
+
+## Node specs
+
+Markdown needs a few node types beyond the standard vocabulary; they come with the format (`markdownFormat.nodes`) and join the schema automatically:
+
+| Node | Role | Notes |
+|---|---|---|
+| `html` | `code` | Raw HTML, edited as a code block and rendered as text |
+| `definition` | `void` | `[label]: url "title"`; collected into the render env so references resolve |
+| `linkReference` | `atom` | `[text][label]`, `[text][]`, `[text]` — an atom in the editor's flat model |
+| `imageReference` | `atom` | `![alt][label]` |
+
+`markdownNodes` is that list and `markdownSchema` is `standardNodes` plus `markdownNodes`. `collectDefinitions(root, schema?)` gathers a document's definitions by normalised label.
+
+## Extending the syntax
+
+A plugin adds markdown syntax under `formats.markdown` — inline and block extensions, serializer rules, entities and transforms. See [Plugins → the markdown slice](/richtext/docs/plugins#the-markdown-slice). `mentionPlugin` is the reference: `@[label](id)` through `mentionSyntax`, written back by `serializeMention`.
+
+`resolveMarkdownPlugins(plugins)` returns the merged slice the parser and serializer use (`NO_MARKDOWN_PLUGINS` is the empty one) — useful when calling `parseBlocks` / `parseInline` directly.
+
+## Editor preset
+
+`markdownPreset` from `@sigx/richtext-markdown/editor` is what makes a `@sigx/richtext` editor a markdown editor: the input rules (`# `, `- `, `**bold**`, …), the Enter rules (a fence, `---`) and the `text/markdown` clipboard flavour. It pulls no parser or serializer in — the clipboard writer serializes through the editor's own `markdown` format. The rules are also exported on their own as `markdownInputRules` and `markdownEnterRules`. See [Editor → input rules](/richtext/docs/editor#input-rules).
+
+```tsx
+import { RichTextEditor } from '@sigx/richtext/editor/dom';
+import { markdownFormat } from '@sigx/richtext-markdown';
+import { markdownPreset } from '@sigx/richtext-markdown/editor';
+
+<RichTextEditor format={markdownFormat} plugins={[markdownPreset]} model:source={[note, 'md']} />
+```
+
+## Lower-level exports
+
+`parseBlocks`, `parseInline`, `toPlainText`, `normalizeSource` and `escapeText` are exported for tooling that needs one stage of the pipeline.

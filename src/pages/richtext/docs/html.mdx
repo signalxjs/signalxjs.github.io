@@ -1,0 +1,102 @@
+---
+title: HTML
+description: "@sigx/richtext-html — a platform-free HTML parser, a CommonMark-layout serializer, htmlFormat, the HTML plugin slice and the text/html clipboard preset"
+layout: docs
+category: Formats
+order: 100
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# HTML
+
+<p class="lede"><code>@sigx/richtext-html</code> is HTML as a format: a parser for the markup that reaches a clipboard, a CMS field or an LLM answer, a serializer, and <code>htmlFormat</code>. It has no <code>DOMParser</code> dependency, so it runs on Lynx and in the terminal too.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/richtext" /> <span class="mmr-dot" /> ESM-only <span class="mmr-dot" /> MIT</p>
+
+```bash
+pnpm add @sigx/richtext @sigx/richtext-html
+```
+
+## Converting
+
+Markdown and HTML are the same tree, so converting is parse then serialize:
+
+```ts
+import { markdownFormat } from '@sigx/richtext-markdown';
+import { parseHtml, toHtml } from '@sigx/richtext-html';
+
+toHtml(markdownFormat.parse('# Hi\n\nSome **markdown**.'));
+// '<h1>Hi</h1>\n<p>Some <strong>markdown</strong>.</p>\n'
+
+markdownFormat.serialize(parseHtml('<h1>Hi</h1><p>Some <b>html</b>.</p>'));
+// '# Hi\n\nSome **html**.\n'
+```
+
+`htmlFormat` (`id: 'html'`, `mime: ['text/html']`) wraps `parseHtml` and `toHtml` as a `DocumentFormat`. It adds no node specs — HTML maps onto the standard vocabulary — and has no incremental engine, so a view re-parses HTML on every change.
+
+## `parseHtml(source, options?)`
+
+A hand-written tokenizer and tree builder that repairs what browsers repair — an unclosed `<p>`, a bare `<li>`, a table without `<tbody>`.
+
+- **The element table** maps `p`, `h1`–`h6`, `blockquote`, `ul`, `ol`, `li`, `pre > code`, `hr`, `table`, `thead`, `tbody`, `tfoot`, `tr`, `th`, `td`, `strong` / `b`, `em` / `i`, `del` / `s` / `strike`, `code`, `a`, `img` and `br` to the standard nodes. A checkbox first in a list item is its task state; `ol[start]`, cell alignment (`align` or `style="text-align"`) and `code[class^=language-]` carry over.
+- **Wrappers are transparent.** Sectioning and styling elements (`div`, `section`, `article`, `span`, `font`, `u`, `sub`, `sup`, `mark`, …) and any element the table does not know keep their content. Pass `unknown: 'drop'` to drop unknown elements instead.
+- **Non-document content is dropped** with everything inside it: `script`, `style`, `template`, `iframe`, `object`, `embed`, `svg`, `math`, `select`, `textarea`, `head`, `canvas`, `video`, `audio` and similar.
+- **Only `href` and `src` survive**, both through the core's `sanitizeUrl`. No other attribute reaches the tree, so pasted markup cannot smuggle handlers or styles into the document.
+- **Whitespace** between blocks is dropped and whitespace inside phrasing collapsed, except in `pre`. Stray phrasing at block level becomes a paragraph.
+
+| Option | Description |
+|---|---|
+| `plugins` | Plugins whose `formats.html.elements` rules are tried first |
+| `unknown` | `'transparent'` (default) keeps an unknown element's content; `'drop'` removes it |
+
+Word / Google Docs cleanup, CSS semantics beyond `text-align`, and `math` / `svg` content are deliberately out of scope.
+
+## `toHtml(node, options?)`
+
+Writes a root, a block or phrasing content in the CommonMark reference layout — the same output commonmark.js produces: block tags separated by a newline, tight lists rendering their paragraphs unwrapped, and task items as a disabled checkbox. References resolve against the document's definitions; an unresolved one writes its bracket form.
+
+| Option | Default | Description |
+|---|---|---|
+| `sanitize` | `true` | Pass link and image URLs through `sanitizeUrl` |
+| `definitions` | the document's | Definitions to resolve references against |
+| `plugins` | — | Plugins whose `formats.html.serialize` rules write their nodes |
+
+Nodes outside the standard vocabulary go to a plugin's serialize rule, else their spec's `text` projection, else their children.
+
+> **Raw HTML passes through.** A markdown document's `html` nodes are its own markup and `toHtml` writes them verbatim. When the source is untrusted, strip or replace `html` nodes before serializing — or render through `RichTextView`, which shows them as text.
+
+## Plugins
+
+A plugin's HTML syntax is `formats.html` — element rules keyed by tag for reading, serialize rules keyed by node type for writing. `mentionHtml` is the reference: `<span data-mention="id">@label</span>` both ways. See [Plugins → the HTML slice](/richtext/docs/plugins#the-html-slice).
+
+```ts
+import { mentionNode } from '@sigx/richtext';
+import { mentionMarkdown } from '@sigx/richtext-markdown';
+import { mentionHtml } from '@sigx/richtext-html';
+
+const mentions = { name: 'mention', nodes: [mentionNode], formats: { markdown: mentionMarkdown, html: mentionHtml } };
+```
+
+## An editor that reads and writes both
+
+```tsx
+import { RichTextEditor } from '@sigx/richtext/editor/dom';
+import { markdownFormat } from '@sigx/richtext-markdown';
+import { markdownPreset } from '@sigx/richtext-markdown/editor';
+import { htmlFormat } from '@sigx/richtext-html';
+import { htmlPreset } from '@sigx/richtext-html/editor';
+
+<RichTextEditor
+    format={markdownFormat}
+    formats={[htmlFormat]}
+    plugins={[markdownPreset, htmlPreset]}
+    model:source={[note, 'md']}
+/>
+```
+
+Pasting from a browser parses its `text/html` flavour (specific flavours win over `text/plain`), and copying a block selection writes `text/markdown` and `text/html` side by side, so the selection pastes into mail clients and word processors as rich text. `htmlPreset` pulls no serializer in — it writes through the editor's own `html` format, so the editor must read HTML too (`format: htmlFormat` or `formats: [htmlFormat]`).
+
+## Tooling
+
+`tokenize`, `buildTree` and `textOf` expose the tokenizer and tree (`HtmlNode`, `HtmlElement`, `HtmlText`) for custom tooling; `escapeHtml` and `normalizeUri` are the serializer's helpers.

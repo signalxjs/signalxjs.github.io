@@ -35,6 +35,7 @@ const AREA_LABELS: Record<string, string> = {
     daisyui: '@sigx/daisyui',
     monaco: '@sigx/monaco-editor',
     mermaid: '@sigx/mermaid',
+    richtext: '@sigx/richtext',
     devtools: '@sigx/devtools',
     use: '@sigx/use',
     core: 'SignalX Core',
