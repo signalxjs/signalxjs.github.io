@@ -246,7 +246,9 @@ single call may ask for.
 Mitigations, in the order to reach for them:
 
 1. **Chunk the work and yield between slices.** Every few hundred iterations,
-   `await new Promise((resolve) => setImmediate(resolve))`. The yield is the load-bearing
+   `await new Promise((resolve) => setImmediate(resolve))` on Node, or
+   `await new Promise((resolve) => setTimeout(resolve, 0))` where `setImmediate` does not
+   exist. The yield is the load-bearing
    detail: it is what lets the heartbeat, the probes and every other actor's turns run.
 2. **Move long work off the request turn with [`ctx.tasks`](/actors/docs/tasks)**, so the
    caller is not held. A detached task still runs on the same loop, so it must chunk and yield

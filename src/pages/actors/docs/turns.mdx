@@ -128,7 +128,8 @@ membership heartbeat.
 </div>
 
 Chunk long computation and yield between slices —
-`await new Promise((resolve) => setImmediate(resolve))` every few hundred iterations — or move
+`await new Promise((resolve) => setImmediate(resolve))` every few hundred iterations on Node,
+`setTimeout(resolve, 0)` where `setImmediate` does not exist — or move
 genuinely heavy compute onto `worker_threads`. A [task](/actors/docs/tasks) takes the work off
 the caller but still runs on the same loop, so it must yield too; a
 [`defineWorker`](/actors/docs/stateless-workers) pool multiplies activations, not threads, and

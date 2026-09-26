@@ -81,7 +81,7 @@ and the rollout is safe:
 ## When a connection drops
 
 A unary call already on the wire when its connection drops rejects with an ordinary `Error` —
-`host connection closed with this call in flight (<reason>): outcome unknown, not retried` —
+`[sigx actors] host connection closed with this call in flight (<reason>): outcome unknown, not retried` —
 never `unreachable`, because the owner may have run it. Re-issue it only if the method is
 idempotent; see [when a call is retried](/actors/docs/clustering#when-a-call-is-retried).
 Streams and watches still fail `unreachable` before their first chunk.
