@@ -52,23 +52,25 @@ The dashboard's five tabs — Overview, Hosts, Actors, Cluster, Health — draw 
 a browser as embeddable sigx components. One data layer, two renderers: the numbers agree
 because neither derives them.
 
-## Why the commands might not be there
+## What each mode needs
 
-The `sigx` binary discovers plugins from the **dependencies of the project you run it in**. It
-reads `./package.json`, looks for a `sigx-cli` field in each dependency's manifest, and calls
-the plugin's `detect(cwd)`. Two things must be true in that directory:
+The `sigx` binary discovers plugins from the **dependencies of the project you run it in** — it
+reads `./package.json` and looks for a `sigx-cli` field in each dependency's manifest. So
+`sigx actors` is available in any directory whose project lists `@sigx/actors-cli` in its
+`dependencies` or `devDependencies`. Beyond that, the two modes need different things:
 
-1. `@sigx/actors-cli` is in its `dependencies` or `devDependencies`;
-2. it depends on `@sigx/actors` — that is what `detect` looks for.
+- **HTTP** needs only `@sigx/actors-cli`, a `--url` and the ops secret (`SIGX_OPS_SECRET`).
+  It works from a project that has no `@sigx/actors` dependency at all — an ops box, a control
+  plane watching several clusters, a CI probe — because it loads no user code.
+- **Embedded** needs a project that depends on `@sigx/actors`, since it loads that project's
+  app module. Without `--url` in a project that does not, the command exits with code `2`:
 
 ```
 $ sigx actors top
-error: Unknown command 'actors'
+[sigx actors] embedded mode needs a project that depends on @sigx/actors; pass --url <origin> to watch a running host instead.
 ```
 
-That is not a broken install. It is the CLI correctly declining to offer actor commands in a
-project that has no actors — `sigx --help` lists what it did find. Run it from the package
-that owns the host, or in a monorepo:
+In a monorepo, run embedded mode from the package that owns the host:
 
 ```sh
 pnpm --filter my-app exec sigx actors top

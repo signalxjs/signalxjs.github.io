@@ -79,13 +79,43 @@ Backpressure is intrinsic: the publisher awaits the turns, bounded by its call d
 holds per publisher→subscriber pair **only when the publisher awaits its publishes
 sequentially**; concurrent publishes have no relative order.
 
+## Settled or accepted
+
+What a publish waits for is `delivery`, on `host.publish()`, `publishTopic()` and
+`ctx.publish()` alike:
+
+```ts
+await ctx.publish(runCompleted, { runId }, { delivery: 'accepted' });
+```
+
+| `delivery` | Resolves when | A handler that throws |
+|---|---|---|
+| `'settled'` **(default)** | every subscriber's handler turn has finished | is an entry in `failures` |
+| `'accepted'` | every delivery is queued on its subscriber | is dropped and counted in `oneWayFailures`, like any [one-way call](/actors/docs/one-way-calls) |
+
+A delivery that cannot be queued at all — the subscriber's host is unreachable, say — is still
+a `failures` entry under either mode. The report always carries `delivery`, because
+`delivered` means "handled" under `'settled'` and "queued" under `'accepted'`: an accepted
+publish cannot report a handler that threw, by construction.
+
+Choose `'accepted'` when the publisher's own progress must not depend on its subscribers — the
+completion path of a workflow, an audit feed, anything fanning into one aggregator. Two things
+to know before you do:
+
+- **It decouples the publisher, not the subscriber.** A singleton subscriber is still a
+  ceiling on how fast events are consumed, and an accepted publish queues on it rather than
+  failing. If that subscriber must shed rather than grow, give it `maxQueued`.
+- **It cannot deadlock.** A subscription that dispatches back into the publisher is an
+  ordinary queued turn, because nothing is waiting on it. A settled publish still reports the
+  cycle, as below.
+
 ## The details worth knowing
 
 **Key mapping.** An entry may be `{ key: (topicKey) => subscriberKey, handle }`. `key: () =>
 'aggregate'` makes one singleton receive every key's events. The default is identity — topic
 key equals subscriber key.
 
-**Cycles are deadlocks, not hangs.** `ctx.publish` carries the publishing turn's call chain,
+**Cycles are deadlocks, not hangs** — under `'settled'` delivery. `ctx.publish` carries the publishing turn's call chain,
 so a subscription that dispatches back into a non-reentrant publisher fails *that delivery*
 with `kind: 'deadlock'` in the report. The publisher is awaiting the fan-out, so an undetected
 cycle could never complete. [`reentrant: true`](/actors/docs/reentrancy) delivers inline

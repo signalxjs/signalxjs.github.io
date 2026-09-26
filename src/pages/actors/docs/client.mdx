@@ -45,6 +45,22 @@ overrides headers alone without restating where the server is.
 `configureActors` is independent of `configureServerFn`, so a native or remote client can
 point actors at one origin and server functions at another.
 
+### Connection failures are retried once
+
+During a rolling restart a client can write onto a pooled keep-alive socket in the same
+instant the exiting server retires it — a race no server-side drain can win alone. So when
+the `fetch()` itself rejects **before any response exists** with a connection-level failure
+(`UND_ERR_SOCKET`, `ECONNRESET`, `ECONNREFUSED`, `EPIPE`, or a browser's opaque `TypeError`),
+`fetchTransport` re-sends the call exactly once. A failure before any response is a failure
+before dispatch, so the retry cannot run a turn twice.
+
+It never retries after a status has arrived, on a stream that fails mid-body, or on an abort —
+in those cases the call may have executed. It is on by default; opt out with:
+
+```ts
+configureActors({ retryConnectionErrors: false });
+```
+
 ## Supplying a whole transport
 
 ```ts
@@ -79,7 +95,8 @@ app.use(actorsPlugin({ transport: socketTransport({ url: 'wss://example.com/_sig
 It implements `live()`, so subscriptions change incrementally instead of reopening. Note that
 it is **host-affine** — a per-call `endpoint` is ignored, because every call re-dispatches
 through placement anyway — and that in-flight calls fail un-retried when a socket drops, while
-subscriptions re-establish.
+subscriptions re-establish. The [connection-failure retry](#connection-failures-are-retried-once)
+belongs to `fetchTransport` only; the socket transport does not retry.
 
 `fetchTransport()` stays the default; reach for the socket when the connection *shape* is the
 problem, not when you want a faster call.

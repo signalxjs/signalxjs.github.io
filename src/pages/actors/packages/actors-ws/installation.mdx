@@ -56,7 +56,7 @@ detached listener accepted keep running until they close on their own.
 Everything else is forwarded to the session — see
 [Socket sessions](/actors/docs/socket-sessions) for `origin`, `maxMessageBytes`,
 `maxConcurrent`, `maxSubscriptions`, `pingMs`, `revalidateMs`, `maxConnectionMs`,
-`throttlePolicy` and `stats`. The adapter supplies the session's `bufferedBytes()` seam itself,
+`maxBufferedBytes`, `throttlePolicy` and `stats`. The adapter supplies the session's `bufferedBytes()` seam itself,
 from the socket's `bufferedAmount`, so [`socketStats()`](/actors/docs/observability#socket-sessions)
 reports the host's own send-buffer depth with nothing to configure.
 

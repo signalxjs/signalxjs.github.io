@@ -54,21 +54,30 @@ TCP wants 99.
 
 ## Bounding the HTTP pool
 
-Node's global `fetch` uses an unbounded undici pool. Bounding it is the cheapest improvement
-available:
+Node's global `fetch` uses an unbounded undici pool, measured at two sockets per in-flight
+request. Bounding it is the cheapest improvement available, and `@sigx/actors/node` ships it
+as `boundedFetch`:
 
 ```ts
-import { Agent, fetch as undiciFetch } from 'undici';
-
-const agent = new Agent({ connections: 64 });   // match per-peer concurrency
+import { boundedFetch } from '@sigx/actors/node';
 
 cluster({
     providers, advertise, secret,
-    transport: httpTransport({
-        fetch: (url, init) => undiciFetch(url, { ...init, dispatcher: agent }),
-    }),
+    fetch: boundedFetch({ connections: 64 }),   // match your outbound concurrency
 });
 ```
+
+`cluster({ fetch })` is sugar for `transport: httpTransport({ fetch })`. The returned `fetch`
+forwards every call through one undici `Agent({ connections })` as its `dispatcher`. It is
+scoped: only that fetch is re-tuned, never the process's global dispatcher, so your app's own
+outbound HTTP and other SDKs are untouched.
+
+`connections` is **required and has no default** — the right value is your host's outbound
+concurrency, and a positive integer is enforced at construction. `undici` is an **optional
+peer dependency** (`>=6`) of `@sigx/actors`: install it next to it (`pnpm add undici`). It is
+loaded lazily on the first call, so a host that never calls the returned fetch never loads it,
+and a missing install fails that first call with install guidance rather than a bare
+module-not-found.
 
 **Match `connections` to your per-peer concurrency.** Measured against undici 7.x — what
 current Node bundles — at concurrency 64: the unbounded default opens 128 sockets;
@@ -86,7 +95,8 @@ over `node:http` — HTTP/1.1 only — so the client negotiates nothing and fall
 Multiplexing would need a `node:http2` server first: a much larger change than the pool cap,
 for the same reduction in sockets.
 
-`undici` is a **recipe, not an API** — it is not a dependency of `@sigx/actors`.
+`boundedFetch` lives on `./node` rather than `./cluster` so the cluster entry stays
+zero-dependency and WinterCG-clean. On another runtime, pass any tuned `fetch` the same way.
 
 ## Fallback chains make adoption safe
 

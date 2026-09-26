@@ -124,6 +124,9 @@ already have. Reading it **seals the app**, so register every plugin first.
 host-to-host mount, the same way `handleActorRequest` and `matchesActorRequest` cover the
 public one.
 
+On a clustered Node host, `boundedFetch({ connections })` from `@sigx/actors/node` caps the
+host-to-host socket pool — see [bounding the HTTP pool](/actors/docs/transports#bounding-the-http-pool).
+
 ## Host defaults
 
 ```ts
