@@ -161,6 +161,75 @@ crash, so how often you call it is how much work you are willing to redo.
 The resume contract is **at-least-once**: the runtime resumes the function, and your code
 resumes the work by reading `job.resumedFrom`. Make the step after a checkpoint idempotent.
 
+`job.resumedFrom` is a detached copy: mutating it changes nothing, and nothing changes it.
+
+### Append per step, checkpoint every N
+
+`job.checkpoint(cp)` re-encodes the whole checkpoint, so on a job whose checkpoint grows through
+the run — rows accumulated per page, say — each step costs more than the last. `job.append`
+writes the step instead. Declare `apply`, the reducer that folds one entry into the checkpoint:
+
+```ts
+const Sync = defineJob({
+    type: 'Sync',
+    apply: (rows: Row[] | undefined, row: Row) => {
+        (rows ??= []).push(row);
+        return rows;
+    },
+    run: async (job, input: Input) => {
+        const rows = job.resumedFrom ?? [];      // a detached copy — yours to keep folding
+        for (let page = rows.length; page < input.pages; page++) {
+            const row = await fetchPage(input, page);
+            rows.push(row);                      // your fold…
+            await job.append(row);               // …and the durable one: O(row), not O(rows)
+            if (page % 100 === 99) await job.checkpoint(rows);   // compaction every N
+        }
+        return rows.length;
+    },
+});
+```
+
+`apply(checkpoint, entry)` returns a value to **replace** the checkpoint, or nothing to say it
+was mutated in place. A checkpoint that is still `undefined` — no `checkpoint()` or `append()`
+yet — can only be created by returning one. It runs at every `append` and again on every
+activation, replaying the appended entries onto the stored checkpoint, so it must be a pure
+function of its two arguments.
+
+Each `append` is durable when it resolves, etag-CAS like every write. After a crash,
+`resumedFrom` is the last checkpoint with every appended entry folded in, in order — the same
+value the body saw. `checkpoint()`, `pause()` and the terminal transition are full saves, and
+therefore the compaction points: checkpointing every N steps bounds what a resume replays.
+Measured on the `jobs/checkpoint-growth` bench, an append per step stays flat at roughly
+8–10 µs from the head of a 300-step run to its tail, where a checkpoint per step grows about
+five-fold.
+
+The entry type `E` is inferred from `apply` — `defineJob`, `JobOptions` and `JobHandle` carry
+it as a trailing type parameter — so without `apply`, `job.append` takes `never` and cannot be
+called. A late `append` from a body that is winding down is dropped, like a late `progress()`.
+On a storage without [`appendText`](/actors/docs/storage#appendtext--the-oentry-append)
+(`fileStorage`) every append is a full save: the recipe still holds, at O(checkpoint) cost.
+
+### Deferring a checkpoint
+
+```ts
+await job.checkpoint({ cursor: i + 1 }, { durability: 'eventual' });
+```
+
+`checkpoint(cp, options?)` takes the same `SaveOptions` as
+[`ctx.save()`](/actors/docs/state-and-persistence#deferring-a-save) (re-exported from
+`@sigx/actors/job`). `'immediate'`, the default, is durable when the promise resolves — one
+encode and one etag-CAS per step. `'eventual'` marks the state for the host's write-behind
+debounce (50 ms) and resolves at once, so a burst of N steps costs one save. `pause()`, the
+terminal transition and a graceful deactivation still save synchronously, so the record that
+decides a job's fate is never eventual.
+
+**The trade is crash distance.** A host death between an eventual checkpoint and its flush
+resumes from the last checkpoint that reached storage, which may be several steps back. Use it
+for steps that are cheap to redo and idempotent; keep `'immediate'` for a step that commits an
+external side effect. On [Cloudflare](/actors/docs/cloudflare-workers#eviction-is-not-deactivation),
+where eviction is not deactivation, there is no final flush at all — prefer `'immediate'`
+there.
+
 ## Projecting status outside the job
 
 `onSettled` fires on **every** terminal transition, which is what makes it safe to keep a

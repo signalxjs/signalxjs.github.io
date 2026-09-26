@@ -63,7 +63,8 @@ configured where they would never run. See
 | `durableObjectStorage(storage, options?)` | [`ActorStorage`](/actors/docs/storage) on DO storage |
 | `durableObjectReminders(options)` | `ActorReminders` on the DO alarm |
 | `durableObjectPlacement(options?)` | routes a ref to its object |
-| `durableObjects(options?)` | the placement as a plugin |
+| `durableObjects(options)` | the placement as a plugin; `options` (with `namespace`) is required. Carries `never` as its placement type: an app that `.use(durableObjects(...))` cannot declare `placement` on its actors |
+| `durableObjectsHosted()` | a type-only plugin for the `app` factory — installs nothing, carries `never` as its placement type, so `placement:` on an actor is a compile error |
 | `durableObjectName(...)` | the ref → object-name function |
 | `unhostedStorage()` | storage for the Worker half, which hosts nothing |
 | `durableObjectStubResolver(...)` | the ref → stub derivation, shared by placement and the forwarding socket route so the two cannot disagree about where an actor lives |
@@ -88,6 +89,18 @@ durableObjectPlacement();
 `locationHint` is a hint and safe to change. **`jurisdiction` and `objectName` are part of
 identity**, so changing either is a state migration.
 
+### No per-actor `placement`
+
+Durable Objects read no placement strategy. `durableObjects()` and `durableObjectsHosted()` are
+both `ActorPlugin<Record<never, never>, never>`, so the app-bound `defineActor` of an app that
+installs either refuses `placement` at compile time — omitting it (or `placement: undefined`)
+is the only spelling left.
+
+What the types cannot see — the bare `defineActor` from `@sigx/actors`, a packaged actor,
+JavaScript — meets the runtime floor in `durableObjectPlacement()`: a strategy tagged
+`backend: 'cluster'` throws at dispatch, naming the type and the strategy, and any other
+declared strategy logs one `__DEV__` warning per type.
+
 ## Alarm concurrency
 
 `onAlarm()` runs in three phases and does **not** hold `blockConcurrencyWhile` across
@@ -106,7 +119,8 @@ returned as a value and thrown **after** the gate closes. An exception escaping
 `DurableObjectStorageOptions`, `DurableObjectRemindersOptions`,
 `DurableObjectPlacementOptions`, `DurableAppOptions`, `DurableObjectStateLike`,
 `HostDurableObjectInstance`, `WorkerHandler`, `WorkerHandlerOptions`, `BlockConcurrencyWhile`,
-`DurableStorage`, `DurableAlarms`, `DurableObjectStubResolver`, `WorkerSocketOptions`,
+`DurableStorage` (its optional `list({ prefix })` enables the
+[append path](/actors/docs/storage#appendtext--the-oentry-append)), `DurableAlarms`, `DurableObjectStubResolver`, `WorkerSocketOptions`,
 `ObjectSocketRouteOptions`, `CloudflareWebSocketLike`, `DurableWebSocketLike`.
 
 `DurableObjectStateLike` carries the hibernation members — `acceptWebSocket`,

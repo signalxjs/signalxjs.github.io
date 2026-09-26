@@ -53,7 +53,10 @@ the 404 authority; the object to actually activate.
 ## Pass an app *factory*, not an app
 
 ```ts
-export const createApp = (base: ActorAppOptions) => defineActorApp(base).use(metrics());
+import { durableObjectsHosted } from '@sigx/actors-cloudflare';
+
+export const createApp = (base: ActorAppOptions) =>
+    defineActorApp(base).use(durableObjectsHosted()).use(metrics());
 export const { defineActor } = createApp({});   // type-only binding, never started
 ```
 
@@ -63,6 +66,13 @@ receives the object's own storage, reminders and defaults and must pass them on.
 
 It never receives `env`, so it cannot reach a namespace binding and build a placement of its
 own.
+
+`durableObjectsHosted()` installs nothing — `createHostDurableObject()` and
+`createWorkerHandler()` install the real placement after the factory runs. It only narrows the
+app-bound `defineActor`, so `placement:` on an actor is a compile error: a ref maps to its
+object by name, and there is no strategy to apply. A declaration that slips past the types
+still fails at dispatch for a cluster policy (`backend: 'cluster'`), and logs one `__DEV__`
+warning per type for any other strategy.
 
 ## One placement runs on both sides
 
@@ -208,7 +218,9 @@ overrides the hibernation handlers must delegate `sigx:socket` sockets back thro
 
 ### Also exported
 
-`objectSocketRoute` and `parseSocketActorPath` for the forwarding half, and
+`objectSocketRoute` and `parseSocketActorPath` for the forwarding half — `objectSocketRoute`
+answers an [`internal: true`](/actors/docs/guards#server-internal-types) type with the same 404
+as an unknown one at the upgrade, and never mints a Durable Object for it — and
 **`durableObjectStubResolver`** — the ref → stub derivation, extracted so placement and the
 forwarding route cannot drift apart about where an actor lives. `CloudflareWebSocketLike`,
 `DurableWebSocketLike` and the optional hibernation members on `DurableObjectStateLike`
@@ -226,6 +238,13 @@ here is checkpoint-and-resume with short gaps rather than one continuous run. Sa
 at-least-once contract — checkpoint aggressively. The object selects
 `reminderTaskLiveness()` for task liveness: its alarm is already the wake-up, where the
 default per-host roster would be a roster of one.
+
+Checkpointing aggressively is cheap with an append. `durableObjectStorage` implements
+[`appendText`](/actors/docs/storage#appendtext--the-oentry-append), so
+[`ctx.append`](/actors/docs/state-and-persistence#appending-entries) and `job.append` write one
+storage key per entry rather than the whole state, and a full save compacts them. Keep a job's
+`checkpoint()` at the default `'immediate'` durability here: with no final flush on eviction, an
+`'eventual'` checkpoint is only as durable as its debounce window.
 
 ## `wrangler.jsonc`
 

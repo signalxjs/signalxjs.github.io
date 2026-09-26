@@ -30,6 +30,24 @@ seam with an **etag**, so a conflicting writer is detected rather than overwritt
 Forget the `await` and you have told the caller a thing is durable when it is not. That is the
 one mistake this API can't stop you making, which is why the default is explicit.
 
+### Deferring a save
+
+```ts
+await ctx.save({ durability: 'eventual' });
+```
+
+`ctx.save()` takes `SaveOptions` (exported from `@sigx/actors`). `'immediate'`, the default,
+resolves once the record is stored. `'eventual'` marks the state for the activation's
+write-behind debounce and resolves at once, so a burst of eventual saves costs one write. The
+actor stays explicit: no write happens that was not asked for. A later immediate `save()` or
+the deactivation flush picks up whatever is still pending.
+
+The write stores the state as it stands when it runs, not as it stood at the call. What an
+eventual save gives up is the acknowledgement: a host death inside the debounce window loses
+the eventual saves since the last durable one, and a failed write reports through
+[`onStateError`](#when-a-deferred-save-fails) rather than to a caller. `ctx.clearState()`
+drops an eventual save that is still pending, so a deleted record is not written back.
+
 ## Write-behind
 
 ```ts
@@ -45,8 +63,8 @@ on shutdown.
 
 ### When a deferred save fails
 
-A write-behind save has no caller to throw to. `onStateError` on the definition hears about
-it instead:
+A write-behind save, or an explicit actor's `ctx.save({ durability: 'eventual' })`, has no
+caller to throw to. `onStateError` on the definition hears about it instead:
 
 ```ts
 import { defineActor, type StateErrorPhase } from '@sigx/actors';
@@ -66,8 +84,14 @@ defineActor({
 
 | Phase | Which save | What it means for the state |
 |---|---|---|
-| `'flush'` | the debounced save between turns; the hook runs inside that flush's own turn, so `ctx.state` is the frame that failed to save | A transient storage error leaves the state dirty and **schedules no retry of its own**: the next write, or the final flush at deactivation, carries it — a non-mutating turn does not. An etag conflict (`ActorStateConflictError`) has already faulted the activation; its unsaved writes are discarded and the next call reloads the winning state. |
+| `'flush'` | the debounced save between turns; the hook runs inside that flush's own turn, so `ctx.state` is the frame that failed to save | A transient storage error leaves the state dirty and **schedules no retry of its own**: the next write, or the final flush at deactivation, carries it — a non-mutating turn does not. An etag conflict (`ActorStateConflictError`) discards it — see below. |
 | `'final-flush'` | the save at deactivation, after the queue drains | The last chance for those writes, so a failure here **is** lost data. Dead-letter `ctx.snapshot()` from here. |
+
+An etag conflict in the `'flush'` phase means another activation wrote first. Once the hook
+returns, the activation is torn down with no further call: `onDeactivate(ctx, 'conflict')`
+fires, the final flush is skipped so the stale state never overwrites the winner, and the next
+call activates against the winning state. **The hook is the last time that state is
+observable**, which makes dead-lettering `ctx.snapshot()` there the right move.
 
 The hook is awaited in both phases, and a throw from it is dev-logged and ignored. It only
 observes — it cannot retry the save for you. An explicit `ctx.save()` that fails still rejects
@@ -99,6 +123,42 @@ You do not normally handle this. It means the single-activation invariant was br
 — a network partition, a directory hiccup, a migration — and the recovery is automatic. What
 it *is* good for is alerting: a steady trickle of conflicts says something in your cluster is
 wrong. See [Metrics](/actors/docs/metrics).
+
+### Re-running queued turns
+
+By default a conflict fails more than the losing turn: every turn queued behind it rejects
+with `ActorStateConflictError` too, and the activation is discarded
+(`onDeactivate(ctx, 'conflict')`). For an actor whose methods are safe to re-run, opt out of
+that:
+
+```ts
+defineActor({
+    type: 'Tally',
+    retryQueuedOnConflict: true,
+    // …
+});
+```
+
+The losing turn still rejects — its writes were computed on stale state and are discarded, and
+its caller retries. But the activation stays. Before the next turn runs, the winning record is
+reloaded in place (through `migrateState`, as on activation) and the queued turns run in their
+original order against it, as if they had arrived after the other writer. There is no
+deactivation, no second `onActivate` and no re-dispatch. Change-feed subscribers never see the
+losing turn's writes; the winning state is their next boundary.
+
+> **Only for methods that are idempotent or commutative.** A queued turn is re-run against
+> state it did not see when it was queued, so a method that reads, decides and then writes can
+> act twice or act on the wrong premise.
+
+The scope is deliberately narrow:
+
+- **Turn-path saves only.** A write-behind or eventual-save flush conflict still deactivates,
+  as [above](#when-a-deferred-save-fails).
+- **Serial actors only.** With `reentrant: 'always'`, or a `methodReentrancy` map naming any
+  method, the first activation fails — interleaved turns are never queued, so there is nothing
+  to re-run. `reentrant: 'call-chain'` is fine.
+- **A reload that fails** faults the activation exactly as without the option.
+- `defineActor` only — `defineWorker` has no state to reload.
 
 ## Migrating state
 
@@ -160,6 +220,61 @@ mixed-version fleet.
 > over it would hand you a runtime shape you do not own. Migrating the `extra` half wants its
 > own option, and is not part of this. See [Jobs](/actors/docs/jobs).
 
+## Appending entries
+
+`ctx.save()` writes the whole state, so its cost grows with the state. `ctx.append(entry)`
+writes one entry instead. Declare the reducer that folds an entry into the state, in place:
+
+```ts
+defineActor({
+    type: 'Ledger',
+    state: () => ({ balance: 0, entries: [] as Entry[] }),
+    applyEntry(state, entry) {
+        const e = entry as Entry;
+        state.balance += e.amount;
+        state.entries.push(e);
+    },
+    methods: (ctx) => ({
+        async post(entry: Entry) {
+            await ctx.append(entry);     // folds it into ctx.state, then stores the entry alone
+            return ctx.state.balance;
+        },
+    }),
+});
+```
+
+`ctx.append` runs `applyEntry` on the live state and appends the entry to the record's log
+under the record's etag — O(entry) where `ctx.save()` is O(state). It is durable when it
+resolves, and it is a write like any other: a conflict behaves exactly as a save's does,
+including the [`retryQueuedOnConflict`](#re-running-queued-turns) reload.
+
+**The record is a snapshot plus a log.** On activation the log is replayed through
+`applyEntry` onto the stored snapshot, in append order — **after** `migrateState` and
+**before** `onActivate`. A full save — `ctx.save()`, a write-behind or eventual flush, the
+deactivation flush — stores the folded state and truncates the log. A full save is the
+compaction; there is no other.
+
+**`applyEntry` must be pure.** It runs twice per entry over the record's life: once at append
+and once at every replay, possibly on another host. Same state and entry, same result.
+
+**What an append makes durable is the entry.** State written directly, not through the
+reducer, since the last full save is not in the log; the next full save carries it.
+
+**It works on every storage.** Where the storage has no
+[`appendText`](/actors/docs/storage#appendtext--the-oentry-append) (`fileStorage`), or there is
+no record yet, an append is a full save: same result, O(state) cost.
+
+The rules at the edges:
+
+- `ctx.append` without `applyEntry` throws.
+- A record carrying a non-empty log fails activation under a definition without `applyEntry`,
+  naming the type — it was written by one that had it.
+- It is not available on a `tasks:` body's context (use `ctx.turn`) or on a
+  [stateless worker](/actors/docs/stateless-workers).
+
+[Jobs](/actors/docs/jobs#append-per-step-checkpoint-every-n) have the same seam as
+`job.append(entry)`.
+
 ## Providers
 
 | Provider | Use |
@@ -168,6 +283,7 @@ mixed-version fleet.
 | `fileStorage({ dir })` | dev — one cat-able JSON file per actor |
 | [`redisStorage`](/actors/packages/actors-redis/overview) | production, with the cluster providers |
 | [`pgStorage`](/actors/packages/actors-pg/overview) | production, `text` rows with etag CAS |
+| [`sqliteStorage`](/actors/packages/actors-sqlite/overview) | a single-node host — one file on `node:sqlite` |
 
 Implement `ActorStorage` — `load` / `save` / `clear` with etags — for anything else. See
 [Storage](/actors/docs/storage).

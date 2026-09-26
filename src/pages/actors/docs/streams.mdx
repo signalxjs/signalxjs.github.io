@@ -47,6 +47,15 @@ state** from a stream body. Dev builds warn when a body reads live `ctx.state`.
 `ctx.changes()` yields a detached snapshot after every mutating turn, through a bounded
 buffer that drops oldest.
 
+The snapshot is cloned through the host codec. If a codec or `TypeHandler` throws while cloning
+it, the error reaches the turn's caller, and the rest of the turn's bookkeeping still
+completes: a write-behind flush is still scheduled, a `ctx.deactivate()` made in that turn is
+still honoured, and ticks-only subscribers — the shared watch behind `$live` and
+`useActorState({ live: true })` — still receive the boundary and re-read. The failed boundary
+is consumed, not retried: value subscribers that missed it see the next mutating boundary,
+whose whole-state snapshot carries everything it would have, and a read-only turn never
+rejects for a write it did not make.
+
 ### Snapshot a subtree, not the whole state
 
 `ctx.snapshot()` clones everything, and on a large state that is an O(state) cost per read.

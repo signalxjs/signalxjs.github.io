@@ -1,0 +1,76 @@
+---
+title: "API reference"
+description: "Exports of @sigx/actors-sqlite — sqliteStorage(), its options, the etag and CAS semantics, and the two tables it creates"
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/actors-sqlite` <PkgVersion npm="@sigx/actors-sqlite" />.</p>
+
+## `sqliteStorage(options)`
+
+An [`ActorStorage`](/actors/docs/storage) on `node:sqlite`.
+
+```ts
+interface SqliteStorageOptions {
+    path?: string;              // opened with a WAL journal and a 5 s busy_timeout
+    database?: DatabaseSync;    // …or your own open database, untouched
+    table?: string;             // 'sigx_state'
+}
+
+interface SqliteStorage extends ActorStorage {
+    saveText(type: string, key: string, json: string, expectedEtag: string | null): Promise<string>;
+    appendText(type: string, key: string, json: string, expectedEtag: string): Promise<string>;
+    close(): void;
+}
+```
+
+Exactly one of `path` and `database`; both or neither throws. `table` must match
+`[A-Za-z_][A-Za-z0-9_]*`, because it is interpolated as an SQL identifier.
+
+## Semantics
+
+**Etags are the row's version.** A create writes version 1 and every update is
+`version = version + 1`; the etag is that integer as a decimal string. Compare-and-set is one
+`WHERE version = ?` predicate — `INSERT … ON CONFLICT DO NOTHING` for a create,
+`UPDATE … WHERE version = ?` for an update, `DELETE … WHERE version = ?` for a clear — so the
+row count is the verdict. A mismatch throws the branded `ActorStorageConflict`.
+
+**One write transaction per save, append or clear.** A write that touches both tables runs in
+one `BEGIN IMMEDIATE` transaction, so a CAS verdict and the log it governs commit together.
+
+**Synchronous underneath.** `node:sqlite` is in-process, so every method does its work on the
+calling turn and returns a settled promise — a save costs microseconds rather than a round
+trip.
+
+**State is stored as JSON text.** `type` and `key` go through the same injective escape
+`@sigx/actors-pg` uses (`\` doubles, NUL becomes `\0`), because SQLite stores a NUL-bearing
+string whole and then stops at the NUL on every read. You never see the escape.
+
+## Tables
+
+Both are created on open with `IF NOT EXISTS`.
+
+```
+{table}       (type, key, version, state)    PRIMARY KEY (type, key)  WITHOUT ROWID
+{table}_log   (seq, type, key, entry)        seq AUTOINCREMENT, index on (type, key)
+```
+
+`{table}_log` holds the entries [`appendText`](/actors/docs/storage#appendtext--the-oentry-append)
+adds since the last full save, read back in `seq` order. A full save or a clear deletes the
+record's log rows in the same transaction.
+
+## Types
+
+`SqliteStorage`, `SqliteStorageOptions`.
+
+## Next steps
+
+- [Overview](/actors/packages/actors-sqlite/overview) — when to use it.
+- [Installation](/actors/packages/actors-sqlite/installation) — options and lifecycle.
+- [Storage](/actors/docs/storage) — the seam this implements.

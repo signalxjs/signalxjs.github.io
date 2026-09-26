@@ -48,12 +48,17 @@ for tooling that needs to read or write the tables directly.
 All under the configured schema, `sigx` by default.
 
 ```sql
-state(type, key, etag, state)                       -- state is text
+state(type, key, etag, state, log)                  -- state is text, log is text[]
 directory(actor_id, host_id, activation_id)         -- + directory_host_id index
 hosts(host_id, descriptor, expires_at)
 membership_version(id, version)
 reminders(type, key, name, next_due, period_ms)     -- + reminders_due index
 ```
+
+`log` holds the entries [`appendText`](/actors/docs/storage#appendtext--the-oentry-append)
+adds since the last full save. `ensurePgSchema()` adds the column to an existing schema
+(`ALTER TABLE … ADD COLUMN IF NOT EXISTS`); a migration tool carrying `pgSchemaSql()` must run
+that DDL too.
 
 ## Semantics worth knowing
 

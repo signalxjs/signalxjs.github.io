@@ -85,6 +85,36 @@ principal. The two together are coherent, not contradictory.
 whether an actor has said anything about access; an app-wide default answers for
 every actor at once.
 
+## Server-internal types
+
+A type that is only ever called in-process or host-to-host is not "anonymous" — it is not
+public at all. Say so with `internal: true`, not `allowAnonymous: true`:
+
+```ts
+defineActor({ type: 'FlowStep', internal: true, /* … */ });
+```
+
+`defineActor`, `defineWorker` and `defineJob` all take it. Every **public** entry point refuses
+a flagged type with exactly the answer an unregistered type gets — the same 404, the same
+`method-not-found` kind, the same message — so a probe cannot tell a hidden type from a missing
+one:
+
+| Refuses it | Still serves it |
+|---|---|
+| the HTTP actor endpoint — unary calls, and GET reads answer as for an unknown type | in-process `actor()` and `ctx.actor()` |
+| the `$live` multiplex, per subscription — siblings keep streaming | the cluster's HMAC-authenticated host-to-host mount |
+| the socket session's calls and subscriptions | |
+| Cloudflare's `objectSocketRoute`, at the upgrade | |
+
+The [Vite plugin](/actors/docs/vite-plugin#the-build-swap) still registers an internal actor
+for the server, but the client module gets a `__serverOnly` stand-in instead of a ref, so
+nothing about the type reaches the browser bundle and an accidental client-side call fails
+loudly.
+
+`internal` is orthogonal to access. The pipeline still runs for the callers that can reach
+the type, so an internal actor declares `authorize` or `allowAnonymous` like any other — or
+relies on the app default — and the `requireAuthorization` build gate applies unchanged.
+
 ## Three properties worth stating outright
 
 **They run on every transport.** The wire endpoint and in-process `actor()` calls

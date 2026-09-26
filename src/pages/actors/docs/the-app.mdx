@@ -112,6 +112,14 @@ export const Counter = defineActor({
 });
 ```
 
+`ActorPlugin` takes a second type argument, `Placement` (default `ActorPlacementStrategy`),
+threaded the same way: a plugin that installs a placement backend names the strategy type it
+understands, and `app.use(plugin)` returns `ActorApp<Ext & E, Placement & P>`. `cluster()` is an
+`ActorPlugin<…, PlacementPolicy>`, so the app-bound `defineActor({ placement })` of a clustered
+app accepts only a cluster policy; see
+[placement policies](/actors/docs/placement-policies#typed-per-app). Plugins that install no
+placement leave it at the widest type.
+
 This is the reason actor modules import `defineActor` from your app module rather than from
 `@sigx/actors`. Both produce the same object at runtime; only the **type** differs.
 

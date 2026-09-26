@@ -1,0 +1,73 @@
+---
+title: "Installation"
+description: "Install @sigx/actors-sqlite, open the database by path or hand it your own DatabaseSync, and close it when the host stops"
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">One file, no schema step, and a <code>close()</code> when the host stops.</p>
+
+## Install
+
+```bash
+pnpm add @sigx/actors-sqlite
+```
+
+Requires **Node ≥ 22.13** — the package's `engines` field says so. `node:sqlite` is built in,
+so there is nothing else to install.
+
+## Wire it up
+
+```ts
+import { defineActorApp } from '@sigx/actors/host';
+import { sqliteStorage } from '@sigx/actors-sqlite';
+
+const storage = sqliteStorage({ path: './actors.db' });
+
+export const app = defineActorApp({ actors, storage });
+```
+
+Pass **exactly one** of `path` or `database`. Passing both throws, and so does passing neither.
+
+- **`path`** — the package opens the file, creating it if it is missing (`':memory:'` works
+  too, for a database that lives as long as the storage does). It switches the journal to WAL
+  and sets a 5 s `busy_timeout`.
+- **`database`** — an already-open `DatabaseSync` that you configure. No pragma is touched on a
+  database passed in.
+
+```ts
+import { DatabaseSync } from 'node:sqlite';
+
+const db = new DatabaseSync('./actors.db');
+db.exec('PRAGMA journal_mode = WAL');
+const storage = sqliteStorage({ database: db, table: 'actor_state' });
+```
+
+## Options
+
+| Option | Default | Meaning |
+|---|---|---|
+| `path` | — | the database file to open, or `':memory:'` |
+| `database` | — | an open `DatabaseSync` instead of `path` |
+| `table` | `sigx_state` | the state table; must be a plain identifier (`[A-Za-z_][A-Za-z0-9_]*`) |
+
+## Close it on shutdown
+
+```ts
+await host.stop();
+storage.close();
+```
+
+`close()` closes the database, and every later call on the storage rejects. It is idempotent,
+so a `finally` and an explicit stop path can both call it.
+
+On a storage built over your own `database`, `close()` closes **that** database too — call it
+only when the storage is its last user.
+
+## Next steps
+
+- [API reference](/actors/packages/actors-sqlite/api) — semantics and the table layout.
+- [Storage](/actors/docs/storage) — choosing a provider.

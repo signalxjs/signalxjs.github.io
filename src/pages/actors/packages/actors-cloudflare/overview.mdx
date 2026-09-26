@@ -41,6 +41,25 @@ const storage = durableObjectStorage(state.storage);
 DO storage is strongly consistent and single-threaded per object, so the runtime's etag
 compare-and-set holds without a transaction.
 
+It implements [`appendText`](/actors/docs/storage#appendtext--the-oentry-append), so
+[`ctx.append`](/actors/docs/state-and-persistence#appending-entries) writes one storage key per
+entry instead of a full save; a full `ctx.save()` compacts the log, and `load` replays it
+through `applyEntry`. The real `DurableObjectStorage` needs no configuration for this. A custom
+`DurableStorage` gets the append path only if it provides the optional `list({ prefix })`;
+without it every append is a full save.
+
+## Placement
+
+A ref maps to its Durable Object by name — the platform is the directory — so a DO-hosted actor
+has no placement strategy to apply. `placement` on such an actor is refused:
+
+- **At compile time**, through the app-bound `defineActor`, when the app installs
+  `durableObjects(...)` or, in an `app` factory, `durableObjectsHosted()`. Both carry `never` as
+  their placement type.
+- **At dispatch** otherwise. A strategy tagged `backend: 'cluster'` — every
+  `@sigx/actors/cluster` policy — throws, naming the type and the strategy. Any other declared
+  strategy logs one `__DEV__` warning per type.
+
 ## Reminders
 
 ```ts

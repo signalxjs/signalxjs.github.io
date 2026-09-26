@@ -53,6 +53,12 @@ Pass an existing client instead of `url` to share the app's connection —
 `redisCluster({ client })`. Sharing one `ioredis` client across `redisCluster()` and
 `redisStorage()` is safe and saves connections.
 
+A client the package builds from `url` has `enableAutoPipelining: true`: ioredis coalesces the
+commands issued in one event-loop tick into fewer socket writes, which is where a host busy
+with many same-tick CAS saves spends its time. A `client` you pass keeps your own options — set
+`enableAutoPipelining: true` on it yourself to get the same. The membership subscriber is
+unaffected: it only ever subscribes, and ioredis never auto-pipelines subscription commands.
+
 > **Call `redisCluster()` once per host.** Each call returns *that host's* own membership
 > handle. The directory is safely shared.
 
