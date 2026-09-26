@@ -79,6 +79,9 @@ propagation bound.
 
 **Reminders commit before delivery.** The advance-or-delete is committed *before* the handler
 runs, which is what makes delivery at-most-once and prevents catch-up bursts after an outage.
+A delivery that then fails is re-armed one tick out (`next_due = now() + tickMs`, one statement
+per batch) and reported through `ActorRemindersContext.undelivered`; a row the actor set again
+meanwhile is left as the actor set it.
 
 ## Next steps
 

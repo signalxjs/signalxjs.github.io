@@ -133,6 +133,8 @@ defineActorApp({
         callTimeoutMs: 30_000,      // 0 disables
         sweepIntervalMs: 60_000,    // 0 disables
         maxActivations: 0,          // 0 = unlimited
+        maxQueuedPerActor: 0,       // admission cap per actor queue; 0 = unlimited
+        maxInflightTurns: 0,        // admission cap per host; 0 = unlimited
         reminderTickMs: 30_000,
         slowTurnMs: 5_000,          // __DEV__ warning threshold
         taskGraceMs: 10_000,
@@ -141,7 +143,12 @@ defineActorApp({
 });
 ```
 
-Note that `callTimeoutMs` deadlines
+`callTimeoutMs` bounds external calls and the turns an actor starts on its own clock — timer
+ticks and task turns — and a single call overrides it with `.with({ deadlineMs })`; the
+admission caps and their sizing are in
+[Deadlines & admission](/actors/docs/deadlines-and-admission). `taskGraceMs` bounds how long
+deactivation waits for a detached task to wind down and finish its bookkeeping, and counts
+against `host.stop({ timeoutMs })`. Note that `callTimeoutMs` deadlines
 [fire coarsely](/actors/docs/errors#call-deadlines-fire-coarsely) at 10 seconds or more.
 
 ## Next steps

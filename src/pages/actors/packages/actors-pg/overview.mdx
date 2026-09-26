@@ -36,7 +36,9 @@ and self-suspect fencing when a host cannot prove its own membership.
 **`pgReminders()`** — durable reminders on an indexed table. A tick is one
 `FOR UPDATE SKIP LOCKED` claim statement for exactly the due rows, and the advance or delete
 **commits before delivery** — at-most-once, no catch-up bursts, database clock throughout.
-Every host may tick the same table, because row locks replace shard ownership.
+Every host may tick the same table, because row locks replace shard ownership. A dispatch that
+fails is re-armed one `reminderTickMs` out on the database clock and counted in
+`HostStats.remindersUndelivered` — [the shared reminder contract](/actors/docs/timers-and-reminders#reminders--durable).
 
 **`pgDirectory()`** — the single-activation claim directory: create-if-absent claim,
 compare-and-delete release and evict, plus an `evictHost` sweep for departed hosts.
@@ -46,9 +48,10 @@ compare-and-delete release and evict, plus an `evictHost` sweep for departed hos
 ## Why you might pick it over Redis
 
 - **You already run Postgres** and would rather not add Redis.
-- **Reminder tables get large.** The `SKIP LOCKED` design is the scan answer;
-  [Redis](/actors/packages/actors-redis/overview) rides storage with 16 hash shards, which is
-  fine until it is not.
+- **Reminder tables get large.** The default `shardedReminders()` rewrites a sixteenth of the
+  table on every `set`; `pgReminders()` is an index, so an arm is O(log N) and a tick O(due).
+  (Redis has the same answer in [`redisReminders()`](/actors/packages/actors-redis/overview) —
+  see [choosing a provider](/actors/docs/timers-and-reminders#choosing-a-provider).)
 - **Clock skew worries you.** Expiry on the database clock removes a whole class of
   split-brain question.
 

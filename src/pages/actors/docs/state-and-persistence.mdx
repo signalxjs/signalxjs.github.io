@@ -43,6 +43,38 @@ on shutdown.
 > still only in memory. Use it for state you can afford to lose — a presence marker, a
 > scroll position, a hit counter — and not for anything a user believes they have saved.
 
+### When a deferred save fails
+
+A write-behind save has no caller to throw to. `onStateError` on the definition hears about
+it instead:
+
+```ts
+import { defineActor, type StateErrorPhase } from '@sigx/actors';
+
+defineActor({
+    type: 'Presence',
+    persistence: { mode: 'write-behind', debounceMs: 200 },
+    async onStateError(ctx, error, phase: StateErrorPhase) {
+        if (phase === 'final-flush') await deadLetter(ctx.ref, ctx.snapshot(), error);
+        else reportSaveFailure(ctx.ref, error);
+    },
+    // …
+});
+```
+
+`phase` is a `StateErrorPhase` — `'flush' | 'final-flush'`:
+
+| Phase | Which save | What it means for the state |
+|---|---|---|
+| `'flush'` | the debounced save between turns; the hook runs inside that flush's own turn, so `ctx.state` is the frame that failed to save | A transient storage error leaves the state dirty and **schedules no retry of its own**: the next write, or the final flush at deactivation, carries it — a non-mutating turn does not. An etag conflict (`ActorStateConflictError`) has already faulted the activation; its unsaved writes are discarded and the next call reloads the winning state. |
+| `'final-flush'` | the save at deactivation, after the queue drains | The last chance for those writes, so a failure here **is** lost data. Dead-letter `ctx.snapshot()` from here. |
+
+The hook is awaited in both phases, and a throw from it is dev-logged and ignored. It only
+observes — it cannot retry the save for you. An explicit `ctx.save()` that fails still rejects
+the turn that called it and never reaches the hook; a `ctx.save({ durability: 'eventual' })`,
+which resolves before its write, reports through it like a write-behind flush. Without the
+hook, a dev build logs the failure.
+
 ## Rich types survive
 
 `Date`, `Map`, `Set`, `bigint`, `URL`, `RegExp` and your own registered handlers round-trip

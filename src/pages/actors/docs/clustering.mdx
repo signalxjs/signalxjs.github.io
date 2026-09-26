@@ -320,6 +320,20 @@ Two things are worth knowing anyway: a
 the cross-host hop; and [stateless workers](/actors/docs/stateless-workers) are always local
 and invisible to the directory entirely.
 
+## Two habits for a fleet
+
+**Never await another host inside a turn without a deadline.** A turn awaiting a cross-host
+call holds a pooled connection until the peer answers, and a mesh of such awaits wedges the
+pool. Every call carries `callTimeoutMs` by default — timer ticks and task turns included —
+so keep it on, and give a known-long call its own
+[`.with({ deadlineMs })`](/actors/docs/deadlines-and-admission#per-call-deadlines) rather than
+disabling it.
+
+**Pick the reminder provider for the population you sleep.** The default
+`shardedReminders()` is right for hundreds of sleeping actors; thousands want the indexed
+provider your store already has, and adding hosts does not change that. See
+[choosing a provider](/actors/docs/timers-and-reminders#choosing-a-provider).
+
 ## Next steps
 
 - [Placement policies](/actors/docs/placement-policies) — where new activations go.

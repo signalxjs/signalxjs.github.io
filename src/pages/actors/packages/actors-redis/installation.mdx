@@ -41,6 +41,9 @@ export const app = defineActorApp({
 
 One client for both is safe and saves connections. Share the `namespace` between them.
 
+Keeping thousands of actors asleep on reminders? Add `reminders: redisReminders({ client })`
+on the same client — see [Reminders](/actors/packages/actors-redis/overview#reminders).
+
 ## Options
 
 Both `redisCluster()` and `redisStorage()` take `client` **or** `url`.

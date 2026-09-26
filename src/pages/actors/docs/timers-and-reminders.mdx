@@ -27,6 +27,13 @@ A timer **does not keep the actor alive**. If the actor goes idle it deactivates
 timer goes with it. That is deliberate: a volatile timer is a convenience, not a reason to pin
 an object in memory. Pass `keepAlive: true` when you really do want the actor held open.
 
+A tick carries the host's `callTimeoutMs` as its deadline, exactly like an external call, so
+every `ctx.actor()` call it makes — same-host or cross-host — is bounded by it. A tick that
+awaits a peer whose turn never answers rejects with `ActorCallTimeoutError` at the deadline
+(30 seconds by default). If a long await inside a tick is intended, pass that one call a
+budget with [`.with({ deadlineMs })`](/actors/docs/deadlines-and-admission#per-call-deadlines)
+or raise `callTimeoutMs`.
+
 Use a timer for something that only matters while the actor is already active — refreshing a
 cached value, expiring an in-memory lease, driving an animation of state you are streaming.
 
@@ -56,8 +63,25 @@ The contract, stated precisely:
   timer or a [task](/actors/docs/tasks).
 - **Coarse resolution** — "at or after `nextDue`", checked every `reminderTickMs` (default
   30s). Not a cron guarantee.
-- **At-most-once per tick.** A reminder is a wake-up, not a queue. If the work must not be
-  lost, make it idempotent or record progress in state.
+- **At-most-once per tick, at-least-once over time.** A reminder is a wake-up, not a queue.
+  The provider advances or removes a due entry *before* it dispatches, so a crash between the
+  two skips one firing rather than doubling it.
+- **A failed dispatch is retried one tick later.** A dispatch that rejects — a call deadline, a
+  host mid-restart, an `onReminder` that threw — re-arms the entry one tick out (`now +
+  reminderTickMs`): a one-shot is re-inserted, a periodic one pulled forward. A target that
+  never answers costs one attempt per tick, never a hot loop.
+- **The actor's later decision wins.** A reminder the actor set again while its dispatch was
+  failing keeps the value the actor gave it, and a periodic one it cleared stays cleared.
+
+Make `onReminder` **idempotent**. Two cases deliver more than once by design: a one-shot the
+actor cleared while its dispatch was failing may still be delivered once more, and a dispatch
+that timed out *after* `onReminder` had started is retried. If the work must not be repeated,
+record progress in state and check it first.
+
+Every failed attempt is counted in `HostStats.remindersUndelivered` — in `host.stats()`, the
+[ops endpoint](/actors/docs/ops-endpoint) snapshot, the [`metrics()`](/actors/docs/metrics)
+gauges and each host's entry in [cluster stats](/actors/docs/cluster-stats). It is monotonic
+for the host's lifetime; a value that keeps climbing is a target that never comes back.
 
 ## Choosing
 
@@ -70,14 +94,61 @@ The contract, stated precisely:
 
 ## Pluggable backends
 
-`ActorReminders` is a seam. The default rides your storage through `shardedReminders()`, and
-providers replace it:
+`ActorReminders` is a seam, passed as `reminders:` to `defineActorApp` or `createHost`. The
+default is `shardedReminders()`, and the providers replace it with an index in the store you
+already run:
 
-- [`pgReminders()`](/actors/packages/actors-pg/overview) — a due-time-indexed table claimed
-  with `SKIP LOCKED`, at-most-once, no catch-up bursts.
-- [`durableObjectReminders()`](/actors/packages/actors-cloudflare/overview) — the Durable
-  Object alarm. Semantics differ visibly here: an alarm fires **at** the due time, where
-  `shardedReminders()` promises only "at or after".
+| Provider | Where the reminders live | Who ticks |
+|---|---|---|
+| `shardedReminders()` (default) | 16 records in your [`ActorStorage`](/actors/docs/storage) | each host ticks the shards it owns |
+| [`pgReminders()`](/actors/packages/actors-pg/overview) | one due-time-indexed table | every host claims, with `SKIP LOCKED` |
+| [`redisReminders()`](/actors/packages/actors-redis/overview) | one sorted set scored by due time | every host claims, one Lua script per batch |
+| [`surrealReminders()`](/actors/packages/actors-surreal/overview) | one due-time-indexed table with a shard column | each host ticks the shards it owns |
+| [`durableObjectReminders()`](/actors/packages/actors-cloudflare/overview) | the Durable Object's own storage | the DO alarm |
+
+Every built-in provider keeps the contract above — at-most-once per firing, the one-tick retry
+of a failed dispatch, the same "later decision wins" rules — and feeds
+`remindersUndelivered`. Semantics differ visibly on one: a Durable Object alarm fires **at**
+the due time, where the others promise "at or after `nextDue`, checked every tick".
+
+### Choosing a provider
+
+`shardedReminders()` needs no second store, and it is the right choice at dev scale and for a
+deployment holding hundreds of sleeping actors. Its cost is the **bytes** it rewrites: every
+`set` rewrites a sixteenth of the cluster's reminders, and every tick loads every owned
+record, due or not. So it scales with how many reminders *exist*, not with how many fire.
+
+A deployment that keeps **thousands** of actors asleep on reminders should pass the indexed
+provider its store already has — `pgReminders`, `redisReminders` or `surrealReminders`. There
+an arm is O(log N) and a tick is O(due). Measured:
+
+| Entries asleep | Sharded `set` p50 | Fires within a tick (sharded) | Indexed `set` p50 |
+|---:|---:|---:|---:|
+| 10 000 | 408 µs | 0.99 | 0.64 ms |
+| 100 000 | 871 ms under load | **0.29** | 0.68 ms |
+
+On a three-host cluster with 18 000 runs asleep, the lag between a reminder falling due and
+its actor waking was **2 210 ms p50 / 48.2 s p99** on the sharded table and **338 ms / 878 ms**
+on `redisReminders`, at roughly half the Redis CPU. Neither arm lost a wake or failed a CAS at
+any size — the ceiling is not contention, so adding hosts does not divide it.
+
+**Shorten the tick on an index.** An empty tick on an indexed provider costs the same few
+round trips whether ten thousand or a million reminders are asleep, so `reminderTickMs` can be
+a few seconds there, where the sharded table wants the 30-second default. A durable wake's lag
+is bounded by the tick, so that is the difference between a wake landing within a couple of
+seconds and within fifteen.
+
+You do not have to predict the crossover. `HostStats.reminderShardEntriesMax` reports the
+largest shard record the host has ticked, and past about 1 000 entries a dev build warns once
+that `shardedReminders()` has been outgrown.
+
+### Writing your own
+
+A custom `ActorReminders` receives an `ActorRemindersContext` in `bind()`. Its `deliver(ref,
+name)` dispatches a due reminder, and the optional `undelivered(ref, name, error)` reports a
+`deliver()` that rejected. Call it once per failed **attempt** — that is the only way a custom
+implementation feeds `remindersUndelivered`, so on one that does not, a `0` there means "not
+reported", not "none lost".
 
 ## The clock is a seam
 

@@ -31,7 +31,8 @@ try {
 | `ActorActivationError` | `activation` | `onActivate` or [`migrateState`](/actors/docs/state-and-persistence) threw. | A bug or corrupt state. The stored record is untouched. |
 | `ActorStateConflictError` | `state-conflict` | An etag CAS lost — another activation wrote first. | The stale activation is faulted; the next call reloads. Usually retry once. |
 | `ActorMethodNotFoundError` | `method-not-found` | No such **own key** in `methods:`/`streams:`. | Check the callable surface — a class instance is the usual cause. |
-| `ActorCallTimeoutError` | `call-timeout` | The call exceeded `callTimeoutMs`. | See the precision note below. |
+| `ActorCallTimeoutError` | `call-timeout` | The call exceeded its deadline — `callTimeoutMs`, or its own [`.with({ deadlineMs })`](/actors/docs/deadlines-and-admission#per-call-deadlines). `skipped: true` means it expired while still queued and never ran. | See the precision note below. The turn keeps running unless `skipped`. |
+| `ActorOverloadedError` | `overloaded` | [Admission](/actors/docs/deadlines-and-admission#admission-control) refused the call before queueing it: the actor was at `maxQueued` (`scope: 'actor'`) or the host at `maxInflightTurns` (`scope: 'host'`). Carries `depth` and `limit`; a 429 on the wire. | Retry after a backoff, or shed upstream. Never re-placed on another host. |
 | `ActorWrongHostError` | `wrong-host` | The actor is placed on another host. | Normally handled for you by proxy or redirect. See [Locality routing](/actors/docs/locality-routing). |
 | `ActorUnreachableError` | `unreachable` | The owning host could not be reached. | Transient — a peer is down, restarting or partitioned. Retryable. |
 | `ActorUnplaceableError` | `unplaceable` | No **active** host [registers](/actors/docs/clustering#heterogeneous-clusters-registration-aware-placement) the actor type. Retried against a refreshed view; surfaces as the `cause` of the final `ActorActivationError`. | Add the type to some host's `defineActorApp({ actors })`, or check that the pods registering it are up. A pod mid-join looks exactly like this. |
@@ -60,7 +61,8 @@ Short budgets keep exact per-call timers.
 
 If you are setting a deadline to bound user-visible latency, this is the contract to design
 against: a 30-second budget is "about 30 seconds", not a hard fence. Set `callTimeoutMs: 0` to
-disable deadlines entirely.
+disable deadlines entirely. The deadline also bounds timer ticks and task turns — see
+[Deadlines & admission](/actors/docs/deadlines-and-admission).
 
 ## Errors on the wire
 

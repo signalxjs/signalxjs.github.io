@@ -47,6 +47,7 @@ export const app = defineActorApp({
 | `redisMembership(client, opts)` | membership alone |
 | `redisDirectory(client, opts)` | directory alone — pairs with [k8s membership](/actors/packages/actors-k8s/overview) |
 | `redisStorage()` | etag-CAS [`ActorStorage`](/actors/docs/storage) |
+| `redisReminders()` | durable reminders on a due-time index |
 
 Pass an existing client instead of `url` to share the app's connection —
 `redisCluster({ client })`. Sharing one `ioredis` client across `redisCluster()` and
@@ -66,9 +67,38 @@ briefly wrong directory entry costs a rejected save and a fault-and-reload, neve
 
 ## Reminders
 
-Reminders ride the same storage automatically. If your reminder table grows large enough that
-scanning it becomes the problem, [`@sigx/actors-pg`](/actors/packages/actors-pg/overview) has
-a `SKIP LOCKED` implementation designed for exactly that.
+Without a `reminders:` option, reminders ride `redisStorage` through the runtime's default
+`shardedReminders()` — sixteen records that every `set` and every tick rewrite or scan. That is
+right for hundreds of sleeping actors. For **thousands**, pass `redisReminders()`:
+
+```ts
+import { redisReminders, redisStorage } from '@sigx/actors-redis';
+
+export const app = defineActorApp({
+    actors,
+    storage: redisStorage({ client }),
+    reminders: redisReminders({ client }),
+    defaults: { reminderTickMs: 5_000 },
+});
+```
+
+It keeps reminders on a sorted set scored by due time, so an arm is O(log N) and a tick
+O(due) — measured flat to a million entries, where the sharded default spent 871 ms per `set`
+with 100 000 asleep under load. An empty tick is one round trip, which is why
+`reminderTickMs` can drop to a few seconds here and a durable wake lands within a couple of
+seconds rather than within fifteen.
+
+- **One client for everything.** Share it with `redisStorage` and `redisCluster`.
+- **Every host ticks the one set.** Each claim is one Lua script that runs alone, so hosts get
+  disjoint members with no shard ownership — the same posture as `pgReminders`.
+- **Same delivery contract as every provider**: at-most-once per firing, the server's clock
+  throughout, no catch-up burst after downtime, and a failed dispatch re-armed one tick out and
+  counted in `HostStats.remindersUndelivered`. See
+  [the reminder contract](/actors/docs/timers-and-reminders#reminders--durable) and
+  [choosing a provider](/actors/docs/timers-and-reminders#choosing-a-provider).
+
+> **Not for Redis Cluster yet.** The three reminder keys carry no hash tag, so they are not
+> guaranteed to share a slot — the same as `redisStorage`'s keys.
 
 ## Next steps
 

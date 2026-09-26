@@ -1,0 +1,164 @@
+---
+title: Deadlines & admission
+description: "callTimeoutMs, per-call .with({ deadlineMs }), skipped queued calls, and admission caps — maxQueued, maxInflightTurns and ActorOverloadedError"
+layout: docs
+category: Operations
+order: 605
+---
+
+# Deadlines & admission
+
+<p class="lede">Two bounds keep a saturated host honest: a deadline on every call, so nothing
+waits forever, and an admission cap on every queue, so a host past capacity refuses new work
+in microseconds instead of accepting it and failing all of it later.</p>
+
+## The default deadline
+
+`callTimeoutMs` (default 30s) is the call deadline the host stamps on:
+
+- every **external** call — one that arrives with an empty call chain;
+- every turn an actor starts **on its own clock** — a `ctx.timer` tick and a
+  [task](/actors/docs/tasks)'s `ctx.turn()`.
+
+A turn relays its deadline to every `ctx.actor()` call it makes, same-host or cross-host, so
+the whole chain below an entry point shares one budget. A call past it rejects with
+`ActorCallTimeoutError` (`kind: 'call-timeout'`). The turn itself keeps running — only the
+caller gives up. `callTimeoutMs: 0` disables deadlines.
+
+```ts
+defineActorApp({ actors, defaults: { callTimeoutMs: 30_000 } });
+```
+
+The receiving host enforces the deadline by racing the remaining budget, so it covers a request
+that reaches the peer, not a socket that never delivers it — the HTTP transport honours only an
+`AbortSignal` for that. Budgets of 10 seconds or more
+[fire coarsely](/actors/docs/errors#call-deadlines-fire-coarsely).
+
+> **Never await another host inside a turn without a deadline.** A turn awaiting a cross-host
+> call holds a pooled connection until the peer answers. When the peer's turns are awaiting
+> calls back through the same pool, a mesh of such awaits wedges the pool. The deadline is what
+> lets those awaits give up and release it.
+
+## Per-call deadlines
+
+`.with({ deadlineMs })` gives one call its own budget, in milliseconds from now, in place of
+`callTimeoutMs`. It works in both directions:
+
+```ts
+await actor(Health, 'db').with({ deadlineMs: 50 }).probe();              // fail fast
+await actor(Flow, runId).with({ deadlineMs: 300_000 }).runLongFlow();    // past the 30s default
+```
+
+- **It only tightens a chain.** Inside a turn, `ctx.actor(ref, key).with({ deadlineMs })` gets
+  the earlier of the inherited deadline and `now + deadlineMs`. A budget deep in a chain can
+  tighten what the entry point allowed, never extend it.
+- **It must be a positive finite number.** The in-process client, the host client and
+  `fetchTransport` throw before sending anything else.
+- **Where it applies:** the in-process `actor()` client, `host.actor(...).with()`,
+  `ctx.actor(...).with()` and the HTTP transport. Over HTTP it travels as the remaining
+  milliseconds in the `x-sigx-deadline-ms` header (`ACTOR_DEADLINE_HEADER` from
+  `@sigx/actors/server`), which the endpoint re-anchors on its own clock, so client and server
+  clocks need not agree. A header value that is not a positive finite number is dropped whole
+  and the host default applies.
+- **Enforcement is on the server** — a timed-out call answers 504 `call-timeout`. The fetch is
+  not aborted locally, so a hung connection is bounded only by `signal`.
+- **It costs a CORS preflight on a declared read.** `x-sigx-deadline-ms` is a custom header, so
+  a `.with({ deadlineMs })` on a [`reads:`](/actors/docs/cacheable-reads) GET preflights, as the
+  routing-token and one-way headers do.
+- **Sockets and streams.** [`socketTransport()`](/actors/packages/actors-ws/overview) does not
+  carry it: a dev build warns once and the host default applies. A stream is consumed, not
+  awaited, so its consumption is not raced — but a `ctx.actor()` hop made inside the stream
+  body inherits the deadline as usual.
+
+## A call that expired in the queue is skipped
+
+A queued turn whose caller's deadline has already passed is **skipped** instead of run — the
+caller has given up, so running it would only spend capacity on a reply nobody reads. The
+caller sees `ActorCallTimeoutError` with `skipped: true`, a field that crosses both wires. It
+tells "the turn never ran" (`true`) apart from "the turn is still running without me"
+(`false`) without reading the message.
+
+A turn that has started is never killed.
+
+## Admission control
+
+A deadline bounds how long a caller waits. It does not stop a saturated host from queueing
+every call, doing the work, and failing all of it at the deadline anyway. Admission caps refuse
+the call **before** it is queued:
+
+```ts
+defineActor({ type: 'Aggregator', maxQueued: 200, /* … */ });
+
+defineActorApp({
+    actors,
+    defaults: {
+        maxQueuedPerActor: 500,     // every actor's queue, unless it sets maxQueued
+        maxInflightTurns: 20_000,   // every turn on this host's loop
+    },
+});
+```
+
+| Cap | Bounds | Refused with |
+|---|---|---|
+| `defineActor({ maxQueued })`, default `HostDefaults.maxQueuedPerActor` | one activation's queued-plus-running turns | `ActorOverloadedError`, `scope: 'actor'` |
+| `HostDefaults.maxInflightTurns` | turns queued or running across every activation on the host, timer ticks and task turns included | `ActorOverloadedError`, `scope: 'host'` |
+
+Both default to `0` — unlimited — and with both off the call path is unchanged.
+
+**Caps apply to arrivals only.** A call is subject to them exactly when its call chain is
+empty — work *entering* the deployment. A call made from inside a turn, a timer tick or task
+turn, and a cross-host hop that carries its originating chain are never refused, because
+refusing them would destroy work already admitted rather than shed new work. An external call
+that a host merely routes onward still arrives with an empty chain at the owner, and is
+subject to the caps there.
+
+The runtime's own turns — watch reads, the write-behind flush, a conflict reload — are never
+refused either. A refused [reminder](/actors/docs/timers-and-reminders) delivery is re-armed
+one tick out like any failed dispatch, and a refused [topic](/actors/docs/topics) delivery is
+a `failures[]` entry in the publish report.
+
+### `ActorOverloadedError`
+
+```ts
+import { isActorError, type ActorOverloadedError } from '@sigx/actors';
+
+if (isActorError(err) && err.kind === 'overloaded') {
+    const { scope, depth, limit } = err as ActorOverloadedError;
+    // scope: 'actor' | 'host' — depth: queued + running turns at the refusal — limit: the cap
+}
+```
+
+It is a **429** on both wires and keeps its fields across hosts. Cluster routing never
+re-places it: the call reached the owner, which is full, and running it elsewhere would break
+single activation. Retry after a backoff, or shed upstream.
+
+### Sizing the caps
+
+**`maxQueued ≈ callTimeoutMs / p50 turn ms`.** Never admit more than the queue can drain inside
+the deadline — anything past that is work that will time out after being done. An actor whose
+turns take 100 ms at the median, under a 30-second deadline, drains about 300.
+
+**Pick the cap by the shape of the backlog.** A per-actor cap is for a hot key whose single
+queue *is* the backlog — an aggregator, a singleton subscriber. A fleet of many short-lived
+actors spreads its backlog thinly across thousands of queues, none of them long; it needs the
+host-wide `maxInflightTurns` instead.
+
+## Watching it
+
+| Signal | Where | Reads as |
+|---|---|---|
+| `HostStats.overloadRefusals` | `host.stats()`, the [ops endpoint](/actors/docs/ops-endpoint) | calls this host refused at admission, monotonic — a host shedding load past capacity, which is the designed behaviour |
+| `ClusterCounters.overloadedReplies` | `placement.counters()`, [cluster stats](/actors/docs/cluster-stats) | refusals this host received from peers |
+| `ClusterCounters.remoteInflight` / `remoteInflightPeak` | `placement.counters()`, cluster stats | outbound host-to-host calls not yet answered, and their peak — each one is also holding its caller's turn |
+| `boundedFetch().stats()` | `@sigx/actors/node` | the host-to-host fetch pool: `inflight`, `inflightPeak`, `saturatedMs` (time spent at the cap) and `queuedCalls` |
+
+The [Prometheus plugin](/actors/packages/actors-otel/overview) renders them as
+`sigx_actors_overload_refusals_total`, `sigx_actors_cluster_overloaded_replies_total` and, when
+given the pool's `stats`, the `sigx_actors_pool_*` family. A pool that spends its time
+saturated while `remoteInflight` climbs is the cross-host await pattern from the callout above.
+
+## Next steps
+
+- [Errors](/actors/docs/errors) — every error kind and what to do about it.
+- [Lifecycle](/actors/docs/lifecycle) — `maxActivations`, the memory guardrail.
+- [Metrics](/actors/docs/metrics) — `queueMs` versus `turnMs`, the input to sizing.

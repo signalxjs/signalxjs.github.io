@@ -30,6 +30,22 @@ defineActor({
 `onActivate` always observes [migrated](/actors/docs/state-and-persistence) state. A throw
 from it fails activation with `ActorActivationError` and the call that triggered it rejects.
 
+A failed activation fails every parked caller and is forgotten, so the next caller activates
+it again — a loop throttled only by its callers. Dev builds say so once per streak, when the
+same actor activates-and-fails three times within 30 seconds:
+
+```
+[sigx actors] Cart/user-42 activated-and-failed 3 times in 812ms. …
+```
+
+A throwing `onActivate`, state load or `migrateState` all count; a placement refusal does not,
+and a successful activation resets the streak. Fix the activation, or back off at the call
+site.
+
+A write-behind actor has one more hook, `onStateError(ctx, error, phase)`, for a save that
+has no caller to throw to — see
+[State & persistence](/actors/docs/state-and-persistence#when-a-deferred-save-fails).
+
 ```mermaid title="Activation lifecycle"
 stateDiagram-v2
     [*] --> Activating: first call
@@ -81,7 +97,8 @@ operative word:
 - The live count may therefore exceed the cap.
 - State survives — a shed actor reactivates from storage on its next call.
 
-It is a memory guardrail, not an admission-control mechanism. Watch `byReason.capacity` in
+It is a memory guardrail, not an admission-control mechanism — for that, see
+[Deadlines & admission](/actors/docs/deadlines-and-admission). Watch `byReason.capacity` in
 [metrics](/actors/docs/metrics): a cap that is shedding constantly is either too low or
 hiding a key-cardinality problem.
 
@@ -112,6 +129,9 @@ await host.stop({ timeoutMs: 10_000 });
 
 Stops accepting new calls, drains in-flight turns, flushes pending write-behind saves, runs
 `onDeactivate` for every activation and then the app's `onStop` hooks in reverse order.
+Detached [task](/actors/docs/tasks) runs get `taskGraceMs` (default 10s) to wind down and
+finish their bookkeeping — including a run that completed just as the stop landed — and that
+grace counts against `timeoutMs`.
 
 On Node, wire it to signals with `attachSignalHandlers` — see
 [Running a host on Node](/actors/docs/node). In a cluster, a graceful stop announces `leaving`

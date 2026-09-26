@@ -154,7 +154,12 @@ drop-whole posture for a malformed bag arriving en route are covered under
 actor(Cart, id).with({ get: false }).summary();      // force POST on a declared read
 actor(Notifier, id).with({ oneWay: true }).ping();   // resolve at acceptance
 actor(Cart, id).with({ signal }).checkout();         // abort
+actor(Cart, id).with({ deadlineMs: 2_000 }).quote(); // this call's own deadline
 ```
+
+`deadlineMs` replaces the host's `callTimeoutMs` for that one call — tighter or looser — and
+travels to the server as the `x-sigx-deadline-ms` header. See
+[Deadlines & admission](/actors/docs/deadlines-and-admission#per-call-deadlines).
 
 `with()` also accepts `headers`, `endpoint` and `route` for one call.
 
