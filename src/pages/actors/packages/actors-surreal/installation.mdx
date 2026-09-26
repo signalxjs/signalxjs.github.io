@@ -30,7 +30,8 @@ await db.connect('ws://127.0.0.1:8000', {
     namespace: 'app',
     database: 'main',
     authentication: { username: 'root', password: 'root' },
-    // REQUIRED on a connection you own — see below.
+    // BOTH REQUIRED on a connection you own — see below.
+    reconnect: { enabled: true, attempts: -1 },
     retry: { enabled: true, attempts: 5, retryable: surrealRetryable },
 });
 
@@ -51,7 +52,16 @@ connection-wide predicate governing your own queries, and the bootstrap does not
 `DEFINE NAMESPACE` / `DEFINE DATABASE` need root and are a deployment decision, so they are
 deliberately not issued for you.
 
-Two things in that snippet are load-bearing:
+Three things in that snippet are load-bearing:
+
+<div class="alert alert-warning not-prose my-4">
+  <div>
+    <strong>A connection you pass in needs unlimited reconnect.</strong> The SDK's default gives
+    up after five attempts (about 31 seconds) and leaves a dead socket for the life of the
+    process, with the membership heartbeat beating into it silently until the host fences.
+    Passing <code>url</code> instead of a connection does this for you.
+  </div>
+</div>
 
 <div class="alert alert-warning not-prose my-4">
   <div>

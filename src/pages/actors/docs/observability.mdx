@@ -37,8 +37,9 @@ scrape_configs:
     static_configs: [{ targets: ['actors-host:7311'] }]
 ```
 
-Options: `path` (default `/_sigx/metrics`), `secret`, `prefix` (default `sigx_actors_`), and
-`bucketsSeconds` — a per-octave grid from 1µs to ~134s, about 28 bounds.
+Options: `path` (default `/_sigx/metrics`), `secret`, `prefix` (default `sigx_actors_`),
+`bucketsSeconds` — a per-octave grid from 1µs to ~134s, about 28 bounds — and `cluster`, for
+[dispatch locality](#cluster-dispatch-locality).
 
 `renderPrometheus(digest, stats, options)` is the pure function underneath, if you would
 rather serve it yourself. Among what it emits is `{prefix}one_way_failures_total` — a
@@ -145,12 +146,77 @@ depth, or accepts that the host cannot report its own backpressure.
 histogram, so a fleet-wide view merges the way [cluster stats](/actors/docs/cluster-stats)
 does.
 
-<div class="alert alert-warning not-prose my-4">
-  <div>
-    <strong>Prometheus, OTel and CLI rendering are not wired to this yet.</strong> The ops
-    section is the way to read socket stats today.
-  </div>
-</div>
+### Wiring the exporters and the dashboards
+
+Two registrations, one per consumer — **this is the one step the app has to do**:
+
+```ts
+registry.reportOps('sockets', () => stats.snapshot());   // ops → the monitor, CLI and dashboard
+registry.reportDigest('sockets', () => stats.digest());  // → prometheusOps and otelMetricsBridge
+```
+
+With the digest registered, `prometheusOps()` emits the `{prefix}socket_*` families:
+
+| Family | Type |
+|---|---|
+| `socket_connections_opened_total` / `_closed_total` / `_refused_total` | counter |
+| `socket_calls_total` / `socket_calls_failed_total` | counter |
+| `socket_subscriptions_opened_total` / `_closed_total` | counter |
+| `socket_protocol_breaches_total`, `socket_lifetime_closes_total` | counter |
+| `socket_deliveries_total`, `socket_delivery_bytes_total`, `socket_throttle_quantized_total` | counter |
+| `socket_sessions`, `socket_subscriptions` | gauge — opened − closed |
+| `socket_connection_duration_seconds` | histogram, on the same bucket grid as the call histograms |
+
+`socket_delivery_bytes_total` is in UTF-16 code units, like `deliveryBytes` above.
+
+**No digest, no family.** A host that registers none emits no `socket_*` family at all — "no
+socket mount" is not "zero connections", and a scraper that sees the family appear knows the
+transport is mounted. `renderPrometheus()` takes the digest as `options.sockets`
+(`SocketStatsDigest`, exported).
+
+`otelMetricsBridge()` observes the same set as `sigx.actors.socket.*` instruments, plus
+`sigx.actors.socket.connection_duration.p50` / `.p90` / `.p99` under `percentileGauges`.
+
+On the ops side, the monitor, the [CLI](/actors/packages/actors-cli/installation#what-the-screens-show)
+and the [dashboard](/actors/packages/actors-dashboard/overview) render the section for the
+**polled** host only — the cluster fan-out carries no socket digest, so every other host's
+socket figures read as "said nothing".
+
+## Cluster dispatch locality
+
+Hand the exporters this host's cluster counters and they publish the per-request
+[locality](/actors/docs/locality-routing#measuring-it) pair:
+
+```ts
+const clustered = cluster({ providers, advertise, secret: process.env.HOST_SECRET });
+
+app.use(clustered)
+   .use(metrics())
+   .use(prometheusOps({
+       secret: process.env.SIGX_OPS_SECRET,
+       cluster: () => clustered.placement.counters(),
+   }));
+```
+
+`cluster` is a thunk read on every scrape or collection, so it may answer `undefined` until
+placement is up. It adds:
+
+| Exporter | Emits |
+|---|---|
+| `prometheusOps({ cluster })` | `{prefix}cluster_dispatches_total`, a counter with two series: `locality="local"` and `locality="remote"` |
+| `otelMetricsBridge({ cluster })` | `sigx.actors.cluster.dispatches`, the same pair under a `locality` attribute |
+
+There is no precomputed ratio gauge. The fleet-wide local-hit fraction is a query — add
+`by (instance)` to both sums for the per-host one:
+
+```promql
+sum(rate(sigx_actors_cluster_dispatches_total{locality="local"}[5m]))
+  / sum(rate(sigx_actors_cluster_dispatches_total[5m]))
+```
+
+**Without the option, or while the thunk answers `undefined`, no cluster family is emitted** —
+a single host is not a cluster with zero dispatches. `renderPrometheus()` takes the totals as
+`options.cluster`.
 
 ## Choosing
 

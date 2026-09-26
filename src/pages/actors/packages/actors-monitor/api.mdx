@@ -63,8 +63,16 @@ interface MonitorSnapshot {
 ```
 
 `HostView` carries one host's `stats`, `counters`, `reminderShards`, `membershipVersion`,
-`transports`, `metrics`, `health` and `activations` — each of the last four `null` when the
-host reported none. `ClusterView` carries `from`, `view`, `totals` (with
+`transports`, `meta`, `metrics`, `health`, `activations` and `sockets` — each of the last five
+`null` when the host reported none, and `meta` `null` when it published no placement hints.
+
+`meta.node` is the machine the host runs on — see
+[`meta.node`](/actors/docs/clustering#metanode-the-machine-a-host-runs-on). `sockets` is the
+`sockets` ops section (`registry.reportOps('sockets', () => stats.snapshot())`), a
+`SocketStatsSnapshot`, and only the **polled** host can carry it: the cluster fan-out has no
+socket digest, so every other host's is `null` — "said nothing", the same rule as `metrics`.
+`withSockets(hosts, hostId, sockets)` returns the hosts with `sockets` set on `hostId` and
+`null` on every other. `ClusterView` carries `from`, `view`, `totals` (with
 `totals.metrics.hosts` as the denominator), `reminderShards` and `unreachable[]`.
 
 ## The poll loop
@@ -121,11 +129,29 @@ a zero.
 alertLines(view: DashboardView): Alert[]          // what is wrong, worst first
 interface Alert { text: string; tone: 'danger' | 'warn' }
 
-scopeOf(snapshot): string       // 'this host' | 'cluster · N host(s)'
+scopeOf(snapshot): string       // 'this host' | 'cluster · 3 host(s) / 1 node(s)'
 polledLabel(view): string       // the host whose OWN numbers these are
 coverageNote(snapshot): string | null   // why cluster totals might be a lower bound
 hostTone(status): 'danger' | 'warn' | 'dim' | null   // fenced / leaving / other / fine
 ```
+
+## Hosts and nodes
+
+```ts
+nodeCount(hosts): number | null                   // distinct meta.node values
+hostSpread(hosts): string                         // '3 host(s) / 1 node(s)', or '3 host(s)'
+nodeLabels(hosts): ReadonlyMap<string, string>    // full node name → short label
+```
+
+`nodeCount` is `null`, not `0` and not "one per host", when no host reports a node: a fleet
+that said nothing about where it runs gets no guess. `hostSpread` drops the node half in that
+case.
+
+`nodeLabels` exists because node names differ only in their tail
+(`aks-<pool>-<digits>-vmss000001`) and both renderers truncate a cell from the right — two
+different nodes would read the same. The label drops the prefix every node shares, cut at a
+separator, and marks the cut: `…vmss000000` / `…vmss000001`. A lone node keeps its full name —
+the same name repeated down a column *is* the packed-fleet finding.
 
 ## Reminder shards
 
@@ -154,8 +180,9 @@ shared axis; `0` means "draw no bars".
 ## `@sigx/actors-monitor/format`
 
 `count(n)`, `durationMs(ms)`, `uptime(ms)`, `rate(value)`, `gauge(value)`,
-`percent(numerator, denominator)`, `ellipsis(text, width)` — the display formatters both
-renderers use. `rate(null)` and `gauge(null)` render a gap marker, not `0`.
+`percent(numerator, denominator)`, `bytes(value)`, `ellipsis(text, width)` — the display
+formatters both renderers use. `rate(null)` and `gauge(null)` render a gap marker, not `0`.
+`bytes` uses decimal units — `950 B`, `12.4 kB`, `3.1 MB` — and renders `null` as `—`.
 
 ## Next steps
 

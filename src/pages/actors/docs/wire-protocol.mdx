@@ -24,7 +24,8 @@ implementation. See
 [Actors or server functions?](/actors/docs/actors-or-server-functions#they-are-the-same-wire).
 
 The `/r/{token}/` segment is an optional [routing hint](/actors/docs/locality-routing). Under
-`route: 'none'`, and for the reserved symbols below, the URL is plain
+`route: 'none'`, for a [`defineWorker`](/actors/docs/locality-routing#workers-carry-no-token)
+call, and for the reserved symbols below, the URL is plain
 `{base}/{Type}/{method}` and everything else is unchanged.
 
 `configureActors()` from `@sigx/actors/client` points remote and native clients at another

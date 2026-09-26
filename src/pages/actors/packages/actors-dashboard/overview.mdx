@@ -88,6 +88,20 @@ state.start();
 `OverviewPanel`, `HostsPanel`, `HostPanel`, `ActorsPanel`, `ClusterPanel` and `HealthPanel`
 compose in any order over one state. Stop the state yourself when the page tears down.
 
+## What the panels show
+
+The same seats as the [CLI](/actors/packages/actors-cli/installation#what-the-screens-show):
+
+- **Nodes** — when hosts publish
+  [`meta.node`](/actors/docs/clustering#metanode-the-machine-a-host-runs-on), a `node` column in
+  the Hosts table (the short label, with the full name as its tooltip), a `node` row in the host
+  panel and a `nodes` figure in the Overview. A fleet reporting none shows `—`.
+- **Locality** — a `locality` row on the Cluster panel, `NN% local (N dispatches)`: the
+  per-request fraction described on
+  [Locality routing](/actors/docs/locality-routing#measuring-it).
+- **Socket sessions** — a `socket sessions` block in the host panel and a `sockets` column of
+  open sessions in the Hosts table, once some host publishes the `sockets` ops section.
+
 ## Theming
 
 Styling is self-contained and arrives with the component — nothing to import, no CSS

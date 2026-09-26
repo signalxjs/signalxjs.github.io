@@ -108,7 +108,8 @@ Bars({ points: readonly PercentilePoint[], ceiling, format, tone?, emptyText })
 ShardGrid({ shards: readonly ShardStatus[], emptyText })
 ```
 
-`Column<T>` is `{ key, header, value: (row) => string, numeric? }`. `Sparkline` is the one
+`Column<T>` is `{ key, header, value: (row) => string, numeric?, key_?, title? }` — `title` is
+the cell's tooltip, as the Hosts table uses it for a full node name behind its short label. `Sparkline` is the one
 most worth reusing: it breaks on a gap, which is the rule a hand-rolled one gets wrong first.
 
 ## Next steps

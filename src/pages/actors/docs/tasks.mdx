@@ -65,23 +65,34 @@ above.
 ## Crash resume is built in
 
 `start()` resolves only after the run is durably recorded — a ledger entry in the reserved
-`$sigx:tasks` storage record, plus a liveness reminder armed under the same name.
+`$sigx:tasks` storage record — and the host has noted the actor in its **task-liveness
+roster**.
 
 - A run **interrupted by deactivation** (any reason but cancel) keeps its entry. The next
   activation restarts it with `TaskInfo.restarts` bumped and the original `input` replayed
   through the state codec. Completion, a throw and `cancel` all remove the entry — a thrown
-  task is terminal, because a crash is not a throw. An empty ledger disarms the reminder.
-- **The reminder is the crash driver.** When a host dies, its reminder shards are re-owned by
-  surviving hosts, the next tick delivers through placement, and the actor — tasks and all —
-  re-activates wherever the cluster puts it, within roughly 60–90 seconds. No client call
-  needed.
+  task is terminal, because a crash is not a throw. An empty ledger takes the actor off the
+  roster.
+- **The roster is the crash driver.** Each host keeps one roster of the actors with runs in
+  flight on it, under the reserved `$sigx:tasks-roster` type, and is its only writer — so
+  tracking a run is one compare-and-set with no load, and nothing is periodic per running
+  task. When a host dies, one survivor adopts its roster on the reminder tick and touches each
+  actor on it, and the actor — tasks and all — re-activates wherever the cluster puts it. The
+  delay is the membership TTL plus a tick. No client call needed.
+
+The roster is a seam, `ActorTaskLiveness`, set with `taskLiveness` on `createHost` or
+`defineActorApp`. `rosterTaskLiveness()` is the default; `reminderTaskLiveness()`, both from
+`@sigx/actors/host`, arms one durable reminder per actor with a run in flight instead. The
+built-ins are host-scoped: pass a fresh instance per host.
 - **The contract is at-least-once.** The runtime resumes the *function*; your code resumes the
   *work* from its own checkpointed state — the `ctx.turn()` + `save()` pattern above, reading
   how far the last checkpoint got. A run that completes in the same instant its host stops may
   restart once more, so make the last step idempotent or gate it on state.
 
 > **On Cloudflare Durable Objects this degrades gracefully.** The ledger lives in the DO's own
-> storage and the liveness reminder maps onto its alarm, but a fiber does not survive
+> storage and liveness uses `reminderTaskLiveness()`, whose reminder maps onto the object's
+> alarm — the alarm *is* the platform's wake-up, and a per-host roster would be a roster of
+> one. A fiber does not survive
 > eviction — so a task there is checkpoint-and-resume with short gaps rather than one
 > continuous run. Same at-least-once contract; checkpoint aggressively.
 
@@ -97,5 +108,5 @@ ask how it is going.
 ## Next steps
 
 - [Jobs](/actors/docs/jobs) — the packaged layer.
-- [Timers & reminders](/actors/docs/timers-and-reminders) — the crash driver.
+- [Timers & reminders](/actors/docs/timers-and-reminders) — the tick that adopts a dead host's roster.
 - [Lifecycle](/actors/docs/lifecycle) — keep-alive and the grace window.

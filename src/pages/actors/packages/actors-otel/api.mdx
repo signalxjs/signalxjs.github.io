@@ -21,19 +21,41 @@ Imports no OpenTelemetry.
 An `ActorPlugin` mounting the scrape endpoint.
 
 ```ts
-interface PrometheusOpsOptions extends RenderPrometheusOptions {
+interface PrometheusOpsOptions extends Omit<RenderPrometheusOptions, 'sockets' | 'cluster'> {
     path?: string;              // '/_sigx/metrics'
     secret?: string;            // mandatory outside dev
+    cluster?: () => Partial<ClusterCounterTotals> | undefined;   // read on every scrape
 }
 interface RenderPrometheusOptions {
     prefix?: string;            // 'sigx_actors_'
     bucketsSeconds?: number[];  // per-octave grid, 1µs → ~134s
+    sockets?: SocketStatsDigest | null;
+    cluster?: Partial<ClusterCounterTotals> | null;
 }
 ```
+
+`prometheusOps` reads the socket digest off the registry itself — publish it with
+`registry.reportDigest('sockets', () => stats.digest())` — and the cluster counters through the
+`cluster` thunk, typically `() => plugin.placement.counters()` where `plugin` is the
+[`cluster()`](/actors/docs/clustering) plugin. The thunk may answer `undefined` until placement
+is up.
 
 ### `renderPrometheus(digest, stats, options)`
 
 The pure function underneath — no plugin, no route. Use it to serve the exposition yourself.
+`options.sockets` and `options.cluster` take the digest and the totals directly; absent or
+`null`, the matching family is not emitted at all.
+
+`SocketStatsDigest` — the shape `socketStats().digest()` returns — is exported as a type.
+
+### Optional families
+
+| Family | Emitted when |
+|---|---|
+| `{prefix}socket_*` — connection, call, subscription, breach, lifetime-close, delivery and throttle counters; `socket_sessions` and `socket_subscriptions` gauges; the `socket_connection_duration_seconds` histogram | a `sockets` digest is present |
+| `{prefix}cluster_dispatches_total{locality="local"\|"remote"}` | a `cluster` answer is present |
+
+The full socket list is on [Observability](/actors/docs/observability#wiring-the-exporters-and-the-dashboards).
 
 ## `@sigx/actors-otel`
 
@@ -55,8 +77,14 @@ W3C `traceparent`.
 interface OtelMetricsBridgeOptions {
     meterProvider?: MeterProvider;
     percentileGauges?: boolean;   // true
+    cluster?: () => Partial<ClusterCounterTotals> | undefined;
 }
 ```
+
+Beside the call metrics it observes `sigx.actors.socket.*` — the Prometheus socket set, plus
+`sigx.actors.socket.connection_duration.p50` / `.p90` / `.p99` under `percentileGauges` — when
+the app publishes a `sockets` digest, and `sigx.actors.cluster.dispatches` with a `locality`
+attribute (`local` / `remote`) when `cluster` answers.
 
 ### `traceparent` helpers
 
