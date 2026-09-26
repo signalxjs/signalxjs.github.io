@@ -66,6 +66,7 @@ socket has none of that, so the session states them:
 | `maxConcurrent` | `256` | most calls in flight at once; excess **fails the call with 429**, never the connection. `0` disables |
 | `maxSubscriptions` | `256` | most live subscriptions this connection may hold |
 | `pingMs` | `30_000` | outbound keepalive after this much send-silence. `0` disables |
+| `maxBufferedBytes` | `0` (off) | send-buffer cap; over it, the heaviest subscription is shed with a **503** frame — see [Shedding a slow consumer](#shedding-a-slow-consumer). Needs `bufferedBytes` |
 
 An unparseable message closes **1003**.
 
@@ -79,8 +80,10 @@ able to force an activation.
 A subscription is established through the full pipeline — authorization, dispatch, the first
 value — under the app posture's `timeoutMs`. One whose first value cannot be produced in time
 receives a per-subscription **504 error frame**, and the session releases the watch and the
-keep-alive it held, instead of hanging silently. A subscription that has delivered its first
-value is never timed out; pushes arrive at the watch loop's own cadence.
+keep-alive it held, instead of hanging silently. Other subscriptions on the connection are
+unaffected, and a subscription that has delivered its first value is never timed out; pushes
+arrive at the watch loop's own cadence. The `$live` mount applies the same rule — see
+[establishment has a deadline](/actors/docs/live-reads#establishment-has-a-deadline).
 
 **`throttlePolicy`** decides how much say a client gets over its own delivery rate. A
 subscription may carry a requested window (`w`, [`throttleMs`](/actors/docs/live-reads#ask-for-a-slower-delivery-window)
@@ -120,6 +123,47 @@ It surfaces as `session.stats().bufferedBytes` and, summed across open sessions,
 backpressure gauge. **Return `null`, never `0`, when the transport cannot say**; omitting the
 option does the same. A genuine `0` — the transport asked, nothing is queued — is a real
 measurement and is reported as one. `@sigx/actors-ws/node` supplies it automatically.
+
+## Shedding a slow consumer
+
+`send()` is fire-and-forget, so a client that stops reading costs nothing on the wire and
+everything on the host: its frames queue in the host's own send buffer, and nothing on the
+client side reports it. **`maxBufferedBytes`** bounds that queue per connection:
+
+```ts
+createActorSocketSession({
+    host, request, send, close,
+    bufferedBytes: () => socket.bufferedAmount ?? null,
+    maxBufferedBytes: 4 * 1024 * 1024,   // default 0 = off
+});
+```
+
+After each subscription frame the session reads `bufferedBytes()`. Over the cap, it closes
+**one subscription** — the one that put the most bytes into the buffer since it was last
+empty — with the ordinary per-subscription terminal frame:
+
+```
+{"i":3,"e":{"status":503,"data":{"kind":"shed"}}}
+```
+
+The connection stays open; calls and the other subscriptions continue. While the buffer stays
+over the cap, each further delivery sheds the next heaviest subscription, so a connection that
+never drains ends up holding no subscriptions and at most the cap plus one frame. A slow
+consumer loses live values rather than being funded from the host's heap — the same posture as
+the 16-value drop-oldest buffer in front of each subscriber.
+
+On the client, the live channel's `onError` receives an error with `status === 503` and
+`data.kind === 'shed'`, which is how "this subscriber was too slow" reads differently from "the
+read failed". The `data` shape is exported as `SocketShedReason` from
+`@sigx/actors/socket-wire`.
+
+Default `0` is off, and the value is validated at construction like `maxConnectionMs`: a
+non-integer or negative value throws and closes the accepted socket 1011. The cap needs
+`bufferedBytes()` — an adapter that answers `null` never sheds, so on the Cloudflare adapters,
+which supply no buffer depth, it is inert. `@sigx/actors-ws/node` forwards the option and
+supplies the seam. Sheds are counted in
+[`socketStats().subscriptionsShed`](/actors/docs/observability#socket-sessions), and show as a
+`shed` row in `sigx actors stats` and `top` once there are any.
 
 ## Session lifetime
 

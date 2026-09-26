@@ -61,6 +61,13 @@ re-runs its `recent(20)` watch too and gets an identical list back. These are vi
 state, not an event log, so a subscriber cannot need to know that a value it already holds was
 recomputed.
 
+The server applies the same rule before it sends anything. The read still runs once per
+mutating turn, but when its codec-encoded result equals the last one delivered, nothing is
+pushed — so a live page over an actor that mutates fields the read never looks at does not pay
+a socket write per subscriber for them. The first value is always delivered, and a value that
+changes and changes back is two deliveries. A read whose consumer counts emissions rather than
+reading values opts out with [`distinct: false`](#what-watches-declares).
+
 **It reconnects by itself.** A long-lived response dies for reasons that are nobody's bug — a
 proxy timeout, a rolling restart, a laptop lid. Backoff doubles 1s → 30s with jitter and
 resets on any healthy frame, and the re-seed doubles as the catch-up read.
@@ -161,9 +168,9 @@ contradicts is per activation. Remove the flag or the `ctx.principal` read.
 
 Three things the declaration deliberately does not cover:
 
-- **`ctx.bag`** is already first-subscriber-only on any coalesced stream, declared or not.
-  This is a promise about *identity* only — which is why it is not spelled
-  "caller-independent".
+- **`ctx.bag`** is the empty bag inside every watch read, declared or not — see
+  [what a watch read carries](#what-a-watch-read-carries). This is a promise about *identity*
+  only — which is why it is not spelled "caller-independent".
 - **Identity reached through `ctx.actor()` into another actor** is invisible to the check.
 - **A touch that only authorizes trips it too.** Authorization belongs in `authorize` /
   `methodAuthorize`, which run per subscriber at the entry point, outside any turn.
@@ -190,6 +197,60 @@ failed module load — keys per principal, the conservative direction. And durin
 deploy a new relay may share a stream that an old owner does not yet police; the shared
 stream carries no principal at all, so the worst case is everyone seeing the anonymous view.
 Deploy the declaration before relying on it.
+
+**Development builds point out a missing declaration.** An identity-blind read that is not
+declared costs exactly what an identity-dependent one does across hosts, and otherwise the
+only signal is the scaling wall. After 25 completed watch reads of an undeclared method that
+never consulted `ctx.principal`, the host warns once per `(type, method)` with the exact
+`watches: { m: { principalIndependent: true } }` line to add, plus the
+`authorize` / `methodAuthorize` route for a read that touches identity only to authorize. It
+is a hint, not an inference — the declaration stays yours to make. One read that does consult
+`ctx.principal` silences the tally for good, so a conditionally identity-dependent read stays
+quiet. The tally lives on the host, so re-activating the actor does not reset it; a process
+restart does. Production builds carry no part of it.
+
+### What `watches` declares
+
+`ActorWatchDeclaration` takes either flag alone, or both:
+
+| Flag | Default | Declared |
+|---|---|---|
+| `principalIndependent: true` | the relay keys the cross-host stream per principal | one shared stream for every identity; the read may not consult `ctx.principal` |
+| `distinct: false` | an identical re-read is not pushed | every re-read is delivered, changed or not |
+
+```ts
+watches: {
+    all: { principalIndependent: true },
+    ticks: { distinct: false },
+    board: { principalIndependent: true, distinct: false },
+},
+```
+
+A declaration must name at least one of them. Spelling out a default —
+`principalIndependent: false` or `distinct: true` — is refused, because it is almost always a
+typo for the other value.
+
+### What a watch read carries
+
+A watch loop is shared, so the read it re-runs serves every subscriber attached to it. It
+therefore sees none of the fields that describe *one request*:
+
+- **`ctx.bag` is the empty bag** — over `$live`, the socket or an in-process watch, with one
+  subscriber or many, and including the subscriber's own edge stamp. A guard's
+  [`stampCallBag`](/actors/docs/wire-protocol#the-request-context-bag) still runs per
+  subscription, because authorization is per subscriber, but the stamp reaches unary calls
+  only. A `ctx.actor()` or `ctx.publish()` hop the read makes relays the empty bag too.
+- **The abort signal is the watch's own**, fired when the last subscriber leaves. The first
+  subscriber disconnecting does not abort a cross-host hop the read has in flight for everyone
+  else.
+- **The deadline is minted per read** from the host's `callTimeoutMs`, the way a timer tick's
+  or a task turn's is, so a long-lived subscription's re-reads never inherit a deadline that
+  has already passed.
+
+The principal is the exception: it stays, because it is what the
+[per-principal split](#identity-dependent-reads-split-automatically) observes. A read that
+needs per-request context is not a shareable read — use a plain method or a
+[`streams:` entry](/actors/docs/streams), which are per caller by construction.
 
 ## Ask for a slower delivery window
 
@@ -246,19 +307,50 @@ Watch reads do not each hold a queue slot: they drain through a **watch read pum
 at most one turn on the actor's queue, runs pending reads back-to-back in slices, and drains a
 new subscriber's seed ahead of every pending re-read. The whole watch population costs O(1)
 queue slots however many loops exist, and establishment cannot starve behind steady-state
-fan-out. What remains per identity is the reads themselves and, cross-host, the connection —
-which is why the durable rule, cheapest option first, is:
+fan-out. What remains per identity is the reads themselves and, cross-host, the connection.
 
-1. **Declare the read** `principalIndependent` if it really is identity-blind — the
-   per-identity stream, and the connection it pins, stop existing rather than being budgeted
-   for.
-2. **Shard genuinely identity-dependent reads.** Keep `mine()`-shaped reads off hot shared
-   actors: a per-user or per-cohort actor holds the identity-dependent projection and the
-   shared actor publishes to it, or the read takes the identity as an explicit *argument* on
-   a caller-validated path so args, not principals, key the loops.
-3. Otherwise **size the host-to-host fetch pool** for the signed-in watcher population, or
-   use [`@sigx/actors-tcp`](/actors/packages/actors-tcp/overview), whose one multiplexed
-   connection per peer makes the pool arithmetic moot whatever the reads do.
+### Choosing the fix
+
+There are **two independent fixes** for the signed-in fan-out ceiling, and they work by
+opposite mechanisms: declaring a read `principalIndependent` **removes** the per-identity
+cross-host streams; [`@sigx/actors-tcp`](/actors/packages/actors-tcp/overview) **keeps**
+every stream and removes its per-stream cost, multiplexing them all onto one connection per
+peer. They are not variants of each other, and they compose.
+
+| Approach | Cross-host streams | Under signed-in load | Applies to |
+|---|---|---|---|
+| undeclared, HTTP | one per remote subscriber, each pinning a pooled connection | shelves at the pool arithmetic | — |
+| **declared** `principalIndependent`, HTTP | a handful for the whole population | clean | identity-blind reads only |
+| undeclared, **TCP** | one per remote subscriber, all on one connection per peer | clean | any read, identity-dependent included |
+| declared **+** TCP | a handful | clean | composes |
+
+Which row you can reach depends on what the read does with `ctx.principal`, and there are
+three cases, not two:
+
+1. **The read is identity-blind** — it never consults `ctx.principal`, and every subscriber
+   gets the same result. **Declare it.** It is the cheapest fix and needs no infrastructure
+   change: the per-identity stream, and the connection it pins, stop existing rather than
+   being budgeted for.
+2. **The read touches `ctx.principal` only to authorize** — the check gates access, but the
+   value returned is the same for everyone. That is authorization in the wrong place. **Move
+   the check to `authorize` / `methodAuthorize`**, which run per subscriber at the entry
+   point, outside any turn, **then declare the read** — the
+   [before/after above](#declaring-a-read-identity-blind-watches) is exactly this move. It
+   applies when the check needs only the principal and the request: those policies run at
+   the entry point and cannot see the actor's state, so a membership test against
+   `ctx.state` cannot leave the turn and belongs in the next case.
+3. **The read is genuinely identity-dependent** — the *result* differs per user. Declaring is
+   forbidden and enforced (`ActorWatchDeclarationError`), and the per-identity stream is not
+   a defect to remove. `@sigx/actors-tcp` (Node only) is the structural answer. On HTTP,
+   **size the host-to-host fetch pool** to the signed-in watcher population. Keeping
+   `mine()`-shaped reads off hot shared actors helps too: a per-user or per-cohort actor holds
+   the identity-dependent projection and the shared actor publishes to it, or the read takes
+   the identity as an explicit *argument* on a caller-validated path so args, not principals,
+   key the loops.
+
+**The pool-sizing rule — pool ≥ watchers per hop — applies only to reads that genuinely depend
+on identity, over HTTP.** A declared read opens no per-identity stream, so there is nothing to
+budget for, and an authorize-only read should become a declared one.
 
 **The gauge to watch is `watchLoops`** — `HostStats.watchLoops` in
 [`ops()`](/actors/docs/ops-endpoint), `metrics()` and the cluster `HostReport`, and
@@ -266,10 +358,22 @@ which is why the durable rule, cheapest option first, is:
 drill-down. Many subscribers per loop is healthy sharing. A loop count tracking the subscriber
 count on a hot actor is the per-identity split building.
 
-Over a socket, a subscription whose first value cannot be produced within the app posture's
-`timeoutMs` receives a per-subscription **504 error frame**, and the server releases the
-watch it held. A subscription that has delivered its first value is never timed out —
-pushes arrive at the watch loop's own cadence.
+### Establishment has a deadline
+
+Both wire mounts — `$live` and the [socket session](/actors/docs/socket-sessions) — bound a
+subscription's establishment by the app posture's `timeoutMs`: the pipeline, authorization,
+dispatch and the **first value**. A subscription whose seeding read cannot run in time — it is
+starved behind a busy actor, say — receives a per-subscription **504 error frame**
+(`…timed out before its first value`), and the server releases the watch and keep-alive it
+held. Sibling subscriptions on the same connection keep streaming. The deadline covers the
+first value only: a subscription that has delivered it is never timed out, because pushes
+arrive at the watch loop's own cadence. With no posture `timeoutMs` configured there is no
+deadline.
+
+One nuance on `$live`: the endpoint also bounds the whole request by the same `timeoutMs` up
+to the response's first chunk. When **no** subscription on a connection seeds in time, that
+request-level 504 answers first and the channel reconnects with backoff; the
+per-subscription frame is what a starved subscription gets when a sibling has already seeded.
 
 ## Live reads or streams?
 

@@ -108,7 +108,9 @@ registry.reportOps('sockets', () => stats.snapshot());
 ```
 
 `snapshot()` carries the totals — connections opened, closed and **refused** (origin or auth,
-turned away before serving a byte); calls started and failed; subscriptions opened and closed;
+turned away before serving a byte); calls started and failed; subscriptions opened and closed,
+and `subscriptionsShed` — those closed by the [slow-consumer cap](/actors/docs/socket-sessions#shedding-a-slow-consumer), also counted in
+`subscriptionsClosed`;
 `protocolBreaches` (1003/1009) and `lifetimeCloses` (1008 from `revalidateMs` or
 `maxConnectionMs`) — plus three live gauges summed across open sessions (`open`, `inFlight`,
 `subscriptions`) and a connection-lifetime histogram, `null` until there is data.

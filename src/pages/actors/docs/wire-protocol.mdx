@@ -159,6 +159,12 @@ does not have to mint its own.
 `ctx.actor` and `ctx.publish` hops inherit it; detached [task](/actors/docs/tasks) bodies and
 volatile timer ticks deliberately read it empty, the same way `traceparent` does.
 
+**A watch read never sees a bag.** A method read through `$live`, the socket or an in-process
+watch runs in a turn shared by every subscriber, so `ctx.bag` is the empty bag there — with
+one subscriber or many, and including that subscriber's own `stampCallBag`. The stamp still
+reaches every unary call. A read that needs per-request context belongs in a plain method or a
+`streams:` entry; see [what a watch read carries](/actors/docs/live-reads#what-a-watch-read-carries).
+
 ### Caps, and what happens at the edges
 
 | limit | value |
