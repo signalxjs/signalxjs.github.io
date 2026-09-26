@@ -25,7 +25,63 @@ export const Counter = component<{ label: string }>((ctx) => {
 });
 ```
 
-A handler is resumable when its captures resolve through the resumed scope — named signals, `ctx.props` reads, imports, globals. Anything else (loop variables, setup helpers, `ctx.emit`) makes the whole component fall back to wake-on-interaction, with a build-time warning naming the capture.
+A handler is resumable when its captures resolve through the resumed scope — named signals, `ctx.props` reads, imports, globals. Anything else makes the whole component fall back to **wake-on-interaction** — its first interaction hydrates it — with a build-time warning naming the reason. Handlers are only ever found on **host elements**. The full set of rules is [the contract](#the-contract) below.
+
+`preventDefault` has one shape: an unconditional top-level `e.preventDefault()` on the event parameter itself. The loader cancels the native default from a `data-sigx-pd` stamp before any JavaScript loads, so it can only honour a call it can see statically.
+
+`$scope.props` — what a handler reads as `ctx.props` — is a snapshot, and a **public** one: the usage-site props as serialized into the boundary table, minus `children`, `slots`, `$models`, `key`, `ref`, every function, symbol and `undefined`, and every `on*` key. The table ships in the HTML, so every serialized prop of every resumable component is readable by anyone who views source — pass a resumable component only what the page may show.
+
+## The contract
+
+These are the rules the transform and the runtime rely on. Transform-time violations are **build errors** — never a warning that leaves a component silently broken in production. Runtime violations are development warnings, because a throw in the browser would take the page down.
+
+### Build errors
+
+| In a resume module | The error | Why |
+|---|---|---|
+| A component that leaves the module only as `export default` — `export default component(…)`, `export default Counter`, `export { Counter as default }` | `resume components must be named exports` (with `file:line:col`) | The export name keys the registry and the manifest; a default export has none. A default export that is not a component, or a named export also aliased to default, is fine. |
+| The same component name exported from two resume modules | `duplicate resume component name "X": a.tsx and b.tsx both export it` | Export names are app-wide keys. Rename one. Names in non-resume files don't count. |
+| A component with handler sites whose setup context is destructured (`({ signal, props }) => …`) or absent | `resume components must take the setup context as a single identifier parameter` | Signals are keyed by name through `ctx.signal`, and without the name the transform cannot tell a setup capture from a global. Write `component((ctx) => …)`. |
+| A component with handler sites that reads `ctx.slots` (directly or by destructuring `ctx`) | `resumable components cannot consume slots` | The upgrade mounts the component from its serialized record — no children, no slots — so slotted content would be orphaned. Take the content as serializable props, or move the slot host out of the resume module. A slot consumer with no handler site never upgrades and is left alone. |
+| An `on*` handler passed to a child **component** tag — `<Child onClick={…} />` | names the tag | Delegation only sees host-element attributes, and a function prop never reaches the client. Handle the event on a host element inside the child, or render the element here. |
+| A spread or `onUpdate:*` callback on a component that has named signals but **no** host-element handler | build error | With no handler to wake on, the component would be just as dead in hydrate mode. |
+| A handler that binds or references `$scope` / `$el` — as a parameter, local, named signal or destructured prop | names the handler | Both names are reserved. `obj.$scope` and `{ $scope: 1 }` are not references and stay allowed. |
+
+### Falling back to wake-on-interaction
+
+These shapes are legal but cannot run from a resumed scope, so the whole component falls back to wake-on-interaction, with a build-time warning naming the reason:
+
+- a capture the resumed scope cannot express — a loop variable, a setup helper, `ctx.emit`;
+- spread props on a host element (a handler-free object literal, inline or a setup-scope `const`, is exempt);
+- a namespaced `onUpdate:*` callback on a host element — it is not a DOM event;
+- a generator handler;
+- a guarded or indirect `preventDefault()` — inside `if` / `?:` / `&&` / `try`, after a `return` or `await`, through an alias, or with the event handed to a helper — or an imported handler, on an element with a native default (`<form>` submit, an `<a href>` click, a submit button, a checkbox, `keydown`, `wheel`, `touch*`, …). On an element with no native default, a guarded call extracts without a stamp;
+- a handler that reads what the props snapshot never carries — calling a props member (`ctx.props.onSelect(id)`), reading an `on*` prop, or reading `children`, `slots`, `ref`, `key` or `$models`.
+
+A woken component fully hydrates on its first interaction and does **not** replay that event — its listeners only exist after hydration. If the first click must count, keep the handler resumable, or make the first interaction harmless to lose.
+
+### What a replayed event looks like
+
+The loader replays the *same* native `Event`, after native dispatch has ended, and calls the handler with exactly what live dispatch would have — the event, nothing else:
+
+- `event.target` is intact.
+- `event.currentTarget` is the delegated element for the duration of each handler's synchronous run, so `e.currentTarget.value` reads as it would from a live listener, and `null` again once the handler returns.
+- `event.defaultPrevented` reflects the `data-sigx-pd` stamp — the loader cancelled the default during native dispatch; the `preventDefault()` call inside the replayed handler is a no-op.
+- `event.stopPropagation()` ends the synthetic bubble only; native propagation already happened.
+- A non-bubbling event (`focus`, `blur`, `mouseenter`, `scroll`, …) replays only on its target's carrier.
+- `event.eventPhase` is `0` and `event.composedPath()` is `[]`. Read the element from `currentTarget`; `$el` is reserved but not bound.
+
+### Development warnings
+
+- **Single-element root.** The upgrade hydrates the element immediately before the boundary's trailing marker as the component's root, so a resumable component must render exactly one root element. Without one, the boundary is not upgraded and the page never updates; dev warns `Cannot upgrade boundary N: no element before its marker`.
+- **Renaming a signal drops buffered writes.** Writes made before the component chunk loads are buffered by name. If the component no longer declares a signal of that name — renamed by a deploy since the page rendered — the value is dropped; dev warns `Buffered write to "x" has no live signal after upgrade`.
+- **Lossy usage sites.** An upgrade of a boundary whose usage site passed children, slots or render props warns that the snapshot cannot carry them.
+
+In development the console also narrates the ladder as it happens — `[sigx resume]` lines for each replay, the first write that triggers an upgrade, the upgrade itself, and a wake. The trace is stripped from production builds.
+
+### In development
+
+Dev runs the same ladder as production: the transform runs for the dev SSR render, so the served HTML carries the same attributes, and only bundle shape — chunk files, the manifest, preload hints — is production-only. Editing a handler in a resume module reloads the page, because handler symbols are content-hashed and the rendered page holds the old ones; a markup-only edit keeps in-place HMR.
 
 ## Install the plugin
 
@@ -43,6 +99,8 @@ export function createApp(url: string) {
 ```
 
 The `sigxResume()` transform from `@sigx/vite/resume` produces the manifest and the delegation loader entry; the browser loads only that loader until an interaction upgrades a boundary.
+
+With a manifest, the document also gets a `<link rel="modulepreload">` for the handler chunk of every resume boundary the request actually rendered. The bytes arrive off the critical path; execution still waits for the first interaction, and the loader stays the page's only script. A page without a resume boundary emits nothing, hydrate-mode components and manifest-less dev renders emit nothing, and the component (upgrade) chunk is never preloaded — upgrade-on-write stays lazy. Under a CSP, the preload links carry the request's [nonce](/server/packages/server-renderer/api#content-security-policy).
 
 ## The client half
 
@@ -127,9 +185,30 @@ const renderBoundaries = createBoundaryRefresh({
     plugins: [resumePlugin({ manifest })],  // or omit and let `app` carry them
     components: { Tracker, Cart },          // registry key (__resumeId) → server component
 });
-// handleServerFnRequest(request, { fns, renderBoundaries })
+// handleServerFnRequest(request, { functions: serverFns, renderBoundaries })
 ```
 
 `components` is **required** and explicit (never ambient) — the same posture as the server-function registry, since the key comes from the client. When a mutation server function declares `invalidates`, the endpoint admits a boundary whose recorded `useData` deps intersect it, re-renders each in an id-seeded isolated context, and returns fresh HTML + state in one response. The client half is automatic (`@sigx/resume/client` applies the fresh entries) — a never-hydrated boundary updates without loading its chunk.
 
 Nothing throws outward: a boundary it can't honor (unknown key, unserializable props, a render throw) is silently omitted, and those reads converge through `@sigx/cache` invalidation instead.
+
+### Wire `refreshComponents` in both places
+
+The production entry (`entry.cloudflare.ts`, `entry.node.ts`, …) builds `createBoundaryRefresh({ components })` for its request handler, and development uses the module `sigxServer({ renderBoundaries: '/src/dev-refresh.ts' })` points at. Both take the same export-name-keyed registry, so export it once — as `refreshComponents` from your server entry — and import it in both. A component missing from the registry is not an error: its boundary is declined and converges through cache invalidation, one round trip slower. Missing it in only one of the two places is the classic "works in dev, not in prod", or the reverse.
+
+### `plugins:` never sees app-level DI
+
+The `plugins:` form builds its re-render from the listed plugins only. Anything `app.use` installed on the page's app — `serverPlugin({ types })`, `provideTypeHandlers`, other provides — is invisible to it, so a boundary whose props or state need those type handlers re-renders without them. An app that installs any of those passes its app factory instead, and the app's plugins win:
+
+```ts
+const renderBoundaries = createBoundaryRefresh({
+    app: () => createApp(),          // the entry-server's factory — plugins, type handlers and all
+    components: refreshComponents,
+});
+```
+
+The factory receives whatever the endpoint passes through — its request context when it rides `handleServerFnRequest({ renderBoundaries })` — for an app that needs the request. `plugins:` stays the right choice for an app-less resumable page, which has no app to hand.
+
+### Convergence needs a cache client
+
+"Converges through cache invalidation" assumes a cache client on the page, and `cachePlugin()` installs on an `App`. An app-less resumable page — one whose only script is the loader — has none, so a declined or dropped refresh leaves the boundary exactly as rendered until the next navigation. There, wire `refreshComponents` in both places and keep usage-site props serializable, so the refresh is honoured in the first place.

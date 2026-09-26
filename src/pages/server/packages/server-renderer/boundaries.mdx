@@ -70,7 +70,9 @@ const myBoundaryPlugin: SSRPlugin = {
 };
 ```
 
-The returned object is a `ResolvedBoundary` — a partial of the `flush` / `hydrate` / `media` / `fallback` / `chunk` / `props` / `component` fields. Anything omitted falls back to the app's defaults.
+The returned object is a `ResolvedBoundary` — a partial of the `flush` / `hydrate` / `media` / `fallback` / `chunk` / `props` / `component` / `refreshable` fields. Anything omitted falls back to the app's defaults.
+
+`refreshable: false` is the pack's verdict that the props snapshot it just built cannot reproduce this render — the usage site passed children, slots or render props the snapshot drops. Core copies it onto the record; single-flight boundary refresh skips such a boundary, and the client hydrator warns in development when it mounts from one, because the mounted component sees none of those props.
 
 `component` is the record's **registry name** — how the client resolves the component, trying the eager registry, then the lazy registry, then the `chunk` URL, in that order. Core derives it from `__islandId || __name`, which is right for packs that use core's stamp; a pack with its own naming vocabulary sets it here instead. An anonymous record — no `component` and no `chunk` — is refused by the client loader rather than silently skipped.
 

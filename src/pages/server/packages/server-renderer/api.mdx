@@ -299,6 +299,12 @@ return new Response(html, {
 });
 ```
 
+The same nonce goes on every `<link rel="modulepreload">` the renderer emits —
+the app's `assets`, the boundary chunks, and the pack-contributed ones (islands
+chunks, resume handler chunks) — because `script-src` governs module preloads
+too. Stylesheet links (`style-src`) are untouched, and without a nonce the
+output is byte-identical.
+
 `nonce` is available anywhere `SSRContextOptions` is — `createSSRContext`,
 `renderDocument*`, `createRequestHandler` and `createFetchHandler` — because
 `DocumentOptions` extends it. Generate a fresh value per request; a reused nonce

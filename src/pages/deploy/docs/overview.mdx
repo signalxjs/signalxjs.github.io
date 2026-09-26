@@ -66,7 +66,7 @@ export default {
         if (matchesServerFn(request, serverFnBase)) {
             return handleServerFnRequest(request, {
                 base: serverFnBase,
-                resolve: (s) => serverFns[s]?.() ?? null,
+                functions: serverFns,
                 renderBoundaries
             });
         }
