@@ -232,7 +232,7 @@ Expands a `SpacingValue` into long-form `{ paddingTop, ... }` / `{ marginTop, ..
 function resolveBoxStyle(props: BoxProps, cls?: WidthClass): Record<string, unknown>;
 ```
 
-Converts `BoxProps` to a Lynx style object: resolves any per-breakpoint values against `cls` (the active width class from `useWidthClass()`, default `'compact'`), resolves color tokens and writes long-form flex (`flexGrow` / `flexShrink` / `flexBasis` / `minHeight`) to avoid Lynx flex-collapse.
+Converts `BoxProps` to a Lynx style object: resolves any per-breakpoint values against `cls` (the active width class from `useWidthClass()`, default `'compact'`; [`WidthClass`](/lynx/modules/core/api#window-size-classes) is a type export of `@sigx/lynx-core`, re-exported by `@sigx/lynx`), resolves color tokens and writes long-form flex (`flexGrow` / `flexShrink` / `flexBasis` / `minHeight`) to avoid Lynx flex-collapse.
 
 ### Responsive
 
