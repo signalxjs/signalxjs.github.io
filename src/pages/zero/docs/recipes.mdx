@@ -1,6 +1,6 @@
 ---
 title: Recipes
-description: "RecipeInput for @sigx/zero-kit — per-part base / states / selectors / at styles against a component's anatomy, component tokens, variants on any axis, modifiers, compound variants, defaults, keyframes, skipStates, per-target sections, and the authoring rules the validator and the shipped design systems hold to"
+description: "RecipeInput for @sigx/zero-kit — per-part base / states / selectors / at styles against a component's anatomy, component tokens, variants on any axis, modifiers, compound variants, defaults, keyframes, skipStates, sameAs, composes, per-target sections, and the authoring rules the validator and the shipped design systems hold to"
 layout: docs
 category: Authoring design systems
 order: 62
@@ -72,6 +72,18 @@ Author mobile-first: breakpoints are `min-width`, and declaration order is emiss
 Because `variants` hold the same `PartStyles` shape, an `at` inside a variant is a
 responsive variant with nothing extra.
 
+A desktop-first rule is `below-<breakpoint>`. With `md: '48rem'`, `at: { 'below-md': … }`
+compiles to `@media (width < 48rem)`, the exact complement of the `md` rule, resolved from the same
+token, so no recipe writes a hand-computed `767.98px`. Below-rules sort after every
+breakpoint, narrowest last.
+
+```ts
+nav: {
+    base: { display: 'flex', gap: 'var(--space-md)' },
+    at: { 'below-md': { base: { flexDirection: 'column' } } },
+},
+```
+
 ### `tokens`
 
 Component tokens — custom properties declared on the carrier part (`--btn-accent`,
@@ -122,7 +134,35 @@ compoundVariants: [
 | `keyframes` | Named `@keyframes` bodies, emitted outside the layer. Names may not be CSS-global keywords such as `none`. |
 | `css` | A raw CSS escape hatch appended to the recipe's output. Still linted for physical direction. |
 | `skipStates` | Per part, states you deliberately do not style. It silences the coverage warning *and* waives the state-legibility guard — one field, two claims: "this state is deliberately indistinguishable from its siblings". |
+| `sameAs` | Per part, declared states that paint the same **on purpose**: `sameAs: { indicator: { complete: 'loading' } }`. Narrower than `skipStates`: the state-legibility guard excuses exactly that pair, and every other pair must still differ. Chains form one class (`{ complete: 'loading', closed: 'loading' }` makes all three alike). The named state counts as addressed for the coverage warning, since its styling is its partner's. |
+| `composes` | Styles of another scope rendered inside this one. See [Styling a nested scope](#styling-a-nested-scope-composes). |
 | `targets` | Per-target sections (`web`, `lynx`), deep-merged over the shared recipe for that target — where web-only runtime declarations and their Lynx replacements live. See [Lynx](/zero/docs/lynx/). |
+
+### Styling a nested scope: `composes`
+
+A recipe may style another scope **in context**: a composer's embedded button, or the buttons
+in a card's footer.
+
+```ts
+defineRecipe({
+    component: 'card',
+    parts: { /* … */ },
+    composes: {
+        button: { within: 'footer', parts: { root: { base: { flex: '1' }, states: { hover: { filter: 'none' } } } } },
+    },
+});
+```
+
+This compiles to
+`[data-scope="card"][data-part="footer"] [data-scope="button"][data-part="root"]` in card's
+own stylesheet, and outranks button's own base and axis rules. `within` defaults to the
+carrier part.
+
+The entry is validated against the manifest. The nested scope must be one the manifest
+declares, `within` must be one of card's parts, and every part and state resolves against the
+nested scope's anatomy. A mistake is a validation error rather than a selector that matches
+nothing. Content checks treat a `composes` entry like any other declaration. The Lynx target
+drops it and records a report entry.
 
 ## What a recipe may reference
 

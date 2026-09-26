@@ -1,6 +1,6 @@
 ---
 title: The compiled CSS
-description: "What @sigx/zero-kit emits — the four cascade layers, :where(:root) specificity, diff-only theme blocks, @property registrations, the @scope donut that bounds axis rules, default mirroring, emission order, reduced motion and the interpolation guards"
+description: "What @sigx/zero-kit emits — the four cascade layers, where app CSS goes, :where(:root) specificity, diff-only theme blocks, @property registrations, the @scope donut that bounds axis rules, default mirroring, emission order, reduced motion and the interpolation guards"
 layout: docs
 category: Authoring design systems
 order: 63
@@ -37,6 +37,28 @@ declaration in the document — and any unconditional `display` in a recipe defe
 *later layer* rather than higher specificity (compound selectors can reach (0,8,0)), and
 never `!important`, which would also outrank the consumer's unlayered app CSS. The consumer
 always wins.
+
+## Where your app's CSS goes
+
+Everything zero and a design system emit sits in the four `zero.*` layers, so page CSS beats
+all of it in either of two ways:
+
+- **Unlayered**, the simplest option. Unlayered CSS outranks every layer, whatever its
+  specificity or load order.
+- **In a layer of your own, ordered after zero's.** State the order first in your entry
+  stylesheet, before any import:
+
+  ```css
+  @layer zero, app;          /* zero's sublayers nest under `zero` */
+  @layer app { .page { … } }
+  ```
+
+  A layer's position is fixed by its first mention. Without the statement, a stylesheet that
+  loads before `@sigx/zero/css` creates `app` first, and `app` then ranks below every `zero.*`
+  layer. Unlayered overrides still beat `app`.
+
+`@sigx/zero/css` does not name an app layer: that would not remove the load-order dependency,
+and the layer's name is yours to choose.
 
 ## Specificity is designed
 

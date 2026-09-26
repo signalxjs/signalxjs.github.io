@@ -33,7 +33,8 @@ turns that data into a shipping package:
 - **The authoring surface** — `defineTokens`, `defineRecipe`, `defineDesignSystem`,
   `defineApi`. Identity functions with typing, so recipes type-check against the declared
   vocabulary. Importable from a browser bundle through `@sigx/zero-kit/define`, whose module
-  graph is `node:`-free by contract.
+  graph is `node:`-free by contract. `extendDesignSystem` / `extendRecipe` on the same subpath
+  derive a design system from another as a data patch.
 - **Validation** — `validateDesignSystem` / `validateRecipes` / `validateApi`: token
   completeness and WCAG contrast per theme, recipe structure against the anatomy manifest,
   vocabulary membership, undeclared token references, physical-direction and literal-duration
@@ -62,8 +63,8 @@ turns that data into a shipping package:
 The kit is documented in the [Authoring design systems](/zero/docs/authoring/) section of
 the Zero docs: [Tokens](/zero/docs/tokens/), [Recipes](/zero/docs/recipes/),
 [The compiled CSS](/zero/docs/compiled-css/), [Validate and build](/zero/docs/validate-and-build/),
-[Manifests and schemas](/zero/docs/manifests/), [Building your own component](/zero/docs/ecosystem-components/)
-and [Lynx](/zero/docs/lynx/). This package's pages cover [installation](/zero/packages/zero-kit/installation/)
+[Manifests and schemas](/zero/docs/manifests/), [Building your own component](/zero/docs/ecosystem-components/),
+[Extending a design system](/zero/docs/extending/) and [Lynx](/zero/docs/lynx/). This package's pages cover [installation](/zero/packages/zero-kit/installation/)
 and the [export surface](/zero/packages/zero-kit/api/).
 
 ## About

@@ -48,7 +48,10 @@ fallback values for the recommended tokens so an unstyled page is sane, and the
 `zero.structure` rule that keeps `hidden` parts hidden whatever a recipe says. Import it
 first. The design system's `/css` is its full compiled stylesheet — tokens, theme blocks and
 every recipe. Import order between the two does not matter for correctness (every compiled
-stylesheet restates the layer order), but base first is the convention.
+stylesheet restates the layer order), but base first is the convention. Both stylesheet
+exports carry a `types` condition, so these side-effect imports type-check without a
+`declare module` shim. Your own page CSS goes unlayered or in a layer ordered after zero's —
+see [Where your app's CSS goes](/zero/docs/compiled-css/#where-your-apps-css-goes).
 
 `installThemes()` hands the design system's theme declaration to zero's theme registry, so
 `themeController()`, `ThemeProvider` and a theme picker know which themes exist and which

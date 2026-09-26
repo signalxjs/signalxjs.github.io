@@ -1,6 +1,6 @@
 ---
 title: Tokens
-description: "TokensInput for @sigx/zero-kit — the colour-role grammar, the size ramp, variant vocabularies, custom axes, modifiers, per-scope narrowing, the closed token categories with open keys, system / systemDark, custom tokens, breakpoints, swatches and themes"
+description: "TokensInput for @sigx/zero-kit — the colour-role grammar, the size ramp, variant vocabularies, custom axes, modifiers, per-scope narrowing, the closed token categories with open keys, system / systemDark, custom tokens, breakpoints, declared contrast pairs, swatches and themes"
 layout: docs
 category: Authoring design systems
 order: 61
@@ -176,6 +176,18 @@ base surfaces; `-soft` is optional and derived when omitted. `colorScheme` is th
 (`defaultLight` is required). Any number of themes is fine — `@sigx/zero-daisyui` declares
 five. See [Theming](/zero/docs/theming/).
 
+`defaultDark` is optional. Without it, or naming the same theme as `defaultLight`, the design
+system has one scheme, and `:root` takes that default theme's own `colorScheme`. A
+**dark-only** design system names its dark theme as `defaultLight` and omits `defaultDark`;
+its compiled `:root` states `color-scheme: dark`:
+
+```ts
+defaultLight: 'night',                               // no defaultDark: one scheme
+themes: {
+    night: { colorScheme: 'dark', colors: { /* … */ } },
+},
+```
+
 Colour tokens differ between the default light and dark themes through `light-dark()`;
 everything else — category values, `custom`, `extra` — is emitted in a
 `prefers-color-scheme: dark` block whenever the two defaults disagree. Give a value a light
@@ -195,11 +207,57 @@ swatch: ['primary', 'accent', 'base-100', 'base-content'],
 - `custom` declares design-system-specific tokens (name → `description`, optional `syntax`
   for an `@property` registration), valued per theme in `custom`. Declared, they are
   validated, appear in the manifest, and autocomplete through `cssVar`.
-- `breakpoints` are the named `at` conditions recipes use (`@media (min-width: …)`),
+- `breakpoints` are the named `at` conditions recipes use (`@media (min-width: …)`, and
+  `below-<name>` for the complement — see [Conditions](/zero/docs/recipes/#conditions)),
   declared ascending. `reduced-motion`, `hover-none`, `prefers-dark`, `forced-colors`,
-  `print` and `starting-style` are reserved built-in names.
+  `print` and `starting-style` are reserved built-in names, and a breakpoint may not be named
+  `below-*`.
 - `swatch` is what a theme picker samples; omitted, it is the first four declared roles plus
   `base-100` and `base-content` (`defaultSwatch`).
+
+### The breakpoint ramp outside recipes
+
+The same ramp reaches the app, so app CSS, app JS and recipes agree on every pixel:
+
+- The compiled `:root` declares `--breakpoint-<name>` for every breakpoint — for `calc()`
+  and `getComputedStyle` reads. A custom property cannot stand in a media condition.
+- `dist/css/breakpoints.css`, exported as `<ds>/css/breakpoints`, defines
+  `@custom-media --above-<name> (min-width: …)` and `--below-<name> (width < …)`. `@import`
+  it into your own stylesheet when a build step resolves custom media
+  (postcss-custom-media, Lightning CSS `drafts.customMedia`), and write
+  `@media (--below-md) { … }`.
+- `@sigx/zero`'s `useMediaQuery({ above: 'md' })` / `useMediaQuery({ below: 'lg' })` resolves
+  against the same values. See
+  [Breakpoints in JS](/zero/docs/theming/#breakpoints-in-js).
+
+## Declared contrast pairs
+
+The validator measures every `role` / `role-content` pair and the base pairs on its own. A
+`custom` colour token, such as a dim caption ink or a status tone, is measured when the design
+system declares the pair it is read on:
+
+```ts
+defineTokens({
+    custom: { 'ink-dim': { syntax: '<color>' } },
+    contrast: [
+        { fg: 'ink-dim', bg: 'base-300', min: 4.5, description: 'captions' },
+        { fg: 'ink-dim', bg: 'color-base-100' },   // min defaults to 4.5
+    ],
+    /* … */
+});
+```
+
+`fg` and `bg` name a declared `custom` token or a colour token (a role, its `-content` or
+`-soft`, a base surface), with or without the leading `--`. A bare name resolves to a custom
+token first; `color-<token>` is always the colour token. `min` defaults to 4.5 (WCAG AA body
+text); use 3 for large text and non-text marks. `description` is echoed in the message.
+
+`sigx zero:validate` checks each pair in every theme, in the same `contrast-floor` format as
+the role pairs, with a passing `suggest` value solved at the pair's own `min`. Below `min` is
+always an error, since the floor is one the author declared. A custom value may be a `var()`
+of other tokens, `color-mix()` or `light-dark()`; a translucent ink is composited over its
+surface, and a translucent surface or a value the kit cannot evaluate is an error rather than
+a skipped pair.
 
 ## What the declaration produces
 

@@ -1,6 +1,6 @@
 ---
 title: Theming
-description: "The @sigx/zero theme model — themes versus colour schemes, the registry that holds metadata and never values, installThemes / registerThemes, the controller, ThemeProvider and ThemeScope, light-dark() defaults, the first-paint script and swatches"
+description: "The @sigx/zero theme model — themes versus colour schemes, the registry that holds metadata and never values, installThemes / registerThemes, the controller, ThemeProvider and ThemeScope, light-dark() defaults, the first-paint script, swatches, and the breakpoint ramp in JS (useMediaQuery)"
 layout: docs
 category: Styling
 order: 50
@@ -23,7 +23,9 @@ explicit theme name, or `null` = follow the system.
 The system default needs no JavaScript. A compiled design system writes its colour tokens on
 `:root` with `light-dark()` and `color-scheme: light dark`, so with no `data-theme` set the
 page follows the OS preference — `defaultLight` under a light system, `defaultDark` under a
-dark one. The controller only manages explicit choices.
+dark one. The controller only manages explicit choices. A design system with one scheme (no
+distinct `defaultDark`) states its default theme's own scheme instead, so a dark-only design
+system ships `color-scheme: dark` on `:root` (see [Themes](/zero/docs/tokens/#themes)).
 
 ## Registering a design system's themes
 
@@ -147,3 +149,46 @@ theme union is exactly those five.
 light and dark themes — a heavier shadow, a thicker border — is emitted in a
 `prefers-color-scheme: dark` block instead, from the design system's `systemDark`
 declaration. See [Tokens](/zero/docs/tokens/).
+
+## Breakpoints in JS
+
+The design system owns the breakpoint ramp. `installThemes()` seeds the registry with it, and
+`getBreakpoints()` reads it back — name → min-width, in declared order, empty until a design
+system is installed:
+
+```tsx
+import { component } from 'sigx';
+import { useMediaQuery, getBreakpoints } from '@sigx/zero';
+
+const Shell = component(() => {
+    // `initial` is what the server and the first client render read — pick the
+    // layout the server should emit. The real match arrives on mount.
+    const wide = useMediaQuery({ above: 'md' }, { initial: true });
+    return () => (wide.value ? <SideNav /> : <BottomNav />);
+});
+
+useMediaQuery({ below: 'lg' });                  // (width < <lg>)
+useMediaQuery({ above: 'sm', below: 'lg' });     // the band between
+useMediaQuery('(prefers-reduced-motion: reduce)');
+getBreakpoints();                                // { sm: '640px', md: '768px', lg: '1024px' }
+```
+
+`useMediaQuery(query | { above, below }, { initial, breakpoints })` returns a read-only
+reactive boolean; read `.value` in a render or effect.
+
+- **SSR-safe.** It never reads `matchMedia` before mount, so the server markup and the
+  hydrating render agree. It reads `initial` (default `false`) until then, and stays
+  `initial` where `matchMedia` does not exist.
+- **Setup-bound.** Call it from a component's setup; it throws anywhere else. Each call owns
+  its own subscription and detaches on unmount.
+- **The compiler's boundaries.** `above: 'md'` is `(min-width: <md>)`, exactly what a recipe's
+  `at: { md }` compiles to; `below: 'md'` is its complement `(width < <md>)`, exactly what
+  `at: { 'below-md' }` compiles to. No width matches both. An undeclared name throws, listing
+  the declared ones (and is a type error under a `/register` import).
+- **`breakpoints`** resolves a range against a ramp you pass instead of the registered one.
+
+`breakpointQuery(range, breakpoints?)` returns the query string itself, for a
+`<source media>` or your own `matchMedia`. `getBreakpoints()` is DOM-free (it is also on
+`@sigx/zero/theme/registry`), so a non-browser runtime reads the same ramp; `useMediaQuery`
+is web-only. From CSS, use the design system's `--breakpoint-<name>` properties and its
+`css/breakpoints` custom media — see [The breakpoint ramp outside recipes](/zero/docs/tokens/#the-breakpoint-ramp-outside-recipes).

@@ -546,19 +546,19 @@ const RAW_MODULES: SigxModule[] = [
     // and the lynx module `@sigx/lynx-zero` already owns the `zero` key; the
     // row is an alias, so the id never becomes a URL.
     { id: 'zero-runtime', parent: 'zero', npm: '@sigx/zero', name: 'Zero', category: 'runtime',
-      hue: 305, glyph: '◌', status: 'beta', version: '0.2.0-beta.1', role: 'Runtime', aliasFor: 'zero',
+      hue: 305, glyph: '◌', status: 'beta', version: '0.6.0', role: 'Runtime', aliasFor: 'zero',
       tag: 'Unstyled, accessible compound components',
       blurb: 'The package you install — 51 headless compound components rendering a stable data-scope / data-part / data-state anatomy, the behaviors they are built from, the theme engine and the anatomy manifest.' },
     { id: 'zero-kit', parent: 'zero', npm: '@sigx/zero-kit', name: 'Zero Kit', category: 'authoring',
-      hue: 264, glyph: '⌘', status: 'beta', version: '0.2.0-beta.1', role: 'Authoring kit',
+      hue: 264, glyph: '⌘', status: 'beta', version: '0.6.0', role: 'Authoring kit',
       tag: 'Tokens + recipes → plain layered CSS',
       blurb: 'The Node-only authoring kit: defineTokens / defineRecipe / defineDesignSystem, the compiler that turns them into layered CSS against the anatomy manifest, the sigx zero:build / zero:validate CLI plugin, the JSON Schemas and the design-system generation skill.' },
     { id: 'zero-basic', parent: 'zero', npm: '@sigx/zero-basic', name: 'Zero Basic', category: 'skins',
-      hue: 205, glyph: '▢', status: 'beta', version: '0.2.0-beta.1', role: 'Design system',
+      hue: 205, glyph: '▢', status: 'beta', version: '0.6.0', role: 'Design system',
       tag: 'The neutral starter design system',
       blurb: 'Monograph — paper surfaces, hairline structure and one petrol ink. Readable defaults so an app looks sane on day one, and the reference input for generating a design system of your own.' },
     { id: 'zero-daisyui', parent: 'zero', npm: '@sigx/zero-daisyui', name: 'Zero DaisyUI', category: 'skins',
-      hue: 24, glyph: '❂', status: 'beta', version: '0.2.0-beta.1', role: 'Design system',
+      hue: 24, glyph: '❂', status: 'beta', version: '0.6.0', role: 'Design system',
       tag: 'daisyUI’s look as pure tokens + recipes',
       blurb: 'daisyUI 5’s palette and component look compiled to plain CSS over the zero anatomy — five themes, no Tailwind, no plugin — plus a generated daisy-native ./components module with daisy’s own prop names.' },
 ];

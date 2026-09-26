@@ -136,17 +136,24 @@ the same rules over an `ElementLike` for a non-DOM renderer.
 
 ```ts
 // fragment.ts — a data-only entry, no component imports
-import type { RecipeInput } from '@sigx/zero-kit/define';
+import { FRAGMENT_VERSION } from '@sigx/zero/contract';
+import type { ManifestFragment, RecipeInput } from '@sigx/zero-kit/define';
 import { stepperAnatomy } from './anatomy.js';
 
-export const fragment = {
-    version: 1,                              // FRAGMENT_VERSION — required
+export const fragment: ManifestFragment = {
+    version: FRAGMENT_VERSION,               // the fragment contract version — required
     package: '@acme/zero-stepper',           // your npm specifier — required
     components: [stepperAnatomy.toJSON()],
 };
 
 export const recipes: RecipeInput[] = [{ component: 'acme-stepper', parts: { /* … */ } }];
 ```
+
+Write `version` from `FRAGMENT_VERSION` rather than a literal. The merge hard-errors on a
+missing or unknown version, so a fragment built against an older contract fails by name
+instead of merging silently. The runtime entry takes the constant from `@sigx/zero/contract`
+(zero is its peer; the kit is only a dev dependency). Authoring code can also take it, with
+the `ManifestFragment` type, from `@sigx/zero-kit/define`.
 
 The recipe pack targets the **recommended token grammar** — role names from
 `RECOMMENDED_ROLE_LIST` (`var(--color-primary)` …), the recommended sizes — so it styles
@@ -155,6 +162,22 @@ Generate a `color` axis over the *whole* recommended role list rather than a sub
 partial axis diverges from every sibling component, and the validator says so), and style
 every declared state distinctly. The JSON form of the fragment validates against
 `fragment.schema.json`.
+
+### Declining an axis for your own scopes
+
+A component that never renders `data-color` should not wire every role just to keep the axis
+checks quiet. The fragment entry may export `scopes`, shaped like
+[`tokens.scopes`](/zero/docs/tokens/#per-scope-vocabularies) with every list empty, to declare
+an axis out of existence for its own scopes:
+
+```ts
+export const scopes = { 'acme-feed': { colors: [] } };
+```
+
+When a design system adopts the pack, the entry is folded into that design system's
+`tokens.scopes`. Only empty lists are accepted, and only for scopes the fragment declares:
+narrowing an axis to particular *values* is the adopting design system's decision, in its own
+vocabulary.
 
 ## 5. A design system opts in
 
@@ -171,12 +194,24 @@ await runStandardBuild({
 });
 ```
 
-or on the CLI, with the fragment as JSON:
+or on the CLI. `--extra-manifest` takes a JSON fragment file, a JS module exporting
+`fragment` (or a default export), or a package:
 
 ```sh
-sigx zero:validate --extra-manifest ./node_modules/@acme/zero-stepper/dist/fragment.json
-sigx zero:build    --extra-manifest ./node_modules/@acme/zero-stepper/dist/fragment.json
+sigx zero:validate --extra-manifest @acme/zero-stepper            # via its "sigx-zero" field
+sigx zero:build    --extra-manifest @acme/zero-stepper/fragment   # via its exports map
+sigx zero:validate --extra-manifest ./vendor/stepper-fragment.json
 ```
+
+A bare package name is read through the package's `"sigx-zero"` field, which points at the
+data entry:
+
+```json
+"sigx-zero": { "fragment": "./dist/fragment.js" }
+```
+
+A subpath is resolved through the package's exports map. Either way, the module a
+`build.mjs` merges is exactly what the CLI merges.
 
 Merging is a statement of intent: a merged scope with no recipe draws the ordinary
 `N component(s) have no recipe` warning — validate telling you the adoption is half done
@@ -186,7 +221,10 @@ Everything downstream is automatic: validation, recipe compilation and the cover
 treat the merged scope like any other; provenance is stamped per component; the generated
 `register.d.ts` excludes merged scopes **by name** from its `ZeroScope` compile gate
 (`ZeroScope` itself stays closed); and under api mode the `./components` module imports the
-scope from your package. If the ecosystem package is private or the design system is
+scope from your package — or, when the design system is itself that package (a skin derived
+with [`extendDesignSystem`](/zero/docs/extending/#a-derived-system-that-owns-an-ecosystem-fragment)
+that publishes its own fragment), relative to the package's root export, so the package never
+imports itself. If the ecosystem package is private or the design system is
 published, keep the adoption in build tooling the package never ships — an import reachable
 from the published entry would make the package uninstallable. `@sigx/zero-basic` adopts an
 in-repo acceptance-test component exactly this way, in its `build.mjs` alone.

@@ -20,7 +20,9 @@ import { PkgVersion } from '@/components/PkgVersion';
 | `defineRecipe(recipe)` | Identity with typing for a `RecipeInput`. See [Recipes](/zero/docs/recipes/). |
 | `defineDesignSystem(input)` | Identity with typing for a `DesignSystemInput` — `name`, `tokens`, `recipes`, optional `api`. |
 | `defineApi(vocabulary?, api)` | Declare a vendor-named prop surface, narrowed to the vocabulary when one is passed. See [Vendor-named component APIs](/zero/docs/vendor-apis/). |
-| Types | `TokensInput`, `ThemeInput`, `ThemeColors`, `ThemeSystem`, `SystemTokens`, `TypographyDecl`, `RolesDecl`, `ScopeVocabulary`, `CustomTokenDecl`, `TokenValue`, `RecipeInput`, `PartStyles`, `CssProps`, `RecipeContext`, `DesignSystemInput`, `DesignSystemApi`, `DesignSystemApiFor`, `AxisApi`, `AxisApiFor`, `ModifierApi`, `ScopeApiOverride`, `ApiVocabulary`. |
+| `extendDesignSystem(base, extension)`, `extendRecipe(base, patch)` | Derive a design system (or one recipe) from another as a data patch: objects merge per key, arrays and scalars replace, `null` deletes. Types `DesignSystemExtension`, `RecipePatch`, `PartStylesPatch`, `CompoundVariantPatch`, `RecipeTargetPatch`, `Patch`, `DerivedRecipe`, `DesignSystemDerivation`. See [Extending a design system](/zero/docs/extending/). |
+| `FRAGMENT_VERSION`, `ManifestFragment` | The ecosystem fragment contract version and type, for authoring code. See [Building your own component](/zero/docs/ecosystem-components/). |
+| Types | `ContrastPairDecl` (an entry of `tokens.contrast` — see [Declared contrast pairs](/zero/docs/tokens/#declared-contrast-pairs)), `TokensInput`, `ThemeInput`, `ThemeColors`, `ThemeSystem`, `SystemTokens`, `TypographyDecl`, `RolesDecl`, `ScopeVocabulary`, `CustomTokenDecl`, `TokenValue`, `RecipeInput`, `PartStyles`, `CssProps`, `RecipeContext`, `DesignSystemInput`, `DesignSystemApi`, `DesignSystemApiFor`, `AxisApi`, `AxisApiFor`, `ModifierApi`, `ScopeApiOverride`, `ApiVocabulary`. |
 
 Its module graph is `node:`-free by contract, so a design-system source module may
 value-import it.
@@ -88,7 +90,9 @@ Everything in `/define` and `/build`, plus:
 ## `@sigx/zero-kit/plugin`
 
 The `sigx` CLI plugin — `zero:validate` and `zero:build` with the `validate` / `build`
-aliases. Loaded by the CLI through the package's `sigx-cli` field. See
+aliases. Loaded by the CLI through the package's `sigx-cli` field. `zero:validate --package
+<pkg>` checks an installed design system through its `./design-system` export, and
+`--extra-manifest` takes a JSON fragment, a fragment module, or a package name. See
 [Validate and build](/zero/docs/validate-and-build/).
 
 ## Also in the package

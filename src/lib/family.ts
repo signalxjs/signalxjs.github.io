@@ -117,7 +117,7 @@ const RAW_PACKAGES: SigxPackage[] = [
     // component foundation, and zero-kit / zero-basic / zero-daisyui are the
     // authoring kit and the two shipped design systems that skin it.
     { id: 'zero', npm: '@sigx/zero', title: 'Zero', cat: 'ui', target: 'web', kind: 'collection',
-      hue: 305, glyph: '◌', status: 'beta', version: '0.2.0-beta.1',
+      hue: 305, glyph: '◌', status: 'beta', version: '0.6.0',
       tag: 'Unstyled components + generatable design systems',
       blurb: 'Headless, accessible compound components that render a stable, machine-readable anatomy and no styling — and design systems as pure data, compiled to plain layered CSS. Swap the whole look of an app with one import; generate a new one against the published manifest.' },
     { id: 'daisyui', npm: '@sigx/daisyui', title: 'DaisyUI', cat: 'ui', target: 'web', kind: 'component-library',
