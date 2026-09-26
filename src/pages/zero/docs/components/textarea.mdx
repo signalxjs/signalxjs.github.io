@@ -70,18 +70,80 @@ mints its own ids and `Textarea.Label` is the label.
 <Textarea.Root model={() => state.notes} rows={10}>
 ```
 
-`rows` passes straight through to the element. Zero does not auto-size the box — growing it
-means measuring `scrollHeight` against a collapsed height on every keystroke, which is a
-layout behavior rather than an anatomy one — and whether the box is user-resizable is the
-design system's call (`resize: vertical` is the usual choice).
+`rows` passes straight through to the element, and whether a fixed-size box is
+user-resizable is the design system's call (`resize: vertical` is the usual choice).
+
+### Autosize
+
+```tsx
+<Textarea.Root model={() => state.draft} minRows={1} maxRows={8}>
+    <Textarea.Label visuallyHidden>Message</Textarea.Label>
+    <Textarea.Textarea placeholder="Write a message…" />
+</Textarea.Root>
+```
+
+`minRows` / `maxRows` turn autosizing on — either one does; `minRows` defaults to 1 and no
+`maxRows` is unbounded. The box grows with its content, soft wraps included, never below
+`minRows` lines, and scrolls past `maxRows`. While it is on, the element's `rows` follows
+`minRows` rather than the `rows` prop.
+
+CSS does the growing, so the box is right before hydration and a design system writes none of
+it. The `textarea` part renders `data-autosize` and the bounds as `--textarea-min-rows` /
+`--textarea-max-rows`, and a rule in `@sigx/zero/css` (`@layer zero.structure`) applies
+`field-sizing: content`, `min-` / `max-block-size` in `lh` units, and `resize: none` — a manual
+resize would switch the growth off. The runtime half,
+[`createAutosize`](/zero/docs/behaviors/#autosize), measures the block padding and border a
+`border-box` element's bounds must add (`--textarea-block-chrome`), and on an engine without
+`field-sizing` measures `scrollHeight` and writes the height inline — on input, on a model
+write from outside (a composer clearing after send), on a form reset and on a width change.
+
+For design-system authors, `autosize` is declared by the anatomy (`PartSpec.autosize` on the
+`textarea` part) as a presentation request, not a flag: `expectAnatomy` fails `data-autosize`
+on any part that does not declare it, and an app's own `data-autosize` throws like any
+contract-owned `data-*`.
+
+### A composer: keys, ARIA and the element
+
+`Textarea.Textarea` forwards the native `onKeydown`, `onKeyup`, `onBeforeinput`, `onInput`,
+`onCompositionstart`, `onCompositionend`, `onFocus` and `onBlur` to the `<textarea>`, so
+`preventDefault()` works on the control itself; `onInput` runs after the model has taken the
+new value. It forwards `aria-*`, `data-*`, `title` and `role` too — a combobox-style
+composer's ARIA — but not `id` or `aria-invalid`, which belong to the form contract, and an
+app `aria-describedby` joins the Field's. Its `ref` receives a `TextareaHandle` —
+`{ element, focus() }` — for the caret and the selection.
+
+```tsx
+import { Textarea, type TextareaHandle } from '@sigx/zero/textarea';
+
+let composer: TextareaHandle | null = null;
+
+<Textarea.Root model={() => state.draft} minRows={1} maxRows={8}>
+    <Textarea.Label visuallyHidden>Message</Textarea.Label>
+    <Textarea.Textarea
+        role="combobox"
+        aria-expanded={suggestions().length > 0}
+        aria-controls="suggestions"
+        onKeydown={(e) => {
+            // Enter sends; Shift+Enter (and Enter mid-composition) is a line break.
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+                e.preventDefault();
+                send();
+            }
+        }}
+        ref={(h) => { composer = h; }}
+    />
+</Textarea.Root>
+
+composer?.element?.setSelectionRange(caret, caret);
+```
 
 ## Anatomy
 
 | Part | Element | States | Flags | Notes |
 |---|---|---|---|---|
 | `root` | `div` | — | `disabled`, `invalid`, `required`, `readonly` | Carries the variant axes. |
-| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the textarea's id. Inside `root`. |
-| `textarea` | `textarea` | — | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` | The native element; carries `name`, `rows`, `aria-invalid` and `aria-describedby`. The chrome draws here. Inside `root`. |
+| `label` | `label` | — | `disabled`, `invalid`, `required` | `for` the textarea's id. Offers `visuallyHidden`. Inside `root`. |
+| `textarea` | `textarea` | — | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` | The native element; carries `name`, `rows`, `aria-invalid` and `aria-describedby`, and `data-autosize` with `--textarea-min-rows` / `--textarea-max-rows` while autosizing. The chrome draws here. Inside `root`. |
 
 Every part carries `data-scope="textarea"` and `data-part="<part>"`. There are no machine
 states, only flags. Where [Input](/zero/docs/components/input/) has a `control` box as the
@@ -105,7 +167,9 @@ There is no `hidden-input` part either: a `<textarea>` is a form control and car
 | `name` | `string` | — | Form field name, rendered on the `<textarea>`. |
 | `autocomplete` | `string` | — | Native autofill hint — `street-address`, `off`, … |
 | `maxlength` | `number` | — | Native `maxlength`. |
-| `rows` | `number` | — | Native `rows`; the element's default applies when unset. |
+| `rows` | `number` | — | Native `rows`; the element's default applies when unset. Ignored while autosizing. |
+| `minRows` | `number` | `1` (when `maxRows` is set) | Autosize floor in lines; setting it turns autosizing on. |
+| `maxRows` | `number` | — | Autosize ceiling in lines, then the box scrolls; setting it turns autosizing on. |
 | `required` | `boolean` | `false` | Renders `required` and `data-required`; a wrapping Field's `required` also applies. |
 | `invalid` | `boolean` | `false` | Renders `aria-invalid` and `data-invalid`; a wrapping Field's `invalid` also applies. |
 | `readonly` | `boolean` | `false` | Renders `readonly` and `data-readonly`. |
@@ -115,13 +179,21 @@ There is no `hidden-input` part either: a `<textarea>` is a form control and car
 
 ### `Textarea.Label`
 
-Only `class`. Renders the `label` part around its children.
+`class`, `visuallyHidden` (`boolean`, renders `data-visually-hidden`) and the forwarded HTML
+attributes except `id`. Renders the `label` part around its children.
 
 ### `Textarea.Textarea`
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `placeholder` | `string` | — | Native placeholder text. |
+| `onKeydown` / `onKeyup` | `(e: KeyboardEvent) => void` | — | Forwarded to the `<textarea>`. |
+| `onBeforeinput` | `(e: InputEvent) => void` | — | Forwarded; `preventDefault()` cancels the edit. |
+| `onInput` | `(e: Event) => void` | — | Runs after the model has taken the new value. |
+| `onCompositionstart` / `onCompositionend` | `(e: CompositionEvent) => void` | — | IME composition, forwarded. |
+| `onFocus` / `onBlur` | `(e: FocusEvent) => void` | — | Compose with the part's focus-visible tracking. |
+| `aria-*` / `data-*` / `title` / `role` | HTML attributes | — | Forwarded. Not `id` or `aria-invalid`; `aria-describedby` joins the Field's. |
+| `ref` | `(handle: TextareaHandle) => void` | — | Receives `{ element, focus() }`. |
 | `class` | `string` | — | Extra classes on the `<textarea>`. |
 
 `name`, `autocomplete`, `maxlength`, `rows`, the flags and the ids all come from

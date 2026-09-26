@@ -53,7 +53,10 @@ The rules that make it a *zero* anatomy:
   selectors, so they follow the kebab-case grammar.
 - `data-state` values come from the governed `STATE_VOCABULARY` (`expanded` fails with
   "use `open`"); flags from `FLAG_VOCABULARY`, rendered presence-only; `placements` from
-  `PLACEMENT_VOCABULARY`. Never invent synonyms.
+  `PLACEMENT_VOCABULARY`. Never invent synonyms. A component that shows work in flight — a
+  job, a tool call, a deploy — takes the lifecycle family (`running`, `paused`, `denied`,
+  `cancelled`) together with the loading family's `loading` / `complete` / `error`, rather
+  than borrowing `active` or `closed`; `executing` fails with "use `running`".
 - `parent` names the same-scope part each part renders inside; the tree must be acyclic.
 - A part the runtime hides with `hidden` in some state declares `hiddenIn`.
 - `anatomy.toJSON()` emits exactly the manifest component shape — you never hand-write
@@ -117,6 +120,17 @@ Conventions worth copying from any component in zero's source:
   props with `WithVariantAxesOpen<'<scope>'>` — the open constraint is the deliberate cost of
   a scope zero's registry cannot know, and a design system's `/register` module is what closes
   it. See [Typed vocabulary](/zero/docs/typed-vocabulary/).
+- **Attribute pass-through**: intersect `WithHtmlAttrs` into a part's props and spread
+  `{...htmlAttrs(props)}` (both from `@sigx/zero/contract`) onto its element or into its
+  asChild bag, *before* the part's own attributes so the part wins on any name both set. That
+  forwards `aria-*`, the app's own `data-*`, `id`, `title` and `role`; a contract-owned
+  `data-*` name throws. Where the part sets a name itself, refuse it in the type
+  (`Omit<WithHtmlAttrs, 'role'>`) rather than dropping it. See
+  [Accessibility](/zero/docs/accessibility/#attribute-pass-through).
+- **Field size**: a form control built on `createFormControl` spreads
+  `{...fc.axisAttrs()}` instead of `variantAttrs(props)`, so a control with no `size` of its
+  own renders its [Field](/zero/docs/components/field/)'s. A hand-built `FieldContext`
+  provides `size()`.
 
 ## 3. Hold it to the contract
 

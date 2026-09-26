@@ -68,9 +68,25 @@ number, and "expired" is the app's word for `0`.
 <Countdown.Root label="Time remaining">
 ```
 
-With a `label` the root announces as `role="timer"` with that name. Without one the root
-carries no role: an unlabelled group of digits is already readable as text, and a nameless
-timer role is noise.
+With a `label` the root announces as `role="timer"` with that name. An app `aria-label`
+names it the same way. Without either the root carries no role: an unlabelled group of digits
+is already readable as text, and a nameless timer role is noise. `role` itself is refused by
+the type — the root's role is the component's.
+
+### Inside a sentence
+
+```tsx
+<p>
+    The sale ends in <Countdown.Root mods={{ inline: true }}>
+        <Countdown.Value value={minutes} digits={2} />:<Countdown.Value value={seconds} digits={2} />
+    </Countdown.Root>.
+</p>
+```
+
+Every shipped skin declares an `inline` modifier for a countdown set inside running text: it
+takes the sentence's size and weight instead of the display step, and keeps its tabular
+digits, its ink and the per-tick entry. On `@sigx/zero-daisyui`'s `./components` module it is
+a boolean prop, `<Countdown inline>`.
 
 ### Padding and clamping
 
@@ -106,6 +122,7 @@ owns nothing but the swap. There are no states and no flags: a countdown at 0 is
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `label` | `string` | — | Accessible name; with one the root announces as a timer. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | Forwarded to the root; an `aria-label` names the timer like `label`. `role` is refused. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
 | `class` | `string` | — | Extra classes on the root element. |
 
@@ -123,8 +140,8 @@ owns nothing but the swap. There are no states and no flags: a countdown at 0 is
 
 Both `@sigx/zero-basic` and `@sigx/zero-daisyui` wire `color` (the eight recommended roles)
 and `size` (`xs`–`xl`) on the countdown root, so `<Countdown.Root color="primary" size="xl">`
-is styled in both. Neither wires a `variant` or any `mods` on the scope; under a design
-system's `/register` import those props are therefore absent. See
+is styled in both, and both declare the `inline` modifier. Neither wires a `variant` on the
+scope; under a design system's `/register` import that prop is therefore absent. See
 [Typed vocabulary](/zero/docs/typed-vocabulary/).
 
 The recipe gives `value` a fixed inline size in `ch` units and tabular figures so a tick

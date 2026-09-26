@@ -100,6 +100,7 @@ This is the standalone divider. A [`Menu`](/zero/docs/components/menu/) has its 
 | `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Which way the rule runs; rendered as `data-orientation`, and as `aria-orientation` when vertical. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
 | `class` | `string` | — | Extra classes. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | Forwarded. `role` is refused — the divider is the `separator`. |
 
 Divider has no children and no `asChild`: there is nothing to put inside a rule, and the
 `div` with its role is the whole element.

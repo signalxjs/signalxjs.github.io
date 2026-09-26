@@ -49,16 +49,27 @@ Zero attaches no styling to any of it beyond a minimal structural `css/base.css`
 | toggle | `on` \| `off` |
 | loading | `loading` \| `loaded` \| `complete` \| `error` |
 | fill | `full` \| `half` \| `empty` |
+| lifecycle | `running` \| `paused` \| `denied` \| `cancelled` |
 
 The families are documentation, not a per-part constraint: membership is checked against
 the union, so `progress` legitimately mixes `loading` / `complete` with `indeterminate`.
 Every state a component's anatomy declares must be a member, and a new state value is a
 contract change.
 
+The lifecycle family is for work in flight — a job, a tool call, a deploy: work that is
+executing (`running`, not `active`, which is one-of-many activation), held (`paused`),
+refused before it ran (`denied`) or stopped before it finished (`cancelled`). It does not
+repeat the loading family: the wait before the work starts is `loading`, and the outcomes
+are `complete` / `error`, so a job's whole lifecycle is the two families together. None of
+these is `closed`, which is disclosure. `running` and `paused` are the platform's own
+spellings, from `animation-play-state`.
+
 A companion `STATE_SYNONYMS` table names the spellings the vocabulary deliberately does
 *not* contain and the member that means the same thing — `expanded → open`,
 `collapsed → closed`, `mixed → indeterminate`, `current → active`, `busy → loading`,
-`done → complete`, `failed → error`, and so on. It is diagnostic: a governance failure names
+`done → complete`, `failed → error`, `in-progress` / `executing` / `started → running`,
+`suspended → paused`, `rejected` / `refused` / `declined → denied`,
+`canceled` / `aborted → cancelled`, and so on. It is diagnostic: a governance failure names
 the right word instead of leaving you to guess.
 
 ## Flags are a closed vocabulary

@@ -110,14 +110,15 @@ The root's `aria-labelledby` always points at the label's id; render a
 | `max` | `number` | `100` | The upper bound; rendered as `aria-valuemax`. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
 | `class` | `string` | — | Extra classes on the root element. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | Forwarded. An app `aria-labelledby` joins the Label's. `role` is refused — the root is the `progressbar`. |
 
 ### `RadialProgress.Label`
 
-Only `class`. Renders the `label` part around its children.
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). Renders the `label` part around its children. The Label refuses `id` — the root points at it.
 
 ### `RadialProgress.ValueText`
 
-Only `class`. Renders its children, or the rounded percent when it has none and the value
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). Renders its children, or the rounded percent when it has none and the value
 is present.
 
 ## In the shipped design systems

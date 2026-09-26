@@ -126,7 +126,7 @@ its rect.
 
 ### `RadioGroup.Label`
 
-Only `class`. Renders the `label` part around its children, mirroring the group's flags.
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). Renders the `label` part around its children, mirroring the group's flags.
 
 ### `RadioGroup.Item`
 
@@ -135,6 +135,7 @@ Only `class`. Renders the `label` part around its children, mirroring the group'
 | `value` | `string` | required | The value this item selects. |
 | `disabled` | `boolean` | `false` | Disables this item alone; renders `data-disabled` on item, item-control and item-label. |
 | `class` | `string` | — | Extra classes on the item element. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | Split like Checkbox: `aria-*` on the item's radio input (an app `aria-describedby` joins the Field's), the rest on the item row. `role` is refused — the input is the `radio`. |
 
 ## Keyboard
 

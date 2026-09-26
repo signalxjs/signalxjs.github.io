@@ -83,6 +83,31 @@ Under `multiple` a press appends the value or filters it out; every item is inde
 between items is directional CSS on the item, and a sibling selector cannot see the root — and
 switches the roving keys.
 
+### In a form
+
+```tsx
+<form action="/issues">
+    <ToggleGroup.Root name="status" multiple defaultValue={['open']} required label="Status">
+        <ToggleGroup.Item value="open">Open</ToggleGroup.Item>
+        <ToggleGroup.Item value="closed">Closed</ToggleGroup.Item>
+    </ToggleGroup.Root>
+</form>
+```
+
+ToggleGroup takes the form contract — `name`, `form`, `disabled`, `invalid`, `required` — and
+posts the way Select does. The form above submits `status=open`, and
+`status=open&status=closed` with both pressed. With a `name` it renders the `hidden-input`
+part, a real, visually-hidden `<select>` holding the pressed values, so a segmented control
+posts before hydration: one field in single mode, a repeated field per pressed value under
+`multiple`. `required` is a platform constraint — submitting with nothing pressed fails
+validation, and the invalid focus lands on the group's tab stop. A disabled group never posts,
+`form="id"` associates it with a form outside its subtree, and the owning form's `reset()`
+restores `defaultValue`.
+
+Inside a [`Field.Root`](/zero/docs/components/field/) the group adopts the Field's
+`disabled`, `invalid` and `required` flags and its `size`, and is named by the Field's label
+(`aria-labelledby`) unless `label` is given.
+
 ### Rendering an item as your own element
 
 ```tsx
@@ -100,8 +125,9 @@ Space activation where the platform does not synthesise a click.
 
 | Part | Element | States | Flags | Notes |
 |---|---|---|---|---|
-| `root` | `div` | — | `disabled` | `role="group"`, `aria-label` from `label`, `data-orientation`. Carries the variant axes. |
+| `root` | `div` | — | `disabled`, `invalid`, `required` | `role="group"`, `aria-label` from `label` (else `aria-labelledby` to a Field's label), `data-orientation`. Carries the variant axes. |
 | `item` | `button` | `on` \| `off` | `disabled`, `selected`, `focus-visible`, `pressed`, `press-animating` | `type="button"`, `aria-pressed`, `data-orientation`, roving `tabIndex`. Inside `root`. `asChild`. |
+| `hidden-input` | `select` | — | — | The posted value: a real, visually-hidden `<select>`, `multiple` under `multiple`. Rendered only while `name` is set. Inside `root`. |
 
 Every part carries `data-scope="toggle-group"`. An item mirrors the standalone
 [`Toggle`](/zero/docs/components/toggle/)'s `on` / `off` contract so a design system can share
@@ -125,9 +151,14 @@ Items publish [press feedback](/zero/docs/behaviors/#press-feedback). See
 | `loop` | `boolean` | `true` | Arrow keys wrap from the last item to the first. |
 | `label` | `string` | — | Accessible name of the `role="group"` container, rendered as `aria-label`. |
 | `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Roving-key axis; rendered as `data-orientation` on root and items. |
-| `disabled` | `boolean` | `false` | Disables every item; renders `data-disabled` on the root. |
+| `disabled` | `boolean` | `false` | Disables every item; renders `data-disabled` on the root. A disabled group never posts. |
+| `name` | `string` | — | Form field name; renders the `hidden-input` part. |
+| `form` | `string` | — | Associates the hidden select with a `<form>` by id. |
+| `required` | `boolean` | `false` | A platform constraint on the hidden select; renders `data-required`. |
+| `invalid` | `boolean` | `false` | Renders `data-invalid`. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
 | `class` | `string` | — | Extra classes on the root element. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | Forwarded to the root; `role` is refused (the root is the `group`). An app `aria-labelledby` / `aria-describedby` joins the component's. |
 
 ### `ToggleGroup.Item`
 

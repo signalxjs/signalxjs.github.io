@@ -70,12 +70,12 @@ height ramp, inset and `--shadow-xs` lift — so two controls in a column are th
 | `color` | the recommended eight: `primary`, `secondary`, `accent`, `neutral`, `info`, `success`, `warning`, `error` |
 | `size` | `xs`, `sm`, `md`, `lg`, `xl` |
 | `variant` | on Button: `solid` \| `outline` \| `soft` \| `ghost` \| `dash` \| `link` — daisy 5's full style vocabulary, orthogonal to the colour axis exactly as daisy composes `btn-outline` with `btn-primary` |
-| `mods` | on Button: `wide`, `block`, `square`, `circle`, `active`, `loading` — daisy's six documented `btn-*` modifiers; on Table: `zebra`, `hover` |
+| `mods` | on Button: `wide`, `block`, `square`, `circle`, `active` — daisy's documented `btn-*` modifiers; on Table: `zebra`, `hover`; on Countdown: `inline` |
 | themes | `light`, `dark`, `dim`, `nord`, `sunset` |
 
-`color` and `size` are wired on every component. The `loading` modifier draws its spinner in
-`currentColor` off `[data-mod-loading]` — zero changes no DOM — and is paint only: pair it
-with `disabled` yourself. See [Button](/zero/docs/components/button/#the-loading-button).
+`color` and `size` are wired on every component. A loading button is zero's own `loading`
+prop rather than a modifier: the recipe draws the `spinner` part in `currentColor`. See
+[Button](/zero/docs/components/button/#the-loading-button).
 
 ## The daisy-native surface
 

@@ -115,10 +115,11 @@ a link — put the text in the item directly. See
 | `label` | `string` | `'Breadcrumb'` | Accessible name of the navigation landmark. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
 | `class` | `string` | — | Extra classes on the root element. |
+| `aria-*` / `data-*` / `id` / `title` / `role` | HTML attributes | — | Forwarded. An app `aria-label` replaces the default `'Breadcrumb'` (`label` still wins). |
 
 ### `Breadcrumbs.List`, `Breadcrumbs.Item`
 
-Only `class`.
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through).
 
 ### `Breadcrumbs.Link`
 
@@ -131,7 +132,7 @@ Only `class`.
 
 ### `Breadcrumbs.Separator`
 
-Only `class`. The default slot replaces the `/` glyph.
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). The default slot replaces the `/` glyph.
 
 ## In the shipped design systems
 

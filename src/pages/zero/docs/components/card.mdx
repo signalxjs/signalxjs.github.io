@@ -84,13 +84,32 @@ title recipe applying.
 Card wires no `aria-labelledby` from the root to the title: it would do nothing on a plain
 `div`, and giving the root a `role` to make it work would turn every card on a page into a
 landmark the reader has to walk past. A card that needs an accessible name is an
-`<article>` or a `<section>` you write around it; zero styles the inside.
+`<article>` or a `<section>` — render the root as one with `asChild`, and name it with the
+forwarded attributes:
+
+```tsx
+<Card.Root asChild>
+    {(p) => (
+        <article {...p} aria-labelledby="report-title">
+            <Card.Header>
+                <Card.Title id="report-title">Monthly report</Card.Title>
+            </Card.Header>
+            <Card.Body>…</Card.Body>
+        </article>
+    )}
+</Card.Root>
+```
+
+Every Card part forwards `aria-*`, your own `data-*`, `id`, `title` and `role` —
+`<Card.Root role="region" aria-labelledby="report-title">` is the same answer without
+changing the element. See
+[attribute pass-through](/zero/docs/accessibility/#attribute-pass-through).
 
 ## Anatomy
 
 | Part | Element | States | Flags | Notes |
 |---|---|---|---|---|
-| `root` | `div` | — | — | Carries the variant axes. |
+| `root` | `div` | — | — | Carries the variant axes. `asChild`. |
 | `header` | `div` | — | — | The top band. Inside `root`. |
 | `title` | `h3` | — | — | A heading in the document outline. Inside `header`. |
 | `description` | `p` | — | — | Inside `header`. |
@@ -116,11 +135,12 @@ that says nothing. If nobody needs to be told about it, it is a card.
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
+| `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag — for an `<article>` or `<section>`. |
 | `class` | `string` | — | Extra classes on the root element. |
 
 ### `Card.Header`, `Card.Title`, `Card.Description`, `Card.Body`, `Card.Footer`
 
-Only `class`. Each renders its part around its children.
+`class` and the forwarded HTML attributes. Each renders its part around its children.
 
 ## In the shipped design systems
 

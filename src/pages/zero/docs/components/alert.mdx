@@ -121,10 +121,11 @@ the text, and a glyph that announced itself would say it twice.
 | `openChange` | event `(open: boolean)` | — | Fires whenever the open state changes. |
 | `color` / `size` / `variant` / `axes` / `mods` | design-system vocabulary | — | The [variant axes](/zero/docs/variant-axes/), rendered as `data-*` on `root`. |
 | `class` | `string` | — | Extra classes on the root element. |
+| `aria-*` / `data-*` / `id` / `title` | HTML attributes | — | Forwarded. `role` is refused — the root is the `alert`. |
 
 ### `Alert.Icon`, `Alert.Title`, `Alert.Description`
 
-Only `class`. Each renders its part around its children.
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). Each renders its part around its children.
 
 ### `Alert.Close`
 
@@ -134,6 +135,7 @@ Only `class`. Each renders its part around its children.
 | `disabled` | `boolean` | `false` | Inert; renders `data-disabled`. |
 | `asChild` | `boolean` | `false` | Render through the default slot, which receives the part bag. |
 | `class` | `string` | — | Extra classes. |
+| `aria-*` / `data-*` / `id` / `title` / `role` | HTML attributes | — | Forwarded. An app `aria-label` replaces the default `'Close'` (`label` still wins). |
 
 ## Keyboard
 

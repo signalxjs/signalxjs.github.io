@@ -147,7 +147,7 @@ Field context (`disabled`, `invalid`, the control and label ids) is merged with 
 
 ### `Slider.Label`, `Slider.Control`, `Slider.Track`, `Slider.Range`
 
-Only `class`. `Slider.Track` renders the `mark` parts before its children.
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). `Slider.Track` renders the `mark` parts before its children.
 
 ### `Slider.Thumb`
 
@@ -159,7 +159,7 @@ Only `class`. `Slider.Track` renders the `mark` parts before its children.
 
 ### `Slider.ValueText`
 
-Only `class`. Its default slot receives `{ value, values }`; without one it renders the
+`class` and the [forwarded HTML attributes](/zero/docs/accessibility/#attribute-pass-through). Its default slot receives `{ value, values }`; without one it renders the
 scalar value, or the values joined with an en dash.
 
 ## Keyboard
