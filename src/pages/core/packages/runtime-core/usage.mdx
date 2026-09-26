@@ -278,6 +278,8 @@ This package references no web global unguarded, so it runs anywhere. A renderer
 
 ```ts
 // terminal-jsx.ts — the elements this renderer knows
+import { registerContextExtension } from '@sigx/runtime-core/internals';
+
 declare global {
     namespace JSX {
         interface IntrinsicElements {
