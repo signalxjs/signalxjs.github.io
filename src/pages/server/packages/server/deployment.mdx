@@ -8,22 +8,47 @@ order: 40
 
 # Deployment & security
 
-A server function is served at `POST /_sigx/fn/<symbol>`, where `<symbol>` is a
-content-hashed id derived from the function. You wire that endpoint once per
-runtime; everything else — validation, error masking, the security gate — is the
-same everywhere.
+A server function is served at `POST /_sigx/fn/<id>/<name>` — its stable key. You
+wire that endpoint once per runtime; everything else — validation, error masking,
+the security gate — is the same everywhere.
 
-**The URL is percent-free.** A stable symbol spends as real path segments, so it
-reads back as what you wrote:
+## One route per function, one version per deploy
+
+Every function has **one** identity, the stable key `<id>/<name>`. It is the
+route, the registry key and the [`useData(fn)`](/core/docs/data-loading#server-functions-as-keys)
+data identity, and it is the same under every build role. A key's slashes are
+real path separators, so the route reads as the id does and nothing in front of
+the app has to preserve encoded slashes:
 
 ```
 POST /_sigx/fn/@acme/api/src/cart.server.ts/addToCart
-POST /_sigx/fn/cart/add                        # serverFn({ id: 'cart/add' })
+POST /_sigx/fn/cart/add/addToCart              # addToCart = serverFn({ id: 'cart/add', … })
 ```
 
-That also retires a deploy hazard: nothing in front of the app has to preserve
-encoded slashes any more. A proxy or CDN that decodes or merges them no longer
-mangles these routes.
+Key seeds are package-qualified, so every app build of one solution mints the
+identical key for a shared server module. Only a character a URL path genuinely
+cannot carry is percent-encoded, per segment; a `..` segment in an id becomes
+`_up`, and an explicit `id` that had to be rewritten warns at build time naming
+the route it actually gets.
+
+**Skew detection is a version tag, not a second route.** The build hashes each
+function's normalized definition — a reformat or a comment keeps the hash, any
+semantic change bumps it — bakes it into the stub, and the stub sends it with
+every call: `"v"` in the POST envelope, `?v=` on a GET read. When it differs
+from the registry's, the endpoint answers **`409`** with `code: 'version-skew'`,
+and the stub throws the one hint a user can act on:
+
+```
+server function "addToCart" belongs to a different build than this page (version skew); reload to pick up the current one.
+```
+
+A `404` means only "unknown function". A call that carries no tag — curl, a form
+post — is simply served, and so is every call through a hand-built `resolve`
+table, which knows no version to compare against.
+
+Moving or renaming a server module changes its key — a breaking API change for
+a long-lived client, exactly like changing a REST route. Pin an explicit `id`
+for published APIs; see [Native clients](/server/packages/server/native-clients#3-pin-the-routes).
 
 ## Development
 
@@ -42,7 +67,7 @@ export default defineConfig({
 });
 ```
 
-`sigxServer()` options: `include` (default `**/*.server.{ts,tsx}`), `exclude`,
+`sigxServer()` options: `include` (default `**/*.server.{ts,tsx,mts,js,mjs}`), `exclude`,
 `base` (default `/_sigx/fn`), `serverApp` (a root-relative path to your
 [`createServerApp`](/server/packages/server/usage#the-app) module), and the full
 endpoint posture — `origin`, `maxBodyBytes`, `maxUrlBytes`, `maxResponseBytes`,
@@ -57,6 +82,10 @@ after edits, so the app-wide pipeline is live in development rather than
 production-only. Production builds inject one side-effect import at the top of
 `virtual:sigx-server-fns`.
 
+`virtual:sigx-server-fns` is server-only: importing it from client code, or from
+a `role: 'client'` build, is a build error. Two functions minting the same key
+across files is a build error too.
+
 The endpoint-level `guard` option is gone. App `middleware` runs at the same
 pre-decode slot **and** reaches in-process SSR calls, which the wire-only `guard`
 never could; a genuinely wire-only concern is one line in the middleware body:
@@ -65,10 +94,39 @@ never could; a genuinely wire-only concern is one line in the middleware body:
 if (fn.transport !== 'wire') return;
 ```
 
+### Dev HMR — what refreshes in place
+
+Function bodies are live in `vite dev` by construction — every call resolves its
+module through the SSR module runner, so the next call after a save runs the new
+body without a restart. An open page follows too:
+
+| You save… | An open page that reads it with `useData(fn)` | An open page that does not |
+|---|---|---|
+| a `*.server.ts` module, or an inline `serverFn` carrier | refetches the affected `useData` cells in place — no reload, client state kept. The stubs the page already holds send the **new** version tag, so nothing 409s | reloads, unless it never loaded the stub |
+| a server-only module they import (`db.ts` behind `api.server.ts`) | the same — the edit is routed to the stubs behind it | reloads |
+| a server-only module a **rendered** component imports too | reloads — the document may have changed | reloads |
+
+Pages that hold no stub for the edited source — a zero-JS resume route, another
+tab — reload as before. The limits are deliberate:
+
+- Server-rendered HTML that used a function with no live reader on the page
+  (static islands content, an in-process call in the SSR entry) stays until a
+  reload.
+- An edit to the `serverApp` module — middleware, authentication — keeps the
+  full reload.
+- Module-level state in a server module (`let votes = 3`) resets when the module
+  re-evaluates, exactly as a restart would.
+
+For plugin authors: `serverFnHotUpdate(hot, keys)` from `@sigx/vite/hmr` is the
+step each dev stub module runs when Vite re-evaluates it — it sweeps the SSR data
+blob, refreshes every mounted cell on those keys (through `@sigx/cache` when it is
+installed), and hands the update back to Vite when nothing on the page reads the
+keys live.
+
 ## Production (Node)
 
 The SSR build emits a registry chunk (`dist/server/sigx-server-fns.js`) that
-maps every symbol to its implementation. Pass it **explicitly** to
+maps every key to a `{ version, load }` record. Pass it **explicitly** to
 `createServerFnHandler` from `@sigx/server/node` and mount the handler **before**
 your document/SSR handler:
 
@@ -97,18 +155,24 @@ production document renderer for every fetch-shaped platform:
 ```js
 import { createFetchHandler } from '@sigx/server-renderer/server';
 import { handleServerFnRequest, matchesServerFn } from '@sigx/server/server';
+import { serverFns, serverFnBase } from 'virtual:sigx-server-fns';
 
 const handler = createFetchHandler({ template, app: (url) => createApp(url) });
 
 export default {
   async fetch(request) {
-    if (matchesServerFn(request)) {
-      return handleServerFnRequest(request, { resolve: (symbol) => registry[symbol] });
+    if (matchesServerFn(request, serverFnBase)) {
+      return handleServerFnRequest(request, { functions: serverFns, base: serverFnBase });
     }
     return handler(request);
   },
 };
 ```
+
+`functions` is the build's registry, and it is how every entry learns its
+functions — `handleServerFnRequest`, `createServerFnHandler` and
+`app.serverFns()` alike. `serverFnBase` is the mount path the build baked in, so
+`matchesServerFn`, the handler and `sigxServer({ base })` cannot disagree.
 
 This composition — static assets → server functions → document render — is
 exactly what the [deploy adapters](/deploy/docs/overview) scaffold as your
@@ -143,8 +207,10 @@ by default. You get all of this without opting in:
 - **Prototype-pollution-safe parsing** on both the client and server sides.
 - **Production error masking** — any non-`ServerFnError` throw becomes a generic
   `500`; the original never leaves the server.
-- **Structured version-skew `404`** — a stale client calling a symbol that no
-  longer exists gets a typed 404, not a silent hang.
+- **Version skew is a `409`, never a wrong call** — a stale page's call carries
+  its build's version tag, and a mismatch against the registry is refused with
+  `code: 'version-skew'` before the pipeline runs. A `404` means only "unknown
+  function".
 
 ### Request-handler options
 
@@ -153,8 +219,9 @@ by default. You get all of this without opting in:
 
 | Option | Default | Purpose |
 |---|---|---|
-| `resolve` | — | **Required.** Symbol → wrapped function. Return null/undefined for unknown symbols; the stub surfaces that as a version-skew error. A **throwing** `resolve` is masked like any other failure — it does not leak. |
-| `base` | `/_sigx/fn` | The mount prefix. Everything after it *is* the symbol, so pass the same value you gave `sigxServer({ base })` — `serverFnBase` from `virtual:sigx-server-fns` is the single source of truth. Overlapping mounts throw at mount time. |
+| `functions` | — | The build's registry — `serverFns` from `virtual:sigx-server-fns`, key `<id>/<name>` → `{ version, load }`. Passed explicitly, never ambient. **Exactly one** of `functions` / `resolve`; both or neither throws when the handler is built. |
+| `resolve` | — | The escape hatch: key → wrapped function, for a hand-built table. Return null/undefined for an unknown key (a structured 404). No version is known through this path, so it is never skew-checked. A **throwing** `resolve` is masked like any other failure — it does not leak. |
+| `base` | `/_sigx/fn` | The mount prefix. Everything after it *is* the key, so pass the same value you gave `sigxServer({ base })` — `serverFnBase` from `virtual:sigx-server-fns` is the single source of truth. Overlapping mounts throw at mount time. |
 | `origin` | `'same-origin'` | `'verify-when-present'`, an allowlist, or `false`. |
 | `maxBodyBytes` | 1 MiB | Body cap, enforced while reading. An error **mid-read** is a `400`, not a 500 — a truncated upload is the caller's problem. |
 | `maxUrlBytes` | 8 KiB | Cap on a GET read's query string → `414`. Sits under mainstream proxies' request-line caps. |
@@ -168,8 +235,8 @@ Every posture option above is also settable once on
 [`createServerApp`](/server/packages/server/usage#the-app) and inherited by every
 mount and by bare `handleServerFnRequest` calls; an explicit per-call value wins.
 
-The symbol registry is a **null-prototype** object, so a symbol named
-`__proto__` or `constructor` cannot reach anything but a real registration.
+The registry is a **null-prototype** object, so a key named `__proto__` or
+`constructor` cannot reach anything but a real registration.
 
 #### `onError`
 
@@ -179,7 +246,7 @@ production, **before** the client response is built:
 
 ```ts
 handleServerFnRequest(request, {
-  resolve,
+  functions: serverFns,
   onError(error, info, rq) {
     telemetry.report(error, { fn: info.name, url: rq.url.pathname });
   },
@@ -198,7 +265,7 @@ the response.
 An upper bound on the middleware pipeline + handler, in milliseconds:
 
 ```ts
-handleServerFnRequest(request, { resolve, timeoutMs: 10_000 });
+handleServerFnRequest(request, { functions: serverFns, timeoutMs: 10_000 });
 ```
 
 On expiry the caller gets a `504`, `rq.abortSignal` fires — alongside client

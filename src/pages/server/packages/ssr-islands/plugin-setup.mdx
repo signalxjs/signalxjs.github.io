@@ -80,6 +80,31 @@ restoring a wrong value. This matches the rest of the family — `useData`'s con
 key, `defineStore(name)` — where **state identity is explicit or there is no
 transfer**.
 
+## Islands take props, not slots
+
+An island hydrates from its boundary record, and the record carries
+serializable props and nothing structural. An island that read `ctx.slots` would
+render its outlet empty on the client and orphan the server-rendered slot
+content, so `sigxIslands()` refuses the module at build time, listing every
+offending island:
+
+```
+[sigx:islands] src/Panel.tsx:4:18: island <Panel> reads ctx.slots — an island hydrates from its boundary record (serializable props only), so slotted content never reaches the client and the server-rendered slot nodes are orphaned. Pass the content as data props and render it inside the island, or make the slot-providing parent the island.
+```
+
+Two remedies:
+
+- **Pass the content as data props** and render it inside the island.
+- **Make the slot-providing parent the island.** A plain, non-island component
+  may still wrap islands in its slots.
+
+Only a module's exported islands are judged, so a local helper component beside
+them may consume slots freely. For what the transform cannot see — a slot read
+through a helper, a usage site handing `children` to an island that ignores them
+— the runtime is the net: `islandsPlugin()` stamps the record
+`refreshable: false` when the usage site passed children, slots or `$models`, and
+the hydrator warns in development when it mounts from such a record.
+
 ## Options
 
 `islandsPlugin(options?)` takes an `IslandsPluginOptions`:

@@ -1,6 +1,6 @@
 ---
 title: Native clients
-description: "Pointing a lynx, terminal or native app's server-function stubs at a remote backend — configureServerFn, role: 'client', stable routes and the live-client guard"
+description: "Pointing a lynx, terminal or native app's server-function stubs at a remote backend — configureServerFn, role: 'client', stable routes, version skew and the live-client guard"
 layout: module-docs
 category: "Guides"
 order: 35
@@ -35,10 +35,12 @@ export default {
 | `role` | Behaviour |
 |---|---|
 | `'auto'` (default) | Stub swap in the Vite `client` environment only — the web posture |
-| `'client'` | Every environment gets stubs, baked with **stable** symbols; no registry chunk is emitted |
+| `'client'` | Every environment gets stubs; no registry chunk is emitted |
 
-The registry chunk maps symbols back to real modules for a server to execute. A
-client build has nothing to execute, so none is produced.
+The stubs are identical under both roles — every function's route is its stable
+key in every build. The registry chunk maps keys back to real modules for a
+server to execute; a client build has nothing to execute, so none is produced
+(and importing `virtual:sigx-server-fns` from one is a build error).
 
 ### Server modules outside the app
 
@@ -94,6 +96,17 @@ configureServerFn({
 
 Pass `null` to clear the transport.
 
+A cross-origin `endpoint` sends no cookies by default. To use cookie auth against
+a remote backend, opt in with `credentials` — `RequestInit.credentials` for every
+stub call — and allow credentials in that backend's CORS:
+
+```ts
+configureServerFn({
+  endpoint: 'https://api.example.com/_sigx/fn',
+  credentials: 'include',
+});
+```
+
 Precedence, highest first: `configureServerFn`'s `endpoint` → `sigxServer({ endpoint })`
 → `sigxServer({ base })`.
 
@@ -122,29 +135,50 @@ A web deploy ships the client and the server together, so a route that changes
 shape between builds is invisible. An installed app is the opposite case: it was
 built months ago, it is still calling, and the backend has been redeployed since.
 
-By default a function's transport symbol is **content-hashed** — change the body
-and the symbol changes, which is exactly what you want for version-skew
-detection on the web, and exactly what you do not want for an installed client.
-
-The registry dual-registers a hash-free **stable** symbol (`<stableId>#<name>`)
-alongside the hashed one, and `role: 'client'` builds bake the stable form. Pin
-the id explicitly for anything a long-lived client calls:
+A function's route is its **stable key**, `<id>/<name>` — the same in every
+build, so redeploying the backend does not move it. By default the id is derived
+from the file path, so moving or renaming the module changes the route and breaks
+installed clients. Pin the id explicitly for anything a long-lived client calls:
 
 ```ts
 export const getCart = serverFn({
   id: 'cart',                 // route is now /cart/getCart, across file moves
   input: CartKey,
-  use: [requireUser],
-  handler: async (rq, key) => db.cart.load(key),
+  handler: async ({ input: key }) => db.cart.load(key),
 });
 ```
 
-`id` must be a **string literal** — it is read statically by the build, and
-anything else (a variable, a template, an empty string) is warned about and falls
-back to the file-derived id.
+`id` must be a non-empty **string literal** — it is read statically by the
+build, and anything else (a variable, a template, an empty string) is a build
+error.
 
-Without it, the stable id is derived from the file path, so moving or renaming
-the module changes the route and breaks installed clients.
+### Handle version skew
+
+A stub also sends its build's **version tag** for each function — a hash of the
+function's normalized definition. When the backend's definition of that
+function has changed since the app was built, the endpoint answers `409` with
+`code: 'version-skew'` instead of running a call the app was not built for. A
+`404` means only that the function does not exist. An installed app cannot reload
+itself into the new build, so turn the 409 into an update prompt:
+
+```ts
+import { isServerFnError } from '@sigx/server';
+
+try {
+  await getCart(key);
+} catch (err) {
+  if (isServerFnError(err) && err.status === 409 &&
+      (err as { code?: string }).code === 'version-skew') {
+    promptForUpdate();
+  } else {
+    throw err;
+  }
+}
+```
+
+Contract safety lives in the `input` validator — an incompatible input surfaces
+as a `400` the app can show as "update the app" — and a semantic change is
+explicit versioning: a new export or a new `id`.
 
 ## 4. The live-client guard
 
@@ -184,7 +218,7 @@ header when it *is* sent:
 
 ```ts
 handleServerFnRequest(request, {
-  resolve,
+  functions: serverFns,
   origin: 'verify-when-present',
 });
 ```
@@ -206,5 +240,5 @@ problem CSRF exploits does not exist in the first place.
 ## Next steps
 
 - [Deployment & security](/server/packages/server/deployment) — the endpoint's options in full
-- [Authoring](/server/packages/server/usage) — `serverFn`, guards and `.with()`
+- [Authoring](/server/packages/server/usage) — `serverFn`, access policies and `.with()`
 - [API reference](/server/packages/server/api) — `configureServerFn`, `ServerFnTransport`

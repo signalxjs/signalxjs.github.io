@@ -44,7 +44,7 @@ const app = express();
 // '/', and the explicit guard keeps /index.html itself unreachable.
 app.get('/index.html', (_req, res) => res.redirect(301, '/'));
 app.use(express.static('dist/client', { index: false }));
-app.use(createServerFnHandler({ resolve: (s) => serverFns[s]?.() ?? null }));
+app.use(createServerFnHandler({ functions: serverFns }));
 app.use(createRequestHandler({ template, app: (url) => createApp(url), document: { assets } }));
 
 app.listen(process.env.PORT ?? 3000);

@@ -27,7 +27,7 @@ pnpm add @sigx/resume
 The result is a three-step ladder:
 
 1. **On load — 0 app JS.** The page's only script is the generated delegation loader.
-2. **First interaction.** The handler's chunk (usually < 1 kB, runtime-free) loads, the resumed scope's signals are rebuilt from serialized state, and the triggering event replays.
+2. **First interaction.** The handler's chunk (usually < 1 kB, runtime-free) runs, the resumed scope's signals are rebuilt from serialized state, and the triggering event replays. The document already `modulepreload`ed that chunk for every resume boundary the request rendered, so the first interaction pays no cold fetch.
 3. **State changes.** Only when a handler actually writes does the component's chunk load and *that one boundary* hydrate — "upgrade-on-write".
 
 On top of that, `@sigx/resume` powers **single-flight boundary refresh**: when a mutation [server function](/server/packages/server/overview) declares what it `invalidates`, the endpoint re-renders exactly the server boundaries whose `useData` reads it touched — fresh HTML in the same response, without loading those boundaries' chunks.
@@ -36,5 +36,5 @@ Combine it with islands when you need both — `app.use(islandsPlugin()).use(res
 
 ## Next steps
 
-- [Usage](/server/packages/resume/usage) — write resumable components, install the plugin, wire boundary refresh.
+- [Usage](/server/packages/resume/usage) — write resumable components, the contract the transform enforces, install the plugin, wire boundary refresh.
 - [API reference](/server/packages/resume/api) — `resumePlugin`, the manifest, and `createBoundaryRefresh`.

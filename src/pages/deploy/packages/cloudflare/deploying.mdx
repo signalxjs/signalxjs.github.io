@@ -46,9 +46,9 @@ before the document render — the scaffold carries this block as a comment:
 ```ts
 import { handleServerFnRequest, matchesServerFn } from '@sigx/server/server';
 import { createBoundaryRefresh } from '@sigx/resume/server';
-// virtual:sigx-server-fns maps each symbol to a LAZY FACTORY — resolve
-// invokes it to get the server function. `serverFnBase` is the mount path
-// the build used: pass it to both, so they cannot disagree.
+// virtual:sigx-server-fns maps each key to a { version, load } record —
+// pass it as `functions`. `serverFnBase` is the mount path the build used:
+// pass it to both, so they cannot disagree.
 import { serverFns, serverFnBase } from 'virtual:sigx-server-fns';
 
 // Module scope, built once. Omit it and boundary refresh silently never runs.
@@ -57,7 +57,7 @@ const renderBoundaries = createBoundaryRefresh({ components: { /* … */ } });
 if (matchesServerFn(request, serverFnBase)) {
     return handleServerFnRequest(request, {
         base: serverFnBase,
-        resolve: (symbol) => serverFns[symbol]?.() ?? null,
+        functions: serverFns,
         renderBoundaries
     });
 }

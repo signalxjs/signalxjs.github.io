@@ -215,6 +215,8 @@ const post = useData(() => [getPost, props.id]);   // re-runs when props.id chan
 const cart = useData(() => [getCart, { userId }]); // an input object keys directly
 ```
 
+A server function takes one input, so the tuple is `[fn, input]`, and the input may be a plain JSON object: `useData(() => [getCart, { userId }])`. The default fetcher calls the function with that input and threads the cell's abort signal into it, so releasing the last consumer of a read aborts the in-flight call.
+
 The build stamps each server function with a stable key derived from its id and name, so these reads are SSR-transferable and deduped just like string-keyed ones. (Move a function between files without pinning an explicit `id` and its key changes — set `id` on anything you invalidate by reference.)
 
 To refresh a server-function read after a write, declare what it invalidates **by reference** — a bare server-function reference prefix-matches every parameterized read of it, and the same declaration drives single-flight refresh of the server boundaries that rendered it. That declaration can live on the server function's own [options](/server/packages/server/usage) (its `invalidates`, which runs on every transport) or on a client action via [`@sigx/cache`](/core/packages/cache/overview); with neither, refresh the read explicitly with `.refresh()` (below).

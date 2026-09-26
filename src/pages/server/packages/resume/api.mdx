@@ -38,7 +38,7 @@ Install on the app: `app.use(resumePlugin({ manifest }))`. On the server it reco
 ```ts
 interface ResumeManifest {
   components: Record<string, ResumeChunkRef>;  // __resumeId → upgrade chunk
-  handlers: Record<string, ResumeChunkRef>;    // QRL symbol → handler chunk
+  handlers: Record<string, ResumeChunkRef>;    // QRL symbol → handler chunk (modulepreloaded per rendered boundary)
 }
 interface ResumeChunkRef { chunkUrl: string; exportName: string; }
 ```
@@ -75,3 +75,7 @@ interface BoundaryRefreshEntry { for: number; id: number; html: string; state?: 
 ## Vite
 
 The `sigxResume()` plugin from `@sigx/vite/resume` runs the transform and emits `.vite/sigx-resume-manifest.json`, surfaced as `resumeManifest` from `virtual:sigx-manifests`.
+
+The transform fails the build — rather than warning and leaving a component silently broken — on a component reachable only as `export default`, a component name exported from two resume modules, a destructured or absent setup context in a component with handlers, `ctx.slots` in a component with handlers, an `on*` handler passed to a child component, a spread or `onUpdate:*` on a component with named signals but no host-element handler, and a handler that binds or references `$scope` / `$el`. See [the contract](/server/packages/resume/usage#the-contract).
+
+In development, editing a handler reloads the page; a markup-only edit keeps in-place HMR.

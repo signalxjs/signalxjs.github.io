@@ -29,14 +29,16 @@ fetch wrappers to hand-write, no request/response DTOs to keep in sync.
 
 ```ts
 // src/cart.server.ts — a server-only module
-import { serverFn, ServerFnError } from '@sigx/server';
+import { serverFn, requirePrincipal } from '@sigx/server';
+import * as z from 'zod';
 import { db } from './db';
-import { sessionFrom } from './auth';
 
-export const addToCart = serverFn(async (rq, productId: string, qty: number) => {
-  const user = await sessionFrom(rq.request);
-  if (!user) throw new ServerFnError(401, 'Sign in first');
-  return db.cart.add(user.id, productId, qty);
+export const addToCart = serverFn({
+  input: z.object({ productId: z.string(), qty: z.number().int().positive() }),
+  handler: async ({ input: { productId, qty }, rq }) => {
+    const user = await requirePrincipal<User>(rq);   // resolved by the app's authenticate
+    return db.cart.add(user.id, productId, qty);
+  },
 });
 ```
 
@@ -45,24 +47,23 @@ export const addToCart = serverFn(async (rq, productId: string, qty: number) => 
 import { useAction } from 'sigx';
 import { addToCart } from './cart.server';
 
-// useAction's fetcher takes ONE argument, so a multi-parameter server
-// function is wrapped: the tuple is what you hand to run().
-const add = useAction(
-  ([sku, qty]: [string, number]) => addToCart(sku, qty),
-  { cache: { invalidates: [['cart']] } },
-);
-// add.run(['sku-1', 1]) → POSTs to the server, runs the body, returns the row
+const add = useAction(addToCart, { cache: { invalidates: [['cart']] } });
+// add.run({ productId: 'sku-1', qty: 1 }) → POSTs to the server, runs the handler, returns the row
 ```
 
-The `db` and `sessionFrom` imports never reach the browser: the client build
-replaces `*.server.ts` with typed fetch stubs, so the bundle ships only the
-call signature. The server keeps the real module.
+The `db` import never reaches the browser: the client build replaces
+`*.server.ts` with typed fetch stubs, so the bundle ships only the call
+signature. The server keeps the real module. And there is no hand-rolled session
+check: the runtime is fail-closed, so an anonymous caller was refused with a 401
+before the handler ran, and `requirePrincipal` is the typed accessor for the
+identity the app's `authenticate` resolved.
 
 ## What you get
 
 - **Plain-function ergonomics.** A server function is called with its declared
-  arguments and returns its declared type. Argument and return types flow from
-  the definition to the call site — rename a parameter and every caller updates.
+  input and returns its declared type. Input and return types flow from the
+  definition to the call site, and the input is validated on the server by the
+  schema that types it.
 - **Value-first data flow.** Server functions are the natural fetchers for
   [`useData`](/core/docs/data-loading) (reads) and `useAction` (writes), so
   loading, error and refresh state come for free.
@@ -75,7 +76,8 @@ call signature. The server keeps the real module.
 
 ## Requirements
 
-Server functions ship with **SignalX 0.13+**. Install the package:
+This section documents `@sigx/server` **1.0**, where `serverFn({ input?, handler })`
+is the one authoring form. Install the package:
 
 ```bash
 npm install @sigx/server
@@ -89,18 +91,21 @@ and edge (WinterCG) wiring.
 
 ## The model in one paragraph
 
-Each server function compiles to a stable, content-hashed symbol and is served
-at `POST /_sigx/fn/<symbol>`. Calling the stub sends `{"args":[...]}` as JSON;
-the server validates and runs the function and replies with `{"data":...}` or a
-structured `{"error":{ message, status, data? }}`. Arguments cross the wire as
-**typed values** — there is no closure serialization, so a server function can
+Each server function has one stable key, `<id>/<name>`, and is served at
+`POST /_sigx/fn/<id>/<name>`. Calling the stub sends `{"args":[input],"v":"<version>"}`
+as JSON — `v` is the build's version tag for the function — and the server
+validates and runs the function and replies with `{"data":...}` or a structured
+`{"error":{ message, status, code?, data? }}`. A stale page after a deploy gets a
+`409` version-skew error rather than a wrong call. The input crosses the wire as a
+**typed value** — there is no closure serialization, so a server function can
 only see what you pass it, its imports, and server-side globals. That single
 constraint is what makes the boundary safe and the types honest.
 
 ## Next steps
 
-- [Authoring server functions](/server/packages/server/usage) — the two forms,
-  validation, the request context, errors and streaming.
+- [Authoring server functions](/server/packages/server/usage) — the definition,
+  validation, access, the request context, errors, streaming and the 1.0
+  migration.
 - [Native clients](/server/packages/server/native-clients) — a lynx, terminal or
   installed app calling a remote backend over stubs.
 - [Deployment & security](/server/packages/server/deployment) — dev, Node and edge wiring,

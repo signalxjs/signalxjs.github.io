@@ -1,6 +1,6 @@
 ---
 title: Authoring
-description: "serverFn's two forms, input validation, the request context, errors and streaming"
+description: "Defining a serverFn — one options form, one input, handler({ input, rq }) — plus access, the request context, errors, streaming and the 1.0 migration"
 layout: module-docs
 category: "Guides"
 order: 30
@@ -8,19 +8,27 @@ order: 30
 
 # Authoring server functions
 
-A server function is created with `serverFn`. Its first parameter is always the
-**request context** (`rq` by convention) — the framework passes it, callers
-never do. Everything after it is your own typed arguments.
+A server function is created with `serverFn({ input?, handler, … })`. It takes
+**one input or none**, and its handler receives **one object** — destructure
+`input` (the validated value) and `rq` (the request context) as you need them.
+Every declaration — validation, access, caching, invalidation, a pinned id —
+sits in the same literal as the implementation.
 
 ```ts
 import { serverFn } from '@sigx/server';
+import * as z from 'zod';
 
-export const greet = serverFn(async (rq, name: string) => {
-  return `Hello, ${name}!`;
+export const greet = serverFn({
+  input: z.string(),
+  handler: async ({ input: name }) => `Hello, ${name}!`,
 });
 
 // client stub: greet(name: string): Promise<string>
 ```
+
+> **Upgrading from 0.15?** The direct form `serverFn(async (rq, …) => …)` and
+> the positional `handler(rq, input)` are gone in 1.0. See
+> [Migrating to 1.0](#migrating-to-10).
 
 ## Where server functions live
 
@@ -30,7 +38,8 @@ the difference is only where the code sits and how the transform treats it.
 ### `*.server.ts` modules
 
 Put a server function in a file whose name ends in `.server.ts` (or
-`.server.tsx`) and the **whole module is server-only**. It may import database
+`.server.tsx`, `.server.mts`, `.server.js`, `.server.mjs`) and the **whole
+module is server-only**. It may import database
 clients, secrets and `node:` builtins freely. The client build swaps the module
 for typed fetch stubs, so none of that reaches the browser; the server import is
 the real module. You import from the same path on both sides:
@@ -40,7 +49,7 @@ the real module. You import from the same path on both sides:
 import { serverFn } from '@sigx/server';
 import { db } from './db';
 
-export const listTodos = serverFn(async (rq) => db.todos.all());
+export const listTodos = serverFn({ handler: async () => db.todos.all() });
 ```
 
 ### Inline, co-located with a component
@@ -53,16 +62,16 @@ read next to the component that uses it.
 import { component, useData } from 'sigx';
 import { serverFn } from '@sigx/server';
 
-// lifted to the server; may reference its args, imports and server globals
-const serverTime = serverFn((rq) => new Date().toISOString());
+// lifted to the server; may reference its input, imports and server globals
+const serverTime = serverFn({ handler: () => new Date().toISOString() });
 
 export const Clock = component(() => {
-  const now = useData(() => ['server-time'], serverTime);
+  const now = useData(serverTime);
   return () => now.match({ ready: (t) => <p>Server time: {t}</p> });
 });
 ```
 
-Because an inline function is lifted away from its surroundings, its body may
+Because an inline function is lifted away from its surroundings, its handler may
 reference only **its own parameters and locals, imports, and globals**.
 Capturing component scope, signals, props, module-scope locals, JSX, or
 type-only imports is a **build error**, not a silent bug — the transform tells
@@ -70,56 +79,81 @@ you at compile time. When a lifted function needs shared server code, import it
 (from a `*.server.ts` module); don't close over it.
 
 > There is no closure serialization anywhere. Data crosses the boundary only as
-> the typed arguments you pass.
+> the typed input you pass.
 
-## Two authoring forms
+## Defining a server function
 
-`serverFn` accepts either an implementation directly, or an options object.
-
-### Direct form
-
-Pass the implementation. It takes the context plus any number of typed
-arguments — zero ceremony, ideal for internal calls.
-
-```ts
-export const rename = serverFn(async (rq, id: string, title: string) => {
-  return db.todos.rename(id, title);
-});
-```
-
-The parameter types are **compile-time only**: the wire arguments are not
-schema-validated and the argument count is not enforced at runtime. In
-development, a direct-form function that receives wire input logs a one-time
-warning — reported as the function receiving input it does not declare — a nudge to
-move validation into the options form's `input` schema once a function is a real
-client boundary. Use the direct form for trusted, app-internal
-calls; reach for the options form (below) when a function is a validated boundary.
-
-### Options form
-
-Pass `{ input, authorize, handler, … }` for a validated, authorized boundary.
-It takes exactly **one** input, described by a
+There is one authoring form: an options object with a `handler`. A function
+takes exactly **one** input, or none, and the input is described by a
 [Standard Schema](https://standardschema.dev) (Zod, Valibot, ArkType, …) that
 runs on every transport.
 
 ```ts
-import { serverFn, principal, requireAuthenticated } from '@sigx/server';
+import { serverFn, requirePrincipal, requireAuthenticated } from '@sigx/server';
 import * as z from 'zod';
 
 const QuoteInput = z.object({ symbol: z.string(), qty: z.number().int() });
 
 export const quote = serverFn({
-  input: QuoteInput,        // validated server-side on every call → 400 on failure
+  input: QuoteInput,                 // validated server-side on every call → 400 on failure
   authorize: requireAuthenticated,   // runs AFTER input validation, on every transport
-  async handler(rq, input) {
-    return priceQuote(principal(rq), input); // input is typed from the schema
+  async handler({ input, rq }) {
+    return priceQuote(await requirePrincipal(rq), input); // input is typed from the schema
   },
+});
+
+await quote({ symbol: 'ACME', qty: 10 });
+```
+
+### The handler takes one object
+
+`handler` receives `{ input, rq }` — destructure what you use and ignore the
+rest:
+
+```ts
+serverFn({ handler: async () => db.todos.all() });                 // neither
+serverFn({ handler: async ({ rq }) => audit(rq) });                // context only
+serverFn({ input: Id, handler: async ({ input: id }) => load(id) }); // input only, renamed
+```
+
+`input` is the **validated** value when the definition declares `input`. `rq` is
+the same request context policies and middleware see. Policies, middleware,
+`perRequest` and `invalidates` keep their positional signatures — only the
+handler takes an object.
+
+### Validation and the input type
+
+The input type `S` is inferred from `input`. Omit `input` and it falls back to
+the handler's annotation, which goes on the object:
+
+```ts
+export const rename = serverFn({
+  handler: async ({ input }: { input: { id: string; title: string } }) =>
+    db.todos.rename(input.id, input.title),
 });
 ```
 
-The input type `S` is inferred from `input`; if you omit `input`, it is inferred
-from the `handler`'s parameter annotation. With neither, `S` is `void` and the
-callable takes **no** arguments — you call it as `fn()`, not `fn(undefined)`.
+That annotation is a **typing statement, not a guarantee**: nothing validates
+the value on the wire, and a function that receives wire input it has no
+validator for logs a development warning once. Declaring `input` resolves it.
+With neither a schema nor an annotation, `S` is `void` and the callable takes
+**no** argument — you call it as `fn()`, not `fn(undefined)`.
+
+Several parameters are **one input object** (or a tuple) with one schema; there
+is no multi-argument form. More than one wire argument is a `400` on every
+transport.
+
+```ts
+export const addToCart = serverFn({
+  input: z.object({ sku: z.string(), qty: z.number().int().positive() }),
+  handler: async ({ input: { sku, qty }, rq }) => {
+    const user = await requirePrincipal<User>(rq);
+    return db.cart.add(user.id, sku, qty);
+  },
+});
+
+await addToCart({ sku: 'sku-1', qty: 2 });
+```
 
 `ServerFnOptions` fields:
 
@@ -127,12 +161,33 @@ callable takes **no** arguments — you call it as `fn()`, not `fn(undefined)`.
 |---|---|
 | `input?` | A Standard Schema. Always validated server-side; a rejection becomes `ServerFnError(400, 'Invalid input', { issues })`. Also the source of the input type. |
 | `authorize?` | A `ServerPolicy` or array of them — `(principal, rq, op) => boolean` — run **after** `input` validation on every transport (in-process SSR calls included). **Strict-`true` to allow**; anything else is a 403, or a 401 when the principal is null. |
-| `handler` | The implementation: `(rq, input) => R \| Promise<R>`. |
+| `handler` | The implementation: `({ input, rq }) => R \| Promise<R>`. |
 | `invalidates?` | `(input, result) => InvalidatePattern[]` — keys to invalidate after the handler runs. **Declare it after `handler`** so TypeScript infers `result`. Patterns are key strings, tuple prefixes, or server-function references, and reach every matching read whether or not it carries a `cache` option. |
 | `cache?` | Marks a side-effect-free GET read (`{ maxAge, staleWhileRevalidate?, public?, sMaxAge? }`) and emits `Cache-Control`. Mutually exclusive with `invalidates`. |
 | `form?` | `true` marks a progressive-enhancement form target (accepts form-encoded bodies, does a 303 redirect). Must be the literal `true`, and **requires `input`** — a form target without an input schema is a definition-time error. Mutually exclusive with `cache`. The native `action` is stamped by the [resume](/server/packages/resume/usage) extractor, so the no-JS half needs a resume component; elsewhere the form still posts as RPC. |
-| `id?` | An explicit, stable string id that pins the route across file moves/renames. |
+| `id?` | An explicit, stable id — a non-empty **string literal**, read statically by the build — that pins the route and data key (`<id>/<name>`) across file moves and renames. |
 | `allowAnonymous?` | The literal `true`, waiving the **identity gate** for a deliberately public endpoint. Middleware and authentication still run; declared policies still run, with a nullable principal. |
+
+## What the build refuses
+
+The build reads a `*.server.*` module statically to generate its client stubs
+and routes, so a shape it cannot represent is a **build error** naming the file
+and line — never a stub that silently lacks a name or a route that silently
+moved:
+
+| In a `*.server.*` module | Why |
+|---|---|
+| a value re-export — `export * from './x'`, `export { a } from './x'` | the client stub would silently lack the names |
+| a default-exported server function — `export default serverFn(…)`, `export { fn as default }` | its route needs a stable export name |
+| a server function that is not an exported module-scope `const` — unexported, `let` / `var`, destructured, or created inside a function | only an exported `const` has a name the stub can carry |
+| a spread in the options literal — `serverFn({ ...base, handler })` | it hides the statically-read `id`, `cache`, `invalidates`, `form`, `authorize` and `allowAnonymous` |
+| a non-literal `id` — a variable, a template, `''` | the route is minted at build time |
+| `form` or `allowAnonymous` that is not the literal `true` — `form: someBool` | the build reads both statically |
+| a call whose single argument is not an object literal — `serverFn(opts)`, `serverFn(async (rq) => …)`, zero or two arguments | the removed direct form, or options the build cannot read |
+
+Type-only re-exports erase and are fine, and so are `satisfies` / `as` around
+the literal. An inline (co-located) server function gets the same spread, `id`
+and literal-`true` checks.
 
 ## The three stages
 
@@ -150,12 +205,36 @@ They run in that order, and the identity gate closes **before** the wire payload
 is revived:
 
 ```
-middleware → authenticate → identity gate → reviveWire → input validation → authorize → handler
+middleware → authenticate → identity gate → reviveWire → arity → input validation → authorize → handler
 ```
 
 That ordering is load-bearing: an anonymous attacker's payload never reaches the
 codec or the validator, and by the time a policy runs, `op.input` is the parsed,
 trusted resource rather than raw wire data.
+
+### Middleware runs per operation; authentication runs per request
+
+The two app-wide stages have different cadences:
+
+- **Middleware runs once per operation** — every wire call, every stream open,
+  and every in-process call runs the chain again. One SSR render with five
+  `useData` cells backed by server functions runs each middleware **five
+  times**.
+- **`authenticate` is memoized per request**, so the same render decodes the
+  session once.
+
+Work that must happen once per request — minting a request id, writing an audit
+record, debiting a rate-limit budget per page — belongs in a
+[`perRequest`](#per-request-values) value the middleware touches, not in the
+middleware body:
+
+```ts
+const requestId = perRequest(() => crypto.randomUUID());   // once per request
+
+const tagRequest: ServerMiddleware = (rq) => {
+  rq.responseHeaders.set('x-request-id', requestId(rq));   // every operation, same id
+};
+```
 
 ## The app
 
@@ -200,7 +279,7 @@ There is no "ran open" state to forget your way into.
 
 ```ts
 // Denies. There is no declaration and no app default.
-export const health = serverFn(async () => 'ok');
+export const health = serverFn({ handler: async () => 'ok' });
 
 // Deliberately public.
 export const health = serverFn({
@@ -224,7 +303,7 @@ export const submitPat = serverFn({
   allowAnonymous: true,     // deliberate: this IS the sign-in
   form: true,
   input: PatSchema,
-  handler: async (rq, pat) => exchangeToken(pat),
+  handler: async ({ input: pat }) => exchangeToken(pat),
 });
 ```
 
@@ -302,6 +381,68 @@ Pair it with `maxResponseBytes` for the other direction: a limiter bounds how
 often a caller can ask, and `maxResponseBytes` bounds how much any one answer can
 return.
 
+## Migrating to 1.0
+
+1.0 consolidates server functions: one authoring form, one handler shape, one
+route per function, and one descriptor on the wrapper. `pnpm typecheck` finds
+every removed member and every old handler arity; the build finds the
+module-level problems (see [What the build refuses](#what-the-build-refuses)).
+
+**Authoring**
+
+| 0.15 | 1.0 |
+|---|---|
+| `serverFn(async (rq, id: string) => …)` | `serverFn({ input: IdSchema, handler: async ({ input: id, rq }) => … })` — or, without a schema, `handler: async ({ input: id }: { input: string }) => …` (dev-warned: wire input with no validator) |
+| `serverFn(async (rq, sku: string, qty: number) => …)` — several arguments | One input object: `input: z.object({ sku: z.string(), qty: z.number() })`, `handler: async ({ input: { sku, qty }, rq }) => …`; call sites pass `addToCart({ sku, qty })` |
+| `serverFn({ handler: async (rq, input) => … })` | `serverFn({ handler: async ({ input, rq }) => … })` |
+| `handler: async (rq) => …` / `handler: async (_rq, input) => …` | `handler: async ({ rq }) => …` / `handler: async ({ input }) => …` |
+| `serverStream(async function* (rq, a, b) { … })`, or `serverStream({ handler: async function* (rq, a, b) … })` | `serverStream({ input: Schema, handler: async function* ({ input, rq }) { … } })` |
+| `ServerStreamInputOptions<S, T>`, multi-argument `ServerStreamOptions<A, T>` | `ServerStreamOptions<S, T>` |
+| `op.args` in a policy / `ServerFeatureOp.args` | `op.input` — the validated input; `undefined` when the function declares no `input` |
+| `fn.__sigxFn(rq, info, args)` | `fn.__sigx.invoke(rq, info, args)` |
+| `fn.__sigxStream` / `__sigxGet` / `__sigxCacheControl` / `__sigxForm` / `__sigxAnon` / `__sigxInvalidates` / `__sigxName` | `fn.__sigx.kind === 'stream'` / `.read` / `.read.cacheControl` / `.form` / `.anon` / `.invalidates` / removed. `fn.__sigxKey` is unchanged. |
+| `stampServerFnKey(fn)` in tests | `stampServerFnKey(fn, 'test/fn')` — the key is required |
+| `import { provideTypeHandlers } from 'sigx/internals'` | `from 'sigx'` (or `@sigx/runtime-core`) |
+| `export default serverFn(…)`, `export * from`, `export { x } from`, a spread in the options literal, a non-literal `id`, `form: someBool`, an unexported `const x = serverFn(…)` | Build errors naming the file and line — fix the module |
+
+**Wire and deployment**
+
+| 0.15 | 1.0 |
+|---|---|
+| `handleServerFnRequest(request, { resolve: (symbol) => serverFns[symbol]?.() ?? null, base })` | `handleServerFnRequest(request, { functions: serverFns, base: serverFnBase })` |
+| `app.serverFns({ resolve, base })` | `app.serverFns({ functions: serverFns, base: serverFnBase })` |
+| `createServerFnHandler({ functions: serverFns })` | Unchanged spelling; registry entries are `{ version, load }` records the build emits |
+| `matchesServerFn(request)` beside a handler given `base: serverFnBase` | `matchesServerFn(request, serverFnBase)` — the two must agree |
+| A native client catching the `404` "version skew" hint | `err.status === 409 && err.code === 'version-skew'`; a `404` means only "unknown function" |
+| `sigxServer({ stubSymbols: 'stable' })` | Delete it — the stable key is the route in every build |
+| Hand-written `__serverFnStub(symbol, name, endpoint, key, get, boundaries)` | `__serverFnStub(key, name, endpoint, version, flags)` — `flags` is `1` (GET read) \| `2` (invalidates); `__serverStreamStub(key, name, endpoint, version)` |
+| `ExtractedServerFn.symbol` / `.stableSymbol`, `mintSymbols(…)` from `@sigx/vite/server-extract` | `.key` / `.version`, `mintIdentity(name, callNode, …)` |
+
+The one change that is not mechanical is a function that took several
+arguments. Its arguments become one input with a schema — the types were never
+enforced on the wire before, and now they are — the handler destructures, and
+every call site passes the object:
+
+```ts
+// 0.15
+export const addToCart = serverFn(async (rq, productId: string, qty: number) => { … });
+await addToCart(sku, 2);
+
+// 1.0
+export const addToCart = serverFn({
+  input: z.object({ productId: z.string(), qty: z.number().int().positive() }),
+  handler: async ({ input: { productId, qty }, rq }) => { … },
+});
+await addToCart({ productId: sku, qty: 2 });
+```
+
+`useAction(addToCart)` is unchanged, and so are `useData(fn)` and
+`useData(() => [fn, input])`. A function with no input keeps its zero-argument
+callable: `serverFn({ handler: async ({ rq }) => … })` is called as `vote()`.
+
+After a deploy, a stale tab now logs a version-skew error on a `409` instead of a
+`404`; client code that branched on `404` for skew needs the `409` check above.
+
 ## Migrating from 0.14
 
 | 0.14 | 0.15 |
@@ -324,10 +465,6 @@ the payload safe.
     to the next.
   </div>
 </div>
-
-> **Note:** a spread inside a `serverFn({ ... })` options literal hides `id`,
-> `cache`, `invalidates` and `form` from the static readers — which silently
-> disables single-flight boundary refresh. The build warns about it.
 
 ## Per-request values
 
@@ -355,7 +492,7 @@ createServerApp({ authenticate: (rq) => session(rq), authorize: requireAuthentic
 // src/board.server.ts
 export const boardIssues = serverFn({
   input: BoardKey,
-  handler: async (rq, key) => (await github(rq)).issues(key),  // no decode, no cast
+  handler: async ({ input: key, rq }) => (await github(rq)).issues(key),  // no decode, no cast
 });
 ```
 
@@ -436,11 +573,14 @@ Pass `rq.abortSignal` straight to any `fetch` you make so upstream work is
 cancelled when the caller goes away:
 
 ```ts
-export const search = serverFn(async (rq, q: string) => {
-  const res = await fetch(`https://api.example.com/search?q=${q}`, {
-    signal: rq.abortSignal,
-  });
-  return res.json();
+export const search = serverFn({
+  input: z.string(),
+  handler: async ({ input: q, rq }) => {
+    const res = await fetch(`https://api.example.com/search?q=${q}`, {
+      signal: rq.abortSignal,
+    });
+    return res.json();
+  },
 });
 ```
 
@@ -479,7 +619,7 @@ naming both. To isolate a nested render deliberately, hand it its own `locals`.
 ## Cacheable reads
 
 By default every call is a `POST`. Declaring `cache` marks a function a
-**side-effect-free idempotent read**: the stub issues `GET` with the arguments in
+**side-effect-free idempotent read**: the stub issues `GET` with the input in
 the query string, and the endpoint emits `Cache-Control`, so browser and edge
 caches can absorb the traffic before it reaches your server.
 
@@ -489,7 +629,7 @@ export const listProducts = serverFn({
   input: z.object({ category: z.string() }),
   allowAnonymous: true,
   cache: { maxAge: 60, staleWhileRevalidate: 300, public: true },
-  handler: async (rq, { category }) => db.products.byCategory(category),
+  handler: async ({ input: { category } }) => db.products.byCategory(category),
 });
 ```
 
@@ -520,12 +660,12 @@ The emitted header follows directly from the declaration:
 content-type CSRF gate, so marking a mutating function `cache` re-opens CSRF
 completely. Nothing checks this for you; it is the author's promise.
 
-**`public: true` asserts the output depends only on the arguments** — never
+**`public: true` asserts the output depends only on the input** — never
 cookies, never auth, never a request header. A shared cache will serve one user's
 response to another. Without it, the endpoint emits `private` and appends
 `Vary: Cookie`.
 
-`cache` with [`invalidates`](#options-form) is a **definition-time error** — a
+`cache` with [`invalidates`](#defining-a-server-function) is a **definition-time error** — a
 read that invalidates is not a read. So is `cache` with `form: true`; a form
 target is a mutation. Both throw where the function is defined rather than
 silently preferring one, so the contradiction cannot reach a deploy.
@@ -539,11 +679,12 @@ Bypass the HTTP cache for a single call with
 
 ### What the GET looks like
 
-When every argument is a simple scalar, a cache-marked read rides as **named
-params** rather than an encoded blob:
+When the input is a simple scalar, a cache-marked read rides as a **named
+param** rather than an encoded blob, next to the build's version tag (`v`, see
+[Deployment](/server/packages/server/deployment#one-route-per-function-one-version-per-deploy)):
 
 ```
-GET /_sigx/fn/catalog/listProducts?a0=shoes
+GET /_sigx/fn/catalog/getProduct?a0=sku-42&v=9f3a01cc
 ```
 
 Types survive because a param reads back as a number, `true`, `false` or `null`
@@ -551,13 +692,12 @@ only when its raw text says so. A *string* that would otherwise be misread is
 JSON-quoted — `?a0="42"` — which is the only escape a scalar read can still
 produce.
 
-Anything richer (objects, `Date`, `Map`, `Set`, `BigInt`) falls back to the
-`?args=` blob for the **whole** call, never a mix, so the cache key stays a pure
-function of the arguments. Mixing the two explicitly, or leaving a gap in the
-`a0, a1, …` sequence, is a `400` rather than a call with silently shifted
-arguments.
+An input richer than a scalar — an object like `listProducts`' above, a `Date`,
+`Map`, `Set`, `BigInt` — rides as the encoded `?args=` blob instead, never a
+mix, so the cache key stays a pure function of the input. Mixing the two
+explicitly, or leaving a gap in the `a0, a1, …` sequence, is a `400`.
 
-Long argument lists are the one operational limit — the query string is capped at
+A large input is the one operational limit — the query string is capped at
 `maxUrlBytes` (default 8 KiB) and answered with a `414` past it.
 
 ## Zero-JS form actions
@@ -576,7 +716,7 @@ export const submitFeedback = serverFn({
     message: z.string().min(1),
   }),
   allowAnonymous: true,
-  handler: async (rq, feedback) => db.feedback.add(feedback),
+  handler: async ({ input: feedback }) => db.feedback.add(feedback),
 });
 ```
 
@@ -658,7 +798,7 @@ visible rather than silent.
 
 Every wrapped function carries a `.with(options)` channel that returns the same
 callable with those options bound. It is a **separate** channel on purpose: your
-arguments stay exactly your arguments, with no trailing-options parameter for the
+input stays exactly your input, with no trailing-options parameter for the
 transport to sniff.
 
 ```ts
@@ -710,11 +850,14 @@ wire verbatim as `{ status, message, data? }`:
 ```ts
 import { serverFn, ServerFnError, isServerFnError } from '@sigx/server';
 
-export const publish = serverFn(async (rq, id: string) => {
-  const post = await db.posts.find(id);
-  if (!post) throw new ServerFnError(404, 'No such post');
-  if (post.locked) throw new ServerFnError(409, 'Post is locked', { id });
-  return db.posts.publish(id);
+export const publish = serverFn({
+  input: z.string(),
+  handler: async ({ input: id }) => {
+    const post = await db.posts.find(id);
+    if (!post) throw new ServerFnError(404, 'No such post');
+    if (post.locked) throw new ServerFnError(409, 'Post is locked', { id });
+    return db.posts.publish(id);
+  },
 });
 ```
 
@@ -741,15 +884,19 @@ string stream drops straight into [`useStream`](/core/docs/data-loading):
 ```ts
 // src/chat.server.ts
 import { serverStream } from '@sigx/server';
+import * as z from 'zod';
 
-export const streamReply = serverStream(async function* (rq, prompt: string) {
-  const completion = await llm.stream(prompt, { signal: rq.abortSignal });
-  for await (const token of completion) yield token; // sent as NDJSON
+export const streamReply = serverStream({
+  input: z.string(),
+  handler: async function* ({ input: prompt, rq }) {
+    const completion = await llm.stream(prompt, { signal: rq.abortSignal });
+    for await (const token of completion) yield token; // sent as NDJSON
+  },
 });
 ```
 
 ```tsx
-const reply = useStream(() => ['reply', prompt], streamReply);
+const reply = useStream(() => ['reply', prompt], () => streamReply(prompt));
 return () => <p>{reply.text}</p>;
 ```
 
@@ -757,41 +904,27 @@ Streams are lazy — the request starts on the first iteration, and a consumer
 that `break`s or returns early aborts the fetch and runs the generator's
 `finally`. Response status and headers freeze at the first `yield`.
 
-`serverStream` has the same two authoring forms as `serverFn`. The options form
-carries `authorize`, `allowAnonymous` and `handler`:
-
-```ts
-export const feed = serverStream({
-  authorize: requireAuthenticated,
-  async *handler(rq, room: string) {
-    for await (const msg of subscribe(room, rq.abortSignal)) yield msg;
-  },
-});
-```
-
-### Declaring an input
-
-Adding `input` selects a single-input form, shaped exactly like `serverFn`'s:
+`serverStream` takes `serverFn`'s shape minus the declarations that only make
+sense for a buffered JSON answer — `input`, `authorize`, `allowAnonymous` and
+`handler`, with no `cache`, `form`, `invalidates` or `id`. The handler is an
+async generator over the same `{ input, rq }` object:
 
 ```ts
 export const feed = serverStream({
   input: z.object({ room: z.string(), since: z.coerce.number().optional() }),
   authorize: requireAuthenticated,
-  async *handler(rq, { room, since }) {
+  async *handler({ input: { room, since }, rq }) {
     for await (const msg of subscribe(room, since, rq.abortSignal)) yield msg;
   },
 });
 ```
 
-The schema runs after the policies and **before the first chunk**, on every
-transport. Over the wire a rejection is a buffered JSON `400 { issues }` — headers
-are still writable and no stream byte has been sent; in-process it rejects on the
-first pull. With `input` declared the stream takes exactly **one** argument, extra
-wire args are a 400, and the handler receives the validated value rather than the
-raw wire arg.
-
-Omitting `input` never falls back to the handler's annotation — no `input` means
-the multi-argument form above.
+The schema runs after the pipeline's prelude and **before the first chunk**, on
+every transport. Over the wire a rejection is a buffered JSON `400 { issues }` —
+headers are still writable and no stream byte has been sent; in-process it
+rejects on the first pull. A stream takes one input, and extra wire arguments
+are a 400. Without `input`, the single wire argument reaches the handler
+unvalidated (dev-warned), exactly as for `serverFn`.
 
 An authorization denial surfaces on the **first pull** rather than at the call,
 which is where the wire path's pre-first-yield errors surface too. Streams run the
