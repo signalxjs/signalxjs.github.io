@@ -40,13 +40,15 @@ Schedules a background task. `options` defaults to `{}`. Idempotent — calling 
 
 Platform notes: iOS submits a fresh `BGAppRefreshTaskRequest` or `BGProcessingTaskRequest` (the OS replaces a same-identifier pending request). Android enqueues a `PeriodicWorkRequest` with an UPDATE policy when `minimumInterval > 0`, otherwise a `OneTimeWorkRequest` with a REPLACE policy. On iOS the permitted identifier must be declared at build time under `ios.bgTaskIdentifiers` in `signalx.config.ts`.
 
+Rejects with a [`SigxError`](/lynx/modules/core/api#sigxerror) (`code: 'native_error'`) when the OS refuses the request — for example an iOS identifier missing from `BGTaskSchedulerPermittedIdentifiers`.
+
 ### unregister
 
 ```ts
 unregister(taskName: string): Promise<void>
 ```
 
-Cancels a previously-registered task and forgets its persisted identifier. No-op if the task is not registered. iOS calls `BGTaskScheduler.cancel(taskRequestWithIdentifier:)`; Android calls `cancelUniqueWork`.
+Cancels a previously-registered task and forgets its persisted identifier. No-op if the task is not registered — that is a success, not an error. Rejects with a `SigxError` if the platform scheduler itself fails the cancellation. iOS calls `BGTaskScheduler.cancel(taskRequestWithIdentifier:)`; Android calls `cancelUniqueWork`.
 
 ### setHandler
 

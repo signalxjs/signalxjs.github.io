@@ -46,7 +46,7 @@ Performs a one-shot location fix and resolves with a [`LocationResult`](#locatio
 
 - **`options`** — optional [`LocationOptions`](#locationoptions) accuracy and timeout hints. Defaults to `{}`.
 - **Returns** — a Promise resolving to a `LocationResult`.
-- **Rejects** — on timeout, or when location permission is denied.
+- **Rejects** — with a `SigxError` (`code: 'native_error'`, native payload on `cause`) on timeout, when no fix is available, or when location permission is denied.
 
 Platform notes: iOS uses CoreLocation's `CLLocationManager`, and Android uses `android.location.LocationManager` (a last-known fix via `getLastKnownLocation` on `NETWORK_PROVIDER`, falling back to `GPS_PROVIDER`). The `accuracy` and `timeout` options are hints — on Android they are currently not honored.
 

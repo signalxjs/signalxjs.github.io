@@ -82,6 +82,27 @@ Worklet gotchas to keep in mind:
 
 Cross-package worklets are picked up automatically: the transform runs over all JS/TS in the background and main-thread layers, including `node_modules` and prebuilt `dist`, so any package that ships `'main thread'` directives (for example `@sigx/lynx-motion`, `@sigx/lynx-navigation`, `@sigx/lynx-gestures`) works with no allowlist.
 
+## How dynamic `import()` chunks load
+
+Code splitting on Lynx works differently from the web and from upstream Lynx, and getting the model wrong produces a blank app rather than an error, so it is worth knowing how the pieces fit:
+
+- A dynamic `import()` emits a **plain JS chunk** to `dist/static/js/async/`. At runtime it is loaded through `lynx.requireModuleAsync`.
+- `sigx dev` serves those chunks from the dev server. The `@sigx/lynx-cli` release flows — `sigx run:* --release` and `sigx prebuild --embed-bundle` — embed them into the app, and the generated native resource fetchers serve them locally, so they resolve offline.
+- **OTA updates don't carry async chunks.** `sigx updates:publish` refuses to publish while `dist/static/js/async/` is non-empty, unless you pass `--allow-async-chunks` for a setup that hosts the chunks remotely. See [Code splitting](/lynx/modules/cli/usage#code-splitting).
+- Setting your own `output.assetPrefix` hosts the chunks remotely instead. The generated app shells fall back to http(s) for chunk URLs that aren't local.
+- sigx does **not** use Lynx lazy bundles (`lynx.loadLazyBundle`). `@lynx-js/template-webpack-plugin` still writes an encoded template per dynamic import under `dist/lazy-bundle/`; those files are inert, are not embedded, and can be ignored.
+
+## Keep the `@lynx-js/*` build plugins in step
+
+`@lynx-js/template-webpack-plugin` (the encoder) and `@lynx-js/css-extract-webpack-plugin` release in lockstep and **must be upgraded together**. The encoder's `beforeEncode` / `beforeEmit` hook payloads replaced `entryNames` with `chunkGroups` at 0.14, so a css-extract too old for the encoder in use fails with `args.entryNames is not iterable`. It fails **only in `sigx dev`** — the offending hook sits behind an HMR check, so release builds stay green and hide the mismatch.
+
+`@sigx/lynx-plugin` peers the pair it is tested with: the encoder at exactly `0.15.0` and css-extract at `^0.10.1`. If you pin these yourself in an app, move them together and keep the same shape — an open `>=` floor lets an install resolve a combination that was never tested.
+
+## Troubleshooting
+
+- **`TypeError: m.loadLazyBundle is not a function`** at bundle load, and the app stays blank. A dynamic import was routed onto the Lynx lazy-bundle path, which a sigx bundle doesn't implement. `@sigx/lynx-plugin` keeps async chunks on the `requireModuleAsync` path; this means your build isn't using a `@sigx/lynx-plugin` that does — update it together with the rest of the `@sigx/lynx*` family.
+- **`args.entryNames is not iterable`** when `sigx dev` starts. Your `@lynx-js/css-extract-webpack-plugin` is too old for the installed `@lynx-js/template-webpack-plugin`. Align the two to the versions `@sigx/lynx-plugin` peers (see above) and reinstall.
+
 ## Dev server, ports, and devices
 
 In development (`NODE_ENV !== 'production'`) the plugin adds device-friendly behavior automatically — you do not need to call any extra API:
@@ -106,7 +127,7 @@ SIGX_LYNX_WATCH_POLL=1
 
 - `pluginSigxLynx()` is the only API most projects need. `LAYERS` and `applyEntry` are low-level escapes for custom build setups — see the [API reference](/lynx/modules/plugin/api).
 - The returned plugin is named `lynx:sigx` and declares `pre: ['lynx:rsbuild:plugin-api', 'lynx:config', 'lynx:rsbuild:dev']`, so it runs after Rspeedy's own config and dev plugins. That ordering is required for the dev-server URL fixes to apply.
-- The peer Lynx plugins (`@lynx-js/*` template / css-extract / runtime-wrapper / dev-transport) are declared as optional peers. Install the ones your build needs.
+- The peer Lynx plugins (`@lynx-js/*` template / css-extract / runtime-wrapper / dev-transport) are declared as optional peers. Install the ones your build needs — and [keep the encoder and css-extract in step](#keep-the-lynx-js-build-plugins-in-step).
 
 ## See also
 

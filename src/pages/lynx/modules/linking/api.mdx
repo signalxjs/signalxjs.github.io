@@ -34,7 +34,7 @@ Static facade for deep-link and URL-scheme handling: open outbound URLs, probe s
 openURL(url: string): Promise<void>
 ```
 
-Opens `url` with the system handler (browser, mail client, dialer). On iOS this calls `UIApplication.open`; on Android it fires an `Intent.ACTION_VIEW` with `FLAG_ACTIVITY_NEW_TASK`. Rejects on an invalid URL or when the URL cannot be opened. Both platforms.
+Opens `url` with the system handler (browser, mail client, dialer). On iOS this calls `UIApplication.open`; on Android it fires an `Intent.ACTION_VIEW` with `FLAG_ACTIVITY_NEW_TASK`. Rejects with a `SigxError` (`code: 'native_error'`) on an invalid URL or when nothing can open it. Both platforms.
 
 #### Linking.canOpenURL
 
@@ -93,7 +93,7 @@ Subscribes to hardware-back-press events (Android). The listener returns `true` 
 exitApp(): Promise<void>
 ```
 
-On Android, sends the foreground task to the back of the activity stack (`moveTaskToBack(true)`), keeping the JS bundle warm. On iOS, resolves as a no-op with a value of shape `{ error: 'exitApp is not supported on iOS' }` rather than rejecting. Both platforms (effective on Android only).
+On Android, sends the foreground task to the back of the activity stack (`moveTaskToBack(true)`), keeping the JS bundle warm. Rejects with a `SigxError` (`code: 'native_error'`) on iOS, where programmatic exit is not supported, and on Android when there is no hosting Activity. Both platforms (effective on Android only).
 
 ## Functions
 

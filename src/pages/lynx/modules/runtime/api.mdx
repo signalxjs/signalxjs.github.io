@@ -1202,10 +1202,14 @@ interface PageAttributes extends LynxCommonAttributes {
 
 JSX attributes for `<svg>`. Pass raw SVG markup via `content` or a URL via `src` — the element does not accept JSX children.
 
+`current-color` hands a color to `currentColor` markup on iOS and Android (Lynx 4.0+, `xelement-svg` ≥ 4.0). It does not override an explicit `fill` / `stroke`, and it is the only way to color such markup: the SVG is parsed in isolation and never inherits the host's CSS `color`. `@lynx-js/web-core`'s `x-svg` ignores it.
+
 ```ts
 interface SvgAttributes extends LynxCommonAttributes {
   content?: string;
   src?: string;
+  /** Color `currentColor` resolves to in the SVG content. Native only (Lynx 4.0+). */
+  'current-color'?: string;
   width?: number | string;
   height?: number | string;
   viewBox?: string;

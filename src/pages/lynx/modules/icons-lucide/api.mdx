@@ -57,7 +57,7 @@ export default adapter;
 As implemented by this package:
 
 - `styles` is `['']` — Lucide is single-style (one empty-string style).
-- `getGlyph('', name)` returns `{ svg }` with `viewBox="0 0 24 24"`, `fill="none"`, and a stroke placeholder the pipeline substitutes; returns `null` for unknown names or when `lucide` is not installed.
+- `getGlyph('', name)` returns `{ svg }` — standard SVG with `viewBox="0 0 24 24"`, `fill="none"` and `stroke="currentColor"`, which `Icon` colors through the `<svg>` element's `current-color` attribute on native (Lynx 4.0+) and by substitution on the web; returns `null` for unknown names or when `lucide` is not installed.
 - `getFontPath('')` always returns `null`, forcing SVG mode (Lucide has no font).
 - `listGlyphs('')` enumerates the full Lucide catalog (1000+ kebab-case names), or `[]` when `lucide` is not installed.
 
@@ -65,7 +65,7 @@ As implemented by this package:
 import lucideAdapter from '@sigx/lynx-icons-lucide';
 
 lucideAdapter.styles;                 // ['']
-lucideAdapter.getGlyph('', 'user');   // { svg: '<svg viewBox="0 0 24 24" fill="none" stroke="…">…</svg>' }
+lucideAdapter.getGlyph('', 'user');   // { svg: '<svg … viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" …>…</svg>' }
 lucideAdapter.getFontPath('');        // null (always)
 lucideAdapter.listGlyphs('');         // ['a-arrow-down', …, 'bell', …, 'search', …, 'user', …]
 ```

@@ -90,7 +90,7 @@ Use the wildcard only when names are not statically scannable — bundling the f
 ## Notes
 
 - SVG mode only. Lucide ships no font, so only SVG mode is emitted. Build-time validation that rejects `mode: 'font'` for this set arrives in v1.1.
-- Glyphs are stroked, not filled. The adapter renders each glyph with a `viewBox="0 0 24 24"`, `fill="none"`, and a stroke that the `@sigx/lynx-icons` pipeline colors — so `color` controls the stroke.
+- Glyphs are stroked, not filled. The adapter renders each glyph with a `viewBox="0 0 24 24"`, `fill="none"` and `stroke="currentColor"` — so `color` controls the stroke. Pass a concrete color (or a theme `variant`); a `var(--token)` is not evaluated.
 - Unknown names. If a name is not in the Lucide catalog, the adapter resolves nothing for that glyph; double-check the kebab-case spelling against the [Lucide catalog](https://lucide.dev/icons).
 - No native setup. This is a pure-TS adapter — no iOS/Android project changes and no permissions required.
 

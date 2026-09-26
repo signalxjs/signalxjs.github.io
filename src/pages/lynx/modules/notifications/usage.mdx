@@ -42,6 +42,8 @@ async function notify() {
 
 `schedule()` resolves with a generated id you can later pass to `cancel()`. Cancel everything pending with `cancelAll()`.
 
+`schedule()` and `setBadgeCount()` **throw** a [`SigxError`](/lynx/modules/core/api#sigxerror) (`code: 'native_error'`) when the platform reports a failure. Three calls deliberately don't: `cancel()` / `cancelAll()` resolve `false` (dismissal is advisory and idempotent), `registerForPushNotifications()` / `unregisterForPushNotifications()` resolve with an `error` field (the failure is also published on the token-error channel), and `requestPermission()` keeps returning a status.
+
 ```tsx
 import { Notifications } from '@sigx/lynx-notifications';
 

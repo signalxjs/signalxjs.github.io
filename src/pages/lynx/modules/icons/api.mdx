@@ -24,7 +24,7 @@ export const Icon = component<IconProps>(({ props }) => {
 });
 ```
 
-Props are described under [`IconProps`](#iconprops). Color is substituted into the SVG `fill` via a `__COLOR__` placeholder, not via CSS inheritance. Resolution order for the color is: explicit `props.color`, then the active theme resolver's return (see [`useIconColorResolver`](#useiconcolorresolver)), then `'currentColor'`.
+Props are described under [`IconProps`](#iconprops). Glyph markup paints from `currentColor`; on iOS/Android the resolved color is passed as the `<svg>` element's `current-color` attribute (Lynx 4.0+), and on the web it is substituted into the markup. The SVG never inherits the host's CSS `color`, and `var(--token)` is not evaluated in `current-color`, so the color must be concrete. Resolution order for the color is: explicit `props.color`, then the active theme resolver's return (see [`useIconColorResolver`](#useiconcolorresolver)), then `'currentColor'`.
 
 Platform: both.
 
@@ -81,7 +81,7 @@ export type IconProps =
 - `set` (required) — the icon set id, the value declared in `signalx.config.ts` or passed to `defineIconSet`.
 - `name` (required) — the glyph name in the set's canonical kebab-case.
 - `size` (optional) — pixel size, default `16`.
-- `color` (optional) — CSS color, default `'currentColor'`; runs through an allow-list before substitution.
+- `color` (optional) — a concrete CSS color, default `'currentColor'`; runs through an allow-list before it reaches the glyph.
 - `scaleWithText` (optional) — follow the OS text-size setting. Default `false`.
 - `class` (optional) — class string applied to the host.
 
@@ -100,7 +100,7 @@ Read the scale yourself with [`useFontScale()`](/lynx/modules/appearance/api#use
 
 ### IconColorResolver
 
-The function form held by [`useIconColorResolver`](#useiconcolorresolver). It receives the full `<Icon>` props (including any theme-augmented fields) and returns a CSS color to substitute into the SVG `fill`, or `undefined` to fall through to `props.color` / `currentColor`.
+The function form held by [`useIconColorResolver`](#useiconcolorresolver). It receives the full `<Icon>` props (including any theme-augmented fields) and returns a concrete CSS color for the glyph (resolve tokens to their palette value — `var()` is not evaluated), or `undefined` to fall through to `props.color` / `currentColor`.
 
 ```ts
 export type IconColorResolver = (
@@ -161,7 +161,7 @@ export interface IconSetDef {
 
 ### GlyphSvg
 
-Per-glyph vector data for SVG-mode rendering. `svg` is a complete `<svg>…</svg>` string with `__COLOR__` placeholders where the user's color is substituted at render time.
+Per-glyph vector data for SVG-mode rendering. `svg` is a complete, standard `<svg>…</svg>` string that paints from `currentColor` (`fill="currentColor"` for filled sets such as Font Awesome, `stroke="currentColor"` for stroked sets such as Lucide). The user's color reaches it through `current-color` on native and by substitution on the web. A legacy `__COLOR__` placeholder is still honored as an alias of `currentColor`.
 
 ```ts
 export interface GlyphSvg {
@@ -171,7 +171,7 @@ export interface GlyphSvg {
 
 ### GlyphData
 
-The glyph data an adapter returns at build time: an optional `codepoint` (which enables font-mode subsetting) plus the required `svg` string with `__COLOR__` placeholders.
+The glyph data an adapter returns at build time: an optional `codepoint` (which enables font-mode subsetting) plus the required `svg` string, standard SVG painting from `currentColor`.
 
 ```ts
 export interface GlyphData {

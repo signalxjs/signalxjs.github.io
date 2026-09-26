@@ -69,7 +69,7 @@ export default adapter;
 Behavior:
 
 - `styles` — `['solid', 'regular', 'brands']`.
-- `getGlyph(style, name)` — `name` is kebab-case and is converted to FA's PascalCase export (`chevron-right` → `faChevronRight`). Returns `{ codepoint, svg }` where `svg` carries the literal token `__COLOR__` in its `fill` (substituted downstream by `Icon`'s color resolver). Returns `null` for an unknown style/glyph or an unparseable codepoint.
+- `getGlyph(style, name)` — `name` is kebab-case and is converted to FA's PascalCase export (`chevron-right` → `faChevronRight`). Returns `{ codepoint, svg }` where `svg` is standard SVG with `fill="currentColor"` — `Icon` supplies the resolved color through the `<svg>` element's `current-color` attribute on native (Lynx 4.0+) and substitutes it on the web. Returns `null` for an unknown style/glyph or an unparseable codepoint.
 - `getFontPath(style)` — absolute path to the FA webfonts TTF (`solid` → `fa-solid-900.ttf`, `regular` → `fa-regular-400.ttf`, `brands` → `fa-brands-400.ttf`), resolved from `@fortawesome/fontawesome-free/webfonts`; `null` for an unknown style or if the package can't be resolved.
 - `listGlyphs(style)` — every kebab-case glyph name for the style. The solid catalog is ~1,900 names; brands is 400+. Returns `[]` for unknown styles.
 - Module loading is cached per style; a missing optional package is caught and cached as `null`.

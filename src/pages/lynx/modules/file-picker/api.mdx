@@ -49,7 +49,8 @@ FilePicker.pick(options?: FilePickerOptions): Promise<FilePickerResult>
 ```
 
 - `options` — optional [`FilePickerOptions`](#filepickeroptions). Defaults to `{}`: single selection, any file type, copied into app storage.
-- Returns a [`FilePickerResult`](#filepickerresult). The promise resolves with `cancelled: true` if the user dismisses the picker — it does not reject. Starting a new `pick` resolves any prior pending pick as cancelled.
+- Returns a [`FilePickerResult`](#filepickerresult). The promise resolves with `cancelled: true` if the user dismisses the picker — it does not reject. Starting a new `pick` resolves any prior pending pick as cancelled, as does a pick cut short by Activity teardown on Android.
+- Rejects with a [`SigxError`](/lynx/modules/core/api#sigxerror) (`code: 'native_error'`) when the picker could not be opened — the Android launcher isn't registered, or iOS has no view controller to present from.
 
 The result is normalized before it resolves: native `cancelled`/`canceled` spellings are both accepted, assets without a `uri` are dropped, bare absolute paths (`/...`) are prefixed with `file://` (a `content://` URI is left untouched), and each asset is guaranteed a `name` (falls back to the last percent-decoded URI segment), `mimeType` (falls back to `application/octet-stream`), and `size` (falls back to `0`).
 

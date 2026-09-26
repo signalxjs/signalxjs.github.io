@@ -38,6 +38,8 @@ await Background.register('refresh-feed', {
 });
 ```
 
+`register` rejects with a [`SigxError`](/lynx/modules/core/api#sigxerror) (`code: 'native_error'`) when the OS refuses the request — most often an iOS identifier missing from `ios.bgTaskIdentifiers` (see below), the most common setup mistake with this package. Let that surface during development rather than swallowing it: a task whose registration failed never fires.
+
 `register` is idempotent. Calling it twice with the same `taskName` updates the existing request rather than creating a duplicate (iOS replaces the same-identifier request, Android uses an UPDATE/REPLACE policy), so cold-start wiring is safe to re-run.
 
 The handler return value drives task completion. If it resolves, native marks the run a success; if it throws or rejects, native marks it a failure. Keep the work inside the platform time budget — roughly 30s for an iOS `fetch` task and up to ~9 minutes on Android before the worker self-times-out.

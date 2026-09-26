@@ -71,6 +71,47 @@ function Feed({ items }: { items: string[] }) {
 
 `ScrollView` props: `direction` (`'vertical'` default or `'horizontal'`), `height`, `width`, `flex`, `showScrollbar`, `bounces` and `class`.
 
+### Responsive props
+
+Every style prop on `Row`, `Col`, `Center`, `Spacer` and `ScrollView` also accepts a per-breakpoint object, keyed by the [window size classes](/lynx/modules/core/usage#adapting-layout-to-the-window-size) from `@sigx/lynx-core` — `initial` (the `compact` base), `medium`, `expanded`, `large`, `xlarge`:
+
+```tsx
+import { Row, Col } from '@sigx/lynx-zero';
+
+function Detail() {
+    return (
+        <Row
+            direction={{ initial: 'column', expanded: 'row' }}   // stacked on phones, side by side from 840dp
+            gap={{ initial: 8, large: 16 }}
+            padding={{ initial: 16, expanded: 32 }}
+        >
+            <Col flex={{ expanded: 1 }}>{/* list */}</Col>
+            <Col flex={{ expanded: 2 }}>{/* detail */}</Col>
+        </Row>
+    );
+}
+```
+
+Resolution is **mobile-first**: a key applies at its breakpoint and every wider one, so `{ initial: 16, expanded: 32 }` is 16 on phones and small tablets and 32 from 840dp up. A value that defines nothing at or below the active class resolves to `undefined` and behaves like an omitted prop — `{ expanded: 32 }` adds no padding on a phone, rather than forcing a zero.
+
+`Row` and `Col` take a `direction` prop for the stack-on-phone / side-by-side-on-tablet flip. Prefer it to `{wide ? <Row/> : <Col/>}`: swapping the component type remounts the whole subtree on every rotation, losing child state, while `direction` restyles in place.
+
+Resolution is plain JS off `useWidthClass()` — no Tailwind, class names or CSS pipeline — so it behaves identically under every design system and under none. It has to be: the primitives emit inline styles, and a stylesheet `@media` rule can't override an inline style. Responsive props follow **width only**; branch on height with `useHeightAtLeast()`.
+
+There is no `useResponsive()` hook. To resolve your own values, read the width class once in setup and call `resolveResponsive()` in render:
+
+```tsx
+import { component, useWidthClass } from '@sigx/lynx';
+import { resolveResponsive, type Responsive } from '@sigx/lynx-zero';
+
+const cols: Responsive<number> = { initial: 1, medium: 2, expanded: 3 };
+
+export const Gallery = component(() => {
+    const cls = useWidthClass();
+    return () => <Grid columns={resolveResponsive(cols, cls.value) ?? 1} />;
+});
+```
+
 ## The theme engine
 
 A theme is a named palette plus optional radius and size overrides. The registry starts **empty** — a DS seeds it at module load by calling `registerTheme()`. Insertion order matters: the first registered theme of a variant is the follow-system default for that variant, and the very first registered theme is the last-resort fallback.
@@ -148,6 +189,35 @@ function CheckoutScreen() {
     return <view>{/* … */}</view>;
 }
 ```
+
+## Design-system shells
+
+A compiled design system for Lynx ships as a **shell package** — `@sigx/lynx-zero-daisyui` for daisyUI. A shell writes no components of its own: it carries the design system's compiled class-grammar CSS and, when imported, seeds `@sigx/lynx-zero`'s registries.
+
+```bash
+pnpm add @sigx/lynx-zero @sigx/lynx-zero-daisyui
+```
+
+```tsx
+import '@sigx/lynx-zero-daisyui';                 // seeds themes + axis defaults
+import '@sigx/lynx-zero-daisyui/css/index.css';   // the compiled skin
+import { ZeroRoot } from '@sigx/lynx-zero';
+
+defineApp(() => () => (
+    <ZeroRoot>
+        <App />
+    </ZeroRoot>
+));
+```
+
+Importing the shell registers two things at load, and app authors need no further wiring:
+
+- **Themes** — the design system's themes (five for daisyUI: light, dark, dim, nord, sunset), so selection, light/dark pairing and follow-system work straight away.
+- **Axis defaults** — the default `variant` / `size` / `color` the design system declares for each component. A `<Button>` with no props renders as the design system's default (solid, primary, `md` for daisyUI) instead of unstyled. `@sigx/lynx-zero-daisyui` also exports the generated table as `DAISY_AXIS_DEFAULTS`.
+
+Explicit props always win over a registered default.
+
+**Authoring a design system for the Lynx target?** Declare your defaults as `defaultVariants` in each [recipe](/zero/docs/recipes) — that is what reaches the manifest's `components.<scope>.defaults` and, from there, the shell's [`registerAxisDefaults`](/lynx/modules/zero/api#registeraxisdefaults) call. The Lynx target emits no `:not()` default-twin selectors, so an axis without a declared default stamps nothing when the prop is unset, and every rule keyed on it stays dead.
 
 ## Authoring a design system
 

@@ -26,13 +26,13 @@ if (await Linking.canOpenURL('mailto:hi@example.com')) {
 }
 ```
 
-`openURL` rejects on an invalid URL or when nothing can handle it, so wrap it in `try`/`catch`:
+`openURL` rejects with a [`SigxError`](/lynx/modules/core/api#sigxerror) (`code: 'native_error'`) when the OS refuses to open the URL — it is invalid, or no installed app handles the scheme. That makes the try-the-app, fall-back-to-the-web pattern work:
 
 ```tsx
 try {
-  await Linking.openURL(userSuppliedUrl);
-} catch (err) {
-  console.warn('Could not open URL', err);
+  await Linking.openURL('twitter://user?screen_name=sigx');
+} catch {
+  await Linking.openURL('https://twitter.com/sigx');
 }
 ```
 
@@ -111,7 +111,7 @@ This subpath has optional peer dependencies on `@sigx/router` and `sigx`.
 
 ## Android hardware back button
 
-`BackHandler` handles the Android hardware back press and lets you send the app to the background. Both behaviors are Android-only at runtime — on iOS the listener never fires and `exitApp` resolves as a no-op.
+`BackHandler` handles the Android hardware back press and lets you send the app to the background. Both behaviors are Android-only at runtime — on iOS the listener never fires and `exitApp` rejects.
 
 ```tsx
 import { BackHandler } from '@sigx/lynx-linking';
@@ -131,10 +131,12 @@ sub.remove();
 To back out of the app while keeping the JS bundle warm:
 
 ```tsx
-await BackHandler.exitApp(); // Android only; no-op on iOS
+await BackHandler.exitApp().catch(() => {
+  // rejects on iOS, and on Android with no hosting Activity
+});
 ```
 
-`exitApp` calls `moveTaskToBack` rather than terminating the process. On iOS it is a no-op — the promise resolves with a value of shape `{ error: 'exitApp is not supported on iOS' }` rather than rejecting (Apple forbids programmatic termination).
+`exitApp` calls `moveTaskToBack` rather than terminating the process. On iOS it always **rejects** with a `SigxError` (`code: 'native_error'`) — Apple forbids programmatic termination. Always consume the rejection: an unhandled one is fatal on Lynx, not a warning.
 
 ## Native setup notes
 

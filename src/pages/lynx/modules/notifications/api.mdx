@@ -19,8 +19,8 @@ The package exposes a single `Notifications` singleton plus four standalone even
 ```ts
 const Notifications: {
   schedule(content: NotificationContent, options?: ScheduleOptions): Promise<string>;
-  cancel(notificationId: string): Promise<void>;
-  cancelAll(): Promise<void>;
+  cancel(notificationId: string): Promise<boolean>;
+  cancelAll(): Promise<boolean>;
   requestPermission(): Promise<PermissionResponse>;
   getPermissionStatus(): Promise<PermissionResponse>;
   registerForPushNotifications(): Promise<RegisterPushResult>;
@@ -46,25 +46,29 @@ Singleton object exposing all local and remote push APIs. It is a thin JS wrappe
 schedule(content: NotificationContent, options?: ScheduleOptions): Promise<string>
 ```
 
-Schedules a local notification. Resolves with the generated notification id (a UUID) for use with `cancel()`. `options` defaults to `{}`.
+Schedules a local notification. Resolves with the generated notification id (a UUID) for use with `cancel()`. `options` defaults to `{}`. Rejects with a [`SigxError`](/lynx/modules/core/api#sigxerror) (`code: 'native_error'`) when the platform can't schedule it.
 
 Platform notes: iOS honors `options.delay` (in seconds); when omitted it fires after ~0.1s. Android fires immediately and does not read `delay`. `options.repeat` is not honored on either platform.
 
 ### cancel
 
 ```ts
-cancel(notificationId: string): Promise<void>
+cancel(notificationId: string): Promise<boolean>
 ```
 
-Cancels a pending scheduled notification with this id **and** dismisses any *delivered* tray entry — local or remote push — whose `data.notification_id` matches it. No-op when nothing matches. Put a stable per-conversation `notification_id` in the push payload so a message read on another device can clear its tray entry here; the same id keys tap responses, and setting APNs `apns-collapse-id` to it lets iOS replace in place (Android same-id pushes always replace).
+Cancels a pending scheduled notification with this id **and** dismisses any *delivered* tray entry — local or remote push — whose `data.notification_id` matches it. No-op when nothing matches.
+
+Resolves `false` when the native side could not process the call (missing id, platform error) — a failure here is **not** thrown. Dismissal is advisory and idempotent and usually runs from cleanup paths, where a throw would abort unrelated work. `true` does not imply that a matching entry existed.
+
+Put a stable per-conversation `notification_id` in the push payload so a message read on another device can clear its tray entry here; the same id keys tap responses, and setting APNs `apns-collapse-id` to it lets iOS replace in place (Android same-id pushes always replace).
 
 ### cancelAll
 
 ```ts
-cancelAll(): Promise<void>
+cancelAll(): Promise<boolean>
 ```
 
-Cancels all pending notifications scheduled by this app, and clears the app's delivered tray entries.
+Cancels all pending notifications scheduled by this app, and clears the app's delivered tray entries. Like `cancel`, a failure resolves `false` rather than throwing.
 
 ### requestPermission
 
@@ -90,6 +94,8 @@ registerForPushNotifications(): Promise<RegisterPushResult>
 
 Triggers remote-push registration. iOS dispatches APNs registration and resolves with `{ dispatched: true }` — the real token arrives via `addTokenListener`. Android resolves directly with `{ token, platform: 'fcm' }` and also publishes the token on the token channel.
 
+A registration failure does **not** throw: it resolves with `{ error }`, because the same failure is already published on the token-error channel (`addTokenErrorListener`) — throwing as well would make callers handle it twice.
+
 Platform note: the iOS simulator cannot register for APNs; use a real device.
 
 ### unregisterForPushNotifications
@@ -106,7 +112,7 @@ Detaches from APNs/FCM. iOS resolves `{ ok: true }` after `unregisterForRemoteNo
 setBadgeCount(count: number): Promise<void>
 ```
 
-iOS: sets the app-icon badge (iOS 16+ uses `UNUserNotificationCenter.setBadgeCount`, older falls back to `applicationIconBadgeNumber`). Android: no-op — there is no portable badging API, and it does not clear notifications (use `cancelAll()`).
+iOS: sets the app-icon badge (iOS 16+ uses `UNUserNotificationCenter.setBadgeCount`, older falls back to `applicationIconBadgeNumber`). Android: no-op — there is no portable badging API, and it does not clear notifications (use `cancelAll()`). Rejects with a `SigxError` (`code: 'native_error'`) if the platform fails to set the badge.
 
 ### getBadgeCount
 

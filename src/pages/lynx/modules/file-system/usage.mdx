@@ -32,7 +32,7 @@ No native setup is needed. The module is scoped to the per-app sandbox, so there
 
 ## Persisting JSON data
 
-The document directory survives app updates and is included in iCloud / Android backups — use it for data that must outlive the session. Check for a file with `getInfo` before reading so a missing file does not throw.
+The document directory survives app updates and is included in iCloud / Android backups — use it for data that must outlive the session. Check for a file with `getInfo` before reading so a missing file does not throw: a missing path resolves a `FileInfo` with `exists: false` and every other field zeroed.
 
 ```tsx
 import { FileSystem } from '@sigx/lynx-file-system';
@@ -91,7 +91,7 @@ For large media or uploads, do not read the bytes into JS. Pass the file URI fro
 
 ## Deleting files and handling errors
 
-`deleteFile` removes a file. Behavior for a missing file differs across platforms — iOS rejects, Android resolves — so guard with `getInfo` first if you do not want a rejection, and wrap calls that touch user files in `try` / `catch`.
+`deleteFile` removes a file the app owns. Deleting something that isn't there is a no-op on both platforms; a real failure — a read-only path, or a non-empty directory on Android (iOS removes those recursively) — rejects. A picker's `content://` URI is not a path the app owns, so deleting one rejects on Android rather than reporting a success that deleted nothing; `file://` URIs are fine. Wrap calls that touch user files in `try` / `catch`.
 
 ```tsx
 import { FileSystem } from '@sigx/lynx-file-system';
@@ -99,16 +99,13 @@ import { FileSystem } from '@sigx/lynx-file-system';
 const path = `${FileSystem.getDocumentDirectory()}/draft.txt`;
 
 try {
-  const info = await FileSystem.getInfo(path);
-  if (info.exists) {
-    await FileSystem.deleteFile(path);
-  }
+  await FileSystem.deleteFile(path);
 } catch (err) {
   console.error('Could not delete draft:', err);
 }
 ```
 
-Native read failures surface as rejected Promises. `readFileBase64` normalizes the native error into a thrown `Error` prefixed with `[@sigx/lynx-file-system]`; the other async methods reject with the underlying native error.
+Every async method throws on failure — a missing file for `readFile`, an unwritable path or a full volume for `writeFile`, a stat that fails for `getInfo`. The rejection is a [`SigxError`](/lynx/modules/core/api#sigxerror) with `code: 'native_error'`, a message prefixed `[@sigx/lynx-file-system]` and the raw native payload on `cause`; a build without the native module throws `'module_unavailable'` instead. See [Handling errors](/lynx/modules/core/usage#handling-errors).
 
 ## Notes
 

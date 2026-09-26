@@ -38,7 +38,7 @@ const SecureStorage: {
 };
 ```
 
-Encrypted at-rest key-value storage backed by the iOS Keychain and, on Android, the Keystore plus EncryptedSharedPreferences. The CRUD vocabulary (`setItem` / `getItem` / `removeItem` / `clear`) is the same as [`@sigx/lynx-storage`](/lynx/modules/storage/api/), so code can swap between the two by durability need without renaming calls. Platform: both. Every method except `isAvailable` returns a Promise and rejects on native failure, with messages prefixed `[@sigx/lynx-secure-storage]`.
+Encrypted at-rest key-value storage backed by the iOS Keychain and, on Android, the Keystore plus EncryptedSharedPreferences. The CRUD vocabulary (`setItem` / `getItem` / `removeItem` / `clear`) is the same as [`@sigx/lynx-storage`](/lynx/modules/storage/api/), so code can swap between the two by durability need without renaming calls. Platform: both. Every method except `isAvailable` returns a Promise and rejects on failure with a [`SigxError`](/lynx/modules/core/api#sigxerror), messages prefixed `[@sigx/lynx-secure-storage]`. Branch on its `code`: `'invalid_argument'` for a bad key or value, `'native_error'` for a failure the platform reported (raw payload on `cause`), and `'module_unavailable'` when the native module isn't linked. `hasKey` is the one exception to the argument guard — an unusable key resolves `false` instead of throwing `'invalid_argument'`.
 
 ## Methods
 
@@ -50,9 +50,9 @@ setItem(key: string, value: string, opts?: SecureStorageSetOptions): Promise<voi
 
 Store an encrypted string, overwriting any existing value for `key`.
 
-- **`key`** — non-empty string. Throws if empty or non-string.
-- **`value`** — the string to encrypt. Throws if non-string.
-- **`opts`** — optional [`SecureStorageSetOptions`](#securestoragesetoptions). With `requireBiometric: true`, every future `getItem` of this key prompts for biometrics; `setItem` itself never prompts.
+- **`key`** — non-empty string. Throws `'invalid_argument'` if empty or non-string.
+- **`value`** — the string to encrypt. Throws `'invalid_argument'` if non-string.
+- **`opts`** — optional [`SecureStorageSetOptions`](#securestoragesetoptions). With `requireBiometric: true`, every future `getItem` of this key prompts for biometrics; `setItem` itself never prompts, on either platform.
 - **Returns** — `Promise<void>` that resolves on success and rejects on a native error.
 - **Platform** — both.
 
@@ -66,7 +66,7 @@ Read an encrypted string.
 
 - **`key`** — non-empty string. Throws if empty.
 - **`opts`** — optional [`SecureStorageGetOptions`](#securestoragegetoptions). Supply `biometricPrompt` when the key was stored with `requireBiometric: true`; the OS shows a prompt before returning.
-- **Returns** — `Promise<string | null>`: the decrypted value, or `null` if the key is absent. Rejects on a native error such as a cancelled biometric prompt (`userCancel`) or failed authentication (`authenticationFailed`).
+- **Returns** — `Promise<string | null>`: the decrypted value, or `null` if the key is absent. Rejects with `'native_error'` on a failure such as a cancelled biometric prompt (`userCancel`) or failed authentication (`authenticationFailed`). A gated read raises the OS prompt itself — don't call `Biometric.authenticate()` before it.
 - **Platform** — both.
 
 ### SecureStorage.removeItem
@@ -125,13 +125,15 @@ interface SecureStorageSetOptions {
    * When true, the OS requires biometric authentication on every
    * subsequent `getItem` of this key.
    * - iOS: stored with kSecAccessControlBiometryCurrentSet.
-   * - Android: key generated with setUserAuthenticationRequired(true).
+   * - Android: a per-key Keystore RSA pair generated with
+   *   setUserAuthenticationRequired(true); the value is encrypted with a
+   *   one-shot AES key wrapped by the public half, so writing never prompts.
    */
   requireBiometric?: boolean;
 }
 ```
 
-Options for [`setItem`](#securestoragesetitem). `requireBiometric` gates this individual key behind the OS biometric prompt on read. Platform: both.
+Options for [`setItem`](#securestoragesetitem). `requireBiometric` gates this individual key behind the OS biometric prompt on read. Adding or removing a biometric enrollment invalidates the key on both platforms, so the value must be written again. Platform: both.
 
 ### SecureStorageGetOptions
 

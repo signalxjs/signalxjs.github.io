@@ -127,6 +127,36 @@ const storage = getModule('Storage');
 storage.setItem('token', 'abc');
 ```
 
+## Handling errors
+
+Every `@sigx/lynx-*` module fails the same way: it **throws** a [`SigxError`](/lynx/modules/core/api#sigxerror), and the error's `code` tells you which of two things went wrong. Branch on `code`, never on the message — the message is for humans and may change.
+
+| `code` | Raised by | Means |
+| --- | --- | --- |
+| `'module_unavailable'` | `getModule`, `callSync`, `callAsync`, `guardModule` | The native module isn't in this build. The message names the package to install and points at `sigx prebuild`. |
+| `'native_error'` | `unwrapNative`, `unwrapNativeVoid` | The platform reported a failure. The raw native payload is on `cause`. |
+
+A few packages add codes of their own on top of these two — `@sigx/lynx-secure-storage`, for example, raises `'invalid_argument'` for an empty key or a non-string value. Each `SigxError` also carries `package` (the short name of the package that raised it, such as `'lynx-camera'`) and `cause`; `isSigxError(e)` narrows `unknown` in a `catch` block.
+
+```ts
+import { isSigxError } from '@sigx/lynx-core';
+import { Location } from '@sigx/lynx-location';
+
+try {
+  const fix = await Location.getCurrentPosition();
+  showFix(fix);
+} catch (e) {
+  if (isSigxError(e) && e.code === 'native_error') showToast('Location unavailable');
+  else throw e;
+}
+```
+
+Don't catch `'module_unavailable'` to decide whether a feature exists. A build without the module never recovers at runtime, so feature-detect with the module's `isAvailable()` (or `isModuleAvailable`) and hide the UI instead.
+
+**A cancel is not an error.** Dismissing the camera, the file picker or the image picker resolves `{ cancelled: true }` — as does a pick superseded by a newer one or cut short when the Activity is torn down. Only a picker that could not open at all throws.
+
+A handful of methods deliberately report failure as a value instead of throwing, because a throw would do more harm than good at their call sites. Each module page documents its exceptions — for instance `Notifications.cancel()` / `cancelAll()` resolve `false`, and `registerForPushNotifications()` resolves `{ error }` because the failure is already published on the token-error channel.
+
 ## Permission-using modules
 
 Modules that touch protected APIs (camera, location, notifications, …) share a common permission shape. Type your wrapper's permission methods with `PermissionResponse` and `PermissionStatus` so callers can branch consistently across every module.
@@ -210,6 +240,46 @@ switch (info.platform) {
 ```
 
 `screenWidth` / `screenHeight` are density-independent points (dp/pt) on both platforms, and `screenScale` is the dp→px multiplier — physical pixels ≈ `info.screenWidth * info.screenScale`. The snapshot is one-shot: call `getInfo()` again to refresh. Guard with `DeviceInfo.isAvailable()` in builds where the native module may be absent.
+
+## Adapting layout to the window size
+
+Tablets, foldables, iPad Split View and Stage Manager, and a rotated phone all change how much room your layout has. **Window size classes** turn the live window size into coarse buckets you can branch a layout on. They are derived from [`useScreen()`](/lynx/modules/core/api#usescreen), so they follow the LynxView's own bounds — a narrow Split View pane reads as narrow.
+
+| Class | Width | Height |
+| --- | --- | --- |
+| `compact` | < 600 | < 480 |
+| `medium` | ≥ 600 | ≥ 480 |
+| `expanded` | ≥ 840 | ≥ 900 |
+| `large` | ≥ 1200 | — |
+| `xlarge` | ≥ 1600 | — |
+
+The thresholds are Material's, in dp — the same unit Lynx lengths are already in — and are exported as `Breakpoint` constants. An iPad Air 13" is `expanded` in portrait and `large` in landscape.
+
+The primary read is a predicate. `useWidthAtLeast(dp)` flips exactly once, as the threshold is crossed:
+
+```tsx
+import { component, Breakpoint, useWidthAtLeast, useHeightAtLeast } from '@sigx/lynx';
+
+export const Shell = component(() => {
+  const wide = useWidthAtLeast(Breakpoint.WIDTH_EXPANDED);
+  const tall = useHeightAtLeast(Breakpoint.HEIGHT_MEDIUM);
+
+  // A side rail only when there is room on BOTH axes.
+  return () => (wide.value && tall.value ? <RailLayout /> : <BottomBarLayout />);
+});
+```
+
+Use `useWidthClass()` / `useHeightClass()` when you want the bucket name itself, and `widthClassOf(dp)` / `heightClassOf(dp)` to bucket a number you already have. Inside a `'main thread'` worklet, use `useWidthClassMT()` / `useHeightClassMT()`, or compare `useScreenMT().width` against a `Breakpoint` directly.
+
+Three things to get right:
+
+- **Size classes for layout decisions, `useScreen()` for pixel math.** `useScreen()` changes on every pixel, so a layout that branches on it re-renders continuously while a Stage Manager divider is dragged. Size classes only notify when a threshold is crossed. Reach for `useScreen()` when you genuinely need the number — a column count, say.
+- **Branch on height, not just width.** An iPhone 15 Pro in landscape is 852×393: its width reads `expanded`, the same bucket as an iPad in portrait, while its height is `compact`. A width-only rule puts a vertical nav rail on a 393dp-tall screen.
+- **`Platform.isPad` is not a layout signal.** It is device identity, read once at load: it stays `true` for an iPad squeezed into a narrow Split View pane and is `false` on every Android tablet.
+
+Pass a constant `dp` to `useWidthAtLeast` / `useHeightAtLeast`. The hooks keep one computed per distinct threshold for the life of the app, so a threshold derived per render would accumulate them.
+
+For per-breakpoint layout props (`padding={{ initial: 16, expanded: 32 }}`) and a `direction` prop that flips a row to a column without remounting, see [responsive props in `@sigx/lynx-zero`](/lynx/modules/zero/usage#responsive-props).
 
 ## Native setup
 
