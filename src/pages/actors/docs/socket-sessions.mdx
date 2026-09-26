@@ -66,6 +66,7 @@ socket has none of that, so the session states them:
 | `maxConcurrent` | `256` | most calls in flight at once; excess **fails the call with 429**, never the connection. `0` disables |
 | `maxSubscriptions` | `256` | most live subscriptions this connection may hold |
 | `pingMs` | `30_000` | outbound keepalive after this much send-silence. `0` disables |
+| `maxBufferedBytes` | `0` (off) | send-buffer cap; over it, the heaviest subscription is shed with a **503** frame — see [Shedding a slow consumer](#shedding-a-slow-consumer). Needs `bufferedBytes` |
 
 An unparseable message closes **1003**.
 
