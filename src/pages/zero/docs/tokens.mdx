@@ -226,7 +226,8 @@ The same ramp reaches the app, so app CSS, app JS and recipes agree on every pix
   it into your own stylesheet when a build step resolves custom media
   (postcss-custom-media, Lightning CSS `drafts.customMedia`), and write
   `@media (--below-md) { … }`.
-- `@sigx/zero`'s `useMediaQuery({ above | below })` resolves against the same values. See
+- `@sigx/zero`'s `useMediaQuery({ above: 'md' })` / `useMediaQuery({ below: 'lg' })` resolves
+  against the same values. See
   [Breakpoints in JS](/zero/docs/theming/#breakpoints-in-js).
 
 ## Declared contrast pairs
