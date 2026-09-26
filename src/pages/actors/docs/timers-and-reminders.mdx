@@ -78,7 +78,8 @@ actor cleared while its dispatch was failing may still be delivered once more, a
 that timed out *after* `onReminder` had started is retried. If the work must not be repeated,
 record progress in state and check it first.
 
-Every failed attempt is counted in `HostStats.remindersUndelivered` — in `host.stats()`, the
+Every failed attempt a provider reports (the built-in ones all do — see
+[writing your own](#writing-your-own)) is counted in `HostStats.remindersUndelivered` — in `host.stats()`, the
 [ops endpoint](/actors/docs/ops-endpoint) snapshot, the [`metrics()`](/actors/docs/metrics)
 gauges and each host's entry in [cluster stats](/actors/docs/cluster-stats). It is monotonic
 for the host's lifetime; a value that keeps climbing is a target that never comes back.
