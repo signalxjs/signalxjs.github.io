@@ -53,7 +53,7 @@ user.mutate((u) => ({ ...u, name }));   // optimistic write-through
 The pack is additive — it never changes the rules you already rely on:
 
 - Reads and actions **without** a `cache` option keep core's default-engine behavior verbatim (the pack delegates to it) — including invalidation, which is core's own key-addressable refresh and reaches an uncached read just the same. What the pack adds on top is freshness, `staleTime` and retention.
-- Keys are core's canonical identities — strings, or tuples as canonical JSON — so the cache store and core's SSR blob speak the same language.
+- Keys are core's canonical identities — strings, or tuples as canonical JSON (object elements key-sorted, so property order never matters) — so the cache store and core's SSR blob speak the same language.
 - **SSR and hydration**: the pack adopts `window.__SIGX_ASYNC__` as its *initial* cache state, so server-fetched values hydrate as fresh entries and nothing refetches on load. Server rendering itself is untouched — the SSR provider seam outranks any engine.
 - Core's pinned guarantees hold: `loading === (state === 'pending')`, value and error are mutually exclusive, `refresh()` / `run()` never reject.
 

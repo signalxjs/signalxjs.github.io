@@ -20,7 +20,7 @@ You rarely install this directly — the `sigx` umbrella re-exports it:
 
 ```bash
 pnpm add sigx                # reactivity + runtime-core + runtime-dom
-pnpm add @sigx/runtime-dom   # direct, for custom setups
+pnpm add @sigx/runtime-dom @sigx/runtime-core @sigx/reactivity   # direct, for custom setups (runtime-core and reactivity are peers of runtime-dom)
 ```
 
 ## What it does

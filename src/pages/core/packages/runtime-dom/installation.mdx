@@ -13,8 +13,10 @@ order: 20
 ## Install the package
 
 ```bash
-pnpm add @sigx/runtime-dom
+pnpm add @sigx/runtime-dom @sigx/runtime-core @sigx/reactivity
 ```
+
+`@sigx/runtime-dom` peers on **`@sigx/reactivity`** and **`@sigx/runtime-core`** (`^1.0.0`). Most apps install `sigx` instead, which depends on all three.
 
 ## Verify
 

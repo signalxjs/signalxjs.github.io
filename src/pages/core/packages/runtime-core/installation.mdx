@@ -13,8 +13,14 @@ order: 20
 ## Install the package
 
 ```bash
-pnpm add @sigx/runtime-core
+pnpm add @sigx/runtime-core @sigx/reactivity
 ```
+
+`@sigx/runtime-core` peers on **`@sigx/reactivity`** (`^1.0.0`), so install both — or install `sigx`, which brings both in. A **library** declares them under `peerDependencies` rather than `dependencies`, so it resolves to the app's copy; see [the install shape](/core/docs/stability#the-install-shape--the-app-owns-the-copy).
+
+## One copy per page
+
+The current-instance slot, the app contexts and the DI tokens live in this package, so a realm must hold exactly one copy of it — the same singleton rule as `@sigx/reactivity`. A second copy evaluating in the same realm **throws in development** (`[sigx] Two copies of @sigx/runtime-core are loaded: <version> at <url> and <version> at <url>.`) and warns once in production. The cause is always an install with two resolutions — two versions in the lockfile, or a library that bundled its own copy — and the fix is the same: the app installs `sigx` once, libraries peer on it. See [Stability & versioning](/core/docs/stability#two-copies-of-sigxreactivity-are-loaded).
 
 ## Verify
 

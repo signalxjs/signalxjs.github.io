@@ -281,6 +281,27 @@ Three things to get right:
   handler — dropping `onClick` while disabled — keeps destructuring it out and
   calling it itself.
 
+### Element-valued props
+
+A prop can hold an element — a `fallback`, an `icon`, an array of items. `ctx.props` hands such a prop back as the very object `jsx()` created, not wrapped in the reactive props proxy: the renderer writes its bookkeeping onto vnodes and compares them by identity, and a proxied vnode would corrupt both. Replacing the prop still re-renders, because the read itself goes through the props signal.
+
+```tsx
+type CardProps = Define.Prop<'icon', JSXElement> & Define.Slot<'default'>;
+
+const Card = component<CardProps>(({ props, slots }) => {
+    return () => <div class="card">{props.icon}{slots.default?.()}</div>;
+});
+
+<Card icon={<StarIcon />}>Saved</Card>
+```
+
+The runtime recognises **its own** vnodes — those created by `jsx()` / TSX, or by calling a component factory directly — by an internal brand, not by their shape:
+
+- A plain object of yours that happens to have `type`, `props`, `children` and `dom` keys — a CMS node, an editor AST — is ordinary data: it stays reactive and re-renders like any other prop.
+- A vnode literal you assemble by hand (`{ type: Comp, props, key: null, children: [], dom: null }`) is **not** a runtime vnode. Passed as a prop it reaches the renderer as a proxy, which it must not. Build elements through `jsx()` or by calling the factory instead.
+
+The brand is not exported, and its spelling is not public API.
+
 ## Slots
 
 Slots allow parent components to inject content:

@@ -112,7 +112,23 @@ Set `devStyles: false` only when your template already ships a stylesheet link o
 
 This is **dev-only**. Production has always emitted the built manifest's real `<link>` tags via [`collectAssets`](/vite/docs/api), so it was never affected.
 
-For **production**, the counterpart is `createRequestHandler` from `@sigx/server-renderer/node`, fed your built `entry-server.js` and manifest — see [Building a full SSR app](/server/packages/server-renderer/full-app).
+## In production
+
+**`@sigx/vite` is a build tool and a devDependency — the running production server never imports it.** A server that did `await import('@sigx/vite/ssr')` in production booted only while dev dependencies happened to be installed; `npm ci --omit=dev` or a slim Docker layer breaks it. Everything the document side needs is emitted by the build as [`virtual:sigx-app`](/vite/docs/deploy-adapters#virtualsigx-app), materialized for Node as `dist/server/sigx-app.js`:
+
+```ts
+// server.mjs — production
+const { template, assets, assetsFor } = await import(
+    new URL('./dist/server/sigx-app.js', import.meta.url).href
+);
+
+assets;                                           // preloads for every client entry, precomputed
+assetsFor(ROUTE_MODULES[url] ?? []);              // preloads for one route's modules
+```
+
+`assetsFor(entries, base?)` is `collectAssets` over the inlined client manifest, with the resolver body baked into the module — so the module imports nothing on any platform. `base` defaults to the build's `config.base`. Dev keeps `createDevRequestHandler` from `@sigx/vite/ssr` (above), which resolves template and assets live.
+
+The request handler itself is `createRequestHandler` from `@sigx/server-renderer/node`, fed your built `entry-server.js` — see [Building a full SSR app](/server/packages/server-renderer/full-app).
 
 ## Where to go next
 

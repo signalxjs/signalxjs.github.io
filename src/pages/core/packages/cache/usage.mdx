@@ -92,7 +92,7 @@ const Results = component((ctx) => {
 
 ## Invalidating after a write
 
-`invalidate()` drops an entry's freshness and refetches it for every mounted consumer. Call it directly on a read, or — more usefully — declare it on the action that made the write. Action `invalidates` accepts exact keys **or tuple prefixes**: `['users']` matches every `['users', …]` read.
+`invalidate()` drops an entry's freshness and refetches it for every mounted consumer. Call it directly on a read, or — more usefully — declare it on the action that made the write. Action `invalidates` accepts exact keys **or tuple prefixes**: `['users']` matches every `['users', …]` read. Object elements match key-sorted, so `['users', { team, role }]` matches a read keyed `['users', { role, team }]`.
 
 ```tsx
 const save = useAction(saveUser, {

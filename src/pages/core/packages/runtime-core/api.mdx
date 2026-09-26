@@ -51,6 +51,8 @@ function getCurrentInstance(): ComponentSetupContext<any, any, any> | null;
 
 - Returns the active `ComponentSetupContext`, or `null` if called outside a component's setup.
 
+On the server it is correct for the **whole** of a component's render — `setup()`, the render function that runs once its loads settle (inline or in a streamed deferred render), and an `errorScope` fallback after a rejected load — however many concurrent renders interleave in the process. Reading it from an async continuation of your own (after an `await` inside setup, or from a fetcher) is unsupported on the server and in the browser alike: that code runs outside the render. Resolve anything instance-dependent synchronously in setup.
+
 ### getComponentMeta
 
 Return the registered metadata (name and setup) for a component factory. Used by DevTools.
@@ -258,7 +260,7 @@ function useData<T, const K extends KeyValue>(
 ): AsyncState<T>;
 ```
 
-- `key` — a static string, or a getter returning a string / tuple / falsy. A static tuple is rejected (parameters that change belong in a getter).
+- `key` — a static string, or a getter returning a string / tuple / falsy. A static tuple is rejected (parameters that change belong in a getter). A tuple element is a JSON value — a primitive, an array, or a plain object of JSON values; object keys are sorted for identity, so `{ a, b }` and `{ b, a }` are one key. Class instances, `Date`, `Map`, `undefined` and `bigint` throw in development.
 - `fetcher` — an async function producing the value; receives the resolved key and a context whose `signal` is an `AbortSignal`. Runs untracked.
 - `opts.server` — run the fetcher during SSR. Default `true`; `server: false` renders the pending arm on the server and fetches after hydration (still keyed).
 - Returns an `AsyncState<T>` — see [AsyncState](#asyncstate).
@@ -302,6 +304,38 @@ function useStream(
 - `key` — the serialization/restore key.
 - `source` — a function returning an async iterable of text chunks.
 - Returns a `{ value }` string signal that grows as chunks arrive.
+
+### peekRestored
+
+Read one key of the page's SSR state blob (`window.__SIGX_ASYNC__`) — the client half of what the server writes with `ctx.registerSerializedState`. For state-owning packs that seed client state from server-transferred values.
+
+```ts
+function peekRestored(key: string): { hit: boolean; value: unknown };
+```
+
+- `hit` is own-key membership, so a transferred `null` is a hit.
+- **Reads do not consume.** The blob is the page's data cache for its lifetime, and every later mount seeds from it. Pair with `invalidateRestored` when a seed must not outlive one instance.
+- **Servers always miss** — the accessor only reads on a live client.
+- **The value is shared with the blob, not a private copy.** Copy it before handing it to reactive state, or your mutations write back into the blob and every later seed sees them.
+
+```ts
+import { peekRestored, invalidateRestored } from '@sigx/runtime-core';
+
+const seed = peekRestored('cart');            // { hit, value }
+if (seed.hit) state.set(copy(seed.value));    // copy: the value is shared with the blob
+// Only if this seed must not outlive this instance:
+invalidateRestored('cart');
+```
+
+`copy` is whatever suits your value's shape: `structuredClone` covers plain data and the built-in codec types, but drops custom prototypes.
+
+### invalidateRestored
+
+Delete one key from the page's SSR state blob, so later mounts no longer seed from it. A no-op on the server and when the key is absent.
+
+```ts
+function invalidateRestored(key: string): void;
+```
 
 ## Models & two-way binding
 
@@ -807,6 +841,25 @@ type AnyComponentFactory = {
   __ref: any;
   __slots: any;
 };
+```
+
+### Taking a component factory apart
+
+`CombinedOf<F>`, `PropsOf<F>`, `RefOf<F>` and `SlotsOf<F>` read the parameters a `ComponentFactory` was built with. They are the supported way to write a type that derives one factory from another — the `__props` / `__events` / `__ref` / `__slots` brands they read are internal and may be renamed.
+
+```ts
+type CombinedOf<F extends AnyComponentFactory>; // the combined declaration (props, events, models, …) it was built from
+type PropsOf<F extends AnyComponentFactory>;    // the props view — CombinedOf with internal markers stripped; what ctx.props is typed with
+type RefOf<F extends AnyComponentFactory>;      // what expose() hands to a ref — the same read as Exposed
+type SlotsOf<F extends AnyComponentFactory>;    // the slot table its Define.Slot declarations produced
+```
+
+```ts
+import type { AnyComponentFactory, ComponentFactory, CombinedOf, RefOf, SlotsOf } from '@sigx/runtime-core';
+
+/** Swap an event on a factory, keeping its ref and slots. */
+type Adapted<F extends AnyComponentFactory, TRemove extends string, TAdd> =
+    ComponentFactory<Omit<CombinedOf<F>, TRemove> & TAdd, RefOf<F>, SlotsOf<F>>;
 ```
 
 ### Model

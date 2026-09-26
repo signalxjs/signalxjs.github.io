@@ -279,6 +279,8 @@ function getCurrentInstance(): ComponentSetupContext | null;
 
 The current component context, or `null` if not in a component.
 
+During a server render it is correct for the whole of a component's render — `setup()`, the render function that runs once its loads settle (inline or in a streamed deferred render), and an `errorScope` fallback — however many renders run concurrently in the process. It is not available from an async continuation of your own (after an `await` inside setup, or inside a fetcher), on the server or in the browser: resolve anything instance-dependent synchronously in setup.
+
 ### Examples
 
 ```tsx
@@ -322,6 +324,8 @@ interface AsyncOptions {
     server?: boolean; // default true; false ⇒ client-only keyed read
 }
 ```
+
+A tuple element is a JSON value — a primitive, an array, or a plain object of JSON values (`() => [getCart, { userId }]`). Identity is canonical JSON with object keys sorted, so `{ a, b }` and `{ b, a }` are one key.
 
 Render every state with `match()`; `refresh()` re-runs in place (stale-while-revalidate) and never rejects. See the [Data Loading](/core/docs/data-loading) guide.
 

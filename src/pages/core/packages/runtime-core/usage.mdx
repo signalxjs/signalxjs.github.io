@@ -15,8 +15,10 @@ order: 30
 Most applications should install the `sigx` meta-package instead, which bundles this core with the DOM renderer and `@sigx/reactivity` so everything is wired up for you. Install `@sigx/runtime-core` directly when you are building a custom renderer or need the component primitives in isolation.
 
 ```bash
-pnpm add @sigx/runtime-core
+pnpm add @sigx/runtime-core @sigx/reactivity
 ```
+
+It peers on `@sigx/reactivity` (`^1.0.0`), so install the two together.
 
 To make TSX compile against this runtime, point your `tsconfig.json` at the package as the JSX import source:
 
@@ -28,6 +30,8 @@ To make TSX compile against this runtime, point your `tsconfig.json` at the pack
   }
 }
 ```
+
+That gives you the platform-neutral base of the `JSX` namespace — `JSX.Element`, `IntrinsicAttributes` (`key`) and `ElementChildrenAttribute` — but **no elements**: runtime-core declares no `IntrinsicElements`, so every tag is a type error until your renderer declares the ones it renders (see [Non-web renderers](#non-web-renderers)). Apps on `sigx` keep `"jsxImportSource": "sigx"`.
 
 ## Defining a component
 
@@ -264,6 +268,46 @@ const tooltip = defineDirective<string>({
 
 // Usage: <div use:tooltip="Helpful hint" />
 ```
+
+## Non-web renderers
+
+This package references no web global unguarded, so it runs anywhere. A renderer for another target (a terminal, a native host) extends it through two seams, both plain interfaces that several packages can merge into:
+
+- **JSX** — declare the elements your renderer can render by global merging, exactly as `@sigx/runtime-dom` does for HTML and SVG.
+- **`ctx`** — anything your renderer adds to every component's setup context is a `ComponentSetupContext` augmentation, delivered at runtime by `registerContextExtension` (from `@sigx/runtime-core/internals`).
+
+```ts
+// terminal-jsx.ts — the elements this renderer knows
+import { registerContextExtension } from '@sigx/runtime-core/internals';
+
+declare global {
+    namespace JSX {
+        interface IntrinsicElements {
+            box: BoxProps;
+            text: TextProps;
+        }
+    }
+}
+
+// the per-component context this renderer adds
+declare module '@sigx/runtime-core' {
+    interface ComponentSetupContext {
+        /** The terminal this component renders into. */
+        terminal: Terminal;
+    }
+}
+registerContextExtension((ctx) => { (ctx as any).terminal = currentTerminal(); });
+```
+
+A client runtime with no `window` must also say it is a live client, once, from its platform module — otherwise `useData` / `useStream` treat it as a server and never auto-run:
+
+```ts
+import { declareLiveClient } from '@sigx/runtime-core/internals';
+
+declareLiveClient();
+```
+
+Never call it from code a server render can evaluate; it belongs in the module that defines your renderer's platform.
 
 ## Next steps
 

@@ -17,14 +17,15 @@ So a locale is **bound**, not ambient.
 `createRequestT` builds once and binds per request — the shape a server function wants:
 
 ```ts
+import { serverFn } from '@sigx/server';
 import { createRequestT } from '@sigx/i18n/server';
 import catalogs from 'virtual:sigx-i18n/server-catalogs';
 
 const requestT = createRequestT({ catalogs, fallbackLocale: 'en', supported: ['en', 'sv'] });
 
 export const greet = serverFn({
-    allowAnonymous: true,
-    handler: async (rq) => requestT(rq.request).forNamespace('mail').greeting({ name: 'Ada' }),
+    allowAnonymous: true, // server functions are fail-closed: one with no access policy is denied
+    handler: ({ rq }) => requestT(rq.request).forNamespace('mail').greeting({ name: 'Ada' }),
 });
 ```
 

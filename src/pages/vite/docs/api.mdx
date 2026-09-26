@@ -21,13 +21,22 @@ export function sigxPlugin(options: SigxPluginOptions = {}): Plugin;
 The main Vite plugin. Returns a Vite `Plugin` object with `name: 'sigx'` and
 `enforce: 'pre'`.
 
-- In dev (`command === 'serve'`) it aliases the SignalX runtime packages —
-  `sigx`, `sigx/internals`, `sigx/jsx-runtime`, `sigx/jsx-dev-runtime`,
-  `@sigx/reactivity`, `@sigx/runtime-core`, `@sigx/runtime-dom`,
-  `@sigx/server-renderer`, plus their `/internals` subpaths — to their `src`
-  entry files so a single reactivity instance is shared. It excludes **all**
+- In dev (`command === 'serve'`) it pins every installed `@sigx/*` package and
+  every one of its `exports` subpaths to that package's built entry, so the
+  whole family resolves to one physical copy. The pin is a `resolveId` step,
+  not `resolve.alias` entries: the import is split into the specifier and its
+  `?query` / `#fragment`, the specifier is looked up, and Vite's resolver
+  finishes with the postfix intact — so `?url` / `?raw` / `?inline` /
+  `?worker` imports of a subpath export (`@sigx/zero-basic/css?url`) resolve
+  like any other file. A subpath with no literal `exports` entry (a wildcard
+  such as `./themes/*`) is resolved per import through Node from the pinned
+  copy, falling back to Vite's resolver. Your own `resolve.alias` entries always
+  take precedence — Vite applies aliases before any plugin's `resolveId` — and
+  your alias map is passed through unchanged, so a plugin ordered after
+  `sigx()` sees exactly what you wrote. It excludes **all**
   `@sigx/*` packages from `optimizeDeps` pre-bundling — the core tier plus every
-  `@sigx/*` dependency declared in the project's `package.json` — and sets
+  `@sigx/*` package declared in the project's `package.json` (`dependencies`,
+  `devDependencies` and `peerDependencies`) — and sets
   `ssr.noExternal: ['sigx', /^@sigx\//]`. In middleware mode, if you have not
   pinned an HMR port, it assigns a free one so concurrent dev servers don't clash
   on Vite's default `24678`.
@@ -116,7 +125,8 @@ subpaths — to the caller's `external` list (deduped) to preserve singleton
 reactivity.
 
 It builds ES output only (file name `${entryName}.js`), sets `sourcemap` (default
-`true`), minifies in place via Oxc (`minify: 'oxc'`, or `false`), an optional
+`true`), defines `__DEV__` and `__SIGX_VERSION__` (the `version` of the
+root's `package.json`, omitted when it has none), minifies in place via Oxc (`minify: 'oxc'`, or `false`), an optional
 `output.banner`, a node target (`node18`) when `platform === 'node'`, and Oxc
 automatic JSX with import source `importSource` (default `sigx`) when `jsx` is
 `true`. The result is a
@@ -176,7 +186,8 @@ The `assets` entry imports nothing — no `node:` builtins, no `process` — so 
 is importable from a workerd, Deno or Bun entry. `@sigx/vite/ssr` re-exports it,
 but that module also carries `createDevRequestHandler` and so imports `node:fs/promises`
 and `node:path` at its top level; reach for `/ssr` in dev and `/assets`
-everywhere else.
+everywhere else. A production server needs neither: it reads `assetsFor` from
+the build's own [`virtual:sigx-app`](/vite/docs/deploy-adapters#virtualsigx-app).
 
 ## Types
 

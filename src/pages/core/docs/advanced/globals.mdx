@@ -37,6 +37,12 @@ by JavaScript at runtime — the server-app config, the serverFn codec and scope
 handlers, the devtools hook. Nobody reads them off `globalThis` by hand, so they are kept out
 of `Object.keys(globalThis)` and console completion.
 
+Two of them guard the install itself: `__SIGX_REACTIVITY__` and `__SIGX_RUNTIME_CORE__`,
+each `{ version, url }`, stamped when `@sigx/reactivity` and `@sigx/runtime-core` first
+evaluate. A second copy of either package that finds the stamp throws in development and
+warns once in production — see [Stability & versioning](/core/docs/stability#two-copies-of-sigxreactivity-are-loaded).
+They are read only through `readCopyStamp` on `@sigx/reactivity/internals`.
+
 <div class="alert alert-warning not-prose my-4">
   <div>
     <strong>Non-enumerable is not a security boundary.</strong> Anything running on the page
@@ -68,6 +74,32 @@ return only the fields the page actually renders.
 Nothing the framework itself owns goes there. The principal lives on `rq.locals` under a
 non-enumerable `Symbol.for` slot that no serializer walks, and `@sigx/server-renderer`
 performs no `globalThis` writes at all.
+
+## Seeding a pack from the data cache
+
+A pack that owns client state — a store, an i18n catalog — can seed it from
+values the server transferred. The server writes them with
+`ctx.registerSerializedState(key, value)` (`@sigx/server-renderer`); the client
+reads them with `peekRestored` and, when it needs to, drops them with
+`invalidateRestored`, both from `sigx` / `@sigx/runtime-core`:
+
+```ts
+import { peekRestored, invalidateRestored } from 'sigx';
+
+const seed = peekRestored('store:cart');       // { hit, value }
+if (seed.hit) state.set(structuredClone(seed.value));
+```
+
+- `hit` is own-key membership — a transferred `null` is a hit.
+- **Reads do not consume.** `__SIGX_ASYNC__` is the page's data cache for its
+  lifetime, so every later mount seeds from the same entry. For a seed that must
+  not outlive one instance, peek and then call `invalidateRestored(key)`.
+- **Servers always miss** — both accessors act only on a live client.
+- **Copy first.** The value is shared with the blob, not a private copy. Hand it
+  to reactive state as-is and the pack's mutations write back into the blob —
+  and from there into every later seed. `structuredClone` covers plain data and
+  the built-in codec types; a value that can be a class instance needs a copy
+  that knows the type.
 
 ## Stamping a seam from your own pack
 
