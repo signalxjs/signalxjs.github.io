@@ -65,6 +65,11 @@ the platform wakes it at the earliest due time.
 The visible consequence: an alarm fires **at** the due time, where `shardedReminders()`
 promises only "at or after `nextDue`".
 
+A dispatch that fails — a deadline, an `onReminder` that threw — is re-armed one
+`reminderTickMs` out and counted in `HostStats.remindersUndelivered`, so a failing target costs
+at most one attempt per tick. The rules for a reminder the actor set or cleared meanwhile are
+[the shared ones](/actors/docs/timers-and-reminders#reminders--durable).
+
 ## Client sockets
 
 Browsers can reach actors over a WebSocket here, terminating in either half:

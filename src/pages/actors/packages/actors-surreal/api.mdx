@@ -116,6 +116,11 @@ TTL is judged on the **database** clock, so a skewed host cannot fake a death or
 - **Reminder firing is at-most-once.** The advance/delete commits before any delivery, and a
   periodic reminder advances to `time::now() + period` — so downtime costs one firing rather
   than replaying the gap.
+- **A failed dispatch is retried one tick later.** The row is re-armed at `time::now() +
+  tickMs` (`ActorRemindersContext.tickMs`, i.e. the host's `reminderTickMs`) — a one-shot re-created, a periodic one pulled forward — and reported through
+  `ActorRemindersContext.undelivered`, so `HostStats.remindersUndelivered` counts it. Same
+  rules as every provider: see
+  [the reminder contract](/actors/docs/timers-and-reminders#reminders--durable).
 
 ## See also
 

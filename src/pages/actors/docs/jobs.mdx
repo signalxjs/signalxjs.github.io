@@ -116,6 +116,22 @@ the "exactly one runner" guarantee — there is no separate lock.
 **`start` is idempotent under retry.** A non-pending job returns its current info and never
 restarts. Safe to call from a handler that a client may retry.
 
+**A rejected `start` or `resume` is retryable.** `start()` resolves once the run is durably
+recorded and launched, not when it finishes. If the launch itself rejects — task liveness
+cannot reach storage, the host is mid-shutdown — the transition is taken back, live and on
+disk: a rejected `start()` leaves the job `pending`, and a rejected `resume()` leaves it
+`paused` with that call's resume data dropped. Nothing resumes the run behind your back, and
+the same call can simply be retried. The caller always sees the original rejection. The revert
+is best-effort: if its own save fails too, the record stays `running` and the run resumes on
+the next activation, at-least-once.
+
+**The job's state record is its ledger.** A job keeps no separate task-ledger entry: the run to
+resume, its input and its attempt count come from the job's own `status`, `input` and
+`attempts`, which it persists anyway, so a crash at any point resumes from that one record.
+With the default task liveness, a run's whole lifecycle costs one load and four saves, and no
+clears. The `$sigx:tasks` ledger record belongs to plain `defineActor` +
+[`tasks:`](/actors/docs/tasks) only.
+
 **Crash-resume counts; pause-resume is free.** A crash-resumed run arrives with `job.attempt`
 bumped and `job.resumedFrom` set to the last checkpoint. Past `maxAttempts` the job is marked
 `failed`. `resume(data)` on a paused job re-runs with `job.resumeData` and costs no attempt.

@@ -1,6 +1,6 @@
 ---
 title: "API reference"
-description: "Exports of @sigx/actors-redis — redisCluster, redisMembership, redisDirectory, redisStorage — and the Redis key layout"
+description: "Exports of @sigx/actors-redis — redisCluster, redisMembership, redisDirectory, redisStorage, redisReminders — and the Redis key layout"
 layout: module-docs
 category: "Reference"
 order: 40
@@ -65,9 +65,37 @@ Etags are client-minted UUIDs. `save` and `clear` compare-and-set atomically in 
 registered as `EVALSHA` commands because `save` is the hot path, and throw the branded
 `ActorStorageConflict` on mismatch — which the runtime turns into discard-and-reload.
 
+## `redisReminders(options)`
+
+An `ActorReminders` on a due-time-indexed sorted set, passed as `reminders:`.
+
+```ts
+defineActorApp({ storage: redisStorage({ client }), reminders: redisReminders({ client }) });
+```
+
+```ts
+interface RedisRemindersOptions {
+    client?: RedisClient;      // shared with the other providers
+    url?: string;              // …or a URL — the package constructs an auto-pipelined client
+    namespace?: string;        // 'sigx'
+    batchSize?: number;        // 200 — members claimed per script
+}
+```
+
+It throws unless `client` or `url` is given. Every operation — `set`, `clear`, a claim batch,
+the re-arm of failed dispatches — is one Lua script, with Redis `TIME` as the clock. The claim
+advances or removes a member **before** dispatch (at-most-once per firing); a periodic member
+advances to `max(next_due, now) + period`, so downtime costs one firing rather than replaying
+the gap. A tick keeps claiming batches until one comes back short, up to ten per tick, so
+`batchSize` caps memory rather than throughput. The minimum period is 60 seconds, as with the
+default provider.
+
+`remEscape` / `remUnescape` are exported for tooling that reads the member encoding.
+
 ## Types
 
-`RedisClient` (the ioredis `Redis` type), `RedisClusterOptions`, `RedisStorageOptions`.
+`RedisClient` (the ioredis `Redis` type), `RedisClusterOptions`, `RedisStorageOptions`,
+`RedisRemindersOptions`.
 
 ## Key layout
 
@@ -78,7 +106,13 @@ registered as `EVALSHA` commands because `save` is the hot path, and throw the b
 {ns}:dir:{actorId}    "hostId\nactivationId"      no TTL (validity = owner liveness)
 {ns}:membership       pub/sub channel             change push (poll = fallback)
 {ns}:st:{type}\x00{key}   HASH {e: etag, s: state JSON}
+{ns}:rem:due          ZSET  score = next_due (ms), member = type\x00key\x00name
+{ns}:rem:p            HASH  member → period ms (periodic reminders only)
+{ns}:rem:a:{type}\x00{key}  SET of the actor's reminder names — list() never scans
 ```
+
+Reminder members escape each field (`\` → `\\`, NUL → `\0`) so a NUL-bearing key splits back
+into its ref and name.
 
 The storage record key joins actor type and key with a **NUL byte** — the same `actorId` shape
 the directory uses. Redis keys are binary-safe, and a NUL renders invisibly in

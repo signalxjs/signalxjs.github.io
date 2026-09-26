@@ -49,6 +49,35 @@ with reason `'cancelled'`, and on deactivation for any reason with the `Deactiva
 (`taskGraceMs`, default 10s) with the actor still accepting turns, so a winding-down task can
 run one final `turn()` checkpoint.
 
+**The grace covers the whole run, from reservation on.** `host.stop()` and every other
+deactivation await a run from the moment `ctx.tasks.start()` reserves it, within the same
+`taskGraceMs`:
+
+- a launch that lands while the stop is in progress;
+- the body's wind-down after its signal fires;
+- the bookkeeping of a run whose body had already returned as the stop landed — the ledger
+  clear and the task-liveness entry — so a host stopping right after a job completes still
+  writes the completion;
+- the rollback of a start whose durable half (the ledger write, the liveness entry) failed.
+  A crash-resume whose input the state codec rejects is rolled back the same way, rather than
+  holding the name's single-flight reservation.
+
+The grace counts against `host.stop({ timeoutMs })`, so keep it smaller than that. When it runs
+out, a dev build warns in one of two shapes. **"…ignored their abort signal"** means a body
+did not observe `ctx.abortSignal` — fix the body. **"…still had task bookkeeping in flight"**
+means a storage round trip writing or clearing the ledger or task-liveness entry outran
+`taskGraceMs`, including a start that had not launched yet. That write is not cancelled and
+may still land: an entry a start leaves behind resumes on the next activation, and one a
+finish leaves behind is cleared the next time the host's task entries are adopted.
+
+**`ctx.turn()` carries a deadline.** A task's `turn()` runs with the host's `callTimeoutMs`
+(default 30s), exactly like an external call, so every `ctx.actor()` call made from it is
+bounded. A turn that awaits a peer whose turn never answers rejects with
+`ActorCallTimeoutError` at the deadline. If a long await inside a task turn is intended, give
+that call its own budget with
+[`.with({ deadlineMs })`](/actors/docs/deadlines-and-admission#per-call-deadlines), or raise
+`callTimeoutMs` (`0` disables it).
+
 **`cancel` is a request, not a join.** It aborts and returns; the run leaves
 `ctx.tasks.list()` when its body settles. Awaiting settlement from a method turn would
 deadlock against the task's own wind-down `turn()`.
@@ -99,7 +128,8 @@ built-ins are host-scoped: pass a fresh instance per host.
 ## Tasks or jobs?
 
 Tasks are the primitive. [`defineJob`](/actors/docs/jobs) is the packaged experience on top —
-a state machine, progress, checkpoints, attempts and a client surface already decided.
+a state machine, progress, checkpoints, attempts and a client surface already decided. A job
+writes no `$sigx:tasks` entry: its own state record is its ledger.
 
 Reach for a task when the work is an internal detail of an actor that has other
 responsibilities. Reach for a job when the run *is* the thing, and something outside needs to
