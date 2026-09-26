@@ -22,7 +22,7 @@ the app has to preserve encoded slashes:
 
 ```
 POST /_sigx/fn/@acme/api/src/cart.server.ts/addToCart
-POST /_sigx/fn/cart/add                        # serverFn({ id: 'cart/add', … })
+POST /_sigx/fn/cart/add/addToCart              # addToCart = serverFn({ id: 'cart/add', … })
 ```
 
 Key seeds are package-qualified, so every app build of one solution mints the
