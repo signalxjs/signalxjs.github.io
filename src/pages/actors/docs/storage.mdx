@@ -18,6 +18,7 @@ that one seam.</p>
 |---|---|---|
 | `memoryStorage()` | `@sigx/actors/host` | tests and dev |
 | `fileStorage({ dir })` | `@sigx/actors/node` | dev — one cat-able JSON file per actor |
+| [`sqliteStorage`](/actors/packages/actors-sqlite/overview) | `@sigx/actors-sqlite` | a single-node host — one file on `node:sqlite` |
 | [`redisStorage`](/actors/packages/actors-redis/overview) | `@sigx/actors-redis` | production |
 | [`pgStorage`](/actors/packages/actors-pg/overview) | `@sigx/actors-pg` | production |
 | [`surrealStorage`](/actors/packages/actors-surreal/overview) | `@sigx/actors-surreal` | production |
@@ -102,6 +103,61 @@ either way. Implement `save` in terms of `saveText` so the two cannot drift.
 Absent is the right answer for an adapter that genuinely wants the tree. The host is correct
 either way; it keeps its encoded-tree path for exactly that case.
 
+`sqliteStorage` implements it too.
+
+### `appendText` — the O(entry) append
+
+```ts
+interface ActorStorage {
+    // …
+    appendText?(type: string, key: string, json: string, expectedEtag: string): Promise<string>;
+}
+
+interface ActorStorageRecord {
+    // …
+    log?: unknown[];
+}
+```
+
+A record is a **snapshot** — the last full save — plus a **log** of the entries appended since.
+`appendText` adds one JSON entry to the log without rewriting the snapshot, which is what makes
+[`ctx.append`](/actors/docs/state-and-persistence#appending-entries) and `job.append` cost
+O(entry) where a save costs O(state). The contract is four rules:
+
+- **Same compare-and-set as `save`.** An append checks `expectedEtag`, mints a new etag and
+  returns it; a mismatch throws the `ActorStorageConflict` brand and appends nothing.
+- **A missing record is a conflict.** There is nothing to append to, so `expectedEtag` is never
+  `null`.
+- **A full save truncates the log.** `save` and `saveText` store the snapshot and empty the log
+  in the same write — a full save is the compaction. `clear` removes both, and a re-created
+  record starts with an empty log.
+- **`load` reports the log** as `log` — parsed entries, oldest first — and a storage that
+  implements the seam reports it on every record, an empty array included. A storage without
+  it never sets `log`.
+
+It is optional, and the host is correct without it: where storage has no `appendText`, or there
+is no record yet, an append is a full save — same result, O(state) cost.
+
+| Provider | `appendText` |
+|---|---|
+| `memoryStorage`, `redisStorage`, `pgStorage`, `sqliteStorage`, `surrealStorage` | **implemented** |
+| `durableObjectStorage` | **implemented** — one storage key per entry; a custom `DurableStorage` needs the optional `list({ prefix })` to get it, and the real `DurableObjectStorage` has it |
+| `fileStorage` | absent, deliberately — its pretty-printed envelope would be rewritten whole on every append |
+
+What each implementing adapter adds to its store:
+
+| Adapter | Where the log lives |
+|---|---|
+| `pgStorage` | a `log text[]` column on `{schema}.state`. `ensurePgSchema()` adds it to an existing schema (`ALTER TABLE … ADD COLUMN IF NOT EXISTS`); a migration tool carrying `pgSchemaSql()` must run the new DDL |
+| `sqliteStorage` | a `{table}_log` table, created on open |
+| `redisStorage` | a LIST at `{ns}:sl:{type}<NUL>{key}`, beside each state HASH |
+| `surrealStorage` | an `l` field on the state table; `ensureSurrealSchema()` adds it |
+| `durableObjectStorage` | a `head` key holding the current etag, plus one key per entry under the record |
+
+Adapter authors in the actors repo run the shared `storageConformance` cases with
+`appendText: true` next to `saveText: true`, which turns a missing append path into a failure
+rather than a skip.
+
 ## Choosing one in production
 
 Two questions decide it.
@@ -111,6 +167,11 @@ Two questions decide it.
 directory *and* reminders on one pool, with the expiry running on the database clock. If Redis
 is, [`@sigx/actors-redis`](/actors/packages/actors-redis/overview) gives you the same minus
 reminders, on one client.
+
+**One host, and no database to run?**
+[`@sigx/actors-sqlite`](/actors/packages/actors-sqlite/overview) keeps state in one file on
+Node's built-in `node:sqlite`. It is not a cluster store: two hosts on one file serialize on
+SQLite's write lock.
 
 **Are you on Cloudflare?** Then the question does not arise — the Durable Object *is* the
 storage, and the platform is the cluster. See
@@ -141,17 +202,19 @@ registry.decorateStorage((inner) => ({
     save: inner.save,
     clear: inner.clear,
     ...(inner.saveText ? { saveText: inner.saveText.bind(inner) } : {}),
+    ...(inner.appendText ? { appendText: inner.appendText.bind(inner) } : {}),
 }));
 ```
 
 Decorators chain, and the **last registered is outermost**. Encryption at rest, tenant
 prefixing and audit logging all fit here without the actor code knowing.
 
-**Forward every member you do not deliberately replace — `saveText` included, and forward it
-conditionally**, so an inner storage without it does not appear to have it. A decorator that
-returns a fixed three-method literal silently drops the one-walk save path: the host reverts
-to encoding a tree the adapter then re-walks, correct but slower, with nothing to say it
-happened. The built-in `metrics()` storage decoration forwards it this way.
+**Forward every member you do not deliberately replace — `saveText` and `appendText`
+included, each conditionally**, so an inner storage without one does not appear to have it. A
+decorator that returns a fixed three-method literal silently drops both fast paths: the host
+reverts to encoding a tree the adapter then re-walks, and every append becomes a full save —
+correct but slower, with nothing to say it happened. The built-in `metrics()` storage
+decoration forwards both this way.
 
 <div class="alert alert-warning not-prose my-4">
   <div>

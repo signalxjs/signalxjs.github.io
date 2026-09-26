@@ -68,6 +68,7 @@ lost is anything kept *outside* `ctx.state`.
 | `shutdown` | the host is stopping; in-flight turns have drained |
 | `capacity` | a `maxActivations` cap shed it (least-recently-used) |
 | `migrated` | a [cluster](/actors/docs/clustering) moved it to another host |
+| `conflict` | another activation won an etag [conflict](/actors/docs/state-and-persistence#conflicts); this one's unsaved writes are discarded and the next call loads the winner. After a failed write-behind flush it fires right after [`onStateError`](/actors/docs/state-and-persistence#when-a-deferred-save-fails), with no further call. With [`retryQueuedOnConflict`](/actors/docs/state-and-persistence#re-running-queued-turns), a turn-path conflict never reaches it |
 
 ## Idle collection
 

@@ -112,6 +112,32 @@ consequences to write against:
 A homogeneous cluster pays nothing for the filtering: the narrowed view preserves object
 identity when nothing was removed.
 
+## Typed per app
+
+The app-bound `defineActor` — the one [your app](/actors/docs/the-app#typed-context-per-app)
+exports — accepts only the strategy type its placement plugin understands. With `cluster()`
+installed that is `PlacementPolicy`, whose `backend` tag is the `'cluster'` literal:
+
+```ts
+interface PlacementPolicy extends ActorPlacementStrategy {
+    readonly backend?: 'cluster';
+    choose(ref: ActorRef, view: MembershipView, self: HostDescriptor): HostDescriptor;
+    attach?(runtime: PolicyRuntime): void | (() => void);
+}
+```
+
+So two mistakes are compile errors there:
+
+- a strategy **tagged for another backend** — the cluster placement would ignore it;
+- an **untagged strategy without `choose()`** — the cluster placement would throw at dispatch.
+
+The bare `defineActor` from `@sigx/actors`, apps with no placement plugin, and `defineWorker`
+accept any strategy. For definitions the types cannot see — a
+[packaged actor](/actors/docs/shipping-actors-in-packages), one built outside the app — the
+runtime `backend` check in the cluster placement remains the floor. A backend that reads no
+strategy at all narrows the option to `never`, so it can only be omitted — see
+[Cloudflare Workers](/actors/docs/cloudflare-workers#pass-an-app-factory-not-an-app).
+
 ## Precedence
 
 Highest first:

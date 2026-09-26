@@ -1,0 +1,80 @@
+---
+title: "Overview"
+description: "Actor storage in one file on node:sqlite — the SQLite package for SignalX (@sigx/actors-sqlite): what it does, setup and API."
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# SQLite
+
+<p class="lede">The step up from <code>fileStorage</code> for a single-node host: a real
+database in one file, on Node's built-in <code>node:sqlite</code>, with nothing to install and
+nothing to operate.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/actors-sqlite" /> <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/actors-sqlite
+```
+
+Node-only, **Node ≥ 22.13**. There are no runtime dependencies beyond the `@sigx/actors` peer.
+
+## What it provides
+
+One export, `sqliteStorage()` — an etag-CAS [`ActorStorage`](/actors/docs/storage) with one row
+per actor in a table keyed by `(type, key)`.
+
+```ts
+import { createHost } from '@sigx/actors/host';
+import { sqliteStorage } from '@sigx/actors-sqlite';
+
+const storage = sqliteStorage({ path: './actors.db' });
+const host = createHost({ actors, storage });
+
+// …on shutdown
+await host.stop();
+storage.close();
+```
+
+The table is created on open (`IF NOT EXISTS`), so there is no DDL step. A load is one B-tree
+probe and a save is one statement. `sqliteStorage` implements both optional fast paths of the
+seam — [`saveText`](/actors/docs/storage#savetext--the-one-walk-durable-save), so a durable
+save walks the state once, and
+[`appendText`](/actors/docs/storage#appendtext--the-oentry-append), so
+[`ctx.append`](/actors/docs/state-and-persistence#appending-entries) writes one entry rather
+than the whole state.
+
+## When to use it
+
+| | Use |
+|---|---|
+| `fileStorage({ dir })` | dev — one cat-able JSON file per actor |
+| **`sqliteStorage({ path })`** | **a single-node host that wants durable state in one file** |
+| [`@sigx/actors-redis`](/actors/packages/actors-redis/overview), [`@sigx/actors-pg`](/actors/packages/actors-pg/overview) | a cluster |
+
+> **Not a cluster store.** Two hosts pointing at one file serialize on SQLite's write lock.
+> The 5 s `busy_timeout` makes the second writer wait instead of failing, but the cluster-safe
+> options are [`@sigx/actors-redis`](/actors/packages/actors-redis/overview) and
+> [`@sigx/actors-pg`](/actors/packages/actors-pg/overview).
+
+## The experimental warning
+
+`node:sqlite` is unflagged from Node 22.13 but still marked experimental. The process prints one
+line to stderr on first import:
+
+```
+ExperimentalWarning: SQLite is an experimental feature
+```
+
+It is harmless. `node --disable-warning=ExperimentalWarning` silences it.
+
+## Next steps
+
+- [Installation](/actors/packages/actors-sqlite/installation) — options and lifecycle.
+- [API reference](/actors/packages/actors-sqlite/api) — `sqliteStorage()` and its tables.
+- [Storage](/actors/docs/storage) — the seam this implements.

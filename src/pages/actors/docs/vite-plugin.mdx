@@ -42,6 +42,12 @@ not** — which is why `actor(Counter, id).increment(1)` is fully typed in the b
 second interface to maintain, and why no implementation, no database import and no secret from
 an actor file can reach the browser.
 
+An actor declared [`internal: true`](/actors/docs/guards#server-internal-types) is still
+extracted and registered for the server, since in-process callers need it in
+`virtual:sigx-actors`. Its client export is a `__serverOnly` stand-in rather than a ref, so no
+type name, endpoint or stream table for it reaches the browser, and calling it there fails
+loudly.
+
 `exclude` covers `node_modules`, so a package shipping actors must
 [do its own swap](/actors/docs/shipping-actors-in-packages).
 

@@ -22,8 +22,8 @@ cluster({ providers: redisCluster({ client }), advertise, secret });
 
 ```ts
 interface RedisClusterOptions {
-    client?: RedisClient;      // an ioredis instance
-    url?: string;              // …or a URL to construct one
+    client?: RedisClient;      // an ioredis instance, used with its own options
+    url?: string;              // …or a URL to construct one, with enableAutoPipelining: true
     namespace?: string;        // 'sigx'
     heartbeatMs?: number;      // 5000
     ttlMs?: number;            // 15000
@@ -55,15 +55,21 @@ defineActorApp({ storage: redisStorage({ client, namespace: 'sigx' }) });
 
 ```ts
 interface RedisStorageOptions {
-    client?: RedisClient;
-    url?: string;
+    client?: RedisClient;      // used with its own options
+    url?: string;              // constructs a client with enableAutoPipelining: true
     namespace?: string;        // 'sigx' — share it with the cluster providers
 }
 ```
 
-Etags are client-minted UUIDs. `save` and `clear` compare-and-set atomically in Redis via Lua,
-registered as `EVALSHA` commands because `save` is the hot path, and throw the branded
-`ActorStorageConflict` on mismatch — which the runtime turns into discard-and-reload.
+Etags are client-minted UUIDs. `save`, `clear` and
+[`appendText`](/actors/docs/storage#appendtext--the-oentry-append) compare-and-set atomically in
+Redis via Lua, registered as `EVALSHA` commands because `save` is the hot path, and throw the
+branded `ActorStorageConflict` on mismatch — which the runtime turns into discard-and-reload.
+An append pushes one entry onto the record's log LIST; a full save or a clear deletes it in
+the same script.
+
+With `url`, the package constructs its own client with `enableAutoPipelining: true`, so a
+host's same-tick saves coalesce into fewer socket writes. Pass `client` to own the options.
 
 ## `redisReminders(options)`
 
@@ -109,10 +115,14 @@ default provider.
 {ns}:rem:due          ZSET  score = next_due (ms), member = type\x00key\x00name
 {ns}:rem:p            HASH  member → period ms (periodic reminders only)
 {ns}:rem:a:{type}\x00{key}  SET of the actor's reminder names — list() never scans
+{ns}:sl:{type}\x00{key}   LIST of appended entry JSON, oldest first
 ```
 
 Reminder members escape each field (`\` → `\\`, NUL → `\0`) so a NUL-bearing key splits back
 into its ref and name.
+
+The log has a prefix of its own (`sl`) rather than a suffix on the record key, because actor
+keys are opaque and a suffix could collide with another actor's key.
 
 The storage record key joins actor type and key with a **NUL byte** — the same `actorId` shape
 the directory uses. Redis keys are binary-safe, and a NUL renders invisibly in
