@@ -40,6 +40,7 @@ token hints as typed objects with a `selector(part, state?)` builder and `toJSON
 | Export | What |
 |---|---|
 | `defineAnatomy(scope, parts, options?)` | Declare an anatomy. Types: `Anatomy`, `AnatomyJSON`, `PartSpec`, `PartJSON`, `PartPseudo`, `TokenHint`. |
+| `FRAGMENT_VERSION` | The ecosystem manifest-fragment contract version — what a fragment entry writes as `version`. See [Building your own component](/zero/docs/ecosystem-components/#4-publish-the-fragment-and-the-pack). |
 | `FLAG_VOCABULARY`, `STATE_VOCABULARY`, `STATE_NAMES`, `STATE_SYNONYMS`, `PLACEMENT_VOCABULARY` | The governed vocabularies. Types: `FlagName`, `Orientation`, `PlacementName`. |
 | `dataAttr(bool)`, `stateAttr(bool, on, off)` | Render a presence flag / pick a state value. |
 | `variantAttrs(props)` | The single pass-through from `color` / `size` / `variant` / `axes` / `mods` to `data-*`, with the reserved-name guards. `RESERVED_AXES`, `VARIANT_AXES`, `MOD_ATTR_PREFIX`. |
@@ -69,6 +70,7 @@ the `asChild` helpers — importable without `lib.dom`.
 | `isFocusVisible(el)`, `createFocusRestore(isOpen)`, `focusFirst(container)`, `getTabbables(container)` | Focus. |
 | `useFieldContext`, `provideFieldContext(ctx)` | The Field context. Type `FieldContext`. |
 | `segmentOptions(options)` | Option grouping. Types `OptionInput`, `OptionSegment`. |
+| `useMediaQuery(query \| range, options?)`, `breakpointQuery(range, breakpoints?)` | A media query or a design-system breakpoint range as an SSR-safe reactive boolean, and the query string a range names. Types `BreakpointRange`, `MediaQueryInput`, `MediaQueryOptions`, `MediaQueryMatch`. See [Breakpoints in JS](/zero/docs/theming/#breakpoints-in-js). |
 
 `@sigx/zero/behaviors/core` is the platform-neutral subset: controllable state, ids, the
 field context, option segmentation and the list controller with an open element type. See
@@ -78,7 +80,7 @@ field context, option segmentation and the list controller with an open element 
 
 | Export | What |
 |---|---|
-| `registerThemes(source)`, `registerTheme(info)`, `clearThemes()`, `getTheme(name)`, `listThemes()`, `pairOf(name)`, `pickThemeFor(scheme)` | The registry. Types `ThemeSource`, `ThemeInfo`. |
+| `registerThemes(source)`, `registerTheme(info)`, `clearThemes()`, `getTheme(name)`, `listThemes()`, `pairOf(name)`, `pickThemeFor(scheme)`, `getBreakpoints()` | The registry, and the registered design system's breakpoint ramp. Types `ThemeSource`, `ThemeInfo`. |
 | `createThemeController(options?)`, `themeController()`, `useTheme`, `DEFAULT_STORAGE_KEY` | The controller. Types `ThemeController`, `ThemeControllerOptions`. |
 | `ThemeProvider`, `ThemeScope` | The provider and the `data-theme` island. Types `ThemeProviderProps`, `ThemeScopeProps`. |
 | `themeInitScript(options?)` | The first-paint inline script. |
@@ -100,8 +102,9 @@ options?)` with the `ExpectAnatomyOptions` and `ElementLike` types. See
 ## `@sigx/zero/css`
 
 `css/base.css` — the layer-order statement, the structural fallbacks, `--print-ink`, the
-reduced-motion block for the recommended durations, and the `zero.structure` rule. See
-[The compiled CSS](/zero/docs/compiled-css/).
+reduced-motion block for the recommended durations, and the `zero.structure` rule. The
+export carries a `types` condition, so `import '@sigx/zero/css'` needs no `declare module`
+shim. See [The compiled CSS](/zero/docs/compiled-css/).
 
 ## `@sigx/zero/manifest.json`
 

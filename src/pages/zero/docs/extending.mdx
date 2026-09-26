@@ -1,0 +1,107 @@
+---
+title: Extending a design system
+description: "Deriving a @sigx/zero design system from another with extendDesignSystem and extendRecipe from @sigx/zero-kit/define — the merge rule, null deletes, compoundVariants by match, the refusals, the regenerated layout tier, and a derived system that owns an ecosystem fragment"
+layout: docs
+category: Authoring design systems
+order: 67
+---
+
+# Extending a design system
+
+<p class="lede">A product skin on top of `@sigx/zero-daisyui` is still one design system, and a
+design system compiles **one recipe per scope**: a second recipe for a scope the base
+already styles is a compile error. `extendDesignSystem` patches the base as data instead,
+so the derived system states only what it changes.</p>
+
+## `extendDesignSystem(base, extension)`
+
+```ts
+import { designSystem as daisy } from '@sigx/zero-daisyui';
+import { extendDesignSystem } from '@sigx/zero-kit/define';
+
+export const designSystem = extendDesignSystem(daisy, {
+    name: 'control-room',
+    tokens: {
+        custom: { 'ag-line': { syntax: '<color>' } },
+        themes: { light: null, dark: null, dim: null, /* … */ 'control-room': controlRoom },
+        defaultLight: 'control-room',
+    },
+    recipes: {
+        button: { parts: { root: { base: { boxShadow: 'none' }, states: { 'focus-visible': ring } } } },
+        'toggle-group': { parts: { item: { selectors: { '&[data-orientation="horizontal"] + &': null } } } },
+    },
+    addRecipes: [...myFragmentPack],
+    css: [appCss],
+});
+```
+
+It lives on `@sigx/zero-kit/define`, whose module graph is `node:`-free, so a design-system
+module in a browser bundle may call it. It returns a new design system and never mutates the
+base.
+
+| Key | What |
+|---|---|
+| `name` | Required. A derivation is its own design system. |
+| `tokens` | A deep patch of the base's `TokensInput`. `themes: { light: null }` drops a base theme. |
+| `recipes` | Patches to the base's recipes, keyed by scope. `null` drops the base's recipe. |
+| `addRecipes` | Recipes for scopes the base does not style — an ecosystem pack, the derived system's own components. |
+| `css` | Raw CSS entries, appended after the base's. |
+| `api` | A patch of the base's vendor-named [`api`](/zero/docs/vendor-apis/). Absent, the base's api is carried unchanged; `null` drops it. |
+
+## The merge rule
+
+One rule applies everywhere:
+
+- **Plain objects merge per key**, recursively: per part, per state, per selector and `at`
+  condition, per axis value, per modifier, per theme, per token.
+- **Arrays and scalars replace.** A patched `variants: [...]` or `sizes: [...]` vocabulary is
+  the new list.
+- **`null` deletes the key.** Use it to undo something the base does, rather than countering
+  it with a second declaration.
+
+Two sections are special. `compoundVariants` are addressed by `match`: a patch entry whose
+`match` equals a base entry's merges into it, any other is appended, and an entry left with no
+parts is dropped. A recipe's `css` hatch concatenates. `targets.web` / `targets.lynx` are
+patched by the same rule as everything else.
+
+## What it refuses
+
+- A `recipes` patch for a scope the base does not style throws. A typo would otherwise be a
+  silent no-op; a new scope goes in `addRecipes`.
+- An `addRecipes` entry for a scope the base already styles throws. That is exactly the
+  double recipe `recipes` exists to avoid.
+
+## The layout tier is regenerated
+
+The layout components' recipes are generated from tokens. Where the base carries them
+unmodified, they are regenerated from the derived tokens, so a changed breakpoint or role
+reaches the layout step table. A base whose layout recipes differ from the generated ones
+keeps its own.
+
+## `extendRecipe(base, patch)`
+
+The per-recipe half, for a design system that assembles its recipe list by hand:
+
+```ts
+import { extendRecipe } from '@sigx/zero-kit/define';
+import { recipes as daisy } from '@sigx/zero-daisyui';
+
+const button = extendRecipe(daisy.find((r) => r.component === 'button')!, {
+    parts: { root: { base: { boxShadow: 'none' } } },
+});
+```
+
+It applies the same merge rule to one `RecipeInput` and returns a new recipe.
+
+## A derived system that owns an ecosystem fragment
+
+A derived design system may carry an `api` and also publish an ecosystem
+[manifest fragment](/zero/docs/ecosystem-components/) of its own, from the same package. The
+generated `./components` module imports an external scope from its owning package's root
+export. When that owner is the design system's **own** package, the import is relative
+instead of by name, so the package never imports itself.
+
+`writeArtifacts` resolves the path from the `package.json` nearest the build's `outDir`: the
+root export for `components.js`, and that export's `types` condition for `components.d.ts`.
+So the package's root export must carry the component under `componentExportName(scope)`
+(`acme-feed` → `AcmeFeed`), and its `types` condition must point at the declarations.

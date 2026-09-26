@@ -143,6 +143,8 @@ the commands, the flags and the report.
 | `dist/css/index.css` | The whole design system: the layer-order statement, `tokens.css` and every recipe. Exported as `./css`. |
 | `dist/css/tokens.css` | `@property` registrations, `:where(:root)` defaults with `light-dark()`, the `prefers-color-scheme: dark` block, one diff-only `[data-theme="…"]` block per theme, the reduced-motion block. Exported as `./css/tokens`. |
 | `dist/css/components/<scope>.css` | One file per recipe. Exported as `./css/*`. |
+| `dist/css/breakpoints.css` | `@custom-media --above-<name>` / `--below-<name>` for every declared breakpoint. Exported as `./css/breakpoints`. See [Tokens](/zero/docs/tokens/#the-breakpoint-ramp-outside-recipes). |
+| `dist/css/index.d.ts` | An empty module: the `types` condition of every stylesheet export. |
 | `dist/manifest.json` | The design-system manifest — themes with swatches, the declared vocabulary and every emitted property, and per scope what the recipes wire. Exported as `./manifest.json`. |
 | `dist/report.json` | The coverage report. Exported as `./report.json`. |
 | `dist/register.d.ts` + `register.js` | The generated `ZeroVocabulary` augmentation. Exported as `./register`. |
@@ -150,7 +152,16 @@ the commands, the flags and the report.
 | `dist/lynx/…` | Only with `targets: ['web', 'lynx']`: the class-grammar projection. |
 
 Add the matching entries to the package's `exports` map — `@sigx/zero-basic`'s
-`package.json` is the reference.
+`package.json` is the reference. Point the `types` condition of the extensionless stylesheet
+exports at `dist/css/index.d.ts`, or an app's `import '@sigx/<ds>/css'` fails TypeScript's
+side-effect-import check:
+
+```json
+"./css":             { "types": "./dist/css/index.d.ts", "default": "./dist/css/index.css" },
+"./css/tokens":      { "types": "./dist/css/index.d.ts", "default": "./dist/css/tokens.css" },
+"./css/breakpoints": { "types": "./dist/css/index.d.ts", "default": "./dist/css/breakpoints.css" },
+"./css/*":           { "types": "./dist/css/index.d.ts", "default": "./dist/css/components/*.css" }
+```
 
 ## The generation skill
 
@@ -168,8 +179,9 @@ close the loop for a generator that emits plain JSON first — see
 
 - [Tokens](/zero/docs/tokens/) — the colour grammar, the size axis, variant vocabularies, per-scope narrowing, categories, themes.
 - [Recipes](/zero/docs/recipes/) — parts, states, selectors, conditions, variants, modifiers, compounds, and the authoring rules.
-- [The compiled CSS](/zero/docs/compiled-css/) — layers, specificity, the `@scope` donut, emission order, reduced motion.
+- [The compiled CSS](/zero/docs/compiled-css/) — layers, where app CSS goes, specificity, the `@scope` donut, emission order, reduced motion.
 - [Validate and build](/zero/docs/validate-and-build/) — the CLI, the validator's rules and the coverage report.
 - [Manifests and schemas](/zero/docs/manifests/) — the two manifests, fragments and the JSON Schemas.
 - [Building your own component](/zero/docs/ecosystem-components/) — shipping a component zero does not.
+- [Extending a design system](/zero/docs/extending/) — deriving a design system from another with `extendDesignSystem`.
 - [Lynx](/zero/docs/lynx/) — the second emit target.

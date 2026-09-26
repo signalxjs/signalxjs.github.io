@@ -1,6 +1,6 @@
 ---
 title: Validate and build
-description: "The sigx zero:validate and zero:build commands from @sigx/zero-kit — flags, what the validator checks (tokens, WCAG contrast, recipe structure and content, vocabularies, injection guards), the coverage report and report.json, and the programmatic API"
+description: "The sigx zero:validate and zero:build commands from @sigx/zero-kit — flags, checking an installed design system with --package, what the validator checks (tokens, WCAG contrast, recipe structure and content, vocabularies, injection guards), the coverage report and report.json, and the programmatic API"
 layout: docs
 category: Authoring design systems
 order: 64
@@ -16,9 +16,9 @@ actually *cover*; `zero:build` runs the same validation and then emits every art
 ## The commands
 
 ```
-sigx zero:validate [entry] [--manifest <path>] [--extra-manifest <path>]...
+sigx zero:validate [entry | --package <pkg>] [--manifest <path>] [--extra-manifest <path|package>]...
                    [--strict] [--report] [--report-json <path>]
-sigx zero:build    [entry] [--manifest <path>] [--extra-manifest <path>]...
+sigx zero:build    [entry] [--manifest <path>] [--extra-manifest <path|package>]...
                    [--out <dir>]
 ```
 
@@ -26,11 +26,18 @@ sigx zero:build    [entry] [--manifest <path>] [--extra-manifest <path>]...
   design system as `designSystem` or as its default export — so compile your TypeScript
   first: a package's build script is `tsgo -p tsconfig.json && node build.mjs`, or
   `tsgo … && sigx zero:build`.
+- **`--package <pkg>`** loads an installed design system's `./design-system` export instead
+  of an `entry` path — see [Checking the design system an app consumes](#checking-the-design-system-an-app-consumes).
+  Pass one or the other, not both.
 - **`--manifest`** defaults to `@sigx/zero/manifest.json` resolved from the current
   directory, so the contract checked is the one the project ships. It takes a path or a
   module specifier.
 - **`--extra-manifest`** (repeatable) merges an ecosystem manifest fragment into the base
-  manifest instead of replacing it. See [Building your own component](/zero/docs/ecosystem-components/).
+  manifest instead of replacing it. It takes a JSON fragment file or a JS module exporting
+  `fragment` (or a default export), by path or by package: a bare name (`@acme/stepper`) is
+  read through the package's `"sigx-zero"` field, and a subpath (`@acme/stepper/fragment`)
+  through its exports map. So the module a `build.mjs` merges is exactly what the CLI can
+  merge too. See [Building your own component](/zero/docs/ecosystem-components/#5-a-design-system-opts-in).
 - **`--strict`** turns warnings into a failure — the flag for CI.
 - **`--report`** prints the human-readable coverage report; **`--report-json <path>`** writes
   the machine-readable one, and `--report-json -` puts the JSON on stdout with diagnostics on
@@ -40,6 +47,21 @@ sigx zero:build    [entry] [--manifest <path>] [--extra-manifest <path>]...
 The commands are namespaced so another plugin's `build` cannot shadow them; the bare
 `sigx build` / `sigx validate` aliases also resolve when nothing else claims those names.
 Both exit non-zero on failure, and `--help` prints the current flags.
+
+## Checking the design system an app consumes
+
+An app can validate the design system it installs without reaching into `node_modules`.
+`--package <pkg>` loads the package's `./design-system` export (every shipped skin has one):
+
+```bash
+pnpm add -D @sigx/zero-kit @sigx/cli    # the validator; never enters the bundle
+pnpm exec sigx zero:validate --package @sigx/zero-daisyui --strict
+```
+
+`sigx zero:audit` takes `--package` the same way. The app still adds `@sigx/zero-kit` and
+`@sigx/cli` as dev dependencies: the `sigx` CLI discovers plugins from a project's *direct*
+dependencies only, so an app depending on `@sigx/zero` alone has nothing that turns the
+command on — and the validator's own dependencies do not belong in the runtime package.
 
 ## What the validator checks
 
@@ -53,6 +75,10 @@ behind the rules: **an explicit declaration closes its set.**
   (`RESERVED_ROLE_NAMES`); two roles whose derived properties collide are an error.
 - WCAG contrast: every declared role against its `-content` pair, per theme — an error below
   3:1 — plus the base surfaces against `base-content`.
+- Declared contrast pairs (`tokens.contrast`): each `fg` / `bg` pair over the design
+  system's own tokens, in every theme, in the same `contrast-floor` format with a passing
+  `suggest` value solved at the pair's `min` (default 4.5). Below `min` is an error. See
+  [Declared contrast pairs](/zero/docs/tokens/#declared-contrast-pairs).
 - Token *values* are checked for `var()` references that resolve and do not cycle; `custom`
   and `extra` token names follow the `--kebab-case` grammar; theme names are safe to
   interpolate into `[data-theme="…"]`.
@@ -100,7 +126,8 @@ behind the rules: **an explicit declaration closes its set.**
   Root prop design-system-wide (`RESERVED_PROPS_BY_SCOPE`).
 
 **Coverage** — a component with no recipe warns (`N component(s) have no recipe`), and so
-does a declared state or flag no rule styles, unless the recipe lists it in `skipStates`.
+does a declared state or flag no rule styles, unless the recipe lists it in `skipStates` or
+names it in `sameAs` (its styling is its partner's).
 
 ## The coverage report
 
