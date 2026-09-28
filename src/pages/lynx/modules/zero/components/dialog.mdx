@@ -1,0 +1,174 @@
+---
+title: "Dialog"
+description: "Dialog component for SignalX Lynx — a modal rendered in the overlay outlet, with a real backdrop view, layered light dismiss, Dialog.Cancel and soft-keyboard avoidance (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Overlays"]
+order: 251
+---
+
+# Dialog
+
+<p class="lede">A modal panel over a dimmed backdrop. Lynx has no `<dialog>` element and no top layer, so the panel renders into the overlay outlet that `ZeroRoot` provides. The backdrop is a real view, and a backdrop tap dismisses through a shared layer stack. While the panel is open it keeps clear of the soft keyboard.</p>
+
+The anatomy is zero's `dialog` scope, shared with the web. See [Dialog in `@sigx/zero`](/zero/docs/components/dialog/) for the contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Dialog } from '@sigx/lynx-zero';
+```
+
+`Dialog` is a compound: `Dialog.Root`, `Dialog.Trigger`, `Dialog.Popup`, `Dialog.Title`, `Dialog.Description`, `Dialog.Footer`, `Dialog.Close` and `Dialog.Cancel`.
+
+## Usage
+
+Overlays need the outlet, so wrap the app once in `ZeroRoot`. It is the theme host, with the overlay outlet as its last child:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Dialog, ZeroRoot } from '@sigx/lynx-zero';
+
+export const App = component(() => {
+    return () => (
+        <ZeroRoot>
+            <Dialog.Root color="primary">
+                <Dialog.Trigger><text>Delete draft</text></Dialog.Trigger>
+                <Dialog.Popup>
+                    <Dialog.Title>Delete this draft?</Dialog.Title>
+                    <Dialog.Description>You cannot undo this.</Dialog.Description>
+                    <Dialog.Footer>
+                        <Dialog.Cancel><text>Keep it</text></Dialog.Cancel>
+                        <Dialog.Close><text>Delete</text></Dialog.Close>
+                    </Dialog.Footer>
+                </Dialog.Popup>
+            </Dialog.Root>
+        </ZeroRoot>
+    );
+});
+```
+
+`Dialog.Root` renders nothing itself. The trigger stays where you put it, and the popup is rendered in the outlet. Bind the open state with `model`, or leave the model off and pass `defaultOpen`. `openChange` fires either way:
+
+```tsx
+export const Confirm = component(({ signal }) => {
+    const state = signal({ open: false });
+    return () => (
+        <Dialog.Root model={() => state.open} onOpenChange={(open) => log(open)}>
+            <Dialog.Popup>
+                <Dialog.Title>Saved</Dialog.Title>
+                <Dialog.Footer>
+                    <Dialog.Close><text>OK</text></Dialog.Close>
+                </Dialog.Footer>
+            </Dialog.Popup>
+        </Dialog.Root>
+    );
+});
+```
+
+The trigger is optional. Setting `state.open = true` from anywhere opens the dialog.
+
+### Close and Cancel
+
+`Dialog.Close` and `Dialog.Cancel` both close the dialog. `Dialog.Cancel` is the least destructive action of an alert-style dialog. It behaves exactly like Close, but it is its own part, so the skin can style it as the quiet member of the pair. Both take `disabled`, and a `label` for the reader, which defaults to "Close" and "Cancel".
+
+### Dismissal
+
+A backdrop tap does not close the dialog directly. It asks the shared layer stack to dismiss its innermost layer, so nested overlays close innermost first: a Select or Popover open inside the dialog closes before the dialog does. With `dismissible={false}`, the dialog still consumes the request but stays open, so a backdrop tap does nothing. Lynx has no Escape key. `dismissTopLayer()` is exported for a back-button integration. It returns `true` when an open layer consumed the request.
+
+## What the platform changes
+
+### The backdrop and the safe frame
+
+The backdrop is the anatomy's `::backdrop` pseudo part rendered as a real view, styled by the same recipe. The outlet is a fixed layer attached to the page root, so the backdrop dims the whole window, including the status bar and home-indicator strips. This holds even when `ZeroRoot` sits inside a `SafeAreaView`, below a navigation header, or in a navigation stack that clips its screens. The panel itself centers in the **safe frame**, the host's own box, never under a status bar or a header. A modal backdrop holds native pans, so the page behind it does not scroll.
+
+Closed means unmounted: the backdrop and panel leave the tree when the dialog closes.
+
+### Keyboard avoidance
+
+The panel renders through the outlet, so an app cannot wrap it in a `KeyboardAvoidingView`. It makes room itself. While the dialog is open, it follows the keyboard height from the native safe-area publisher in [`@sigx/lynx-safe-area`](/lynx/modules/safe-area/overview). No `SafeAreaProvider` is needed. The backdrop pads its bottom by the keyboard's overlap when that reaches higher than the safe frame, so the panel centers in what is still visible. On Android, a window that already resized for the keyboard (`adjustResize`) is not lifted twice. Without the native module, the keyboard height stays 0 and the panel does not move.
+
+The panel is capped at the visible box, and its body is always a vertical `scroll-view`. A panel taller than the space scrolls inside instead of running under the keyboard, and the keyboard rising never remounts the focused field:
+
+```tsx
+<Dialog.Root defaultOpen>
+    <Dialog.Popup>
+        <Dialog.Title>Edit profile</Dialog.Title>
+        <Field.Root>
+            <Field.Label>Bio</Field.Label>
+            <Textarea.Root minRows={3} maxRows={8} label="Bio">
+                <Textarea.Textarea />
+            </Textarea.Root>
+        </Field.Root>
+        <Dialog.Footer>
+            <Dialog.Cancel><text>Cancel</text></Dialog.Cancel>
+            <Dialog.Close><text>Save</text></Dialog.Close>
+        </Dialog.Footer>
+    </Dialog.Popup>
+</Dialog.Root>
+```
+
+### Popups inside a dialog
+
+A Select or Popover inside the panel opens above it, not under the backdrop. The panel's open animation is a transform, and a transform fires no layout event. So when that animation or transition ends, every open anchored popup inside the panel re-measures its anchor once. Two fallback timers per open cover an engine that sends no animation event.
+
+### Press feedback
+
+The trigger, Close and Cancel scale on the main thread when touched and carry the `pressed` flag. A disabled one shows no press. See [Press feedback](/lynx/modules/zero/usage#press-feedback).
+
+## Props
+
+### `Dialog.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `boolean` | — | Two-way binding of the open state. |
+| `defaultOpen` | `boolean` | `false` | The initial open state when there is no model. |
+| `dismissible` | `boolean` | `true` | Whether a backdrop tap (or `dismissTopLayer()`) closes the dialog. |
+| `color` / `size` / `variant` | `string` | skin default | The design system's variant axes, stamped on every part. |
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `openChange` (`onOpenChange`) | `boolean` | The open state changed. |
+
+### `Dialog.Trigger`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `disabled` | `boolean` | `false` | Ignores taps and shows no press. |
+| `class` | `string` | — | Extra classes. |
+
+A tap opens the dialog.
+
+### `Dialog.Popup`, `Dialog.Title`, `Dialog.Description`, `Dialog.Footer`
+
+`class` and the default slot. The title and description are `<text>` parts, so pass them a string.
+
+### `Dialog.Close`, `Dialog.Cancel`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `disabled` | `boolean` | `false` | Ignores taps, shows no press, and is announced disabled. |
+| `label` | `string` | `"Close"` / `"Cancel"` | Accessible name. |
+| `class` | `string` | — | Extra classes. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `trigger` | `view` (`button` trait) | `open`, `closed` | `disabled`, `pressed` |
+| `backdrop` | `view` (in the outlet) | `open` | — |
+| `popup` | `view` (in the outlet, inside the backdrop) | `open` | — |
+| `title` | `text` | — | — |
+| `description` | `text` | — | — |
+| `footer` | `view` | — | — |
+| `close` | `view` (`button` trait) | — | `disabled`, `pressed` |
+| `cancel` | `view` (`button` trait) | — | `disabled`, `pressed` |
+
+The popup's children sit inside an unstyled vertical `scroll-view` that is not a part.
+
+## See also
+
+- [Popover](/lynx/modules/zero/components/popover) — a non-modal panel anchored to its trigger.
+- [Toast](/lynx/modules/zero/components/toast) — messages that do not block the page.
+- [Dialog in `@sigx/zero`](/zero/docs/components/dialog/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

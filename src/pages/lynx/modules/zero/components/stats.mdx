@@ -1,0 +1,97 @@
+---
+title: "Stats"
+description: "Stats component for SignalX Lynx — figures with their titles, values and descriptions in a row or a column, on the zero stats anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 408
+---
+
+# Stats
+
+<p class="lede">Figures with their labels, in a row or a column, on zero's `stats` anatomy: `Root`, `Item`, `Title`, `Value`, `Desc` and `Figure`. Stats have no state and no behaviour. Each item can take its own `color`, and the root stamps what Lynx's selectors cannot see for themselves.</p>
+
+The parts are the same as the web component's. See [Stats in `@sigx/zero`](/zero/docs/components/stats/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Stats } from '@sigx/lynx-zero';
+```
+
+`Stats` is a compound with `Root`, `Item`, `Title`, `Value`, `Desc` and `Figure`. `<Stats>` is the same component as `<Stats.Root>`.
+
+## Usage
+
+```tsx
+import { Stats } from '@sigx/lynx-zero';
+
+<Stats.Root>
+    <Stats.Item>
+        <Stats.Figure><text>↓</text></Stats.Figure>
+        <Stats.Title>Downloads</Stats.Title>
+        <Stats.Value>31K</Stats.Value>
+        <Stats.Desc>Jan 1 – Feb 1</Stats.Desc>
+    </Stats.Item>
+    <Stats.Item color="warning">
+        <Stats.Title>Refunds</Stats.Title>
+        <Stats.Value>31</Stats.Value>
+    </Stats.Item>
+</Stats.Root>
+```
+
+`Stats.Title`, `Stats.Value` and `Stats.Desc` render as `<text>`, so pass them strings. `Stats.Figure` is a view: put a `<text>` glyph, an icon or an avatar in it.
+
+### Orientation and colour
+
+`orientation` on the root (`horizontal` by default) is mirrored onto every item, because the seam between items is directional CSS on the item. `size` on the root steps the value's type size.
+
+`color` on the root colours every item. `color` on one `Stats.Item` colours that stat alone and outranks the root's, for the item and every band inside it.
+
+### Seams and the figure
+
+The web draws the seam between items with an `item + item` selector and places the figure in a grid column. Lynx has neither a sibling selector nor grid, so:
+
+- The root tracks its items in mount order and stamps the first one `first` (`zx-m-first`). The skin draws every other item's leading seam.
+- An item holding a `Stats.Figure` is stamped `figure` (`zx-m-figure`). The skin pins the figure to the item's end edge and keeps room for it. The room fits a 32pt figure, like daisyUI's `size-8`.
+
+An item mounted later joins the end of the order. The `figure` stamp is set a microtask after the figure mounts, so the first frame can paint without it. These stamps are a rendering detail, not modifiers you set.
+
+## Props
+
+### `Stats.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Mirrored onto every item. |
+| `color` | `string` | skin default | Colours every item that sets none. |
+| `size` | `string` | skin default | Steps the value's type size. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### `Stats.Item`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` | `string` | the root's | This item's colour. Outranks the root's, for the item and its bands. |
+| `class` | `string` | — | Extra classes. |
+
+`Stats.Title`, `Stats.Value`, `Stats.Desc` and `Stats.Figure` take `class` and a default slot.
+
+## Anatomy on Lynx
+
+| Part | Element | Notes |
+|------|---------|-------|
+| `root` | `view` | Carries the orientation and the axes. |
+| `item` | `view` | Carries the orientation. Stamped `first` and `figure`. |
+| `title` | `text` | |
+| `value` | `text` | |
+| `desc` | `text` | |
+| `figure` | `view` | Not an accessibility element. |
+
+Not taken on Lynx: `asChild` on `Stats.Root`. Lynx has no `<dl>` to swap in.
+
+## See also
+
+- [Card](/lynx/modules/zero/components/card) — a surface with a conventional interior.
+- [Divider](/lynx/modules/zero/components/divider) — a rule between things.
+- [Stats in `@sigx/zero`](/zero/docs/components/stats/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

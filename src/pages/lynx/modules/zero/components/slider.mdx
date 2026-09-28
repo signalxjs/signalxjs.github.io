@@ -1,0 +1,142 @@
+---
+title: "Slider"
+description: "Slider component for SignalX Lynx — touch-driven single and range values, vertical rails, marks, readonly and valueCommit on the zero slider anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 309
+---
+
+# Slider
+
+<p class="lede">A touch-driven value picker on zero's `slider` anatomy. The model is one number, or an array with one thumb per value. The rail runs horizontally or bottom to top, and the value is painted as inline percentages of the track that the skin never has to compute.</p>
+
+The parts are the same as the web component's. See [Slider in `@sigx/zero`](/zero/docs/components/slider/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Slider } from '@sigx/lynx-zero';
+```
+
+`Slider` is a compound whose only member is `Slider.Root`. The root renders every part itself. `<Slider>` and `<Slider.Root>` are the same component.
+
+## Usage
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Slider } from '@sigx/lynx-zero';
+
+export const Volume = component(() => {
+    const state = signal({ volume: 40 });
+    return () => (
+        <Slider.Root
+            label="Volume"
+            model={() => state.volume}
+            min={0}
+            max={100}
+            step={5}
+            marks={[0, 50, 100]}
+            showValue
+            color="primary"
+        />
+    );
+});
+```
+
+A touch anywhere on the control moves the value to that point, and dragging follows the finger. Values snap to the `step` grid, anchored at `min`, and clamp to `[min, max]`. `label` renders the visible `label` part and names the slider for a screen reader. `showValue` renders the `value-text` part, and `formatValue` formats each value in it.
+
+### A range
+
+Pass an array and the slider renders one thumb per value, with the `range` part spanning the lowest to the highest:
+
+```tsx
+<Slider.Root
+    defaultValue={[20, 80]}
+    minStepsBetweenThumbs={5}
+    onValueCommit={(v: number[]) => save(v)}
+/>
+```
+
+A touch moves the nearest thumb and drags it. Thumbs never cross: each one stops at its neighbour. `minStepsBetweenThumbs` keeps them that many steps apart (default `0`). A range written in unsorted order is read low to high, and every write emits the sorted array.
+
+The events keep the model's shape: a scalar slider emits a `number`, a range slider a `number[]`. `Slider.Root`'s handlers are typed from `defaultValue` or from the handler's own annotation, so `onValueChange={(v: number) => …}` and `onValueCommit={(v: number[]) => …}` both type-check. Without either, the handlers default to `number`.
+
+### Commit versus change
+
+`valueChange` fires on every step of a drag. `valueCommit` fires once when the drag ends, and only if the value actually moved. Use it for the expensive write:
+
+```tsx
+<Slider.Root
+    model={() => state.brightness}
+    onValueCommit={(v: number) => persistBrightness(v)}
+/>
+```
+
+### Vertical
+
+`orientation="vertical"` runs the rail bottom to top. The orientation is stamped on the root and on every positioned part (`zx-o-vertical`), so a skin restyles the channel against it:
+
+```tsx
+<Slider.Root orientation="vertical" defaultValue={60} showValue />
+```
+
+### Read-only and disabled
+
+`readonly` refuses every touch: no drag, no press, no `pressed` flag. A read-only slider is still an accessibility element, with "read only" in its status, and it drops the `adjustable` trait so it does not invite a swipe. `disabled` refuses touches the same way. `disabled`, `invalid` and `readonly` are each the prop OR an enclosing `Field.Root`'s.
+
+## How touches map to values
+
+The track's viewport rect (`boundingClientRect`) is measured against the touch's `clientX` / `clientY`. Android's layout-change rect is not page-relative, so this is what makes a touch land on the right value there, anywhere on the page. Every touch-down measures the track again, so a scrolled page is caught on the next touch.
+
+The value paints as inline physical percentages of the track: `left` / `width` on a horizontal rail, `top` / `height` on a vertical one. That is the Lynx counterpart of the web's runtime `--slider-percent` property. The skin owns everything else about the track, range, thumbs and marks.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `number \| number[]` | — | Two-way binding. An array renders one thumb per value. |
+| `defaultValue` | `number \| number[]` | `min` | Initial value when uncontrolled. |
+| `min` | `number` | `0` | Start of the rail. |
+| `max` | `number` | `100` | End of the rail. A value at or below `min` falls back to `min + 100`. |
+| `step` | `number` | `1` | The grid, anchored at `min`. |
+| `minStepsBetweenThumbs` | `number` | `0` | Range model: the closest two thumbs may come, in steps. |
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | A vertical rail runs bottom to top. |
+| `marks` | `number[]` | — | Positions on the rail, in value space, rendered as `mark` parts. |
+| `label` | `string` | — | Renders the `label` part and names the slider for the reader. |
+| `showValue` | `boolean` | `false` | Renders the `value-text` part. A range shows its values joined by ` – `. |
+| `formatValue` | `(value: number) => string` | `String` | Formats each value in `value-text`. |
+| `disabled` | `boolean` | `false` | Refuses touches. ORed with the Field's. |
+| `invalid` | `boolean` | `false` | Stamps `invalid` on the root and the control. ORed with the Field's. |
+| `readonly` | `boolean` | `false` | Announced, never moved by a touch. ORed with the Field's. |
+| `color` / `size` | `string` | skin default | The design system's axes. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `valueChange` (`onValueChange`) | `number \| number[]` | Every change, in the model's shape. |
+| `valueCommit` (`onValueCommit`) | `number \| number[]` | Once at the end of a drag that moved the value, in the model's shape. |
+
+## Anatomy on Lynx
+
+| Part | Element | Flags | Notes |
+|------|---------|-------|-------|
+| `root` | `view` | `disabled`, `invalid`, `readonly` | Carries the orientation and the axes. |
+| `label` | `text` | `disabled` | Rendered when `label` is set. |
+| `control` | `view` (`adjustable` trait unless read-only) | `disabled`, `invalid`, `readonly`, `pressed` | The touch target. `pressed` while a drag is in progress. |
+| `track` | `view` | `disabled`, `readonly` | The measured rail. |
+| `range` | `view` | `disabled` | Positioned inline from the value. |
+| `mark` | `view` | `disabled` | One per entry in `marks`. |
+| `thumb` | `view` | `disabled`, `readonly`, `pressed` | One per value. `pressed` on the thumb being dragged. |
+| `value-text` | `text` | — | Rendered under `showValue`. |
+
+Marks are ticks only: there is no mark label text on Lynx. Not taken: the `hidden-input` part, `name` and `form`, and keyboard stepping.
+
+## See also
+
+- [Progress](/lynx/modules/zero/components/progress) — a value the user reads rather than sets.
+- [NumberInput](/lynx/modules/zero/components/numberinput) — an exact number, typed or stepped.
+- [Field](/lynx/modules/zero/components/field) — the flags the slider adopts.
+- [Slider in `@sigx/zero`](/zero/docs/components/slider/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

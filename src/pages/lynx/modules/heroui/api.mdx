@@ -12,11 +12,11 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 <p class="lede">Every export of `@sigx/lynx-heroui` <PkgVersion npm="@sigx/lynx-heroui" />. Components render real native views on iOS and Android.</p>
 
-`@sigx/lynx-heroui` is a HeroUI-flavored design system built on `@sigx/lynx-zero` (pilot scope, [signalxjs/lynx#219](https://github.com/signalxjs/lynx/issues/219)). All components and types in this reference come from the main barrel unless noted. The Tailwind preset and the stylesheet are **subpath-only** exports — import them from `@sigx/lynx-heroui/preset` and `@sigx/lynx-heroui/styles`, not the barrel.
+`@sigx/lynx-heroui` is a HeroUI-flavored design system built on `@sigx/lynx-zero-legacy` (pilot scope, [signalxjs/lynx#219](https://github.com/signalxjs/lynx/issues/219)). All components and types in this reference come from the main barrel unless noted. The Tailwind preset and the stylesheet are **subpath-only** exports — import them from `@sigx/lynx-heroui/preset` and `@sigx/lynx-heroui/styles`, not the barrel.
 
-Any JS import of the package entry point auto-seeds the `hero-light` and `hero-dark` themes into the shared `@sigx/lynx-zero` registry at module load (via `registerTheme`). The CSS-only `@sigx/lynx-heroui/styles` subpath does **not** execute JS, so an app must import both: the JS barrel (to seed themes and pull in components) and `/styles` (for the CSS).
+Any JS import of the package entry point auto-seeds the `hero-light` and `hero-dark` themes into the shared `@sigx/lynx-zero-legacy` registry at module load (via `registerTheme`). The CSS-only `@sigx/lynx-heroui/styles` subpath does **not** execute JS, so an app must import both: the JS barrel (to seed themes and pull in components) and `/styles` (for the CSS).
 
-The engine and neutral layout primitives are re-exported verbatim from `@sigx/lynx-zero`, so a hero app keeps a single import source. Switching an app between `@sigx/lynx-daisyui` and `@sigx/lynx-heroui` is mostly an import swap.
+The engine and neutral layout primitives are re-exported verbatim from `@sigx/lynx-zero-legacy`, so a hero app keeps a single import source. Switching an app between `@sigx/lynx-daisyui` and `@sigx/lynx-heroui` is mostly an import swap.
 
 ## Entry points
 
@@ -171,7 +171,7 @@ Tab container, compound with `Tabs.Tab`. The container provides headless selecti
 
 ## Theme engine (re-exported)
 
-These are re-exported verbatim from `@sigx/lynx-zero`; their signatures and implementations live there.
+These are re-exported verbatim from `@sigx/lynx-zero-legacy`; their signatures and implementations live there.
 
 ### ThemeProvider
 
@@ -287,7 +287,7 @@ Resolves a semantic `ColorToken` to a concrete color value against the active pa
 
 ## Layout primitives (re-exported)
 
-These are re-exported unchanged from `@sigx/lynx-zero`.
+These are re-exported unchanged from `@sigx/lynx-zero-legacy`.
 
 ### Row
 
@@ -346,7 +346,7 @@ The two built-in themes (`hero-light`, `hero-dark`), produced by mapping HeroUI'
 const HeroLynxPreset: Partial<Config>;
 ```
 
-The HeroUI Lynx Tailwind preset. Currently equals `@sigx/lynx-zero/preset` (`zeroPreset`) re-composed — the place hero-specific Tailwind extensions would land. Subpath export only — exported from `src/preset/index.ts`, **not** the main barrel.
+The HeroUI Lynx Tailwind preset. Currently equals `@sigx/lynx-zero-legacy/preset` (`zeroPreset`) re-composed — the place hero-specific Tailwind extensions would land. Subpath export only — exported from `src/preset/index.ts`, **not** the main barrel.
 
 ### herouiPreset
 
@@ -746,16 +746,16 @@ type TabProps =
 
 ## Re-exported types
 
-These are re-exported verbatim from `@sigx/lynx-zero`; they are defined there, not in heroui.
+These are re-exported verbatim from `@sigx/lynx-zero-legacy`; they are defined there, not in heroui.
 
 - `ThemeName`, `ThemeController`, `ThemeProviderProps`, `Theme`, `ThemePalette`, `ThemeRadius`, `ThemeSizes`, `ThemeVariant`, `StatusBarSyncProps` — theme engine types.
 - `RowProps`, `ColProps`, `CenterProps`, `SpacerProps`, `ScrollViewProps` — layout primitive prop types.
 - `SizeScale`, `ColorVariant`, `ColorToken`, `BackgroundValue` — shared design-system contract types.
 
-See the [`@sigx/lynx-zero` API reference](/lynx/modules/zero/api) for their full definitions.
+See the [`@sigx/lynx-zero-legacy` API reference](/lynx/modules/zero-legacy/api) for their full definitions.
 
 ## See also
 
 - [Usage](/lynx/modules/heroui/usage) — setup and task-based guides.
 - [Components](/lynx/modules/heroui/components) — the visual component catalog.
-- [`@sigx/lynx-zero`](/lynx/modules/zero/api) — the foundation engine and primitives.
+- [`@sigx/lynx-zero-legacy`](/lynx/modules/zero-legacy/api) — the foundation engine and primitives.

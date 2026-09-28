@@ -1,6 +1,6 @@
 ---
 title: "Overview"
-description: "Headless design-system foundation — the Zero module for SignalX Lynx (@sigx/lynx-zero): what it does, setup and API."
+description: "The zero contract on Lynx — the Zero module for SignalX Lynx (@sigx/lynx-zero): what it does, setup and API."
 layout: module-docs
 category: "Getting Started"
 order: 10
@@ -10,20 +10,43 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 # Zero
 
-<p class="lede">Headless-first primitives, theme engine and Tailwind preset that custom design systems build on.</p>
+<p class="lede">zero's anatomy contract, rendered with native Lynx elements. 33 compound components with the same scopes, parts, states and axes as the web runtime, styled by any skin compiled for the Lynx target.</p>
 
 <p class="mod-meta-row"><PkgVersion npm="@sigx/lynx-zero" /> <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
 
 ## Installation
 
 ```bash
-pnpm add @sigx/lynx-zero
+pnpm add @sigx/lynx-zero @sigx/lynx-zero-daisyui
 ```
 
-## About
+## What it is
 
-`@sigx/lynx-zero` is a Lynx module — headless design-system foundation. It is versioned in lockstep with the rest of the Lynx module family, so any combination of modules just works together.
+A design system is data. Its recipes live once, in a zero skin package such as `@sigx/zero-daisyui`, and [`@sigx/zero-kit`](/zero/packages/zero-kit/overview) compiles them twice: attribute-selector CSS for the web, and **class-grammar CSS** for Lynx. The web runtime is [`@sigx/zero`](/zero/docs/overview). `@sigx/lynx-zero` is its Lynx counterpart, and the class-grammar CSS targets it.
+
+Every part a component renders carries both halves of the contract:
+
+- **Classes**, which are the only thing Lynx's style engine can select on: `zx-<scope>__<part>` plus `zx-s-<state>`, `zx-f-<flag>`, `zx-a-<axis>-<value>` and `zx-m-<mod>` modifiers.
+- **`data-*` attributes** (`data-scope`, `data-part`, `data-state`, flags, axes). They render on Lynx and stay the machine-readable anatomy that the testing oracles read.
+
+Both halves come from one part descriptor (`partBag`), so they cannot disagree. The package defines no vocabulary of its own. It re-exports `@sigx/zero`'s contract, so the web and Lynx runtimes use the same anatomies, flags, axes and token names. The contract is explained once, in the web zero docs: [the anatomy contract](/zero/docs/anatomy-contract), [variant axes](/zero/docs/variant-axes), and [how the contract reaches Lynx](/zero/docs/lynx).
+
+## What ships
+
+- **Components.** Button, Toggle, ToggleGroup, Tabs, Accordion, Dialog, Popover, Toast, Field, Fieldset, Input, Textarea, NumberInput, Checkbox, CheckboxGroup, RadioGroup, Switch, Select, Slider, Card, Alert, Badge, Status, Kbd, Divider, Stats, EmptyState, Avatar, AvatarGroup, Progress, Skeleton, Spinner and Timeline. See the [component catalog](/lynx/modules/zero/components).
+- **`ZeroRoot`**, the one app wrapper. It hosts the theme and the overlay outlet that dialogs, popovers, selects and toasts render into.
+- **The theme engine.** `ThemeProvider`, `useTheme` and `themeController` select a skin's compiled themes by class, follow the OS scheme, and scale the text ramp.
+- **Layout primitives.** `Row`, `Col`, `Center`, `Spacer` and `ScrollView`, with per-breakpoint props.
+- **Seams for building your own parts**: `partBag`, `partA11y`, axis push-down, `createPressFeedback`, `useOverlayPortal`, and the conformance tools in `@sigx/lynx-zero/testing`.
+
+It ships no CSS. A skin supplies the look: [`@sigx/lynx-zero-daisyui`](/lynx/modules/zero-daisy/overview) is the daisyUI one.
+
+## Coming from the pre-contract package
+
+Up to lynx 0.27, `@sigx/lynx-zero` was a different package: a props/token contract, a palette theme engine and a Tailwind preset. `@sigx/lynx-daisyui` and `@sigx/lynx-heroui` build on it. In 0.28 it was renamed [`@sigx/lynx-zero-legacy`](/lynx/modules/zero-legacy/overview) and frozen, and `@sigx/lynx-zero` was rebuilt on the zero contract. See [Migrating from the pre-contract package](/lynx/modules/zero/usage#migrating-from-the-pre-contract-package).
 
 ## Next steps
 
-Continue with [Installation](/lynx/modules/zero/installation) for project setup, or jump to the [API reference](/lynx/modules/zero/api).
+- [Installation](/lynx/modules/zero/installation): the packages, the stylesheet import and the build flag the skins assume.
+- [Usage](/lynx/modules/zero/usage): `ZeroRoot` and overlays, theming, axes, press feedback, testing, and the Lynx styling rules.
+- [API reference](/lynx/modules/zero/api): every export.

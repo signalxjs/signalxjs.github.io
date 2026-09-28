@@ -87,7 +87,7 @@ You can combine `style` and `class` on the same element. Classes set the baselin
 
 ## Tailwind preset
 
-If you use Tailwind, both `@sigx/lynx-zero` and `@sigx/lynx-daisyui` ship a preset that re-points the color and font-size utilities at the active theme's custom properties and adds the Lynx-correct layout utility. Add it to your Tailwind config:
+If you use Tailwind, both `@sigx/lynx-zero-legacy` and `@sigx/lynx-daisyui` ship a preset that re-points the color and font-size utilities at the active theme's custom properties and adds the Lynx-correct layout utility. Add it to your Tailwind config:
 
 ```ts
 // tailwind.config.ts
@@ -109,7 +109,7 @@ With the preset installed, semantic utilities resolve against whichever theme is
 
 `bg-primary`, `text-base-content`, `text-lg` and the rest map onto `var(--color-*)` and the `var(--text-*)` ramp through the preset's `contractColors` and `contractFontSizes` maps.
 
-If you don't use a design system, `@sigx/lynx-zero`'s `zeroPreset` is the same composition without the DaisyUI-specific layer — import it from `@sigx/lynx-zero/preset`. (`daisyuiPreset` currently just spreads `zeroPreset`.)
+If you don't use a design system, `@sigx/lynx-zero-legacy`'s `zeroPreset` is the same composition without the DaisyUI-specific layer — import it from `@sigx/lynx-zero-legacy/preset`. (`daisyuiPreset` currently just spreads `zeroPreset`.)
 
 ### Use `.flex-fill`, not `flex-1`
 
@@ -151,7 +151,7 @@ Themes on Lynx are sets of CSS custom properties — colors (`--color-<token>`),
 - **Generated stylesheet rules** for a design system's built-in themes. The design system generates `.theme-name { … }` rules — and, for follow-system use, a `@media (prefers-color-scheme: …)` twin — from its registry data at build time, and the CSS engine resolves them. The painted scheme is the engine's own answer, so a stale JS appearance signal cannot paint the wrong theme. Needs a Lynx ≥ 4.0 host (the CLI templates pin 4.0.1).
 - **Inline custom properties** for everything else — a tenant palette registered at runtime, an `extendTheme()` derivative, the web target. Lynx has no runtime stylesheet-injection API, so these declare the exact palette inline (Lynx ≥ 3.9) with no post-mount swap.
 
-App code is the same either way; see the [Zero theme engine](/lynx/modules/zero/usage/#the-theme-engine) for the details. Note that inline `--*` custom properties are registered by the engine only when they arrive as runtime styles (`SET_STYLE`); a `--*` declaration inside a compile-time snapshot template's static style does not register.
+App code is the same either way; see the [Zero theme engine](/lynx/modules/zero-legacy/usage#the-theme-engine) for the details. Note that inline `--*` custom properties are registered by the engine only when they arrive as runtime styles (`SET_STYLE`); a `--*` declaration inside a compile-time snapshot template's static style does not register.
 
 Two authoring constraints remain — they concern the CSS engine's colour handling, not variable inheritance:
 
@@ -253,7 +253,7 @@ Some native surfaces — text inputs, rich-text, SVG fills — can't read CSS va
 
 ```tsx
 import { component } from '@sigx/lynx';
-import { useThemeColors } from '@sigx/lynx-zero';
+import { useThemeColors } from '@sigx/lynx-zero-legacy';
 // text is a global JSX intrinsic — no import needed.
 
 export const Hint = component(() => {

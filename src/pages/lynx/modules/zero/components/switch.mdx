@@ -1,0 +1,108 @@
+---
+title: "Switch"
+description: "Switch component for SignalX Lynx — an on/off setting with a boolean model, readonly, press feedback and the zero switch anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 308
+---
+
+# Switch
+
+<p class="lede">An on/off setting on zero's `switch` anatomy. The whole row is one tap target, the state lives in a `boolean` model, and the switch announces itself through the native accessibility props. Lynx has no forms, so there is no hidden native input.</p>
+
+The parts and states are the same as the web component's. See [Switch in `@sigx/zero`](/zero/docs/components/switch/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Switch } from '@sigx/lynx-zero';
+```
+
+`Switch` is a compound whose only part is `Switch.Root`. `<Switch>` and `<Switch.Root>` are the same component.
+
+## Usage
+
+The default slot is the visible label. It renders inside the `label` part, which is a `<text>`, so pass a plain string:
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Switch } from '@sigx/lynx-zero';
+
+export const Settings = component(() => {
+    const state = signal({ wifi: true });
+    return () => (
+        <Switch.Root model={() => state.wifi} color="primary">
+            Wi-Fi
+        </Switch.Root>
+    );
+});
+```
+
+`model` binds the checked state both ways. Leave it off and pass `defaultChecked` to keep the state inside the component. `checkedChange` fires either way. With no children the switch renders no `label` part; pass `label` so a screen reader still names it:
+
+```tsx
+<Switch label="Dark mode" defaultChecked />
+```
+
+### Read-only and disabled
+
+`readonly` keeps the switch announced but refuses every tap, and shows no press. Nothing will happen, so nothing looks as if it is about to. The accessibility status says "read only". `disabled` refuses taps the same way and is announced as disabled.
+
+`disabled`, `invalid` and `readonly` are each the prop OR an enclosing `Field.Root`'s. `required` is taken from the prop only.
+
+### Press feel
+
+While a touch is held, the `control` carries the `pressed` flag (`zx-f-pressed`), where a skin tints the held track. No press shows while the switch is disabled or read-only.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `boolean` | — | Two-way binding of the checked state. |
+| `defaultChecked` | `boolean` | `false` | Initial state when uncontrolled. |
+| `disabled` | `boolean` | `false` | Refuses taps. ORed with the Field's. |
+| `invalid` | `boolean` | `false` | Stamps `invalid` on the root and the control. ORed with the Field's. |
+| `required` | `boolean` | `false` | Stamps `required` on the root. |
+| `readonly` | `boolean` | `false` | Announced, never toggled by a tap. ORed with the Field's. |
+| `color` / `size` | `string` | skin default | The design system's axes. |
+| `label` | `string` | — | Accessible name. The visible label is the default slot. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `checkedChange` (`onCheckedChange`) | `boolean` | The checked state changed. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The visible label text. It renders inside a `<text>`, so pass a string. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `root` | `view` (`button` trait, the tap target) | `checked` \| `unchecked` | `disabled`, `invalid`, `required`, `readonly` |
+| `control` | `view` | same | `disabled`, `invalid`, `readonly`, `pressed` |
+| `thumb` | `view` | same | — |
+| `label` | `text` | same | `disabled` |
+
+Not taken on Lynx: the `hidden-input` part, `name` and `form`. `focus-visible` can only be forced for display, through `ForceStates` from `@sigx/lynx-zero/testing`:
+
+```tsx
+import { ForceStates } from '@sigx/lynx-zero/testing';
+
+<ForceStates flags={{ 'focus-visible': true }} parts={['control']}>
+    <Switch defaultChecked />
+</ForceStates>
+```
+
+## See also
+
+- [Checkbox](/lynx/modules/zero/components/checkbox) — a choice the user confirms later.
+- [Toggle](/lynx/modules/zero/components/toggle) — a button with an on/off mode, not a form control.
+- [Field](/lynx/modules/zero/components/field) — the flags the switch adopts.
+- [Switch in `@sigx/zero`](/zero/docs/components/switch/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

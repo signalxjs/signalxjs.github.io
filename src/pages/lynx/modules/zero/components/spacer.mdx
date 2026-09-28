@@ -26,9 +26,9 @@ import { Col, Spacer } from '@sigx/lynx-zero';
 function Stack() {
   return (
     <Col>
-      <view class="text-base-content">Top</view>
+      <text>Top</text>
       <Spacer size={16} />
-      <view class="text-base-content">Bottom</view>
+      <text>Bottom</text>
     </Col>
   );
 }
@@ -44,9 +44,9 @@ import { Row, Spacer } from '@sigx/lynx-zero';
 function Toolbar() {
   return (
     <Row gap={8} align="center" padding={12} background="base-100" borderRadius={12}>
-      <view class="text-base-content">Title</view>
+      <text>Title</text>
       <Spacer />
-      <view class="text-base-content">Action</view>
+      <text>Action</text>
     </Row>
   );
 }
@@ -56,12 +56,12 @@ function Toolbar() {
 
 ## Extra classes
 
-Like every Zero primitive, `Spacer` accepts `class` for arbitrary extra utilities appended after its computed style:
+Like every Zero primitive, `Spacer` accepts `class` for your own stylesheet classes, applied beside its computed inline style:
 
 ```tsx
 import { Spacer } from '@sigx/lynx-zero';
 
-<Spacer size={24} class="bg-base-200" />
+<Spacer size={24} class="section-gap" />
 ```
 
 ## Props
@@ -70,6 +70,8 @@ import { Spacer } from '@sigx/lynx-zero';
 |------|------|-------------|
 | `size` | `number` | Fixed square size applied to both width and height. Omit it to make the spacer a flexible filler (`flex: 1`) that fills the remaining space along the main axis. |
 | `class` | `string` | Extra CSS classes, appended after the computed ones. |
+
+Every style prop also accepts a per-breakpoint object such as `{ initial: 16, expanded: 32 }`, resolved mobile-first against the window's width class. See [responsive props](/lynx/modules/zero/usage#responsive-props).
 
 `Spacer` has no default slot, and emits no events.
 

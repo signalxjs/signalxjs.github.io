@@ -1,0 +1,135 @@
+---
+title: "Checkbox"
+description: "Checkbox component for SignalX Lynx — boolean and array-mode models, the indeterminate state, group membership and the zero checkbox anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 305
+---
+
+# Checkbox
+
+<p class="lede">A tri-state checkbox on zero's `checkbox` anatomy. Lynx has no forms, so there is no hidden native input: the state lives in the component's model, the whole row is one tap target, and the box announces itself through the native accessibility props as checked, unchecked or mixed.</p>
+
+The parts and states are the same as the web component's. See [Checkbox in `@sigx/zero`](/zero/docs/components/checkbox/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Checkbox } from '@sigx/lynx-zero';
+```
+
+`Checkbox` is a compound whose only part is `Checkbox.Root`. `<Checkbox>` and `<Checkbox.Root>` are the same component.
+
+## Usage
+
+The default slot is the label. The component renders it inside the `label` part, which is a `<text>`, so pass a plain string:
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Checkbox } from '@sigx/lynx-zero';
+
+export const Terms = component(() => {
+    const state = signal({ agreed: false });
+    return () => (
+        <Checkbox.Root model={() => state.agreed} color="primary">
+            Accept the terms
+        </Checkbox.Root>
+    );
+});
+```
+
+`model` binds the checked state both ways. Leave it off and pass `defaultChecked` to keep the state inside the component. `checkedChange` reports this box's new state either way. A tap anywhere on the row toggles it.
+
+### Array mode
+
+Bind several boxes to one `string[]` and each box toggles its own `value` in the array. `checkedChange` still reports the tapped box's own state as a `boolean`:
+
+```tsx
+const state = signal({ tags: ['news'] as string[] });
+
+<Checkbox.Root model={() => state.tags} value="news">News</Checkbox.Root>
+<Checkbox.Root model={() => state.tags} value="offers">Offers</Checkbox.Root>
+```
+
+`value` defaults to `"on"`, as on the web. For a labelled set with a shared name and flags, use [CheckboxGroup](/lynx/modules/zero/components/checkboxgroup) instead.
+
+### Indeterminate
+
+`indeterminate` shows the mixed state (`zx-s-indeterminate`) whatever the model says. The mixed look belongs to the app. A tap flips the underlying checkedness, as a native mixed checkbox does, and the app decides when to clear `indeterminate`:
+
+```tsx
+<Checkbox.Root model={() => state.all} indeterminate={state.some && !state.all}>
+    Select all
+</Checkbox.Root>
+```
+
+Inside a `CheckboxGroup`, use `parent` instead. A parent box works out its own tri-state from the group.
+
+### Without a visible label
+
+`hideLabel` renders no `label` part. Use it when the row around the box already says what it is, and pass `label` so a screen reader still names the box:
+
+```tsx
+<Checkbox.Root hideLabel label="Select row 3" model={() => row.selected} />
+```
+
+On the web, `hideLabel` keeps the label text off screen as the accessible name. Lynx has no such text node to fall back on, so `label` does that job here.
+
+### Read-only, disabled, and inside a Field
+
+`disabled` and `readonly` both refuse every tap and show no press. A read-only box is still announced, with "read only" in its accessibility status. Each flag is the prop OR an enclosing `Field.Root`'s OR the enclosing `CheckboxGroup.Root`'s. The box also takes the Field's `size` when it sets none. See [Field](/lynx/modules/zero/components/field).
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `boolean \| string[]` | — | Two-way binding. A `string[]` turns on array mode, where the box toggles its own `value`. |
+| `defaultChecked` | `boolean` | `false` | Initial state when uncontrolled. |
+| `indeterminate` | `boolean` | `false` | Show the mixed state. For a standalone box. A group's `parent` box derives its own. |
+| `value` | `string` | `"on"` | The membership key in array mode and inside a `CheckboxGroup`, where every box needs a distinct one. |
+| `parent` | `boolean` | `false` | Inside a `CheckboxGroup`: the tri-state "select all" box. Outside a group it has no effect. |
+| `disabled` | `boolean` | `false` | Refuses taps. ORed with the Field's and the group's. |
+| `invalid` | `boolean` | `false` | Stamps `invalid` on the root and the control. ORed with the Field's and the group's. |
+| `required` | `boolean` | `false` | Stamps `required`. There is no form to block. ORed with the Field's and the group's. |
+| `readonly` | `boolean` | `false` | Announced, never toggled by a tap. ORed with the Field's and the group's. |
+| `color` / `size` | `string` | skin default | The design system's axes. `size` falls back to the Field's or the group's. |
+| `label` | `string` | — | Accessible name for the box. The visible label is the default slot. |
+| `hideLabel` | `boolean` | `false` | Render no visible label. Pass `label` with it. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `checkedChange` (`onCheckedChange`) | `boolean` | This box's new checked state, in every mode. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The visible label text. It renders inside a `<text>`, so pass a string. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `root` | `view` (`button` trait, the tap target) | `checked` \| `unchecked` \| `indeterminate` | `disabled`, `invalid`, `required`, `readonly` |
+| `control` | `view` | same | `disabled`, `invalid`, `readonly`, `pressed` |
+| `indicator` | `view` | same | — |
+| `label` | `text` | same | `disabled` |
+
+The `pressed` flag rides the `control` while a touch is held, where the skin paints the held box. The accessibility status reads `checked`, `unchecked` or `mixed`, then `disabled` or `read only`.
+
+Not taken on Lynx: the `hidden-input` part, `name` and `form` (Lynx has no forms), native validity, and keyboard toggling. `focus-visible` can only be forced for display, through `ForceStates` from `@sigx/lynx-zero/testing`.
+
+## On the daisy skin
+
+daisyUI's web checkbox cuts its tick out of a rotated square with `clip-path` and paints a noise texture from an SVG data-URI image. Lynx does not apply `clip-path`, and iOS Lynx cannot decode SVG data URIs, so zero-kit's Lynx target drops both. On Lynx the daisy checkbox draws its tick as two borders on a rotated box, with a stroke that follows the `size` axis, and draws the indeterminate mark as a bar centred in the box. Checkboxes and radios have no noise texture on Lynx. This ships with `@sigx/zero-daisyui` 0.13.0.
+
+## See also
+
+- [CheckboxGroup](/lynx/modules/zero/components/checkboxgroup) — a labelled group of boxes under one `string[]` model, with a parent box.
+- [Switch](/lynx/modules/zero/components/switch) — an on/off setting that applies at once.
+- [RadioGroup](/lynx/modules/zero/components/radiogroup) — one choice from a set.
+- [Checkbox in `@sigx/zero`](/zero/docs/components/checkbox/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

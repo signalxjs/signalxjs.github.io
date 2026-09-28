@@ -1,0 +1,78 @@
+---
+title: "Usage"
+description: "Using Zero DaisyUI in a SignalX Lynx app — daisyUI skin for Lynx Zero patterns and examples with @sigx/lynx-zero-daisyui."
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Zero DaisyUI
+
+<p class="lede">Import it once and every `@sigx/lynx-zero` component wears daisyUI. This page covers the themes, the axis defaults, and where the Lynx skin differs from the web.</p>
+
+## Themes
+
+The import registers five themes into `@sigx/zero`'s theme registry, which is the registry `@sigx/lynx-zero`'s `ThemeProvider` and `themeController` read:
+
+| Theme | Scheme | Pair |
+|---|---|---|
+| `light` | light | `dark` |
+| `dark` | dark | `light` |
+| `dim` | dark | none |
+| `nord` | light | none |
+| `sunset` | dark | none |
+
+Selection, pairing and follow-system work with no further wiring:
+
+```tsx
+import { ZeroRoot, themeController } from '@sigx/lynx-zero';
+
+<ZeroRoot light="nord" dark="dim">{/* follows the OS scheme */}</ZeroRoot>;
+
+themeController.set('sunset');   // pin one
+themeController.toggle();        // light <-> dark; a theme with no pair stays put
+themeController.followSystem();  // back to the OS scheme
+```
+
+Each theme's swatch colors (`primary`, `secondary`, `accent`, `neutral`, `base-100`, `base-content`) are baked to hex at build time, so a theme picker can paint them straight from `listThemes()`:
+
+```tsx
+import { Row, listThemes, themeController } from '@sigx/lynx-zero';
+
+<Row gap={8}>
+    {listThemes().map((t) => (
+        <view key={t.name} bindtap={() => themeController.set(t.name)}
+            style={{ width: '24px', height: '24px', borderRadius: '12px', backgroundColor: t.swatch?.primary }} />
+    ))}
+</Row>;
+```
+
+daisyUI declares no scalable `--text-*` ramp, so `themeController.setFontScale()` changes nothing under this skin. The OS text-size setting still scales text, because the engine scales `px` font sizes itself.
+
+## Axis defaults
+
+The Lynx CSS has no `:not()` default rules, so a component whose `variant`, `size` or `color` is unset would match no axis rule. The import registers the defaults daisyUI's manifest declares, so a bare `<Button>` renders as a solid, primary, `md` button:
+
+| Scope | Defaults |
+|---|---|
+| `button` | `color: primary`, `variant: solid`, `size: md` |
+| `toggle` | `color: primary`, `size: md` |
+| `toggle-group` | `color: primary` |
+| `switch` | `color: primary` |
+| `progress`, `slider`, `select` | `color: primary`, `size: md` |
+| `tabs` | `size: md`, `variant: border` |
+| `accordion`, `collapsible`, `toast` | `size: md` |
+
+An explicit prop always wins. The table is exported as `DAISY_AXIS_DEFAULTS`. See [axis push-down](/lynx/modules/zero/usage#axis-push-down) for how the defaults are resolved.
+
+## How the Lynx skin differs from the web
+
+The recipes are the web's, compiled for an engine with fewer features. These differences are visible:
+
+- **Sizes match the web.** The compiled CSS has no `rem`: zero-kit writes every `rem` as `px` at 16px per rem, because Lynx's own `rem` is 14px. A md button is 40pt tall on Lynx as on the web. Your own app CSS is not rewritten, so write `px` where a size must match the skin.
+- **Focus rings follow the radius.** Lynx's `outline` ignores `border-radius` and it has no `outline-offset`, so the skin draws a focus ring as two spread box-shadows: 2px of the surface, then 2px of ink. The Accordion trigger's ring is inset, and the Slider's is on the thumb only. The ring shows when a part carries the `focus-visible` flag: text fields set it on focus, and other parts only under [`ForceStates`](/lynx/modules/zero/usage#forcing-states-for-display).
+- **No noise texture, no clip-path.** iOS Lynx cannot decode SVG data-URI images, and Lynx does not apply `clip-path`, so zero-kit's Lynx target drops both. The checkbox draws its tick as two borders on a rotated box and its indeterminate mark as a centred bar. Checkbox and radio have no noise texture.
+- **A button is content-sized.** Like daisyUI's `btn`, it never shrinks below its label: in a row narrower than its content it overflows whole instead of breaking the label. Pass `mods={{ block: true }}` (or `wide`) for a full-width button.
+- **No `:hover`, no pseudo-elements, no `@media`.** Hover rules are dropped. Where daisyUI draws with `::before` or `::after`, the component renders a real part instead (the Tabs underline is `Tabs.Indicator`, a labelled Divider draws its segments as views). The `prefers-reduced-motion` stops do not reach Lynx.
+
+The mechanics of the Lynx target are on zero's [Lynx page](/zero/docs/lynx).

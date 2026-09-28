@@ -1,0 +1,89 @@
+---
+title: "Card"
+description: "Card component for SignalX Lynx — a surface with media, header, title, description, body and footer bands on the zero card anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 406
+---
+
+# Card
+
+<p class="lede">A surface with a conventional interior, on zero's `card` anatomy: `Media`, `Header`, `Title`, `Description`, `Body` and `Footer`. A card has no state and no behaviour. The bands are styling containers, and the `color` and `size` axes ride the root.</p>
+
+The parts are the same as the web component's. See [Card in `@sigx/zero`](/zero/docs/components/card/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Card } from '@sigx/lynx-zero';
+```
+
+`Card` is a compound with `Root`, `Media`, `Header`, `Title`, `Description`, `Body` and `Footer`. `<Card>` is the same component as `<Card.Root>`.
+
+## Usage
+
+```tsx
+import { Button, Card } from '@sigx/lynx-zero';
+
+<Card.Root color="primary">
+    <Card.Media>
+        <image src={cover} mode="aspectFill" style={{ width: '100%', height: '120px' }} />
+    </Card.Media>
+    <Card.Header>
+        <Card.Title>Monthly report</Card.Title>
+        <Card.Description>Updated 4 minutes ago</Card.Description>
+    </Card.Header>
+    <Card.Body><text>Revenue is up 12%.</text></Card.Body>
+    <Card.Footer>
+        <Button color="primary"><text>Open</text></Button>
+    </Card.Footer>
+</Card.Root>
+```
+
+Every band is a `<view>`. `Card.Title` and `Card.Description` render as `<text>`, so pass them strings. Put text inside `Card.Body` in your own `<text>`.
+
+### Media
+
+Put an `<image>` inside `Card.Media`, and size it yourself: a Lynx image has no intrinsic size. The skin draws the media band edge to edge and rounds the corners it shares with the card.
+
+On iOS, a view's clip has not reliably rounded a filled child's corners ([signalxjs/lynx#1218](https://github.com/signalxjs/lynx/issues/1218)). If your image's corners paint square there, give the image the same corner radius as the card.
+
+### Band order
+
+The web selects the media band's shared corners with `:first-child` and `:last-child`, which Lynx lacks. Instead the root tracks its bands (media, header, body and footer) in mount order and stamps `first` and `last` on `Card.Media` (`zx-m-first`, `zx-m-last`). A band mounted later, such as a conditional one, joins the end of that order wherever it sits in the tree. These stamps are a rendering detail, not modifiers you set.
+
+## Accessibility
+
+`Card.Title` carries the `header` accessibility trait, the native-reader spelling of a heading. The other parts carry no accessibility props.
+
+## Props
+
+### `Card.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` / `size` | `string` | skin default | The design system's axes. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+Every other part takes `class` and a default slot, and nothing else.
+
+## Anatomy on Lynx
+
+| Part | Element | Notes |
+|------|---------|-------|
+| `root` | `view` | Carries the axes. |
+| `media` | `view` | Stamped `first` / `last` by band order. |
+| `header` | `view` | |
+| `title` | `text` | `header` trait. |
+| `description` | `text` | |
+| `body` | `view` | |
+| `footer` | `view` | |
+
+Not taken on Lynx: `asChild`. Lynx has no `<article>` or `<figure>` to render instead.
+
+## See also
+
+- [Alert](/lynx/modules/zero/components/alert) — a dismissible message.
+- [Stats](/lynx/modules/zero/components/stats) — figures with their labels.
+- [Card in `@sigx/zero`](/zero/docs/components/card/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

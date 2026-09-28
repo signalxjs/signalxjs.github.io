@@ -1,0 +1,141 @@
+---
+title: "RadioGroup"
+description: "RadioGroup component for SignalX Lynx — one choice from a set under a string model, with explicit items or data mode (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 307
+---
+
+# RadioGroup
+
+<p class="lede">One choice from a set, under a `string` model, on zero's `radio-group` anatomy. Each item row is its own tap target and accessibility element. Lynx has no native radios, so there is no shared `name`, no hidden input and no arrow-key roving.</p>
+
+The parts and states are the same as the web component's. See [Radio Group in `@sigx/zero`](/zero/docs/components/radio-group/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { RadioGroup } from '@sigx/lynx-zero';
+```
+
+`RadioGroup` is a compound with `Root`, `Item` and `Label`. `<RadioGroup>` is the same component as `<RadioGroup.Root>`.
+
+## Usage
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { RadioGroup } from '@sigx/lynx-zero';
+
+export const Plan = component(() => {
+    const state = signal({ plan: 'free' });
+    return () => (
+        <RadioGroup.Root model={() => state.plan} color="primary">
+            <RadioGroup.Label>Plan</RadioGroup.Label>
+            <RadioGroup.Item value="free">Free</RadioGroup.Item>
+            <RadioGroup.Item value="pro">Pro</RadioGroup.Item>
+            <RadioGroup.Item value="team" disabled>Team</RadioGroup.Item>
+        </RadioGroup.Root>
+    );
+});
+```
+
+The model is the chosen item's `value`. `''` means nothing is chosen, which is the default. Tapping the checked item does nothing, because a radio never unchecks. An item's default slot is its label text and renders inside a `<text>`, so pass a string.
+
+### Data mode
+
+Pass `items` instead of children and the group renders one item per entry. The accessors are the same ones [Select](/lynx/modules/zero/components/select) takes:
+
+```tsx
+const plans = [
+    { id: 'free', name: 'Free' },
+    { id: 'pro', name: 'Pro' },
+    { id: 'team', name: 'Team', disabled: true },
+];
+
+<RadioGroup.Root
+    items={plans}
+    itemKey={(p) => p.id}
+    itemLabel={(p) => p.name}
+    model={() => state.plan}
+/>
+```
+
+- `itemKey` gives the model string for an item. By default it reads `value` or `id`, or uses the item itself when it is a primitive.
+- `itemLabel` gives the label text. By default it reads `label`, or falls back to the key.
+- `itemDisabled` defaults to `item.disabled === true`.
+- The `item` slot renders a custom label for a generated item. It receives `{ item }`. The label text still names the item for a screen reader.
+
+Explicit children win entirely: when the group has children, `items` is ignored. An item keyed `''` throws, because it could never be told apart from "nothing chosen".
+
+### Flags
+
+`disabled`, `invalid`, `required` and `readonly` on the root are each the prop OR an enclosing `Field.Root`'s. `invalid` and `readonly` are restated on every item and its control, the surfaces a skin paints. A read-only group keeps every item announced but refuses every tap and shows no press. `disabled` on one item disables only that item. The group also takes the Field's `size` when it sets none.
+
+## Props
+
+### `RadioGroup.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `string` | — | Two-way binding of the chosen value. `''` is nothing chosen. |
+| `defaultValue` | `string` | `''` | Initial value when uncontrolled. |
+| `items` | `ReadonlyArray<T>` | — | Data mode: one item per entry. Ignored when the group has children. |
+| `itemKey` | `(item: T) => string` | `value` / `id`, or the primitive | The model string for an item. |
+| `itemLabel` | `(item: T) => string` | `label`, or the key | The label text for an item. |
+| `itemDisabled` | `(item: T) => boolean` | `item.disabled === true` | Whether an item is disabled. |
+| `orientation` | `'horizontal' \| 'vertical'` | `'vertical'` | The axis the items are laid out along. Stamped on the root. |
+| `disabled` | `boolean` | `false` | Disables every item. ORed with the Field's. |
+| `invalid` | `boolean` | `false` | Restated on every item and item control. ORed with the Field's. |
+| `required` | `boolean` | `false` | A flag the skin and the reader see. ORed with the Field's. |
+| `readonly` | `boolean` | `false` | Every item announced, none changes the value. ORed with the Field's. |
+| `color` / `size` | `string` | skin default | The design system's axes, stamped on every part. `size` falls back to the Field's. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### `RadioGroup.Item`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `string` | — | Required. The model value this item selects. |
+| `disabled` | `boolean` | `false` | Disables this item. ORed with the group's. |
+| `label` | `string` | — | Accessible name. The visible label is the default slot. |
+| `class` | `string` | — | Extra classes. |
+
+### `RadioGroup.Label`
+
+The group's visible name, a `<text>` part. Takes `class` and a default slot.
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `valueChange` (`onValueChange`) | `string` | The chosen value changed. |
+
+### Slots
+
+| Slot | Part | Description |
+|------|------|-------------|
+| `default` | `Root` | Explicit `RadioGroup.Label` and `RadioGroup.Item` children. |
+| `item` | `Root` | A custom label for a generated item, given `{ item }`. |
+| `default` | `Item` | The item's label text. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `root` | `view` | — (orientation `horizontal` \| `vertical`) | `disabled`, `invalid`, `required`, `readonly` |
+| `label` | `text` | — | `disabled`, `invalid`, `required` |
+| `item` | `view` (`button` trait, the tap target) | `checked` \| `unchecked` | `disabled`, `invalid`, `readonly` |
+| `item-control` | `view` | same | `disabled`, `invalid`, `readonly`, `pressed` |
+| `item-indicator` | `view` | same | — |
+| `item-label` | `text` | same | `disabled` |
+
+The group root is not an accessibility element, so each item announces itself: `checked` or `unchecked`, then `disabled` or `read only`. The `pressed` flag rides the `item-control` while a touch is held.
+
+Not taken on Lynx: the `hidden-input` part, the generated `name`, `form`, arrow-key roving and native validity. `focus-visible` can only be forced for display, through `ForceStates` from `@sigx/lynx-zero/testing`.
+
+## See also
+
+- [Checkbox](/lynx/modules/zero/components/checkbox) and [CheckboxGroup](/lynx/modules/zero/components/checkboxgroup) — any number of choices.
+- [Field](/lynx/modules/zero/components/field) — the flags and size the group adopts.
+- [Radio Group in `@sigx/zero`](/zero/docs/components/radio-group/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

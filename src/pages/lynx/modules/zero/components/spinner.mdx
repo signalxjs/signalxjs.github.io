@@ -1,0 +1,70 @@
+---
+title: "Spinner"
+description: "Spinner component for SignalX Lynx — a busy indicator with a visually hidden label or a decorative mode, on the zero spinner anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 413
+---
+
+# Spinner
+
+<p class="lede">A busy indicator, and nothing else, on zero's `spinner` anatomy. It has no state: it spins, or it is not rendered. The skin draws the mark on the root, and the words a reader hears live in a visually hidden `label` part.</p>
+
+The parts are the same as the web component's. See [Spinner in `@sigx/zero`](/zero/docs/components/spinner/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Spinner } from '@sigx/lynx-zero';
+```
+
+`Spinner` is a compound whose only member is `Spinner.Root`. `<Spinner>` and `<Spinner.Root>` are the same component.
+
+## Usage
+
+```tsx
+import { Row, Spinner } from '@sigx/lynx-zero';
+
+<Spinner />
+
+<Spinner label="Uploading" size="lg" color="accent" />
+
+<Row gap={8} align="center">
+    <Spinner decorative size="sm" />
+    <text>Saving…</text>
+</Row>
+```
+
+The default label is "Loading". Pass `label` to say what is happening. Use `decorative` for a spinner beside text that already says it: it then renders no label part and is hidden from the reader.
+
+## Accessibility
+
+The words are the `label` part: a `<text>` kept in the tree for the reader but out of layout and paint. Lynx has no live region, so the root is also one accessible element, named by those words and announced as busy.
+
+A decorative spinner is not an accessibility element.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `label` | `string` | `"Loading"` | What the spinner announces. |
+| `decorative` | `boolean` | `false` | No label part, hidden from the reader. |
+| `color` / `size` | `string` | skin default | The design system's axes. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+## Anatomy on Lynx
+
+| Part | Element | Notes |
+|------|---------|-------|
+| `root` | `view` | The skin draws the mark. One accessible element, busy, unless decorative. |
+| `label` | `text` | Visually hidden. Not rendered when decorative. |
+
+The skins' `prefers-reduced-motion` stop does not apply on Lynx, which emits no `@media`, so the spinner keeps turning.
+
+## See also
+
+- [Skeleton](/lynx/modules/zero/components/skeleton) — the shape of content that is on its way.
+- [Progress](/lynx/modules/zero/components/progress) — progress you can measure.
+- [Button](/lynx/modules/zero/components/button) — has its own `loading` state with a spinner part.
+- [Spinner in `@sigx/zero`](/zero/docs/components/spinner/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

@@ -8,7 +8,7 @@ order: 28
 
 # Theming
 
-<p class="lede">HeroUI's look comes from three cooperating pieces: a Tailwind preset that wires the semantic color tokens, a stylesheet that ships per-component CSS plus the first-paint theme classes, and a runtime theme engine (re-exported from <code>@sigx/lynx-zero</code>) that applies a palette and lets you switch it live. Importing anything from the package root also seeds the two built-in themes, <code>hero-light</code> and <code>hero-dark</code>.</p>
+<p class="lede">HeroUI's look comes from three cooperating pieces: a Tailwind preset that wires the semantic color tokens, a stylesheet that ships per-component CSS plus the first-paint theme classes, and a runtime theme engine (re-exported from <code>@sigx/lynx-zero-legacy</code>) that applies a palette and lets you switch it live. Importing anything from the package root also seeds the two built-in themes, <code>hero-light</code> and <code>hero-dark</code>.</p>
 
 ## The three layers
 
@@ -18,7 +18,7 @@ To theme a HeroUI app you set up three things, imported from different entry poi
 2. **The stylesheet** &mdash; `@sigx/lynx-heroui/styles`. A side-effect CSS import that bundles the per-component CSS and the per-theme first-paint classes.
 3. **The theme engine** &mdash; `ThemeProvider`, `useTheme`, `themeController` and friends from the package root. Applies the active palette as inheritable CSS variables and switches it at runtime.
 
-Importing **anything** from the `@sigx/lynx-heroui` JS root also seeds the two built-in themes into the shared `@sigx/lynx-zero` registry as a module-load side effect, so `ThemeProvider`'s follow-system defaults and `listThemes()` work out of the box. The CSS-only `./styles` subpath does not execute JS, so an app always imports **both** the JS root and the styles &mdash; the same pattern as `@sigx/lynx-daisyui`.
+Importing **anything** from the `@sigx/lynx-heroui` JS root also seeds the two built-in themes into the shared `@sigx/lynx-zero-legacy` registry as a module-load side effect, so `ThemeProvider`'s follow-system defaults and `listThemes()` work out of the box. The CSS-only `./styles` subpath does not execute JS, so an app always imports **both** the JS root and the styles &mdash; the same pattern as `@sigx/lynx-daisyui`.
 
 ## The Tailwind preset
 
@@ -33,7 +33,7 @@ export default {
 };
 ```
 
-`herouiPreset` is an alias of `HeroLynxPreset`; both name the same object, which is currently exactly `@sigx/lynx-zero/preset` (the `zeroPreset`). That preset brings:
+`herouiPreset` is an alias of `HeroLynxPreset`; both name the same object, which is currently exactly `@sigx/lynx-zero-legacy/preset` (the `zeroPreset`). That preset brings:
 
 - **Semantic color tokens** &mdash; utilities like `bg-primary`, `text-base-content`, `border-accent` resolving to `var(--color-*)`, including the `*-soft` tint tokens.
 - **The `--text-*` font-size ramp** &mdash; the type scale the theme engine re-emits when you change `fontScale`.
@@ -56,7 +56,7 @@ Theme **colors** live in the registry and are applied by `ThemeProvider` as **in
 
 ## The theme engine
 
-`ThemeProvider` is the design-system-neutral theme engine, re-exported from `@sigx/lynx-zero` so a hero app keeps a single import source. Wrap your tree once at the root:
+`ThemeProvider` is the design-system-neutral theme engine, re-exported from `@sigx/lynx-zero-legacy` so a hero app keeps a single import source. Wrap your tree once at the root:
 
 ```tsx
 import { ThemeProvider } from '@sigx/lynx-heroui';

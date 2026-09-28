@@ -1,0 +1,95 @@
+---
+title: "Divider"
+description: "Divider component for SignalX Lynx — a horizontal or vertical rule, optionally labelled, on the zero divider anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 407
+---
+
+# Divider
+
+<p class="lede">A rule between things, on zero's `divider` anatomy. On Lynx the root is the line itself. A divider with a label draws a line segment on each side of it as real views, because Lynx has no `::before` or `::after`.</p>
+
+The parts are the same as the web component's. See [Divider in `@sigx/zero`](/zero/docs/components/divider/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Divider } from '@sigx/lynx-zero';
+```
+
+`Divider` is a compound with `Root` and `Label`. `<Divider>` is the same component as `<Divider.Root>`.
+
+## Usage
+
+```tsx
+import { Divider, Row } from '@sigx/lynx-zero';
+
+<Divider />
+
+<Divider.Root color="primary">
+    <Divider.Label>or</Divider.Label>
+</Divider.Root>
+
+<Divider.Root>
+    <Divider.Label placement="start">Billing</Divider.Label>
+</Divider.Root>
+
+<Row gap={8} align="stretch">
+    <text>Left</text>
+    <Divider orientation="vertical" />
+    <text>Right</text>
+</Row>
+```
+
+A vertical rule stretches to its row's height. `color` sets the ink and `size` the thickness.
+
+### Labelled dividers
+
+While a `Divider.Label` is mounted, the root draws a segment view on each side of it. Each segment carries the root's own line classes plus the `segment` modifier (`zx-m-segment`), so it has the same ink and thickness as an unlabelled divider. The root is stamped `labelled` (`zx-m-labelled`) and stops painting a line itself.
+
+`placement` on the label leaves out the segment on that side: `start` puts the label flush at the start edge, `end` at the end. Without `placement` the label is centred.
+
+`Divider.Label` renders as `<text>`, so pass it a string.
+
+The label reports itself to the root a microtask after it mounts, because the root is still rendering while its children mount. So the first frame of a labelled divider can paint as a bare line.
+
+## Accessibility
+
+Lynx has no separator role. An unlabelled divider is not an accessibility element at all. A labelled one is read through its label's text. The segments are never accessibility elements.
+
+`decorative` is accepted for parity with zero, where it drops the separator semantics. It changes nothing on Lynx.
+
+## Props
+
+### `Divider.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | A vertical rule stretches to its row's height. |
+| `color` / `size` | `string` | skin default | The ink and the thickness. |
+| `decorative` | `boolean` | `false` | Zero parity. Changes nothing on Lynx. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### `Divider.Label`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `placement` | `'start' \| 'end'` | centred | The edge the label sits flush against. |
+| `class` | `string` | — | Extra classes. |
+
+## Anatomy on Lynx
+
+| Part | Element | Notes |
+|------|---------|-------|
+| `root` | `view` | The line. Carries the orientation and the axes. `labelled` while a label is mounted. |
+| `label` | `text` | Carries `placement` and the root's orientation. |
+
+The segments are decoration, not parts: they carry no `data-scope` or `data-part`.
+
+## See also
+
+- [Stats](/lynx/modules/zero/components/stats) — figures separated by seams.
+- [Spacer](/lynx/modules/zero/components/spacer) — an empty gap instead of a rule.
+- [Divider in `@sigx/zero`](/zero/docs/components/divider/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

@@ -1,0 +1,111 @@
+---
+title: "CheckboxGroup"
+description: "CheckboxGroup component for SignalX Lynx — a labelled set of checkboxes under one string[] model, with a derived tri-state parent box (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 306
+---
+
+# CheckboxGroup
+
+<p class="lede">A labelled group of `Checkbox.Root`s under one `string[]` model, on zero's `checkbox-group` anatomy. Each box inside joins the group by its `value`, the group's flags reach every box, and an optional parent box shows whether all, some or none of the group is selected.</p>
+
+The group renders only its own two parts, `root` and `label`. The boxes inside are ordinary [Checkbox](/lynx/modules/zero/components/checkbox) parts, so a skin styles a box once, grouped or not.
+
+## Import
+
+```tsx
+import { Checkbox, CheckboxGroup } from '@sigx/lynx-zero';
+```
+
+`CheckboxGroup` is a compound with `Root` and `Label`. `<CheckboxGroup>` is the same component as `<CheckboxGroup.Root>`.
+
+## Usage
+
+Give every box a distinct `value`. A box is checked while the group's model includes its value, and a tap adds or removes it. In development, a box inside a group without a `value` logs a warning, because every such box would share `"on"`.
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Checkbox, CheckboxGroup } from '@sigx/lynx-zero';
+
+export const Toppings = component(() => {
+    const state = signal({ toppings: ['ham'] as string[] });
+    return () => (
+        <CheckboxGroup.Root model={() => state.toppings} orientation="horizontal">
+            <CheckboxGroup.Label>Toppings</CheckboxGroup.Label>
+            <Checkbox.Root value="ham">Ham</Checkbox.Root>
+            <Checkbox.Root value="olives">Olives</Checkbox.Root>
+            <Checkbox.Root value="basil">Basil</Checkbox.Root>
+        </CheckboxGroup.Root>
+    );
+});
+```
+
+The group's `valueChange` fires with the new array. Each tapped box also fires its own `checkedChange` with its new state.
+
+### The parent box
+
+A `Checkbox.Root` with `parent` works out its state from the group. It is `checked` when every value in `allValues` is selected, `unchecked` when none is, and `indeterminate` when some are. A tap selects all of them or none:
+
+```tsx
+<CheckboxGroup.Root model={() => state.toppings} allValues={['ham', 'olives', 'basil']}>
+    <CheckboxGroup.Label>Toppings</CheckboxGroup.Label>
+    <Checkbox.Root parent>All toppings</Checkbox.Root>
+    <Checkbox.Root value="ham">Ham</Checkbox.Root>
+    <Checkbox.Root value="olives">Olives</Checkbox.Root>
+    <Checkbox.Root value="basil">Basil</Checkbox.Root>
+</CheckboxGroup.Root>
+```
+
+`allValues` defaults to the values of every child box rendered in the group, so you only need it when the parent should cover a different set.
+
+### Flags and size
+
+`disabled`, `invalid`, `required` and `readonly` on the group reach every box, ORed with each box's own. Each is the group's prop OR an enclosing `Field.Root`'s. `required` means "at least one". It is a flag the skin and the reader see. There is no form submit to block.
+
+The group's `size` reaches every box that sets none of its own. Its `color` inks the group label only.
+
+## Props
+
+### `CheckboxGroup.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `string[]` | — | Two-way binding of the selected values. |
+| `defaultValue` | `string[]` | `[]` | Initial selection when uncontrolled. |
+| `allValues` | `string[]` | every child box's `value` | What a `parent` box selects and derives its state from. |
+| `orientation` | `'horizontal' \| 'vertical'` | `'vertical'` | The axis the boxes are laid out along. Stamped on the root. |
+| `disabled` | `boolean` | `false` | Disables every box. ORed with the Field's. |
+| `invalid` | `boolean` | `false` | Marks the group and every box invalid. ORed with the Field's. |
+| `required` | `boolean` | `false` | "At least one", as a flag. ORed with the Field's. |
+| `readonly` | `boolean` | `false` | Every box stays announced, none toggles. ORed with the Field's. |
+| `color` | `string` | skin default | Inks the group label. |
+| `size` | `string` | skin default | Reaches every box that sets no `size`. Falls back to the Field's. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### `CheckboxGroup.Label`
+
+The group's visible name, a `<text>` part. Takes `class` and a default slot. Pass a string.
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `valueChange` (`onValueChange`) | `string[]` | The selection changed. |
+
+## Anatomy on Lynx
+
+| Part | Element | Orientation | Flags |
+|------|---------|-------------|-------|
+| `root` | `view` | `horizontal` \| `vertical` | `disabled`, `invalid`, `required`, `readonly` |
+| `label` | `text` | — | `disabled`, `invalid`, `required` |
+
+The group root is not an accessibility element. On Lynx that would fold every box into one node, so each box announces itself. There is no `name` or `form` (Lynx has no forms), and no arrow-key roving.
+
+## See also
+
+- [Checkbox](/lynx/modules/zero/components/checkbox) — the boxes inside the group, and array mode without a group.
+- [RadioGroup](/lynx/modules/zero/components/radiogroup) — exactly one choice from a set.
+- [Field](/lynx/modules/zero/components/field) — the flags and size the group adopts.
+- [Checkbox in `@sigx/zero`](/zero/docs/components/checkbox/) — the shared checkbox anatomy on the web.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

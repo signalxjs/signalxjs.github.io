@@ -1,0 +1,134 @@
+---
+title: "Tabs"
+description: "Tabs component for SignalX Lynx — tap-activated tabs with a self-positioning indicator and unmounted inactive panels (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Actions & disclosure"]
+order: 204
+---
+
+# Tabs
+
+<p class="lede">A row of tabs, each showing one panel. A tap activates a tab. On Lynx, the active-tab indicator measures and positions itself, and an inactive panel is unmounted rather than hidden.</p>
+
+The anatomy is zero's `tabs` scope, shared with the web. See [Tabs in `@sigx/zero`](/zero/docs/components/tabs/) for the contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Tabs } from '@sigx/lynx-zero';
+```
+
+`Tabs` is a compound: `Tabs.Root`, `Tabs.List`, `Tabs.Tab`, `Tabs.Indicator` and `Tabs.Panel`.
+
+## Usage
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Tabs } from '@sigx/lynx-zero';
+
+export const Mailbox = component(({ signal }) => {
+    const state = signal({ tab: 'inbox' });
+    return () => (
+        <Tabs.Root model={() => state.tab} variant="border" color="primary">
+            <Tabs.List>
+                <Tabs.Tab value="inbox"><text>Inbox</text></Tabs.Tab>
+                <Tabs.Tab value="sent"><text>Sent</text></Tabs.Tab>
+                <Tabs.Tab value="archive" disabled><text>Archive</text></Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="inbox"><text>No new mail.</text></Tabs.Panel>
+            <Tabs.Panel value="sent"><text>Sent items.</text></Tabs.Panel>
+            <Tabs.Panel value="archive"><text>Archived items.</text></Tabs.Panel>
+        </Tabs.Root>
+    );
+});
+```
+
+Bind the active tab with `model`, or leave the model off and pass `defaultValue`. `valueChange` fires either way. A tab and its panel pair up by `value`.
+
+## What the platform changes
+
+### Inactive panels unmount
+
+Lynx has no `hidden` attribute and no attribute selectors, so an inactive panel is not rendered at all. That is the Lynx form of the anatomy's `hiddenIn: ['inactive']`. A panel's state does not survive a tab switch. Lynx always behaves like the web's `unmountOnExit`, so the web's `lazyMount` and `unmountOnExit` props are not taken. Keep state that must outlive a switch above `Tabs.Root`.
+
+### The indicator positions itself
+
+The `indicator` part is a mark over the active tab. On the web, the part publishes `--tabs-indicator-*` custom properties and the recipe positions it. Lynx cannot do that, so here the indicator is an absolute box over the active tab. It is measured from the tab's and the list's rects, and the skin only paints it. A press scale on the tab does not shrink it, because its size comes from the tab's layout frame, which ignores transforms.
+
+`Tabs.List` renders an indicator on its own. On Lynx that is where daisy's active underline lives, because the web draws it with a `::before` that Lynx drops. To give the indicator a class, or to order it among the list's children, place a `Tabs.Indicator` in the list. The list then skips its own:
+
+```tsx
+<Tabs.List>
+    <Tabs.Tab value="inbox"><text>Inbox</text></Tabs.Tab>
+    <Tabs.Tab value="sent"><text>Sent</text></Tabs.Tab>
+    <Tabs.Indicator class="my-indicator" />
+</Tabs.List>
+```
+
+The indicator is decoration and is hidden from the reader, because the tabs carry the semantics. Tabs are measured only while an indicator is mounted. A list with a border would offset the indicator by that border's width. No shipped skin borders the list.
+
+### Tapping, not arrow keys
+
+There is no keyboard, so a tab is activated by a tap and zero's list controller runs in registration order: render order is visual order. Each tab is announced as a `button`, `selected` while active. A touch scales the tab on the main thread and sets its `pressed` flag. See [Press feedback](/lynx/modules/zero/usage#press-feedback). A disabled tab, or any tab inside a disabled `Field.Root`, ignores the tap.
+
+## Props
+
+### `Tabs.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `string` | — | Two-way binding of the active tab's value. |
+| `defaultValue` | `string` | — | The initial active tab when there is no model. |
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Stamped on the root, list, tabs, indicator and panel. |
+| `color` / `size` / `variant` | `string` | skin default | The design system's variant axes. daisy's variants include `border`, `box` and `lift`. |
+| `class` | `string` | — | Extra classes. |
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `valueChange` (`onValueChange`) | `string` | The active tab changed. |
+
+### `Tabs.List`
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `class` | `string` | Extra classes. |
+
+Renders its own indicator unless a `Tabs.Indicator` is placed inside it.
+
+### `Tabs.Tab`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `string` | **required** | This tab's value. Matches a `Tabs.Panel`. |
+| `disabled` | `boolean` | `false` | Ignores taps and shows no press. ORed with an enclosing Field's. |
+| `class` | `string` | — | Extra classes. |
+
+### `Tabs.Indicator`
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `class` | `string` | Extra classes. |
+
+### `Tabs.Panel`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `string` | **required** | The tab this panel belongs to. Rendered only while that tab is active. |
+| `class` | `string` | — | Extra classes. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `root` | `view` | — | — |
+| `list` | `view` | — | — |
+| `tab` | `view` (`button` trait, `selected` while active) | `active`, `inactive` | `disabled`, `pressed` |
+| `indicator` | `view` (hidden from the reader, positioned inline) | — | — |
+| `panel` | `view` (only while active) | `active` | — |
+
+## See also
+
+- [Accordion](/lynx/modules/zero/components/accordion) — panels that open in place.
+- [ToggleGroup](/lynx/modules/zero/components/togglegroup) — a choice without panels.
+- [Tabs in `@sigx/zero`](/zero/docs/components/tabs/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

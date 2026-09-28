@@ -1,0 +1,87 @@
+---
+title: "ZeroRoot"
+description: "ZeroRoot component for SignalX Lynx — usage, props and import (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Theme"]
+order: 100
+---
+
+# ZeroRoot
+
+<p class="lede">The one wrapper an app needs: the theme host with the overlay outlet inside it. Dialog, Popover, Select and Toast render into that outlet.</p>
+
+## Import
+
+```tsx
+import { ZeroRoot } from '@sigx/lynx-zero';
+```
+
+## Basic usage
+
+Wrap the app, or each screen, once:
+
+```tsx
+import '@sigx/lynx-zero-daisyui';
+import '@sigx/lynx-zero-daisyui/css/index.css';
+import { component } from '@sigx/lynx';
+import { ScrollView, ZeroRoot } from '@sigx/lynx-zero';
+
+export const App = component(() => () => (
+    <ZeroRoot light="light" dark="dark">
+        <ScrollView flex={1}>
+            {/* screens */}
+        </ScrollView>
+    </ZeroRoot>
+));
+```
+
+`ZeroRoot` renders a [`ThemeProvider`](/lynx/modules/zero/components/themeprovider) around an `OverlayHost`. Your content comes first and the overlay outlet comes last, because Lynx stacks by document order and has no `z-index`.
+
+## Why overlays need it
+
+Lynx has no top layer. An overlay rendered in place would be clipped by any ancestor that clips, and covered by anything later in the document. So Dialog, Popover, Select and Toast register a render closure with the nearest outlet (`useOverlayPortal`), and the outlet renders them at the end of the page.
+
+- The outlet is a `position: fixed` layer, which Lynx attaches to the page root. A modal backdrop dims the whole window, including the status-bar and home-indicator strips, even when `ZeroRoot` sits inside a `SafeAreaView`, below a navigation header, or in a navigation stack that clips its screens.
+- `ZeroRoot`'s own box is the **safe frame**. The dialog panel centers in it, toast viewports pin to its edges, and anchored popups flip and clamp inside it, so they never land under a header or in a system-bar strip.
+- The outlet passes touches and pans through to the page when they miss every overlay. A Popover or Select closes on a tap outside it, and a pan beside it scrolls the page. A Dialog backdrop holds the pan.
+- Overlays stack in the order they open, and a light-dismiss closes the innermost one first.
+
+Without a `ZeroRoot` above them, the overlay components warn in development and render nothing.
+
+To build an overlay of your own on the outlet, see [custom overlays](/lynx/modules/zero/usage#custom-overlays).
+
+## Props
+
+`ZeroRootProps` is `ThemeProviderProps`. Every prop is passed to the inner `ThemeProvider`:
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `initial` | `ThemeName` | Pins this theme, ignoring the system scheme until `followSystem()`. |
+| `light` | `ThemeName` | Theme while the system is light. Defaults to the registry's light default. |
+| `dark` | `ThemeName` | Theme while the system is dark. Defaults to the registry's dark default. |
+| `fontScale` | `number` | Initial in-app text-scale multiplier. |
+| `class` | `string` | Extra classes on the theme host. |
+| `style` | `Record<string, string \| number>` | Extra inline style on the theme host. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The app content. It renders before the overlay outlet. |
+
+## Without the theme host
+
+If a `ThemeProvider` already wraps the tree, render `OverlayHost` inside it instead of a second `ZeroRoot`:
+
+```tsx
+import { OverlayHost, ThemeProvider } from '@sigx/lynx-zero';
+
+<ThemeProvider>
+    <OverlayHost>{/* content */}</OverlayHost>
+</ThemeProvider>;
+```
+
+## See also
+
+- [Overlays](/lynx/modules/zero/usage#overlays-and-the-outlet): the outlet, the safe frame and custom overlays in depth.
+- [ThemeProvider](/lynx/modules/zero/components/themeprovider): the theme host on its own.

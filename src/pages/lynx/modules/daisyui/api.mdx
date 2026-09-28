@@ -235,7 +235,7 @@ Themed swiper page indicator with five variants, a thin shell over the headless 
 const ThemeProvider: Component<ThemeProviderProps>;
 ```
 
-Wrapper over `@sigx/lynx-zero`'s `ThemeProvider`. Seeds the six built-in daisy themes (at module load) and provides the icon color resolver into `@sigx/lynx-icons`. `initial` pins a theme (ignoring the system); `light`/`dark` are used while following the system; `fontScale` seeds the text-scale multiplier. Platform: iOS and Android.
+Wrapper over `@sigx/lynx-zero-legacy`'s `ThemeProvider`. Seeds the six built-in daisy themes (at module load) and provides the icon color resolver into `@sigx/lynx-icons`. `initial` pins a theme (ignoring the system); `light`/`dark` are used while following the system; `fontScale` seeds the text-scale multiplier. Platform: iOS and Android.
 
 ### StatusBarSync
 
@@ -243,7 +243,7 @@ Wrapper over `@sigx/lynx-zero`'s `ThemeProvider`. Seeds the six built-in daisy t
 const StatusBarSync: Component<StatusBarSyncProps>;
 ```
 
-Re-exported from `@sigx/lynx-zero`. Side-effect-only component that keeps the OS status/nav bar tint legible against the active **global** theme. Renders nothing; mount once inside `ThemeProvider`. Platform: iOS and Android.
+Re-exported from `@sigx/lynx-zero-legacy`. Side-effect-only component that keeps the OS status/nav bar tint legible against the active **global** theme. Renders nothing; mount once inside `ThemeProvider`. Platform: iOS and Android.
 
 ### Avatar
 
@@ -287,7 +287,7 @@ DaisyUI-themed bottom-sheet emoji picker. Wraps `@sigx/lynx-emoji`'s `SheetPicke
 
 ## Layout primitives (re-exported)
 
-These are re-exported unchanged from `@sigx/lynx-zero`.
+These are re-exported unchanged from `@sigx/lynx-zero-legacy`.
 
 ### Row
 
@@ -337,7 +337,7 @@ Scrollable container with `direction`/`bounces`/`showScrollbar`. Platform: iOS a
 function useTheme(): ThemeController;
 ```
 
-Re-exported from `@sigx/lynx-zero`. Returns the active theme controller (the nearest `ThemeProvider`, or the global singleton). Never throws.
+Re-exported from `@sigx/lynx-zero-legacy`. Returns the active theme controller (the nearest `ThemeProvider`, or the global singleton). Never throws.
 
 ### themeController
 
@@ -345,7 +345,7 @@ Re-exported from `@sigx/lynx-zero`. Returns the active theme controller (the nea
 const themeController: ThemeController;
 ```
 
-Re-exported from `@sigx/lynx-zero`. The module-level global theme singleton — read or set the theme headlessly without a mounted provider.
+Re-exported from `@sigx/lynx-zero-legacy`. The module-level global theme singleton — read or set the theme headlessly without a mounted provider.
 
 ### listThemes
 
@@ -353,7 +353,7 @@ Re-exported from `@sigx/lynx-zero`. The module-level global theme singleton — 
 function listThemes(): readonly Theme[];
 ```
 
-Re-exported from `@sigx/lynx-zero`. All registered themes in insertion order (shallow copy).
+Re-exported from `@sigx/lynx-zero-legacy`. All registered themes in insertion order (shallow copy).
 
 ### registerTheme
 
@@ -361,7 +361,7 @@ Re-exported from `@sigx/lynx-zero`. All registered themes in insertion order (sh
 function registerTheme(theme: ThemeInput): void;
 ```
 
-Re-exported from `@sigx/lynx-zero`. Registers or replaces (by name) a theme; palette soft tints are completed on the way in.
+Re-exported from `@sigx/lynx-zero-legacy`. Registers or replaces (by name) a theme; palette soft tints are completed on the way in.
 
 ### extendTheme
 
@@ -377,7 +377,7 @@ function extendTheme(base: string, patch: {
 }): Theme;
 ```
 
-Re-exported from `@sigx/lynx-zero`. Derives a new full `Theme` from a registered `base` (throws if the base is unregistered). Pass the result to `registerTheme`.
+Re-exported from `@sigx/lynx-zero-legacy`. Derives a new full `Theme` from a registered `base` (throws if the base is unregistered). Pass the result to `registerTheme`.
 
 ### pickThemeFor
 
@@ -385,7 +385,7 @@ Re-exported from `@sigx/lynx-zero`. Derives a new full `Theme` from a registered
 function pickThemeFor(scheme: ThemeVariant): string;
 ```
 
-Re-exported from `@sigx/lynx-zero`. The first registered theme name of the given variant (`light`/`dark`).
+Re-exported from `@sigx/lynx-zero-legacy`. The first registered theme name of the given variant (`light`/`dark`).
 
 ### pairOf
 
@@ -393,7 +393,7 @@ Re-exported from `@sigx/lynx-zero`. The first registered theme name of the given
 function pairOf(name: string): string;
 ```
 
-Re-exported from `@sigx/lynx-zero`. Resolves the paired theme of a name (for toggling); follows the declared `pair` or the first opposite-variant theme.
+Re-exported from `@sigx/lynx-zero-legacy`. Resolves the paired theme of a name (for toggling); follows the declared `pair` or the first opposite-variant theme.
 
 ### variantOf
 
@@ -401,7 +401,7 @@ Re-exported from `@sigx/lynx-zero`. Resolves the paired theme of a name (for tog
 function variantOf(name: string | undefined): ThemeVariant | undefined;
 ```
 
-Re-exported from `@sigx/lynx-zero`. The variant of a registered theme.
+Re-exported from `@sigx/lynx-zero-legacy`. The variant of a registered theme.
 
 ### colorsOf
 
@@ -409,7 +409,7 @@ Re-exported from `@sigx/lynx-zero`. The variant of a registered theme.
 function colorsOf(name: string | undefined): ThemePalette | undefined;
 ```
 
-Re-exported from `@sigx/lynx-zero`. The completed color palette of a registered theme.
+Re-exported from `@sigx/lynx-zero-legacy`. The completed color palette of a registered theme.
 
 ### radiusOf
 
@@ -417,7 +417,7 @@ Re-exported from `@sigx/lynx-zero`. The completed color palette of a registered 
 function radiusOf(name: string | undefined): ThemeRadius | undefined;
 ```
 
-Re-exported from `@sigx/lynx-zero`. The roundness overrides of a registered theme, if any.
+Re-exported from `@sigx/lynx-zero-legacy`. The roundness overrides of a registered theme, if any.
 
 ### sizesOf
 
@@ -425,7 +425,7 @@ Re-exported from `@sigx/lynx-zero`. The roundness overrides of a registered them
 function sizesOf(name: string | undefined): ThemeSizes | undefined;
 ```
 
-Re-exported from `@sigx/lynx-zero`. The base size-unit overrides of a registered theme, if any.
+Re-exported from `@sigx/lynx-zero-legacy`. The base size-unit overrides of a registered theme, if any.
 
 ### resolveColorToken
 
@@ -433,7 +433,7 @@ Re-exported from `@sigx/lynx-zero`. The base size-unit overrides of a registered
 function resolveColorToken(value: string): string;
 ```
 
-Re-exported from `@sigx/lynx-zero`. Maps a known semantic token to `var(--color-<token>)`; passes anything else through unchanged.
+Re-exported from `@sigx/lynx-zero-legacy`. Maps a known semantic token to `var(--color-<token>)`; passes anything else through unchanged.
 
 ### resolveDaisyColor
 
@@ -494,7 +494,7 @@ const emojiClassesBottomTabs: EmojiSlotClasses;
 const DaisyLynxPreset: Partial<Config>;
 ```
 
-The DaisyUI Lynx Tailwind preset; a composition of `@sigx/lynx-zero/preset` (semantic color tokens, `--text-*` ramp, `.flex-fill` utility). Subpath export only — not in the main barrel.
+The DaisyUI Lynx Tailwind preset; a composition of `@sigx/lynx-zero-legacy/preset` (semantic color tokens, `--text-*` ramp, `.flex-fill` utility). Subpath export only — not in the main barrel.
 
 ### daisyuiPreset
 
@@ -1122,7 +1122,7 @@ ThemeProvider props. `initial` pins a theme (ignores system); `light`/`dark` are
 type StatusBarSyncProps = Define.Prop<'matchBackground', boolean, false>;
 ```
 
-Re-exported from `@sigx/lynx-zero`. `matchBackground` is reserved (currently a no-op).
+Re-exported from `@sigx/lynx-zero-legacy`. `matchBackground` is reserved (currently a no-op).
 
 ### DaisyTheme
 
@@ -1275,7 +1275,7 @@ Resolved editor colors: `textColor` = base-content, `accentColor` = primary (car
 
 ## Theme & contract types (re-exported)
 
-These are re-exported from `@sigx/lynx-zero`.
+These are re-exported from `@sigx/lynx-zero-legacy`.
 
 ### ThemeController
 

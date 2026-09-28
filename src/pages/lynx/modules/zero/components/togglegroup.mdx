@@ -1,0 +1,122 @@
+---
+title: "ToggleGroup"
+description: "ToggleGroup component for SignalX Lynx — a row or column of toggles under one value model, single or multiple (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Actions & disclosure"]
+order: 203
+---
+
+# ToggleGroup
+
+<p class="lede">A row or column of two-state buttons under one value model, such as text alignment, a view switcher or a set of formatting marks. It works in single or multiple selection. On Lynx, each item is its own tap target and accessibility element.</p>
+
+The anatomy is zero's `toggle-group` scope, shared with the web. See [Toggle Group in `@sigx/zero`](/zero/docs/components/toggle-group/) for the contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { ToggleGroup } from '@sigx/lynx-zero';
+```
+
+`ToggleGroup` is a compound: `ToggleGroup.Root` and `ToggleGroup.Item`.
+
+## Usage
+
+### Single selection
+
+By default one item is on at a time. The model is a `string`, and `''` means no item is on. Tapping the item that is on turns it off, unless you pass `deselectable={false}`:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { ToggleGroup } from '@sigx/lynx-zero';
+
+export const Alignment = component(({ signal }) => {
+    const state = signal({ align: 'left' });
+    return () => (
+        <ToggleGroup.Root model={() => state.align} deselectable={false} color="secondary">
+            <ToggleGroup.Item value="left"><text>Left</text></ToggleGroup.Item>
+            <ToggleGroup.Item value="center"><text>Center</text></ToggleGroup.Item>
+            <ToggleGroup.Item value="right"><text>Right</text></ToggleGroup.Item>
+        </ToggleGroup.Root>
+    );
+});
+```
+
+An item valued `''` throws in single mode, because `''` is reserved for "nothing pressed".
+
+### Multiple selection
+
+With `multiple`, the model is a `string[]` and each tap flips that item's value in or out of the list. The exported root is typed by overload, so a string model binds a single group and an array binds a multiple one:
+
+```tsx
+<ToggleGroup.Root multiple defaultValue={['bold']} onValueChange={(v: string[]) => save(v)}>
+    <ToggleGroup.Item value="bold" label="Bold"><text>B</text></ToggleGroup.Item>
+    <ToggleGroup.Item value="italic" label="Italic"><text>I</text></ToggleGroup.Item>
+    <ToggleGroup.Item value="underline" label="Underline"><text>U</text></ToggleGroup.Item>
+</ToggleGroup.Root>
+```
+
+### Orientation and state
+
+`orientation` (`horizontal` by default) and the root's `color` and `size` axes are stamped on every item. `disabled` on the root disables every item, and `disabled` on one item disables that item alone. `invalid` and `required` are flags on the root, used for paint and Field wiring. They are not constraints: Lynx has no constraint validation. The root ORs each of `disabled`, `invalid` and `required` with an enclosing Field's, and adopts the field's `size` when it sets none.
+
+## What the platform changes
+
+- **No roving focus.** There is no keyboard on this platform. An item is activated by a tap, so zero's roving tab stop is not wired.
+- **No group role.** Lynx has no `role="group"`, and marking the root as an accessibility element would hide its items from the reader on iOS. So the root carries no accessibility props. Each item is announced as a `button`, and as `selected` while it is on. Pass `label` for an icon-only item.
+- **No `hidden-input` part.** Lynx has no forms, so there is no value to post.
+- **Press feedback per item.** The touched item scales on the main thread and its `pressed` flag paints the skin's held state. `pressFeel={false}` on an item turns off the scale. See [Press feedback](/lynx/modules/zero/usage#press-feedback).
+
+### The ends of the join (skin authors)
+
+Lynx CSS has no `:first-child` or `:last-child`. The root tracks its items in mount order and stamps the end items with the `first` and `last` modifiers: the `zx-m-first` and `zx-m-last` classes, plus `data-mod-first` and `data-mod-last`. A skin uses them to round the join's outer corners on the end items and to drop the first item's leading seam. A single item carries both.
+
+An item mounted later, such as a conditional one, joins the **end** of that order, wherever it sits in the row.
+
+## Props
+
+### `ToggleGroup.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `string` \| `string[]` | — | Two-way binding of the pressed values. A `string` (`''` for none) in single mode, a `string[]` under `multiple`. |
+| `defaultValue` | `string` \| `string[]` | `''` / `[]` | The initial value when there is no model. |
+| `multiple` | `boolean` | `false` | Allow more than one item on at a time. |
+| `deselectable` | `boolean` | `true` | In single mode, tapping the on item turns it off. |
+| `orientation` | `'horizontal' \| 'vertical'` | `'horizontal'` | Stamped on the root and every item. |
+| `disabled` | `boolean` | `false` | Disables every item. ORed with an enclosing Field's. |
+| `invalid` / `required` | `boolean` | `false` | Root flags. ORed with an enclosing Field's. |
+| `color` / `size` | `string` | skin default | Variant axes, stamped on every item. `size` falls back to the Field's. |
+| `class` | `string` | — | Extra classes. |
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `valueChange` (`onValueChange`) | `string` \| `string[]` | The pressed values changed. Same shape as the model. |
+
+### `ToggleGroup.Item`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `string` | **required** | This item's value in the group's model. Must not be `''` in single mode. |
+| `disabled` | `boolean` | `false` | Disables this item. |
+| `pressFeel` | `boolean` | `true` | `false` turns off the main-thread press scale. The `pressed` flag stays. |
+| `label` | `string` | — | Accessible name. Required for icon-only items. |
+| `class` | `string` | — | Extra classes. |
+
+The item emits nothing. Changes are reported by the root's `valueChange`.
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags | Modifiers |
+|------|---------|--------|-------|-----------|
+| `root` | `view` | — | `disabled`, `invalid`, `required` | — |
+| `item` | `view` (`button` trait) | `on`, `off` | `disabled`, `selected`, `pressed` | `first`, `last` |
+
+`focus-visible` can only be forced for display, through `ForceStates` from `@sigx/lynx-zero/testing`.
+
+## See also
+
+- [Toggle](/lynx/modules/zero/components/toggle) — a single on/off button.
+- [Tabs](/lynx/modules/zero/components/tabs) — when each choice shows its own panel.
+- [Toggle Group in `@sigx/zero`](/zero/docs/components/toggle-group/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

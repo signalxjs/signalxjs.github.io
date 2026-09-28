@@ -1,0 +1,117 @@
+---
+title: "Button"
+description: "Button component for SignalX Lynx — press handling, the loading state, main-thread press feel and the zero button anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Actions & disclosure"]
+order: 201
+---
+
+# Button
+
+<p class="lede">A pressable action on zero's `button` anatomy. Lynx has no `<button>` element, so the root is a `<view>` with `bindtap` and the native `button` accessibility trait. It carries zero's one machine state, `loading`, and scales under the finger on the main thread.</p>
+
+The parts, states and flags are the same as the web component's. See [Button in `@sigx/zero`](/zero/docs/components/button/) for the full anatomy. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Button } from '@sigx/lynx-zero';
+```
+
+`Button` is a compound whose only part is `Button.Root`. `<Button>` and `<Button.Root>` are the same component.
+
+## Usage
+
+Button content is Lynx content, so text goes inside a `<text>`. The handler is `onPress`. It does not fire while the button is disabled or loading:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button, Row } from '@sigx/lynx-zero';
+
+export const Actions = component(() => {
+    return () => (
+        <Row gap={8}>
+            <Button color="primary" onPress={() => save()}><text>Save</text></Button>
+            <Button variant="outline"><text>Cancel</text></Button>
+            <Button disabled><text>Disabled</text></Button>
+        </Row>
+    );
+});
+```
+
+`color`, `size` and `variant` are the design system's axes. They are stamped as `zx-a-*` classes, and the compiled skin paints them. `mods` sets the skin's modifiers. With the daisy skin, `mods={{ block: true }}` (or `wide`) makes a full-width button. By default a button is sized to its content. In a row narrower than that content, it overflows whole instead of breaking its label mid-word.
+
+### The loading button
+
+`loading` means work is in flight. It blocks the press the way `disabled` does, but it paints as its own state (`zx-s-loading`) without the disabled fade, because the label is what the user is waiting on. While loading, the root renders the anatomy's `spinner` part before the label:
+
+```tsx
+export const SaveButton = component(({ signal }) => {
+    const state = signal({ saving: false });
+    const onSave = async () => {
+        state.saving = true;
+        try { await save(); } finally { state.saving = false; }
+    };
+    return () => (
+        <Button color="primary" loading={state.saving} onPress={onSave}>
+            <text>Save changes</text>
+        </Button>
+    );
+});
+```
+
+A screen reader hears a loading button as disabled. That is the closest native spelling of the web's `aria-disabled` plus `aria-busy`.
+
+### Press feel
+
+A touch scales the root on the main thread in the same frame, and the `pressed` flag (`zx-f-pressed`) lets the skin paint its held state. `pressFeel={false}` turns off the scale and keeps the flag. Neither fires while the button is disabled or loading. See [Press feedback](/lynx/modules/zero/usage#press-feedback) for the two tiers and how to tune them.
+
+### Accessible name
+
+The reader announces the button's text content. When the content is not plain text, such as an icon, pass `label`:
+
+```tsx
+<Button label="Add to favourites" onPress={favourite}><text>★</text></Button>
+```
+
+Inside a `Field.Root`, the button adopts the field's `disabled`.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `disabled` | `boolean` | `false` | Blocks the press. Stamps the `disabled` flag, and the reader announces it disabled. ORed with an enclosing Field's. |
+| `loading` | `boolean` | `false` | Work in flight. Blocks the press, stamps the `loading` state and renders the `spinner` part. |
+| `pressFeel` | `boolean` | `true` | `false` turns off the main-thread press scale. The `pressed` flag stays. |
+| `color` / `size` / `variant` | `string` | skin default | The design system's variant axes. |
+| `mods` | `Record<string, boolean \| undefined>` | — | The skin's modifiers, such as `block` or `wide`. |
+| `label` | `string` | — | Accessible name. Required when the content is not plain text. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `press` (`onPress`) | — | The button was tapped. Not emitted while disabled or loading. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The button's content. Put text in a `<text>`. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `root` | `view` (`button` trait) | `loading` | `disabled`, `pressed` |
+| `spinner` | `view` | — | — |
+
+The web's `press-animating` flag is web ripple bookkeeping and has no Lynx counterpart. `focus-visible` can only be forced for display, through `ForceStates` from `@sigx/lynx-zero/testing`, because there is no keyboard focus on this platform. The web's `type`, `name`/`value`/`form` and `asChild` are not taken: Lynx has no forms and no element to merge onto.
+
+## See also
+
+- [Toggle](/lynx/modules/zero/components/toggle) — a button with an on/off mode.
+- [Button in `@sigx/zero`](/zero/docs/components/button/) — the shared anatomy and the web component.
+- [Press feedback](/lynx/modules/zero/usage#press-feedback) — the two tiers every pressable part uses.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

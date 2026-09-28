@@ -1,0 +1,167 @@
+---
+title: "Input"
+description: "Input component for SignalX Lynx — a single-line text field on the native Lynx input, with adornments, clear and password-visibility triggers and the zero input anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 302
+---
+
+# Input
+
+<p class="lede">A single-line text field on the native Lynx `<input>`, carrying zero's `input` anatomy. The value is a plain `string` model. The painted box is a `<view>` around the native field, because iOS never repaints a native text field's styles after mount, so every state that paints lives on a view.</p>
+
+The parts are the same as the web component's. See [Input in `@sigx/zero`](/zero/docs/components/input/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Input } from '@sigx/lynx-zero';
+```
+
+`Input` is a compound with `Root`, `Label`, `Control`, `Input`, `Adornment`, `ClearTrigger` and `VisibilityTrigger`. `<Input>` is the same component as `<Input.Root>`.
+
+## Usage
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Input } from '@sigx/lynx-zero';
+
+export const Email = component(() => {
+    const form = signal({ email: '' });
+    return () => (
+        <Input.Root model={() => form.email} type="email" enterkeyhint="next">
+            <Input.Label>Email</Input.Label>
+            <Input.Control>
+                <Input.Adornment placement="start"><text>@</text></Input.Adornment>
+                <Input.Input placeholder="you@example.com" onConfirm={() => focusNext()} />
+                <Input.ClearTrigger />
+            </Input.Control>
+        </Input.Root>
+    );
+});
+```
+
+`Input.Control` is the box the skin paints. Put `Input.Input`, the native field, inside it, with any adornments and triggers.
+
+### The model is the only value channel
+
+The model is a `string`, written on every keystroke. The Root's state is the model the native `<input>` binds, so Lynx's own model handling owns the write-back, including the deferred initial value on iOS. Leave `model` off and pass `defaultValue` to keep the text inside the component. `valueChange` fires either way.
+
+There is no `value` prop. Bind `model` instead.
+
+### Passwords
+
+`type="password"` hides the characters. `Input.VisibilityTrigger` toggles them, through the `visible` model:
+
+```tsx
+<Input.Root type="password" model={() => form.password} model:visible={() => ui.shown}>
+    <Input.Control>
+        <Input.Input />
+        <Input.VisibilityTrigger />
+    </Input.Control>
+</Input.Root>
+```
+
+Use `model:visible` to bind it, or `defaultVisible` and `visibleChange` to leave it uncontrolled. A shown password renders as a text field. The trigger keeps one name ("Show password" by default) and announces its on state as `selected`, as a toggle button does. Its default slot receives `{ visible }` so you can swap an icon. On any type other than `password`, `visible` changes nothing.
+
+### Clear trigger
+
+`Input.ClearTrigger` empties the value and focuses the field. It renders nothing while the field is empty, and it is inert while the field is disabled or read-only. With no children it draws `×`, named "Clear" for the reader.
+
+Both triggers use `catchtap`, so a press on a trigger never also lands on the control.
+
+### Focus
+
+Lynx has no `<label for>` and no `element.focus()`. A tap on `Input.Label`, on the control's padding or on an adornment focuses the native field through its `focus` UI method. Inside a `Field.Root`, a tap on `Field.Label` does the same. A disabled field is never focused.
+
+Native focus stamps `focus-visible` on `control` and `input`. A text field shows its ring on any focus, the same way the web's `:focus-visible` matches every focused text input. The skin draws the ring on `control`.
+
+`autofocus` focuses the field when it mounts.
+
+### Keyboard attributes
+
+Zero's web attributes map onto the Lynx `<input>` set:
+
+| Prop | On Lynx |
+|------|---------|
+| `type` | `text`, `email`, `password` and `tel` pass through. `search` and `url` are text fields; a `search` field's Enter key says search unless `enterkeyhint` says otherwise. |
+| `inputmode` | On a text field, `numeric` picks the `digit` pad and `decimal` the `number` pad. `tel` and `email` pick those fields. `password`, `email` and `tel` fields keep their own type. |
+| `enterkeyhint` | Maps to `confirm-type`. Lynx supports `done`, `go`, `next`, `search` and `send`; `enter` and `previous` leave the platform default. |
+| `spellcheck` | `ios-spell-check`, iOS only. |
+| `autocorrect` | `ios-auto-correct`, iOS only. Use `off` for codes, usernames and addresses. |
+| `maxlength` | Passed through as a whole, non-negative count. |
+
+An optional string you do not set never reaches the native element. iOS would receive it as `NSNull`.
+
+### Read-only fields
+
+`readonly` keeps the field announced and selectable, and refuses edits. A read-only field shows its model value on Android too, including a value that changes after mount. That fix is in `@sigx/lynx-runtime` 0.34.0, so it covers any model-bound read-only `<input>`, not only this component.
+
+## Props
+
+### `Input.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `string` | — | Two-way binding of the text. |
+| `defaultValue` | `string` | `''` | Initial text when uncontrolled. |
+| `type` | `'text' \| 'email' \| 'password' \| 'search' \| 'tel' \| 'url'` | `'text'` | The field type. |
+| `inputmode` | `'none' \| 'text' \| 'decimal' \| 'numeric' \| 'tel' \| 'search' \| 'email' \| 'url'` | — | Which keyboard to show. See the table above. |
+| `enterkeyhint` | `'enter' \| 'done' \| 'go' \| 'next' \| 'previous' \| 'search' \| 'send'` | — | What the Enter key says. |
+| `maxlength` | `number` | — | Maximum length. |
+| `spellcheck` | `boolean` | platform default | Spell-checking, iOS. |
+| `autocorrect` | `'on' \| 'off'` | platform default | Autocorrection, iOS. |
+| `autofocus` | `boolean` | `false` | Focus the field on mount. |
+| `model:visible` | `boolean` | — | Whether a password field shows its characters. |
+| `defaultVisible` | `boolean` | `false` | Initial visibility when uncontrolled. |
+| `disabled` | `boolean` | `false` | ORed with the Field's and the Fieldset's. |
+| `invalid` | `boolean` | `false` | ORed with the Field's and the Fieldset's. |
+| `required` | `boolean` | `false` | ORed with the Field's. |
+| `readonly` | `boolean` | `false` | Announced and selectable, never edited. ORed with the Field's and the Fieldset's. |
+| `color` | `string` | skin default | The focus accent. |
+| `size` | `string` | skin default | Falls back to the enclosing Field's size. |
+| `label` | `string` | — | Accessible name for the native field. The visible label is separate. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### Parts
+
+| Part | Props |
+|------|-------|
+| `Input.Label` | `visuallyHidden`, `class`. A tap focuses the field. |
+| `Input.Control` | `class`. A tap on it focuses the field. |
+| `Input.Input` | `placeholder`, `class`. Emits `focus`, `blur` and `confirm`. |
+| `Input.Adornment` | `placement` (`'start' \| 'end'`, required), `class`. |
+| `Input.ClearTrigger` | `label` (default `"Clear"`), `class`, and a slot replacing `×`. |
+| `Input.VisibilityTrigger` | `label` (default `"Show password"`), `class`, and a slot given `{ visible }`. |
+
+### Events
+
+| Event | Part | Payload | Description |
+|-------|------|---------|-------------|
+| `valueChange` (`onValueChange`) | `Root` | `string` | The text changed. |
+| `visibleChange` (`onVisibleChange`) | `Root` | `boolean` | Password visibility changed. |
+| `focus` (`onFocus`) | `Input` | — | The native field gained focus. |
+| `blur` (`onBlur`) | `Input` | — | The native field lost focus. |
+| `confirm` (`onConfirm`) | `Input` | `string` | The keyboard's Enter key, with the text. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `root` | `view` | — | `disabled`, `invalid`, `required`, `readonly` |
+| `label` | `text` | — | `disabled`, `invalid`, `required` |
+| `control` | `view` | — | `disabled`, `invalid`, `readonly`, `focus-visible` |
+| `input` | native `input` | — | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` |
+| `adornment` | `view` | — | `disabled` |
+| `clear-trigger` | `view` (`button` trait) | — | `disabled`, `pressed` |
+| `visibility-trigger` | `view` (`button` trait) | `on` \| `off` | `disabled`, `pressed` |
+
+Not taken on Lynx: `name` and `form` (Lynx has no forms), Escape-to-clear (no hardware Escape key), `modelModifiers` timing, and `validate` / `validateOn`.
+
+## See also
+
+- [Textarea](/lynx/modules/zero/components/textarea) — multi-line text.
+- [NumberInput](/lynx/modules/zero/components/numberinput) — a number, typed or stepped.
+- [Field](/lynx/modules/zero/components/field) — label, description, error and shared flags.
+- [Input in `@sigx/zero`](/zero/docs/components/input/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

@@ -1,0 +1,139 @@
+---
+title: "Popover"
+description: "Popover component for SignalX Lynx — a non-modal panel anchored to its trigger, positioned in the overlay outlet with flip and clamp against the safe frame (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Overlays"]
+order: 252
+---
+
+# Popover
+
+<p class="lede">A non-modal panel anchored to its trigger. The popup renders in the overlay outlet and is positioned in the outlet's own space, flipping and clamping against the safe frame. A tap outside closes it, and a pan beside it still scrolls the page.</p>
+
+The anatomy is zero's `popover` scope, shared with the web. See [Popover in `@sigx/zero`](/zero/docs/components/popover/) for the contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Popover } from '@sigx/lynx-zero';
+```
+
+`Popover` is a compound: `Popover.Root`, `Popover.Trigger`, `Popover.Popup`, `Popover.Title`, `Popover.Description` and `Popover.Close`.
+
+## Usage
+
+Like every overlay, Popover needs a `ZeroRoot` above it for the outlet:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Popover, ZeroRoot } from '@sigx/lynx-zero';
+
+export const Help = component(() => {
+    return () => (
+        <ZeroRoot>
+            <Popover.Root placement="bottom-start" color="primary">
+                <Popover.Trigger><text>What is this?</text></Popover.Trigger>
+                <Popover.Popup>
+                    <Popover.Title>Sync</Popover.Title>
+                    <Popover.Description>Changes upload when you are back online.</Popover.Description>
+                    <Popover.Close><text>×</text></Popover.Close>
+                </Popover.Popup>
+            </Popover.Root>
+        </ZeroRoot>
+    );
+});
+```
+
+A tap on `Popover.Trigger` toggles the popup. Bind the open state with `model`, or seed it with `defaultOpen`. `openChange` fires either way. `Popover.Title` and `Popover.Description` are `<text>` parts. The description is the popup's muted body line under the title.
+
+### Placement
+
+`placement` is the preferred side and alignment: `top`, `bottom`, `left` or `right`, optionally with `-start` or `-end`. The default is `bottom`. `offset` is the gap to the anchor in px, 4 by default. When the preferred side does not fit, the popup flips, and the side it actually rendered on is stamped as the popup's `placement` (a class and `data-placement`), just as the web behavior writes it.
+
+## What the platform changes
+
+### Positioned in the outlet's space
+
+The popup and the safe frame are measured together with the anchor (`boundingClientRect`). The popup is flipped and clamped against the safe frame, so it never lands in a status-bar or home-indicator strip or under a header. The outlet itself is not measured: it sits at the page root's origin with the window's size.
+
+A transform, such as a screen sliding in on a navigation push, fires no layout event. So an open popup keeps re-measuring until its anchor and the frame hold still inside the window. A popup opened at mount (`defaultOpen`, or a cold deep link) therefore lands at its anchor instead of clamped against an edge, and it follows its anchor in measured steps while its screen slides. Each burst is capped at about two seconds of motion.
+
+Only an **open** popup measures. A closed trigger takes no measurement and runs no settle loop, and every re-measure loop on the page ticks on one shared clock. A screen with dozens of popovers costs about what one does.
+
+### Light dismiss, and pans pass through
+
+Lynx has no document-level outside-press listener, so the popover renders its own transparent outside surface behind the popup. A tap on it dismisses through the shared layer stack, innermost first, so a popover inside a dialog closes before the dialog. The surface is taken out of native hit-testing, so a pan beside the popup scrolls the page, as on the web. The popup follows its anchor through the scroll and its fling.
+
+### Parts not taken
+
+The `arrow` part is painted by the web target only. The separate `anchor` part is not taken: the popup always anchors to `Popover.Trigger`.
+
+### Press feedback
+
+The trigger and Close scale on the main thread when touched and carry the `pressed` flag. See [Press feedback](/lynx/modules/zero/usage#press-feedback).
+
+## Props
+
+### `Popover.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `boolean` | — | Two-way binding of the open state. |
+| `defaultOpen` | `boolean` | `false` | The initial open state when there is no model. |
+| `placement` | `LynxPlacement` | `'bottom'` | Preferred side and alignment: `top`, `bottom`, `left`, `right`, each optionally `-start` / `-end`. |
+| `offset` | `number` | `4` | Gap between the anchor and the popup, in px. |
+| `color` / `size` / `variant` | `string` | skin default | The design system's variant axes, stamped on every part. |
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `openChange` (`onOpenChange`) | `boolean` | The open state changed. |
+
+### `Popover.Trigger`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `disabled` | `boolean` | `false` | Ignores taps and shows no press. |
+| `class` | `string` | — | Extra classes. |
+
+### `Popover.Popup`, `Popover.Title`, `Popover.Description`
+
+`class` and the default slot.
+
+### `Popover.Close`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `disabled` | `boolean` | `false` | Ignores taps, shows no press, and is announced disabled. |
+| `label` | `string` | `"Close"` | Accessible name. |
+| `class` | `string` | — | Extra classes. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `trigger` | `view` (`button` trait, the anchor) | `open`, `closed` | `disabled`, `pressed` |
+| `popup` | `view` (in the outlet, absolutely positioned) | `open` | — (plus the resolved `placement`) |
+| `title` | `text` | — | — |
+| `description` | `text` | — | — |
+| `close` | `view` (`button` trait) | — | `disabled`, `pressed` |
+
+## Building your own anchored overlay
+
+`createAnchorPosition` is the positioning half Popover and Select are built on. Call it in setup, wire `anchorRef` and `anchorLayoutChange` on the anchor, and `floatingRef`, `floatingLayoutChange` and `style()` on the popup. Pass `isOpen` so a closed overlay takes no measurements and runs no settle loop:
+
+```tsx
+const position = createAnchorPosition({
+    placement: 'bottom-start',
+    offset: 8,
+    isOpen: () => state.open,
+});
+```
+
+Without `isOpen`, the overlay is treated as always open. A custom overlay rendered through `useOverlayPortal()` must spread `OVERLAY_ROOT_STYLE` into its root's inline style, or its taps fall through to the page. See the [usage guide](/lynx/modules/zero/usage) for the outlet's rules.
+
+## See also
+
+- [Dialog](/lynx/modules/zero/components/dialog) — a modal panel.
+- [Select](/lynx/modules/zero/components/select) — an anchored list of options.
+- [Popover in `@sigx/zero`](/zero/docs/components/popover/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

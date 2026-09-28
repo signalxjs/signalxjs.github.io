@@ -1,0 +1,71 @@
+---
+title: "API reference"
+description: "API reference for @sigx/lynx-zero-daisyui — every export of the SignalX Lynx Zero DaisyUI module."
+layout: module-docs
+category: "Reference"
+order: 40
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# API reference
+
+<p class="lede">Exports of `@sigx/lynx-zero-daisyui` <PkgVersion npm="@sigx/lynx-zero-daisyui" />.</p>
+
+## Module import
+
+```ts
+import '@sigx/lynx-zero-daisyui';
+```
+
+Importing the module runs, once:
+
+```ts
+for (const theme of DAISY_THEMES) registerTheme(theme);
+if (Object.keys(DAISY_TEXT_RAMP).length > 0) registerTextRamp(DAISY_TEXT_RAMP);
+if (Object.keys(DAISY_AXIS_DEFAULTS).length > 0) registerAxisDefaults(DAISY_AXIS_DEFAULTS);
+```
+
+`registerTheme`, `registerTextRamp` and `registerAxisDefaults` are [`@sigx/lynx-zero` exports](/lynx/modules/zero/api#theme-engine).
+
+## Exports
+
+### DAISY_THEMES
+
+```ts
+const DAISY_THEMES: readonly ThemeInfo[];
+```
+
+The five themes (`light`, `dark`, `dim`, `nord`, `sunset`), each with `name`, `colorScheme`, an optional `pair`, and a `swatch` of hex colors. `ThemeInfo` is exported by `@sigx/lynx-zero`.
+
+### DAISY_AXIS_DEFAULTS
+
+```ts
+const DAISY_AXIS_DEFAULTS: Record<string, Record<string, string>>;
+```
+
+Axis defaults keyed by anatomy scope, for example `button: { color: 'primary', variant: 'solid', size: 'md' }`. Generated from the manifest's `components.<scope>.defaults`. See [Usage](/lynx/modules/zero-daisy/usage#axis-defaults) for the full table.
+
+### DAISY_TEXT_RAMP
+
+```ts
+const DAISY_TEXT_RAMP: Record<string, string>;
+```
+
+The skin's scalable `--text-*` ramp, as passed to `registerTextRamp`. Empty for daisyUI, which declares none.
+
+### DAISY_CLASS_GRAMMAR_VERSION
+
+```ts
+const DAISY_CLASS_GRAMMAR_VERSION: number;
+```
+
+The class-grammar version the CSS was compiled under. The build refuses CSS whose grammar version differs from the installed `@sigx/zero` contract's `CLASS_GRAMMAR_VERSION`.
+
+## Stylesheets
+
+| Path | Contents |
+|---|---|
+| `@sigx/lynx-zero-daisyui/css/index.css` | Everything: the `.zx-root` token defaults, one `.zx-root.zx-theme-<name>` block per theme, and every component's rules. Import this one. |
+| `@sigx/lynx-zero-daisyui/css/tokens.css` | The token and theme blocks alone. |
+| `@sigx/lynx-zero-daisyui/css/components/<scope>.css` | One scope's class-grammar rules. |
