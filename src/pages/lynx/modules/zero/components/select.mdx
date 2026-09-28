@@ -1,0 +1,220 @@
+---
+title: "Select"
+description: "Select component for SignalX Lynx — an items-driven single-value picker with groups, a clear trigger, readonly, an open model and an anchored popup in the overlay outlet (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 320
+---
+
+# Select
+
+<p class="lede">A single-value picker. On Lynx it is driven by data: you pass `items` and the accessors that read them, and `Select.Root` renders the trigger and an anchored popup list in the overlay outlet. The model holds the picked item, or the value you derive from it, and `null` while nothing is picked.</p>
+
+The anatomy is zero's `select` scope, shared with the web. See [Select in `@sigx/zero`](/zero/docs/components/select/) for the contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Select } from '@sigx/lynx-zero';
+```
+
+`Select` is a compound with one public part, `Select.Root`, which renders every other part itself. `<Select>` and `<Select.Root>` are the same component. It needs a `ZeroRoot` above it for the overlay outlet.
+
+## Usage
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Select } from '@sigx/lynx-zero';
+
+const fruits = [
+    { value: 'apple', label: 'Apple', group: 'Fruit' },
+    { value: 'banana', label: 'Banana', group: 'Fruit' },
+    { value: 'carrot', label: 'Carrot', group: 'Veg' },
+    { value: 'other', label: 'Other' },
+];
+
+export const FruitPicker = component(({ signal }) => {
+    const state = signal({ fruit: null as string | null });
+    return () => (
+        <Select.Root
+            items={fruits}
+            itemValue={(f) => f.value}
+            model={() => state.fruit}
+            placeholder="Pick a fruit"
+            label="Fruit"
+            color="primary"
+        />
+    );
+});
+```
+
+Leave the model off and pass `defaultValue` to keep the state inside the component. `valueChange` fires either way.
+
+### Items and accessors
+
+The list is data. On a touch platform there is no keyboard navigation or typeahead to build from child composition, and data props travel into the outlet more easily than slots. The accessors say how to read an item:
+
+| Accessor | Default | What it returns |
+|----------|---------|-----------------|
+| `itemKey` | the item's `value` or `id` field, or a primitive's string form | The item's string identity. |
+| `itemLabel` | the item's string `label` field, else its key | Display text. |
+| `itemValue` | the item itself | What the model holds for the item. Return a primitive, such as a code or an id. |
+| `itemDisabled` | the item's `disabled` field is `true` | Whether the item can be picked. |
+| `itemGroup` | the item's string `group` field | The group heading. Items that share one render together, in first-appearance order. |
+
+The accessors are read once at setup, because they describe the shape of `items`. `items` itself is read reactively.
+
+### The model is `T | null`, or `V | null`
+
+Without `itemValue`, the model holds the picked item itself, `T | null`. With `itemValue`, it holds what that accessor returns, `V | null`. `Select.Root` is typed by overload, so `T` is inferred from `items`, and `valueChange` and `defaultValue` are typed to match. `null` means nothing is picked, and the value part then shows `placeholder`.
+
+When the model holds an object, the item is matched back by its key. With `itemValue`, return a primitive, because a value is matched with `Object.is`.
+
+### Custom rows
+
+The scoped `item` slot replaces a row's label text. It receives the item:
+
+```tsx
+<Select.Root
+    items={people}
+    itemKey={(p) => p.id}
+    itemLabel={(p) => p.name}
+    slots={{
+        item: ({ item }) => (
+            <view style={{ display: 'flex', flexDirection: 'row', gap: '8px' }}>
+                <text>{item.name}</text>
+                <text style={{ opacity: 0.6 }}>{item.role}</text>
+            </view>
+        ),
+    }}
+/>
+```
+
+The row keeps its behavior, press feedback and the `✓` item indicator. `itemLabel` still names the row for the reader and fills the trigger's value.
+
+### Groups and separators
+
+Items that share an `itemGroup` render inside a `group` part, headed by a `group-label`. `groupSeparators` draws a `separator` rule between consecutive runs of options:
+
+```tsx
+<Select.Root items={fruits} itemValue={(f) => f.value} groupSeparators placeholder="Pick a fruit" />
+```
+
+### Clearing
+
+`clearable` renders a `clear-trigger` beside the trigger while something is selected and the select is editable. A tap on it sets the model to `null`. `clearLabel` names it for the reader, and defaults to "Clear selection":
+
+```tsx
+<Select.Root items={fruits} itemValue={(f) => f.value} clearable clearLabel="Clear fruit" />
+```
+
+While the clear trigger renders, the trigger, value and indicator carry zero's `clearable` flag (`zx-f-clearable`), so a skin can reserve the chip's width and clip the value before it. This is the class-grammar form of the web's `:has(> clear-trigger)`. The flag is stamped only on parts that the installed zero's anatomy declares it for.
+
+### The open state
+
+The popup's open state is a model too. Bind it with `model:open`, or seed it with `defaultOpen`. `openChange` fires either way. Picking an item or a light dismiss closes the popup:
+
+```tsx
+<Select.Root
+    items={fruits}
+    itemValue={(f) => f.value}
+    model:open={() => state.pickerOpen}
+    onOpenChange={(open) => track(open)}
+/>
+```
+
+`defaultOpen` is useful for a gallery or a screenshot that renders the popup open. A popup opened at mount lands at its trigger, even on a screen that is still sliding in.
+
+### Disabled and readonly
+
+`disabled` blocks the trigger. `readonly` keeps the value shown and announced, but the popup does not open, the press shows no feedback, and nothing changes the value. Both are ORed with an enclosing `Field.Root`, as is `invalid`. `required` comes from the prop only.
+
+## What the platform changes
+
+- **Data mode only.** zero's JSX-item mode, with `Select.Item` children, has no Lynx counterpart.
+- **The popup is in the overlay outlet.** It is anchored to the trigger and positioned in the outlet's own space. It flips and clamps against the safe frame, so it never lands under a status bar or header. Only an open popup measures, and it follows its trigger through a navigation slide or a scroll. See [Popover](/lynx/modules/zero/components/popover) for how anchoring works. The default `placement` is `bottom-start`.
+- **Light dismiss, and pans pass through.** A tap outside the popup closes it through the shared layer stack, so a select inside a dialog closes before the dialog. A pan beside it scrolls the page.
+- **Nothing inherits across the portal.** Every popup part stamps the root's axis classes, so a skin re-scopes its accent on the popup's own compound. The popup and each group are flex columns, the Lynx form of the web's block flow, so rows and separators span the list.
+- **Glyphs are text.** Lynx has no pseudo-elements, so the default glyphs zero's web parts draw (`▾` in the indicator, `✓` in the item indicator, `×` in the clear trigger) render as `<text>`.
+- **No `hidden-input`.** Lynx has no forms. The `spacer` and `group-heading` parts, which only zero's windowed list renders, are not rendered either.
+- **Press feedback.** The trigger and every item scale on the main thread when touched and carry the `pressed` flag. Each row owns its own. See [Press feedback](/lynx/modules/zero/usage#press-feedback).
+- **Accessibility.** The trigger and each item have the `button` trait. The picked item is announced as `selected`. Pass `label` to name the trigger, because the value text alone is ambiguous.
+
+## Props
+
+### `Select.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `items` | `ReadonlyArray<T>` | **required** | The items, as data. |
+| `itemKey` | `(item: T) => string` | `value` / `id` / the primitive | The item's string identity. |
+| `itemLabel` | `(item: T) => string` | `label` / the key | Display text. |
+| `itemValue` | `(item: T) => V` | the item | What the model holds. Return a primitive. |
+| `itemDisabled` | `(item: T) => boolean` | `disabled === true` | Whether an item can be picked. |
+| `itemGroup` | `(item: T) => string \| undefined` | `group` | The group heading. |
+| `model` | `T \| null` / `V \| null` | — | Two-way binding of the picked value. |
+| `defaultValue` | `T \| null` / `V \| null` | `null` | The initial value when there is no model. |
+| `model:open` | `boolean` | — | Two-way binding of the popup's open state. |
+| `defaultOpen` | `boolean` | `false` | Start with the popup open, when there is no open model. |
+| `placeholder` | `string` | — | Shown in the value part while nothing is picked. |
+| `clearable` | `boolean` | `false` | Render a `clear-trigger` while something is picked. |
+| `clearLabel` | `string` | `"Clear selection"` | Accessible name of the clear trigger. |
+| `groupSeparators` | `boolean` | `false` | Draw a `separator` between consecutive runs of options. |
+| `disabled` | `boolean` | `false` | Blocks the trigger. ORed with an enclosing Field's. |
+| `readonly` | `boolean` | `false` | Shows the value but does not open. ORed with an enclosing Field's. |
+| `invalid` | `boolean` | `false` | Stamps the `invalid` flag. ORed with an enclosing Field's. |
+| `required` | `boolean` | `false` | Stamps the `required` flag on the root. |
+| `placement` | `LynxPlacement` | `'bottom-start'` | Preferred side and alignment of the popup. |
+| `offset` | `number` | `4` | Gap between the trigger and the popup, in px. |
+| `label` | `string` | — | Accessible name of the trigger. |
+| `color` / `size` / `variant` | `string` | skin default | The design system's variant axes, stamped on every part, the popup's included. |
+| `class` | `string` | — | Extra classes on the root. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `valueChange` (`onValueChange`) | `T \| null` / `V \| null` | The picked value changed, including a clear. |
+| `openChange` (`onOpenChange`) | `boolean` | The popup opened or closed. |
+
+### Slots
+
+| Slot | Props | Description |
+|------|-------|-------------|
+| `item` | `{ item: T }` | Custom content for a row. Replaces the label text. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `root` | `view` | — | `disabled`, `invalid`, `required`, `readonly` |
+| `trigger` | `view` (`button` trait, the anchor) | `open`, `closed` | `disabled`, `invalid`, `readonly`, `placeholder`, `pressed`, `clearable` |
+| `value` | `text` | — | `placeholder`, `clearable` |
+| `indicator` | `text` (`▾`) | `open`, `closed` | `clearable` |
+| `clear-trigger` | `view` (`button` trait, `×`) | — | — |
+| `popup` | `view` (in the outlet) | `open` | — (plus the resolved `placement`) |
+| `group` | `view` | — | — |
+| `group-label` | `text` | — | — |
+| `item` | `view` (`button` trait) | — | `selected`, `disabled`, `pressed` |
+| `item-indicator` | `text` (`✓`, on the picked item) | — | `selected` |
+| `separator` | `view` | — | — |
+
+## Migrating from `options`
+
+Before lynx 0.31.0, `Select.Root` took an `options` array of `SelectOption` objects (`{ value, label?, group?, disabled? }`, the `OptionInput` shape), and its model was a `string`, with `''` for nothing picked. `options`, `SelectOption` and `OptionInput` have been removed.
+
+| Before | Now |
+|--------|-----|
+| `options={opts}` | `items={opts} itemValue={(o) => o.value}` |
+| model `string`, `''` for none | model `V \| null`, `null` for none |
+| `defaultValue=""` | omit it, or `defaultValue={null}` |
+| `import type { SelectOption }` | type your own item shape. `T` is inferred from `items`. |
+
+The default accessors already read `label`, `group` and `disabled` from each option object, so `itemValue` is the only accessor a migrated `options` array needs.
+
+## See also
+
+- [Popover](/lynx/modules/zero/components/popover) — the anchored overlay Select's popup is positioned like.
+- [ToggleGroup](/lynx/modules/zero/components/togglegroup) — a few choices, all visible at once.
+- [Select in `@sigx/zero`](/zero/docs/components/select/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

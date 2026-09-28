@@ -8,26 +8,68 @@ order: 20
 
 # Installation
 
-<p class="lede">Add `@sigx/lynx-zero` to your project.</p>
+<p class="lede">Add `@sigx/lynx-zero` and a skin, import the skin once, and wrap the app in `ZeroRoot`.</p>
 
-## Install the package
+## Install the packages
 
 ```bash
-pnpm add @sigx/lynx-zero
+pnpm add @sigx/lynx-zero @sigx/lynx-zero-daisyui
 ```
+
+`@sigx/lynx-zero` brings `@sigx/zero` (the contract), `@sigx/lynx-appearance` (the OS color scheme, for follow-system theming) and `@sigx/lynx-safe-area` (the soft-keyboard height a dialog makes room for). `@sigx/lynx-navigation` is an optional peer, needed only for `useScreenTheme` from the `./screen-theme` subpath.
+
+The components render and behave without a skin, but they paint nothing: all styling comes from a skin's compiled CSS. [`@sigx/lynx-zero-daisyui`](/lynx/modules/zero-daisy/overview) is the skin that ships today.
 
 ## Native setup
 
-Rebuild your development client after installing:
+`@sigx/lynx-appearance` and `@sigx/lynx-safe-area` are native modules. Rebuild your development client after installing:
 
 ```bash
 sigx prebuild
 ```
 
-## Verify
+## Build configuration
+
+Turn on CSS inheritance in the Lynx build plugin. The skins set text ink and type size on a part's `view`, and they reach the `<text>` children only through inheritance. Badge and Kbd labels and Skeleton's transparent ink are examples.
+
+```ts
+// lynx.config.ts
+import { defineConfig } from '@lynx-js/rspeedy';
+import { pluginSigxLynx } from '@sigx/lynx-plugin';
+
+export default defineConfig({
+    plugins: [
+        pluginSigxLynx({ enableCSSInheritance: true }),
+    ],
+});
+```
+
+The main-thread press scale also needs `@sigx/lynx-plugin`'s worklet transform, which every app built with the plugin has. See [press feedback](/lynx/modules/zero/usage#press-feedback).
+
+## Wire the app
+
+Import the skin's module (it seeds the theme registry and the axis defaults) and its stylesheet once, at the app entry. Then wrap the app in `ZeroRoot`:
 
 ```tsx
-import * as Zero from '@sigx/lynx-zero';
+// main.tsx
+import '@sigx/lynx-zero-daisyui';                 // seeds themes + axis defaults
+import '@sigx/lynx-zero-daisyui/css/index.css';   // the compiled skin
+import { component, defineApp } from '@sigx/lynx';
+import { Button, ZeroRoot } from '@sigx/lynx-zero';
 
-console.log(Object.keys(Zero));
+const App = component(() => () => (
+    <ZeroRoot>
+        <Button color="primary" onPress={() => console.log('pressed')}>
+            <text>Hello</text>
+        </Button>
+    </ZeroRoot>
+));
+
+defineApp(<App />).mount(null);
 ```
+
+`ZeroRoot` is required for Dialog, Popover, Select and Toast. They render into its overlay outlet, and without one they warn in development and render nothing. See [ZeroRoot](/lynx/modules/zero/components/zeroroot).
+
+## Verify
+
+Render any component inside `ZeroRoot`. If it appears unstyled, the stylesheet import is missing. If it is styled but ignores its default variant, the skin's module import is missing, because that import registers the axis defaults.

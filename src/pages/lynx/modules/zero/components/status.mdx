@@ -1,0 +1,68 @@
+---
+title: "Status"
+description: "Status component for SignalX Lynx — a presence dot on the zero status anatomy, decorative beside text or named with a label (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 404
+---
+
+# Status
+
+<p class="lede">A tiny presence dot on zero's `status` anatomy. It is one empty `<view>`, and the mark is the skin's paint. There are no states: "online", "busy" and "degraded" are colours, so they travel on the `color` axis.</p>
+
+The part is the same as the web component's. See [Status in `@sigx/zero`](/zero/docs/components/status/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Status } from '@sigx/lynx-zero';
+```
+
+`Status` is a compound whose only part is `Status.Root`. `<Status>` and `<Status.Root>` are the same component.
+
+## Usage
+
+Next to text that already says what it means, the dot is decoration:
+
+```tsx
+import { Row, Status } from '@sigx/lynx-zero';
+
+<Row gap={6} align="center">
+    <Status color="success" />
+    <text>Online</text>
+</Row>
+```
+
+When the dot stands alone, give it a `label`:
+
+```tsx
+<Status color="error" label="Service degraded" />
+```
+
+## Accessibility
+
+- **Without `label`** the dot is not an accessible element. It decorates text that already says the same thing, and announcing both would say everything twice.
+- **With `label`** the dot is the content: an accessible element with the `image` trait, named by the label.
+
+It is never a live region. A static dot that announced itself again would be noise.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` / `size` | `string` | skin default | The design system's axes. Unset, the daisy skin paints the base-content dot. |
+| `label` | `string` | — | Names the dot when no visible text beside it does. It is then announced as an image. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+## Anatomy on Lynx
+
+| Part | Element | Notes |
+|------|---------|-------|
+| `root` | `view` | Empty. The skin paints the mark. `image` trait when labelled. |
+
+## See also
+
+- [Badge](/lynx/modules/zero/components/badge) — a pill with an optional status dot.
+- [Avatar](/lynx/modules/zero/components/avatar) — a face that can sit next to a presence dot.
+- [Status in `@sigx/zero`](/zero/docs/components/status/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

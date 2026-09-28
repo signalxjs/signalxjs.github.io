@@ -1,0 +1,102 @@
+---
+title: "Avatar"
+description: "Avatar component for SignalX Lynx — an image with a graceful fallback, driven by the Lynx image load status, on the zero avatar anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 410
+---
+
+# Avatar
+
+<p class="lede">An image with a graceful fallback, on zero's `avatar` anatomy. Every part mirrors the image's load status, `loading`, `loaded` or `error`, which comes from the Lynx `<image>`'s own load and error events. The face a state hides is not rendered at all.</p>
+
+The parts and states are the same as the web component's. See [Avatar in `@sigx/zero`](/zero/docs/components/avatar/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Avatar } from '@sigx/lynx-zero';
+```
+
+`Avatar` is a compound with `Root`, `Image` and `Fallback`. `<Avatar>` is the same component as `<Avatar.Root>`.
+
+## Usage
+
+```tsx
+import { Avatar } from '@sigx/lynx-zero';
+
+<Avatar.Root size="lg" shape="circle">
+    <Avatar.Image src={user.photo} alt={user.name} />
+    <Avatar.Fallback delay={300}><text>{user.initials}</text></Avatar.Fallback>
+</Avatar.Root>
+```
+
+`Avatar.Fallback` is a view, so put its initials or icon in a `<text>` or an icon component. `Avatar.Image` renders a Lynx `<image>` with `mode="aspectFill"`.
+
+### Load status
+
+The avatar starts `loading`. The image's load event moves it to `loaded`, and its error event to `error`. `statusChange` on the root reports each change.
+
+- A missing `src` is `error`.
+- A root with no `Avatar.Image` settles on `error` once it has mounted. The fallback is then the avatar, not a placeholder stuck on `loading`.
+- A new `src` loads again.
+
+Lynx has no `hidden` attribute, so the face a state hides is not rendered, as the anatomy's "hidden in" rule says. The image is dropped while `error`, and the fallback once the image has `loaded`. While `loading` both render, and the skin lays the fallback over the pending image.
+
+### Fallback delay
+
+`Avatar.Fallback delay={ms}` keeps the fallback out of the tree for that long, so a fast image never flashes initials first.
+
+## Accessibility
+
+`alt` is required. Once the image has loaded it is the avatar's only accessible element, with the `image` trait, named by `alt`. Until then, the fallback's content is what a reader finds. Pass `alt=""` only for an avatar that is decorative next to a visible name.
+
+## Props
+
+### `Avatar.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` / `size` | `string` | the enclosing group's, else skin default | The design system's axes. |
+| `shape` | `string` | skin default | The skin's shape axis. daisy: `circle`, `square` or `rounded`. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### `Avatar.Image`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `src` | `string` | — | The image URL. Missing means `error`. |
+| `alt` | `string` | — | Required. The accessible name once loaded. |
+| `class` | `string` | — | Extra classes. |
+
+### `Avatar.Fallback`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `delay` | `number` (ms) | `0` | Keeps the fallback out of the tree for that long. |
+| `class` | `string` | — | Extra classes. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `statusChange` (`onStatusChange`) | `'loading' \| 'loaded' \| 'error'` | The load status changed. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Notes |
+|------|---------|--------|-------|
+| `root` | `view` | `loading` \| `loaded` \| `error` | Stamped `stacked` inside a group, after the first avatar. |
+| `image` | `image` | same | Not rendered while `error`. |
+| `fallback` | `view` | same | Not rendered once `loaded`, or during `delay`. |
+
+Inside an [AvatarGroup](/lynx/modules/zero/components/avatargroup), an avatar takes the group's `size` and `color` unless it sets its own, and every avatar after the first carries the `stacked` modifier (`zx-m-stacked`) for the skin's overlap.
+
+Not taken on Lynx: `asChild` on `Avatar.Image`. There is no DOM element to merge into.
+
+## See also
+
+- [AvatarGroup](/lynx/modules/zero/components/avatargroup) — a stack of avatars with an overflow count.
+- [Skeleton](/lynx/modules/zero/components/skeleton) — a placeholder for content that is on its way.
+- [Avatar in `@sigx/zero`](/zero/docs/components/avatar/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

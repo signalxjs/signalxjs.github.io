@@ -1,0 +1,120 @@
+---
+title: "Timeline"
+description: "Timeline component for SignalX Lynx — events along an axis, with markers that re-carry the color axis (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 450
+---
+
+# Timeline
+
+<p class="lede">Events along an axis, such as a release history, an order's progress or an activity feed. Each item has a marker on the axis, a connector to the next item and a content box on one side. A marker can take its own color, which outranks the root's.</p>
+
+The anatomy is zero's `timeline` scope, shared with the web. See [Timeline in `@sigx/zero`](/zero/docs/components/timeline/) for the contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Timeline } from '@sigx/lynx-zero';
+```
+
+`Timeline` is a compound: `Timeline.Root`, `Timeline.Item`, `Timeline.Marker`, `Timeline.Connector` and `Timeline.Content`.
+
+## Usage
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Timeline } from '@sigx/lynx-zero';
+
+const releases = ['v1.0 shipped', 'v1.1 hotfix', 'v2.0 rolled back'];
+
+export const History = component(() => {
+    return () => (
+        <Timeline.Root color="neutral">
+            {releases.map((text, index) => (
+                <Timeline.Item key={text}>
+                    <Timeline.Marker color={index === 2 ? 'error' : undefined} />
+                    <Timeline.Content><text>{text}</text></Timeline.Content>
+                    {index < releases.length - 1 ? <Timeline.Connector /> : null}
+                </Timeline.Item>
+            ))}
+        </Timeline.Root>
+    );
+});
+```
+
+A timeline has no state: no model and no events. Leave the connector off the last item.
+
+### Marker color
+
+`color` on `Timeline.Root` colors every marker. `color` on one `Timeline.Marker` colors that marker alone, and a marker without a color of its own follows the root. The marker re-carries the `color` axis (the anatomy declares `carries: ['color']`), so the nearest provider wins.
+
+Lynx CSS has no descendant selectors, so the winning value is stamped on the marker itself as `zx-a-color-<value>`. That is the same compiled rule whichever element supplied the value, and it is also stamped on any zero part below the marker. See the [usage guide](/lynx/modules/zero/usage) for how axes are pushed down and re-carried.
+
+### Orientation and sides
+
+The timeline is vertical by default. `orientation="horizontal"` runs it along a row, and the orientation is stamped on the root, every item, connector and content box:
+
+```tsx
+<Timeline.Root orientation="horizontal" color="primary">
+    {steps.map((step, index) => (
+        <Timeline.Item key={step}>
+            <Timeline.Marker color={index === 2 ? 'success' : undefined} />
+            <Timeline.Content><text>{step}</text></Timeline.Content>
+            {index < steps.length - 1 ? <Timeline.Connector /> : null}
+        </Timeline.Item>
+    ))}
+</Timeline.Root>
+```
+
+`placement` on `Timeline.Content` picks the side of the axis the box sits on: `end` by default, or `start`. How each side is laid out is up to the skin.
+
+### Accessibility
+
+The marker and the connector are decoration. They are not accessibility elements, so the reader gets each event from the content text.
+
+## Props
+
+### `Timeline.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `orientation` | `'horizontal' \| 'vertical'` | `'vertical'` | Layout axis. Stamped on the root, items, connectors and content boxes. |
+| `color` | `string` | skin default | Colors every marker, unless a marker sets its own. |
+| `size` | `string` | skin default | The design system's size axis. |
+| `class` | `string` | — | Extra classes. |
+
+### `Timeline.Marker`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` | `string` | the root's | This marker's color. Outranks the root's. |
+| `class` | `string` | — | Extra classes. |
+
+### `Timeline.Content`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `placement` | `'start' \| 'end'` | `'end'` | Which side of the axis the box sits on. |
+| `class` | `string` | — | Extra classes. |
+
+### `Timeline.Item`, `Timeline.Connector`
+
+`class`. The item renders its default slot. The connector renders empty.
+
+## Anatomy on Lynx
+
+| Part | Element | Notes |
+|------|---------|-------|
+| `root` | `view` | Carries the variant axes and the orientation. |
+| `item` | `view` | One event. Carries the orientation. |
+| `marker` | `view` (not an accessibility element) | Re-carries `color`. |
+| `connector` | `view` (not an accessibility element) | Carries the orientation. |
+| `content` | `view` | Carries `placement` and the orientation. |
+
+The anatomy's `title` and `description` parts have no component on Lynx. Put `<text>` inside `Timeline.Content` instead.
+
+## See also
+
+- [Timeline in `@sigx/zero`](/zero/docs/components/timeline/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

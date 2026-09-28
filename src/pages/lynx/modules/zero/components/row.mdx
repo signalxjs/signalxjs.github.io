@@ -44,8 +44,8 @@ import { Row } from '@sigx/lynx-zero';
 function Header() {
   return (
     <Row gap={12} align="center" justify="space-between">
-      <view class="text-base-content text-lg">Dashboard</view>
-      <view class="text-primary">Settings</view>
+      <text>Dashboard</text>
+      <text>Settings</text>
     </Row>
   );
 }
@@ -61,8 +61,8 @@ import { Row } from '@sigx/lynx-zero';
 function Banner() {
   return (
     <Row flex={1} gap={16} padding={{ x: 16, y: 12 }} background="primary" borderRadius={8}>
-      <view class="text-primary-content">Left</view>
-      <view class="text-primary-content">Right</view>
+      <text>Left</text>
+      <text>Right</text>
     </Row>
   );
 }
@@ -72,6 +72,7 @@ function Banner() {
 
 | Prop | Type | Description |
 |------|------|-------------|
+| `direction` | `'row' \| 'column'` | Main axis. Defaults to `'row'`. Pass a per-breakpoint object to flip between a row and a column without remounting the children. |
 | `gap` | `number` | Space between children along the row. |
 | `align` | `'flex-start' \| 'center' \| 'flex-end' \| 'stretch' \| 'baseline'` | Cross-axis alignment of children. |
 | `justify` | `'flex-start' \| 'center' \| 'flex-end' \| 'space-between' \| 'space-around' \| 'space-evenly'` | Main-axis distribution of children. |
@@ -84,6 +85,8 @@ function Banner() {
 | `background` | `BackgroundValue` | A semantic color token (e.g. `base-100`, `primary`) or any raw CSS color string. |
 | `borderRadius` | `number` | Corner radius. |
 | `class` | `string` | Extra CSS classes appended after the computed ones. |
+
+Every style prop also accepts a per-breakpoint object such as `{ initial: 16, expanded: 32 }`, resolved mobile-first against the window's width class. See [responsive props](/lynx/modules/zero/usage#responsive-props).
 
 ### Slots
 

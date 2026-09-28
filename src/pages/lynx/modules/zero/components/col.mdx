@@ -61,6 +61,7 @@ function Sidebar() {
 
 | Prop | Type | Description |
 |------|------|-------------|
+| `direction` | `'row' \| 'column'` | Main axis. Defaults to `'column'`. Pass a per-breakpoint object to flip between a row and a column without remounting the children. |
 | `gap` | `number` | Space between children, in px. |
 | `align` | `'flex-start' \| 'center' \| 'flex-end' \| 'stretch' \| 'baseline'` | Cross-axis (horizontal) alignment of children. |
 | `justify` | `'flex-start' \| 'center' \| 'flex-end' \| 'space-between' \| 'space-around' \| 'space-evenly'` | Main-axis (vertical) distribution of children. |
@@ -74,6 +75,8 @@ function Sidebar() {
 | `borderRadius` | `number` | Corner radius, in px. |
 | `class` | `string` | Extra CSS classes appended after the computed ones. |
 
+Every style prop also accepts a per-breakpoint object such as `{ initial: 16, expanded: 32 }`, resolved mobile-first against the window's width class. See [responsive props](/lynx/modules/zero/usage#responsive-props).
+
 ### Slots
 
 | Slot | Description |
@@ -86,4 +89,4 @@ function Sidebar() {
 - [`Center`](/lynx/modules/zero/components/center) — centers children on both axes.
 - [`Spacer`](/lynx/modules/zero/components/spacer) — fixed or flexible spacing element.
 - [`ScrollView`](/lynx/modules/zero/components/scrollview) — scrollable container.
-- [API reference](/lynx/modules/zero/api) — `ColProps`, `SpacingValue`, `BackgroundValue` and the color contract.
+- [API reference](/lynx/modules/zero/api) — `SpacingValue`, `BoxProps`, `BackgroundValue` and the color contract.

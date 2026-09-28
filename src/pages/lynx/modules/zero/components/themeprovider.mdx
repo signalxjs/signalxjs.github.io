@@ -8,7 +8,7 @@ order: 101
 
 # ThemeProvider
 
-<p class="lede">Wraps a subtree and applies the active theme's palette as <strong>inline CSS custom properties</strong> on its host view, so descendants inherit the theme's color, radius, and text tokens and it paints on the first frame (Lynx ≥ 3.9). Mount it once near the root of your app.</p>
+<p class="lede">The theme host: a <code>view</code> with the <code>zx-root</code> and <code>zx-theme-&lt;name&gt;</code> classes that a skin's compiled theme blocks select on. Selecting a theme swaps one class; no theme values pass through JavaScript.</p>
 
 ## Import
 
@@ -16,72 +16,72 @@ order: 101
 import { ThemeProvider } from '@sigx/lynx-zero';
 ```
 
-## Basic Usage
+Most apps never render it directly: [`ZeroRoot`](/lynx/modules/zero/components/zeroroot) renders a `ThemeProvider` with the overlay outlet inside it, and takes the same props. Use `ThemeProvider` alone for a nested theme scope.
 
-A theme is a named palette registered at module load with [`registerTheme`](/lynx/modules/zero/api). Pin a single theme with `initial`, then mount the provider once near the root. The root provider (depth 0) binds the global singleton theme state, so headless [`themeController`](/lynx/modules/zero/api) mutations render and the OS bars track it.
+## How it works
 
-```tsx
-import { ThemeProvider, StatusBarSync } from '@sigx/lynx-zero';
+A skin compiled for Lynx declares every theme as static CSS. `.zx-root` holds the default tokens, and each theme is a full `.zx-root.zx-theme-<name>` block. The provider owns three things:
 
-function App() {
-  return (
-    <ThemeProvider initial="my-light">
-      <StatusBarSync />
-      {/* app tree */}
-    </ThemeProvider>
-  );
-}
-```
+- **The host classes**: `zx-root`, plus `zx-theme-<name>` for the active theme, plus your `class`.
+- **Follow-system**: while following, the OS color scheme picks the theme through the shared registry (`pickThemeFor`). The scheme is seeded natively before the first paint, so the first render already uses the right theme.
+- **The font scale**: at a scale other than 1, it re-emits the skin's scalable `--text-*` ramp inline as scaled `px`. The `--text-fixed-*` ramp, used for control chrome, never scales.
+
+The host also paints `--color-base-100` as its background and `--color-base-content` as its text color, and it is a flex column, so a `ScrollView flex={1}` inside it gets a bounded height.
+
+Theme names and pairs come from the registry a skin seeds when you import it. See [theming](/lynx/modules/zero/usage#theming).
 
 ## Following the system scheme
 
-To track the OS light/dark setting, give the provider a `light` / `dark` pair instead of a pinned `initial` — the subtree recolors automatically when the OS scheme flips.
+With no props, the root provider follows the OS scheme and uses the skin's default light and dark themes. Name them with `light` and `dark`:
 
 ```tsx
 import { ThemeProvider } from '@sigx/lynx-zero';
 
-function App() {
-  return (
-    <ThemeProvider light="my-light" dark="my-dark">
-      {/* recolors automatically when the OS scheme flips */}
-    </ThemeProvider>
-  );
-}
+<ThemeProvider light="nord" dark="dim">
+    {/* recolors when the OS scheme flips */}
+</ThemeProvider>;
 ```
 
-## Nested providers and font scale
-
-Nested providers are content sub-scopes — they recolor only their own subtree, which is handy for a preview pane or a deliberately inverted section. `fontScale` seeds the initial text-scale multiplier, re-emitting the `--text-*` ramp at `defaultPx * scale`.
+`initial` pins a theme and stops following the system until `followSystem()` is called:
 
 ```tsx
-import { ThemeProvider, Col, Center } from '@sigx/lynx-zero';
+<ThemeProvider initial="sunset">{/* … */}</ThemeProvider>
+```
+
+## Root and nested providers
+
+The outermost provider binds the global [`themeController`](/lynx/modules/zero/api#themecontroller), so a headless `themeController.set('dark')` from a store or a service re-renders it. A nested provider is a content island with its own state that recolors only its subtree, for example a preview pane:
+
+```tsx
+import { Col, ThemeProvider } from '@sigx/lynx-zero';
 
 function PreviewPane() {
-  return (
-    <Col flex={1} background="base-100">
-      {/* this section is themed independently of the root */}
-      <ThemeProvider initial="my-dark" fontScale={1.2}>
-        <Center flex={1} background="base-200" borderRadius={12}>
-          <view class="text-base-content">Inverted preview</view>
-        </Center>
-      </ThemeProvider>
-    </Col>
-  );
+    return (
+        <ThemeProvider initial="dark">
+            <Col padding={16}>
+                <text>Always dark</text>
+            </Col>
+        </ThemeProvider>
+    );
 }
 ```
 
-Read and mutate the active theme inside the provider with [`useTheme`](/lynx/modules/zero/api), which returns the nearest provider's controller (falling back to the global one).
+A nested provider with no `fontScale` inherits the enclosing scale. An overlay opened from inside a nested provider renders in `ZeroRoot`'s outlet, which is outside the nested provider's view, so it does not take the nested theme.
+
+## Reading and changing the theme
+
+[`useTheme()`](/lynx/modules/zero/api#usetheme) returns the nearest provider's controller, or the global one outside any provider. It never throws.
 
 ```tsx
-import { useTheme } from '@sigx/lynx-zero';
+import { Button, useTheme } from '@sigx/lynx-zero';
 
 function ThemeToggle() {
-  const theme = useTheme();
-  return (
-    <view bindtap={() => theme.toggle()}>
-      <view class="text-base-content">Theme: {theme.name}</view>
-    </view>
-  );
+    const theme = useTheme();
+    return (
+        <Button onPress={() => theme.toggle()}>
+            <text>Theme: {theme.name}</text>
+        </Button>
+    );
 }
 ```
 
@@ -89,23 +89,23 @@ function ThemeToggle() {
 
 | Prop | Type | Description |
 |------|------|-------------|
-| `initial` | `ThemeName` | Pins a theme, ignoring the system scheme. |
-| `light` | `ThemeName` | Theme used for the light scheme while following the system. |
-| `dark` | `ThemeName` | Theme used for the dark scheme while following the system. |
-| `fontScale` | `number` | Seeds the initial text-scale multiplier (re-emits the `--text-*` ramp at `defaultPx * scale`). |
-| `class` | `string` | Arbitrary extra classes, appended after the theme class. |
-| `style` | `Record<string, string \| number>` | Extra Lynx style entries applied to the host `<view>`. |
+| `initial` | `ThemeName` | Pins this theme, ignoring the system scheme until `followSystem()`. |
+| `light` | `ThemeName` | Theme while the system is light. Defaults to the registry's light default. |
+| `dark` | `ThemeName` | Theme while the system is dark. Defaults to the registry's dark default. |
+| `fontScale` | `number` | Initial in-app text-scale multiplier. `1` is the stylesheet ramp. |
+| `class` | `string` | Extra classes, appended after the theme classes. |
+| `style` | `Record<string, string \| number>` | Extra inline style on the host view, merged after the defaults. |
 
-`ThemeName` is `string & {}` — a plain string a DS layers a literal union on top of for autocomplete; multi-class names (e.g. `'daisy-light daisy-rounded'`) are accepted.
+`ThemeName` is `string`.
 
 ### Slots
 
 | Slot | Description |
 |------|-------------|
-| `default` | The themed subtree; descendants inherit the applied `--color-*` / `--radius-*` / `--text-*` custom properties. |
+| `default` | The themed subtree. |
 
 ## See also
 
-- [StatusBarSync](/lynx/modules/zero/components/statusbarsync) — keeps the OS status/nav-bar tint legible against the active theme; mount once inside the root provider.
-- [API reference](/lynx/modules/zero/api) — `useTheme`, `themeController`, the theme registry and color helpers.
-- [Usage](/lynx/modules/zero/usage) — the theme engine end to end, including per-screen theming.
+- [ZeroRoot](/lynx/modules/zero/components/zeroroot): `ThemeProvider` plus the overlay outlet.
+- [Theming](/lynx/modules/zero/usage#theming): the controller, font scale, per-screen themes and the status bar.
+- [Zero DaisyUI](/lynx/modules/zero-daisy/usage#themes): the themes the daisyUI skin registers.

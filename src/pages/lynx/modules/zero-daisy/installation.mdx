@@ -1,0 +1,39 @@
+---
+title: "Installation"
+description: "Install and configure @sigx/lynx-zero-daisyui, the Zero DaisyUI module for SignalX Lynx."
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-zero-daisyui` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-zero @sigx/lynx-zero-daisyui
+```
+
+## Import it once
+
+Import the module and the stylesheet at the app entry, before anything renders:
+
+```tsx
+import '@sigx/lynx-zero-daisyui';                 // seeds themes + axis defaults
+import '@sigx/lynx-zero-daisyui/css/index.css';   // the compiled skin
+```
+
+The module import has side effects on purpose: it registers the themes and axis defaults at load, before the first `ZeroRoot` renders. Keep both imports, even if a bundler reports the first as unused.
+
+Then wrap the app in [`ZeroRoot`](/lynx/modules/zero/components/zeroroot), and turn on `enableCSSInheritance` in the Lynx build plugin. See [`@sigx/lynx-zero` installation](/lynx/modules/zero/installation).
+
+## Verify
+
+```tsx
+import '@sigx/lynx-zero-daisyui';
+import { listThemes } from '@sigx/lynx-zero';
+
+console.log(listThemes().map((t) => t.name)); // ['light', 'dark', 'dim', 'nord', 'sunset']
+```

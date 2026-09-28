@@ -1,0 +1,118 @@
+---
+title: "Progress"
+description: "Progress component for SignalX Lynx — a determinate or indeterminate bar with min/max, formatted value text and the zero progress anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 401
+---
+
+# Progress
+
+<p class="lede">A progress bar on zero's `progress` anatomy. `value` over `[min, max]` decides the state: `loading` while part-filled, `complete` at 100%, and `indeterminate` when the value is `null`. The range's width is an inline style, and what the bar shows as text is exactly what a screen reader hears.</p>
+
+The parts and states are the same as the web component's. See [Progress in `@sigx/zero`](/zero/docs/components/progress/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Progress } from '@sigx/lynx-zero';
+```
+
+`Progress` is a compound with `Root`, `Label`, `Track`, `Range` and `ValueText`. `<Progress>` is the same component as `<Progress.Root>`.
+
+## Usage
+
+Compose the parts you want. The track holds the range:
+
+```tsx
+import { Progress } from '@sigx/lynx-zero';
+
+<Progress.Root value={62} label="Upload" color="primary">
+    <Progress.Label>Uploading</Progress.Label>
+    <Progress.Track><Progress.Range /></Progress.Track>
+    <Progress.ValueText />
+</Progress.Root>
+```
+
+`Progress.Label` and `Progress.ValueText` render as `<text>`. With no children, `Progress.ValueText` shows the formatted value, here `62%`.
+
+### The value model
+
+- `min` and `max` default to `0` and `100`. The filled share of `[min, max]` is what counts: 100% is `complete`, anything less is `loading`.
+- `value={null}` (or no `value`) is `indeterminate`. The range gets no inline width, so the skin's own rule sizes and sweeps it.
+- A degenerate range (`max` at or below `min`) has nothing left to fill, so any present value reads as `complete`.
+- Values outside the range clamp for display.
+
+```tsx
+<Progress.Root value={3} min={0} max={8}>
+    <Progress.Track><Progress.Range /></Progress.Track>
+</Progress.Root>
+
+<Progress.Root value={null} label="Syncing">
+    <Progress.Track><Progress.Range /></Progress.Track>
+</Progress.Root>
+```
+
+### Value text
+
+The formatted value is one string, used in two places: the default `Progress.ValueText`, and the root's accessibility label, after `label`. By default it is the whole filled percent. Pass `getValueText` to say something else:
+
+```tsx
+<Progress.Root
+    value={3}
+    max={8}
+    color="accent"
+    getValueText={(v, { max }) => `${v} of ${max} files`}
+>
+    <Progress.Label>Files</Progress.Label>
+    <Progress.Track><Progress.Range /></Progress.Track>
+    <Progress.ValueText />
+</Progress.Root>
+```
+
+`getValueText` receives the clamped value and `{ min, max, percent }`, with `percent` from 0 to 100. Without it, the default formatter uses `Intl.NumberFormat` with `locale` and `formatOptions`, merged over `{ style: 'percent' }`. A percent style formats the filled share, and any other style formats the value itself. Not every Lynx JavaScript engine ships `Intl`. Where it is missing, or the options are malformed, the text falls back to the whole percent, such as `62%`, or the plain value for a non-percent style. Use `getValueText` when the text must be the same everywhere.
+
+Children passed to `Progress.ValueText` replace the formatted value on screen. The root still announces the formatted value.
+
+An indeterminate bar announces `label` followed by "in progress".
+
+## Props
+
+### `Progress.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `number \| null` | `null` | Current value. `null` is indeterminate. |
+| `min` | `number` | `0` | Start of the range. |
+| `max` | `number` | `100` | End of the range. |
+| `getValueText` | `(value: number, details: { min, max, percent }) => string` | — | Replaces the default formatter. The string is both shown and announced. |
+| `locale` | `string` | — | BCP 47 locale for the default formatter, where the engine has `Intl`. |
+| `formatOptions` | `Intl.NumberFormatOptions` | — | Merged over `{ style: 'percent' }` for the default formatter. |
+| `label` | `string` | — | Accessible name, announced before the value text. The visible `Progress.Label` is separate. |
+| `color` / `size` / `variant` | `string` | skin default | The design system's axes. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+`Progress.Label`, `Progress.Track`, `Progress.Range` and `Progress.ValueText` take `class`. Every part except `Range` takes a default slot.
+
+## Anatomy on Lynx
+
+| Part | Element | States | Notes |
+|------|---------|--------|-------|
+| `root` | `view` | `loading` \| `complete` \| `indeterminate` | Its accessibility label is `label` plus the value text. |
+| `label` | `text` | — | The visible caption. |
+| `track` | `view` | — | Holds the range. |
+| `range` | `view` | `loading` \| `complete` \| `indeterminate` | Inline `width` from the filled share; none while indeterminate. |
+| `value-text` | `text` | — | The formatted value, or its children. |
+
+The web recipe reads the runtime-published `--progress-percent` property for the range's width. That mechanism is web-only, so on Lynx the width is an inline style: layout, not paint, which recipes never own.
+
+## On the daisy skin
+
+`complete` keeps the chosen `color`: a finished bar does not turn green on its own. Pass `color="success"` for a green bar. This is the `@sigx/zero-daisyui` behaviour since 0.7.0.
+
+## See also
+
+- [Slider](/lynx/modules/zero/components/slider) — a value the user sets.
+- [Spinner](/lynx/modules/zero/components/spinner) — busy, with no measurable progress.
+- [Progress in `@sigx/zero`](/zero/docs/components/progress/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

@@ -1,0 +1,93 @@
+---
+title: "Toggle"
+description: "Toggle component for SignalX Lynx — a button with one bit of state, on the zero toggle anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Actions & disclosure"]
+order: 202
+---
+
+# Toggle
+
+<p class="lede">A button with one bit of state, such as bold on or off, or starred or not. A tap flips the root between `on` and `off`. The model concept is `pressed`. It is a mode you flip, not a value you submit: for a setting, use Switch.</p>
+
+The anatomy is zero's `toggle` scope, shared with the web. See [Toggle in `@sigx/zero`](/zero/docs/components/toggle/) for the contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Toggle } from '@sigx/lynx-zero';
+```
+
+`Toggle` is a compound whose only part is `Toggle.Root`. `<Toggle>` and `<Toggle.Root>` are the same component.
+
+## Usage
+
+Bind the pressed state with `model`, or leave the model off and seed it with `defaultPressed`. `pressedChange` fires either way:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Row, Toggle } from '@sigx/lynx-zero';
+
+export const Formatting = component(({ signal }) => {
+    const state = signal({ bold: false });
+    return () => (
+        <Row gap={8}>
+            <Toggle.Root label="Bold" model={() => state.bold}>
+                <text>B</text>
+            </Toggle.Root>
+            <Toggle.Root label="Star" defaultPressed color="warning" onPressedChange={(on) => star(on)}>
+                <text>★</text>
+            </Toggle.Root>
+        </Row>
+    );
+});
+```
+
+### What the reader hears
+
+Lynx has no `aria-pressed`. The root is announced with the `button` trait, and the on state is announced as `selected`, which is how native screen readers speak a pressed toggle button. Pass `label` for an icon-only toggle.
+
+### Pressed flag and on state
+
+The `pressed` flag (`zx-f-pressed`) means a finger is down. The `on` state (`zx-s-on`) means the mode is set. They are independent, so a held on-toggle carries both. A touch also scales the root on the main thread. `pressFeel={false}` turns off the scale and keeps the flag. See [Press feedback](/lynx/modules/zero/usage#press-feedback).
+
+`disabled`, or an enclosing Field's, blocks both the tap and the press feedback. Inside a `Field.Root`, the toggle also adopts the field's `size` when it sets none.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `boolean` | — | Two-way binding of the pressed state. |
+| `defaultPressed` | `boolean` | `false` | The initial state when there is no model. |
+| `disabled` | `boolean` | `false` | Blocks the tap and the press. ORed with an enclosing Field's. |
+| `pressFeel` | `boolean` | `true` | `false` turns off the main-thread press scale. The `pressed` flag stays. |
+| `color` / `size` | `string` | skin default | The design system's variant axes. `size` falls back to the Field's. |
+| `label` | `string` | — | Accessible name. Required for icon-only toggles. |
+| `class` | `string` | — | Extra classes. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `pressedChange` (`onPressedChange`) | `boolean` | The pressed state changed. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The toggle's content. Put text and glyphs in `<text>`. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `root` | `view` (`button` trait, `selected` while on) | `on`, `off` | `disabled`, `pressed` |
+
+`press-animating` is the web runtime's ripple bookkeeping and has no Lynx counterpart. `focus-visible` can only be forced for display, through `ForceStates` from `@sigx/lynx-zero/testing`.
+
+## See also
+
+- [ToggleGroup](/lynx/modules/zero/components/togglegroup) — several toggles under one value model.
+- [Button](/lynx/modules/zero/components/button) — a plain action.
+- [Toggle in `@sigx/zero`](/zero/docs/components/toggle/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

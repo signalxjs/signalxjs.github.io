@@ -343,9 +343,19 @@ const RAW_MODULES: SigxModule[] = [
       tag: 'HeroUI design system',
       blurb: 'HeroUI-flavored component library, stylesheet and Tailwind preset for Lynx.' },
     { id: 'zero', parent: 'lynx', npm: '@sigx/lynx-zero', name: 'Zero', category: 'ui',
-      hue: 240, glyph: '○', status: 'stable', version: '0.34.0',
-      tag: 'Headless design-system foundation',
-      blurb: 'Headless-first primitives, theme engine and Tailwind preset that custom design systems build on.' },
+      hue: 240, glyph: '○', status: 'beta', version: '0.34.0',
+      tag: 'The zero contract on Lynx',
+      blurb: 'zero’s anatomy contract rendered natively: 33 compound components, the overlay outlet, axis push-down, two-tier press feedback and the theme engine that compiled skins target.' },
+    // `zero-daisy`, not `zero-daisyui`: `moduleById` is one flat map and the
+    // web skin `@sigx/zero-daisyui` already owns that key (see the zero rows).
+    { id: 'zero-daisy', parent: 'lynx', npm: '@sigx/lynx-zero-daisyui', name: 'Zero DaisyUI', category: 'ui',
+      hue: 24, glyph: '❂', status: 'beta', version: '0.34.0',
+      tag: 'daisyUI skin for Lynx Zero',
+      blurb: 'daisyUI compiled from @sigx/zero-daisyui’s recipes to Lynx class-grammar CSS, plus the import that seeds its five themes and axis defaults. No components of its own.' },
+    { id: 'zero-legacy', parent: 'lynx', npm: '@sigx/lynx-zero-legacy', name: 'Zero Legacy', category: 'ui',
+      hue: 240, glyph: '◯', status: 'stable', version: '0.34.0',
+      tag: 'The pre-contract foundation, frozen',
+      blurb: 'The props/token contract, palette theme engine, Tailwind preset and layout primitives that @sigx/lynx-daisyui and @sigx/lynx-heroui build on. Frozen: no new features.' },
 
     // ---- New in 0.7.0 ----
     { id: 'sqlite', parent: 'lynx', npm: '@sigx/lynx-sqlite', name: 'SQLite', category: 'native',
@@ -630,8 +640,16 @@ export const COMPONENT_CATALOGS: Record<string, { cat: string; items: string[] }
         { cat: 'Parts', items: ['EmojiGrid', 'EmojiCell', 'CategoryTabBar', 'SearchInput', 'SkinTonePopover'] },
         { cat: 'State', items: ['EmojiProvider'] },
     ],
+    // @sigx/lynx-zero — every component the package exports. Names are the
+    // export names, so they slugify with no separator ("ToggleGroup" →
+    // "togglegroup"), which is the page filename under
+    // src/pages/lynx/modules/zero/components/.
     'lynx-zero': [
-        { cat: 'Theme', items: ['ThemeProvider', 'StatusBarSync'] },
+        { cat: 'Actions & disclosure', items: ['Button', 'Toggle', 'ToggleGroup', 'Tabs', 'Accordion'] },
+        { cat: 'Overlays', items: ['Dialog', 'Popover', 'Toast'] },
+        { cat: 'Form controls', items: ['Field', 'Fieldset', 'Input', 'Textarea', 'NumberInput', 'Checkbox', 'CheckboxGroup', 'RadioGroup', 'Switch', 'Select', 'Slider'] },
+        { cat: 'Content', items: ['Card', 'Alert', 'Badge', 'Status', 'Kbd', 'Divider', 'Stats', 'EmptyState', 'Avatar', 'AvatarGroup', 'Progress', 'Skeleton', 'Spinner', 'Timeline'] },
+        { cat: 'Theme', items: ['ZeroRoot', 'ThemeProvider'] },
         { cat: 'Layout', items: ['Row', 'Col', 'Center', 'Spacer', 'ScrollView'] },
     ],
     'lynx-gestures': [

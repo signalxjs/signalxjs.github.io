@@ -1,0 +1,101 @@
+---
+title: "Badge"
+description: "Badge component for SignalX Lynx — a small standing label with an optional status dot on the zero badge anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 403
+---
+
+# Badge
+
+<p class="lede">A small standing label, such as a count, a status or a tag, on zero's `badge` anatomy. The root is the pill. `Badge.Dot` is an optional status dot that takes its own colour or follows the pill's. A badge has no state and no behaviour.</p>
+
+The parts are the same as the web component's. See [Badge in `@sigx/zero`](/zero/docs/components/badge/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Badge } from '@sigx/lynx-zero';
+```
+
+`Badge` is a compound with `Root` and `Dot`. `<Badge>` is the same component as `<Badge.Root>`.
+
+## Usage
+
+Lynx prints text only inside `<text>`, so the badge's label is a `<text>` child of the root:
+
+```tsx
+import { Badge, Row } from '@sigx/lynx-zero';
+
+<Row gap={6}>
+    <Badge color="success"><text>Active</text></Badge>
+    <Badge color="error" size="sm"><text>3</text></Badge>
+    <Badge><text>Draft</text></Badge>
+</Row>
+```
+
+The skin's ink and type size reach the `<text>` through CSS inheritance. The zero shells assume the app turns on `enableCSSInheritance`.
+
+### The status dot
+
+`Badge.Dot` sits beside the text. `running` says the thing the pill names is in flight, and stamps the dot's one state:
+
+```tsx
+<Badge.Root>
+    <Badge.Dot color="warning" running />
+    <text>Deploying</text>
+</Badge.Root>
+```
+
+The dot re-carries the `color` axis. A dot with a `color` of its own is that colour. Without one it follows the pill's, and on an uncoloured pill it is the pill's ink. Lynx CSS has no descendant selectors, so the winning value is stamped on the dot itself.
+
+### Accessible name
+
+Without `label`, a screen reader reaches the badge's text directly. With `label`, the root becomes one accessible element named by it. Use it when the visible text is not the whole story:
+
+```tsx
+<Badge color="primary" label="3 unread"><text>3</text></Badge>
+```
+
+`Badge.Dot` is decorative and never an accessible element. The pill's text already says what it means.
+
+## Props
+
+### `Badge.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` / `size` | `string` | skin default | The design system's axes. Unset, the daisy skin paints a base-200 pill. |
+| `variant` | `string` | — | Stamped when set. The daisy skin declares no badge variants. |
+| `label` | `string` | — | Makes the root one accessible element with this name. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### `Badge.Dot`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` | `string` | the pill's | The dot's own colour. Outranks the pill's. |
+| `running` | `boolean` | `false` | Stamps the `running` state. |
+| `class` | `string` | — | Extra classes. |
+
+### Slots
+
+| Slot | Part | Description |
+|------|------|-------------|
+| `default` | `Root` | The badge content. Put text in a `<text>`. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Notes |
+|------|---------|--------|-------|
+| `root` | `view` | — | The pill. Carries the axes. |
+| `dot` | `view` | `running` | Decorative. Carries its own or the pill's `color`. |
+
+Not taken on Lynx: `asChild`. There is no element to merge onto, so for a pressable badge, put the Badge inside the pressable.
+
+## See also
+
+- [Status](/lynx/modules/zero/components/status) — a presence dot on its own.
+- [Kbd](/lynx/modules/zero/components/kbd) — a keycap.
+- [Badge in `@sigx/zero`](/zero/docs/components/badge/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

@@ -1,0 +1,109 @@
+---
+title: "Accordion"
+description: "Accordion component for SignalX Lynx — disclosure items with a string[] open model, orientation, root-level disabled and expanded/collapsed announcements (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Actions & disclosure"]
+order: 206
+---
+
+# Accordion
+
+<p class="lede">A stack of items that each open to show a panel. Lynx has no `<details>` element, so the open items are a controllable model and a closed panel is not in the tree. Each trigger announces whether it is expanded or collapsed.</p>
+
+The anatomy is zero's `accordion` scope, shared with the web. See [Accordion in `@sigx/zero`](/zero/docs/components/accordion/) for the contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Accordion } from '@sigx/lynx-zero';
+```
+
+`Accordion` is a compound: `Accordion.Root`, `Accordion.Item`, `Accordion.Trigger` and `Accordion.Panel`.
+
+## Usage
+
+The model is the list of open items' values:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Accordion } from '@sigx/lynx-zero';
+
+export const Faq = component(({ signal }) => {
+    const state = signal({ open: ['shipping'] as string[] });
+    return () => (
+        <Accordion.Root model={() => state.open}>
+            <Accordion.Item value="shipping">
+                <Accordion.Trigger><text>How long does shipping take?</text></Accordion.Trigger>
+                <Accordion.Panel><text>Three to five working days.</text></Accordion.Panel>
+            </Accordion.Item>
+            <Accordion.Item value="returns">
+                <Accordion.Trigger><text>Can I return an order?</text></Accordion.Trigger>
+                <Accordion.Panel><text>Within 30 days of delivery.</text></Accordion.Panel>
+            </Accordion.Item>
+        </Accordion.Root>
+    );
+});
+```
+
+Leave the model off and pass `defaultValue` to keep the state inside the component. `valueChange` fires either way.
+
+### One or many open
+
+By default, opening an item closes the others. Pass `multiple` to let several stay open. Tapping an open item's trigger closes it. With `collapsible={false}`, the last open item stays open when its trigger is tapped.
+
+### Orientation and disabled
+
+`orientation` is `vertical` by default. It is stamped on the root and on every trigger, so a skin can lay the items out in a row. There are no arrow keys on this platform, so it changes only the layout hook. `disabled` on the root disables every item. `disabled` on an item disables that item alone, as does an enclosing disabled `Field.Root`.
+
+## What the platform changes
+
+- **A closed panel is unmounted.** On the web the panel collapses through the native `<details>` element. Lynx has none, so a closed `Accordion.Panel` is not rendered, and its state does not survive closing. Lynx has no `height: auto` transitions either. A skin animates opacity or translate, and the item's and trigger's `open`/`closed` state classes are the hook.
+- **Expanded and collapsed are announced.** The trigger has the `button` trait, and its accessibility status carries `expanded` or `collapsed`. That is the Lynx form of the web's `aria-expanded`.
+- **Press feedback on the trigger.** A touch scales the trigger on the main thread and sets its `pressed` flag. A disabled item shows no press. See [Press feedback](/lynx/modules/zero/usage#press-feedback).
+- **Not taken:** the web's `loop` and `regions` props. They are keyboard and landmark semantics that Lynx has no surface for.
+
+## Props
+
+### `Accordion.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `string[]` | — | Two-way binding of the open items' values. |
+| `defaultValue` | `string[]` | `[]` | The initially open items when there is no model. |
+| `multiple` | `boolean` | `false` | Allow more than one item open at once. |
+| `collapsible` | `boolean` | — | `false` keeps the last open item from closing. |
+| `orientation` | `'horizontal' \| 'vertical'` | `'vertical'` | Stamped on the root and every trigger. |
+| `disabled` | `boolean` | `false` | Disables every item. |
+| `color` / `size` | `string` | skin default | The design system's variant axes. |
+| `class` | `string` | — | Extra classes. |
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `valueChange` (`onValueChange`) | `string[]` | The open items changed. |
+
+### `Accordion.Item`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `value` | `string` | **required** | This item's value in the root's model. |
+| `disabled` | `boolean` | `false` | Disables this item. ORed with the root's and an enclosing Field's. |
+| `class` | `string` | — | Extra classes. |
+
+### `Accordion.Trigger`, `Accordion.Panel`
+
+`class` and the default slot. The trigger toggles its item. The panel renders only while its item is open.
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `root` | `view` | — | — |
+| `item` | `view` | `open`, `closed` | `disabled` |
+| `trigger` | `view` (`button` trait, `expanded`/`collapsed` status) | `open`, `closed` | `disabled`, `pressed` |
+| `panel` | `view` (only while open) | `open` | — |
+
+## See also
+
+- [Tabs](/lynx/modules/zero/components/tabs) — one panel at a time, switched from a list.
+- [Accordion in `@sigx/zero`](/zero/docs/components/accordion/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

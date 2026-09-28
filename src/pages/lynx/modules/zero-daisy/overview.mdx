@@ -1,0 +1,40 @@
+---
+title: "Overview"
+description: "daisyUI skin for Lynx Zero — the Zero DaisyUI module for SignalX Lynx (@sigx/lynx-zero-daisyui): what it does, setup and API."
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Zero DaisyUI
+
+<p class="lede">daisyUI compiled from @sigx/zero-daisyui’s recipes to Lynx class-grammar CSS, plus the import that seeds its five themes and axis defaults. No components of its own.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/lynx-zero-daisyui" /> <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/lynx-zero @sigx/lynx-zero-daisyui
+```
+
+## About
+
+`@sigx/lynx-zero-daisyui` is the daisyUI skin for [`@sigx/lynx-zero`](/lynx/modules/zero/overview). It has no components and no CSS source of its own. daisyUI's recipes live once, in [`@sigx/zero-daisyui`](/zero/packages/zero-daisyui/overview), which is also the web skin. `@sigx/zero-kit`'s Lynx target compiles them to class-grammar CSS, and this package ships that output.
+
+It carries two things:
+
+- **The compiled CSS**, under `./css/*`. Every color is a baked literal, and every theme is a full `.zx-root.zx-theme-<name>` block.
+- **A side-effect import** that seeds the theme registry with daisyUI's five themes and registers daisyUI's axis defaults.
+
+Five themes ship: `light`, `dark`, `dim`, `nord` and `sunset`. `light` and `dark` are a pair, so `themeController.toggle()` flips between them.
+
+It is versioned in lockstep with the rest of the Lynx module family, and it pins `@sigx/zero-daisyui` to the same version as the `@sigx/zero` contract `@sigx/lynx-zero` uses.
+
+## Next steps
+
+- [Installation](/lynx/modules/zero-daisy/installation): the two imports.
+- [Usage](/lynx/modules/zero-daisy/usage): themes, axis defaults, and where the Lynx skin differs from the web.
+- [API reference](/lynx/modules/zero-daisy/api): the exported data.

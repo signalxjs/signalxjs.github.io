@@ -1,0 +1,91 @@
+---
+title: "Fieldset"
+description: "Fieldset component for SignalX Lynx — a captioned group of form controls that says disabled, readonly and invalid once for all of them (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 310
+---
+
+# Fieldset
+
+<p class="lede">A captioned group of form controls on zero's `fieldset` anatomy. `disabled`, `readonly` and `invalid` on the fieldset reach the controls inside, so a section of a form can be locked or flagged in one place. Lynx has no native `<fieldset>`, so the root is a `<view>` and the flags travel only through zero's `FieldsetContext`.</p>
+
+## Import
+
+```tsx
+import { Fieldset } from '@sigx/lynx-zero';
+```
+
+`Fieldset` is a compound with `Root` and `Legend`. `<Fieldset>` is the same component as `<Fieldset.Root>`.
+
+## Usage
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Fieldset, NumberInput } from '@sigx/lynx-zero';
+
+export const Order = component(() => {
+    const state = signal({ editing: false, qty: 1 as number | null });
+    return () => (
+        <Fieldset.Root disabled={!state.editing}>
+            <Fieldset.Legend>Order</Fieldset.Legend>
+            <NumberInput.Root model={() => state.qty} min={0} max={99}>
+                <NumberInput.Label>Quantity</NumberInput.Label>
+                <NumberInput.Control>
+                    <NumberInput.DecrementTrigger />
+                    <NumberInput.Input placeholder="0" />
+                    <NumberInput.IncrementTrigger />
+                </NumberInput.Control>
+            </NumberInput.Root>
+        </Fieldset.Root>
+    );
+});
+```
+
+Render `Fieldset.Legend` as the root's first child. It is a `<text>` part, so pass a string.
+
+### Which controls read it
+
+A control reads the fieldset in one of two ways:
+
+- **Directly.** [Input](/lynx/modules/zero/components/input), [Textarea](/lynx/modules/zero/components/textarea) and [NumberInput](/lynx/modules/zero/components/numberinput) are built on zero's form-control helper, which ORs in the nearest fieldset's flags.
+- **Through a Field.** A [Field](/lynx/modules/zero/components/field) inside a fieldset takes its flags, and every control that adopts the Field gets them from there.
+
+The other `@sigx/lynx-zero` controls (Button, Switch, Slider, Select, Checkbox, CheckboxGroup, RadioGroup, Toggle and ToggleGroup) do not read the fieldset directly yet. Wrap them in a `Field.Root` inside the fieldset to pass the flags on, or set the flags on the control.
+
+### Nesting and the legend
+
+Nested fieldsets chain: each one's flags are its own props OR the enclosing fieldset's.
+
+The legend repeats its fieldset's `disabled` and `invalid` so the skin can dim or tint the caption. Whatever you render inside the legend answers to the fieldsets outside this one, not to this one. That is the platform's legend exemption, as on the web.
+
+## Props
+
+### `Fieldset.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `disabled` | `boolean` | `false` | Disables every control that reads the fieldset. ORed with an enclosing fieldset's. |
+| `readonly` | `boolean` | `false` | Makes every control that reads the fieldset read-only. ORed with an enclosing fieldset's. |
+| `invalid` | `boolean` | `false` | Marks the group, and every control that reads it, invalid. ORed with an enclosing fieldset's. |
+| `color` / `size` | `string` | skin default | The design system's axes. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### `Fieldset.Legend`
+
+The group's visible caption. Takes `class` and a default slot.
+
+## Anatomy on Lynx
+
+| Part | Element | Flags |
+|------|---------|-------|
+| `root` | `view` | `disabled`, `readonly`, `invalid` |
+| `legend` | `text` | `disabled`, `invalid` |
+
+Lynx has no forms, so there is nothing for a fieldset to exclude from submission. It is purely a carrier of flags and a caption.
+
+## See also
+
+- [Field](/lynx/modules/zero/components/field) — a label, description and error around one control.
+- [NumberInput](/lynx/modules/zero/components/numberinput) — reads the fieldset directly.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

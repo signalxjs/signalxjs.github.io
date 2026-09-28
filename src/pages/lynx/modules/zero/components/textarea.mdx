@@ -1,0 +1,116 @@
+---
+title: "Textarea"
+description: "Textarea component for SignalX Lynx — a multi-line text field on the native Lynx textarea, with autosize and the zero textarea anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 303
+---
+
+# Textarea
+
+<p class="lede">A multi-line text field on the native Lynx `<textarea>`, carrying zero's `textarea` anatomy. It has Input's contract without the `control` box: a plain `string` model, the same Field adoption, and label taps that focus the field. `minRows` / `maxRows` let it grow with its content.</p>
+
+The parts are the same as the web component's. See [Textarea in `@sigx/zero`](/zero/docs/components/textarea/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Textarea } from '@sigx/lynx-zero';
+```
+
+`Textarea` is a compound with `Root`, `Label` and `Textarea`. `<Textarea>` is the same component as `<Textarea.Root>`.
+
+## Usage
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Textarea } from '@sigx/lynx-zero';
+
+export const Bio = component(() => {
+    const form = signal({ bio: '' });
+    return () => (
+        <Textarea.Root model={() => form.bio} minRows={2} maxRows={6} enterkeyhint="send">
+            <Textarea.Label>Bio</Textarea.Label>
+            <Textarea.Textarea placeholder="Tell us about yourself" />
+        </Textarea.Root>
+    );
+});
+```
+
+The model is a `string`, written on every keystroke, and bound straight to the native field. There is no `value` prop. Leave `model` off and pass `defaultValue` to keep the text inside the component.
+
+### The box is a view
+
+On the web, the `textarea` part is the native element and draws its own box. On Lynx the `textarea` part is a `<view>` holding the native `<textarea>`, for the same reason Input has a `control`: iOS never repaints a native text field's styles after mount, so the part whose classes change with state must be a view. The invalid border, the disabled fade and the focus ring all paint on it.
+
+The native `<textarea>` inside is the part's text face. It wears the part's base and axis classes, which is how the skin's font size, ink, line height and placeholder colour reach a native element. Its own box is zeroed inline (transparent, borderless, unpadded), and it carries no `data-part`, so it is not a second instance of the part.
+
+A tap on the box's padding or on `Textarea.Label` focuses the field. Inside a `Field.Root`, `Field.Label` does too. Native focus stamps `focus-visible` on the `textarea` part.
+
+### Autosize
+
+Setting `minRows` or `maxRows` turns autosizing on and stamps `data-autosize` on the `textarea` part. The native field grows with its content (`auto-height`) and stops at `maxRows` lines (`maxlines`), then scrolls. The skin's `min-height` is the floor on Lynx, because a row count has no Lynx spelling. `minRows` still turns autosizing on.
+
+### Keyboard attributes
+
+`enterkeyhint` maps to `confirm-type` (`done`, `go`, `next`, `search`, `send`). `spellcheck` and `autocorrect` map to `ios-spell-check` and `ios-auto-correct` and apply on iOS only. An optional string you do not set never reaches the native element.
+
+### Read-only
+
+`readonly` refuses edits. A read-only textarea shows its model value on Android too, including a value that changes after mount. That fix is in `@sigx/lynx-runtime` 0.34.0.
+
+## Props
+
+### `Textarea.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `string` | — | Two-way binding of the text. |
+| `defaultValue` | `string` | `''` | Initial text when uncontrolled. |
+| `minRows` | `number` | — | Turns autosizing on. The skin's `min-height` is the floor on Lynx. |
+| `maxRows` | `number` | — | Turns autosizing on. Grow up to this many lines, then scroll. |
+| `enterkeyhint` | `'enter' \| 'done' \| 'go' \| 'next' \| 'previous' \| 'search' \| 'send'` | — | What the Enter key says, as `confirm-type`. |
+| `maxlength` | `number` | — | Maximum length. |
+| `spellcheck` | `boolean` | platform default | Spell-checking, iOS. |
+| `autocorrect` | `'on' \| 'off'` | platform default | Autocorrection, iOS. |
+| `autofocus` | `boolean` | `false` | Focus the field on mount. |
+| `disabled` | `boolean` | `false` | ORed with the Field's and the Fieldset's. |
+| `invalid` | `boolean` | `false` | ORed with the Field's and the Fieldset's. |
+| `required` | `boolean` | `false` | ORed with the Field's. |
+| `readonly` | `boolean` | `false` | ORed with the Field's and the Fieldset's. |
+| `color` / `size` | `string` | skin default | The design system's axes. `size` falls back to the Field's. |
+| `label` | `string` | — | Accessible name for the native field. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### Parts
+
+| Part | Props |
+|------|-------|
+| `Textarea.Label` | `visuallyHidden`, `class`. A tap focuses the field. |
+| `Textarea.Textarea` | `placeholder`, `class`. Emits `focus`, `blur` and `confirm`. |
+
+### Events
+
+| Event | Part | Payload | Description |
+|-------|------|---------|-------------|
+| `valueChange` (`onValueChange`) | `Root` | `string` | The text changed. |
+| `focus` (`onFocus`) | `Textarea` | — | The native field gained focus. |
+| `blur` (`onBlur`) | `Textarea` | — | The native field lost focus. |
+| `confirm` (`onConfirm`) | `Textarea` | `string` | The keyboard's Enter key, with the text. |
+
+## Anatomy on Lynx
+
+| Part | Element | Flags | Notes |
+|------|---------|-------|-------|
+| `root` | `view` | `disabled`, `invalid`, `required`, `readonly` | |
+| `label` | `text` | `disabled`, `invalid`, `required` | A tap focuses the field. |
+| `textarea` | `view` holding the native `textarea` | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` | `data-autosize` while autosizing. |
+
+Not taken on Lynx: `name` and `form`, `modelModifiers` timing, and `validate` / `validateOn`.
+
+## See also
+
+- [Input](/lynx/modules/zero/components/input) — a single line of text.
+- [Field](/lynx/modules/zero/components/field) — label, description, error and shared flags.
+- [Textarea in `@sigx/zero`](/zero/docs/components/textarea/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

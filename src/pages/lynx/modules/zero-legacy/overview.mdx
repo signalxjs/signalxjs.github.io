@@ -1,0 +1,42 @@
+---
+title: "Overview"
+description: "The pre-contract foundation, frozen — the Zero Legacy module for SignalX Lynx (@sigx/lynx-zero-legacy): what it does, setup and API."
+layout: module-docs
+category: "Getting Started"
+order: 10
+---
+
+import { PkgVersion } from '@/components/PkgVersion';
+
+# Zero Legacy
+
+<p class="lede">The props/token contract, palette theme engine, Tailwind preset and layout primitives that @sigx/lynx-daisyui and @sigx/lynx-heroui build on. Frozen: no new features.</p>
+
+<p class="mod-meta-row"><PkgVersion npm="@sigx/lynx-zero-legacy" /> <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
+
+## Installation
+
+```bash
+pnpm add @sigx/lynx-zero-legacy
+```
+
+## About
+
+`@sigx/lynx-zero-legacy` is the design-system foundation that `@sigx/lynx-zero` was up to lynx 0.27. In lynx 0.28 it took this name, and `@sigx/lynx-zero` was rebuilt on the [zero contract](/lynx/modules/zero/overview). The code is the same as before the rename.
+
+It is **frozen**: it gets fixes only, no new features, and it is wound down once the zero-contract stack reaches component parity. Two design systems still build on it, [`@sigx/lynx-daisyui`](/lynx/modules/daisyui/overview) and [`@sigx/lynx-heroui`](/lynx/modules/heroui/overview), and they re-export what they use from it. An app on either one normally never imports this package directly.
+
+What it holds:
+
+- **The props/token contract**: `SizeScale`, `ColorVariant`, `ColorToken`, and prop fragments such as `WithColor`, `WithDisabled` and `PressEvent`.
+- **The palette theme engine**: `registerTheme` with full palettes, `ThemeProvider`, `themeController`, `StatusBarSync`, and `useThemeColors` for native widgets.
+- **The Tailwind preset** (`./preset`) and the `.lynx-zero` token stylesheet (`./styles/tokens.css`).
+- **Layout primitives** (`Row`, `Col`, `Center`, `Spacer`, `ScrollView`) and `SwiperIndicator`.
+
+It is versioned in lockstep with the rest of the Lynx module family.
+
+## Next steps
+
+- [Usage](/lynx/modules/zero-legacy/usage): the theme engine, the contract types and the preset.
+- [API reference](/lynx/modules/zero-legacy/api): every export.
+- [Migrating to `@sigx/lynx-zero`](/lynx/modules/zero/usage#migrating-from-the-pre-contract-package).

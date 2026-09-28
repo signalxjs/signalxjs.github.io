@@ -1,0 +1,50 @@
+---
+title: "Installation"
+description: "Install and configure @sigx/lynx-zero-legacy, the Zero Legacy module for SignalX Lynx."
+layout: module-docs
+category: "Getting Started"
+order: 20
+---
+
+# Installation
+
+<p class="lede">Add `@sigx/lynx-zero-legacy` to your project.</p>
+
+## Install the package
+
+```bash
+pnpm add @sigx/lynx-zero-legacy
+```
+
+You rarely install it yourself: `@sigx/lynx-daisyui` and `@sigx/lynx-heroui` depend on it. Install it directly only when you author a design system on the pre-contract foundation, or when you need its primitives without either design system.
+
+`@sigx/lynx-navigation` is an optional peer, needed only for `useScreenTheme` from `@sigx/lynx-zero-legacy/screen-theme`. `tailwindcss` (3 or 4) is an optional peer, needed only for the `./preset` subpath.
+
+### Upgrading from `@sigx/lynx-zero` 0.27 or earlier
+
+The package was renamed in lynx 0.28 with no API change. If your app imported `@sigx/lynx-zero` directly and you want to keep the pre-contract API, change the dependency and every import path:
+
+```diff
+- import { ThemeProvider, Row } from '@sigx/lynx-zero';
+- import { zeroPreset } from '@sigx/lynx-zero/preset';
++ import { ThemeProvider, Row } from '@sigx/lynx-zero-legacy';
++ import { zeroPreset } from '@sigx/lynx-zero-legacy/preset';
+```
+
+The subpaths keep their names: `./screen-theme`, `./preset`, `./registry` and `./styles/tokens.css`.
+
+## Native setup
+
+Rebuild your development client after installing:
+
+```bash
+sigx prebuild
+```
+
+## Verify
+
+```tsx
+import { themeController } from '@sigx/lynx-zero-legacy';
+
+console.log(themeController.name);
+```

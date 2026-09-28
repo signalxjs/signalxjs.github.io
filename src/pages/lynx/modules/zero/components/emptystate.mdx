@@ -1,0 +1,73 @@
+---
+title: "EmptyState"
+description: "EmptyState component for SignalX Lynx — what stands where the content would be, with icon, title, description and actions on the zero empty-state anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 409
+---
+
+# EmptyState
+
+<p class="lede">What stands where the content would be: nothing yet, nothing found, or nothing reachable. It sits on zero's `empty-state` anatomy with `Root`, `Icon`, `Title`, `Description` and `Actions`. It has no state and no behaviour. Whether it shows is your own `if`, and the way out is your own buttons in `Actions`.</p>
+
+## Import
+
+```tsx
+import { EmptyState } from '@sigx/lynx-zero';
+```
+
+`EmptyState` is a compound with `Root`, `Icon`, `Title`, `Description` and `Actions`. `<EmptyState>` is the same component as `<EmptyState.Root>`.
+
+## Usage
+
+```tsx
+import { Button, EmptyState } from '@sigx/lynx-zero';
+
+<EmptyState.Root color="error">
+    <EmptyState.Icon><text>⚠</text></EmptyState.Icon>
+    <EmptyState.Title>Could not load your projects</EmptyState.Title>
+    <EmptyState.Description>The server did not answer. Your work is saved.</EmptyState.Description>
+    <EmptyState.Actions>
+        <Button.Root onPress={retry}><text>Try again</text></Button.Root>
+    </EmptyState.Actions>
+</EmptyState.Root>
+```
+
+`color` is the tone: the icon's ink and the surface tint, the same way an [Alert](/lynx/modules/zero/components/alert) says it. `size` steps the padding and the type ramp.
+
+`EmptyState.Title` and `EmptyState.Description` render as `<text>`, so pass them strings. `EmptyState.Icon` and `EmptyState.Actions` are views: put a `<text>` glyph or an icon in the first, and buttons in the second.
+
+## Accessibility
+
+`EmptyState.Icon` is decorative and not an accessibility element. The tone it paints is already in the text. The title is announced as its text: Lynx has no heading elements.
+
+## Props
+
+### `EmptyState.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` | `string` | skin default | The tone: icon ink and surface tint. |
+| `size` | `string` | skin default | The padding and type ramp. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+`EmptyState.Icon`, `EmptyState.Title`, `EmptyState.Description` and `EmptyState.Actions` take `class` and a default slot.
+
+## Anatomy on Lynx
+
+| Part | Element | Notes |
+|------|---------|-------|
+| `root` | `view` | Carries the axes. |
+| `icon` | `view` | Not an accessibility element. |
+| `title` | `text` | |
+| `description` | `text` | |
+| `actions` | `view` | Your buttons. |
+
+Not taken on Lynx: `asChild` on `EmptyState.Title`. There are no heading elements to make it one.
+
+## See also
+
+- [Alert](/lynx/modules/zero/components/alert) — a message beside the content, not in place of it.
+- [Skeleton](/lynx/modules/zero/components/skeleton) — the shape of content that is on its way.
+- [Button](/lynx/modules/zero/components/button) — the actions inside.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

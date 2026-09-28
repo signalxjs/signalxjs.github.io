@@ -1,0 +1,64 @@
+---
+title: "Kbd"
+description: "Kbd component for SignalX Lynx — a keycap on the zero kbd anatomy, with a label for glyphs that read badly aloud (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 405
+---
+
+# Kbd
+
+<p class="lede">A keyboard key on zero's `kbd` anatomy: one part, no state, no behaviour. On the web the substance is the `<kbd>` element. Lynx has no such element, so the root is a `<view>` that carries the axes and the skin's cap paint, and the key's glyph is a `<text>` child.</p>
+
+The part is the same as the web component's. See [Kbd in `@sigx/zero`](/zero/docs/components/kbd/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Kbd } from '@sigx/lynx-zero';
+```
+
+`Kbd` is a compound whose only part is `Kbd.Root`. `<Kbd>` and `<Kbd.Root>` are the same component.
+
+## Usage
+
+```tsx
+import { Kbd, Row } from '@sigx/lynx-zero';
+
+<Row gap={4} align="center">
+    <Kbd label="Command"><text>⌘</text></Kbd>
+    <Kbd><text>K</text></Kbd>
+</Row>
+```
+
+The skin's ink and type size reach the `<text>` through CSS inheritance, which the zero shells assume is on (`enableCSSInheritance`).
+
+Give `label` when the glyph reads badly aloud, such as `label="Command"` on `⌘`. The root then becomes one accessible element with that name. Without it, a screen reader reaches the glyph's text directly.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `color` / `size` | `string` | skin default | The design system's axes. Unset, the daisy skin paints a base-200 cap. |
+| `label` | `string` | — | Accessible name for a glyph that reads badly aloud. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The key's glyph. Put it in a `<text>`. |
+
+## Anatomy on Lynx
+
+| Part | Element | Notes |
+|------|---------|-------|
+| `root` | `view` | The keycap. Carries the axes. |
+
+Not taken on Lynx: the `<kbd>` element's semantics, since Lynx has no such element and no reader that lists one.
+
+## See also
+
+- [Badge](/lynx/modules/zero/components/badge) — a small standing label.
+- [Kbd in `@sigx/zero`](/zero/docs/components/kbd/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

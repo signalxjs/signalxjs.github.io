@@ -1,0 +1,110 @@
+---
+title: "Alert"
+description: "Alert component for SignalX Lynx — a dismissible message with icon, title, description and close parts on the zero alert anatomy (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 402
+---
+
+# Alert
+
+<p class="lede">A message the user can dismiss, on zero's `alert` anatomy: `Root`, `Icon`, `Title`, `Description` and `Close`. Whether it is shown is its model, and a closed alert unmounts. Lynx has no live region, so the title and description are read as the plain text they are.</p>
+
+The parts are the same as the web component's. See [Alert in `@sigx/zero`](/zero/docs/components/alert/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Alert } from '@sigx/lynx-zero';
+```
+
+`Alert` is a compound with `Root`, `Icon`, `Title`, `Description` and `Close`. `<Alert>` is the same component as `<Alert.Root>`.
+
+## Usage
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Alert } from '@sigx/lynx-zero';
+
+export const QuotaAlert = component(() => {
+    const state = signal({ showQuota: true });
+    return () => (
+        <Alert.Root color="warning" model={() => state.showQuota}>
+            <Alert.Icon><text>⚠</text></Alert.Icon>
+            <Alert.Title>Approaching your quota</Alert.Title>
+            <Alert.Description>You have used 92% of this month's allowance.</Alert.Description>
+            <Alert.Close />
+        </Alert.Root>
+    );
+});
+```
+
+`Alert.Title` and `Alert.Description` render as `<text>`, so pass them strings. `Alert.Icon` is a view: put a `<text>` glyph or an icon in it.
+
+### Open and closed
+
+The model is whether the alert is shown. It is open by default, because an alert is rendered when there is something to say. A tap on `Alert.Close` sets the model to `false`, and `openChange` fires. Leave `model` off and pass `defaultOpen` to keep the state inside the component.
+
+A closed alert unmounts. Lynx has no `hidden` attribute, so unmounting is how the anatomy's "hidden while closed" rule is kept. Set the model back to `true` to show it again.
+
+### The close button
+
+`Alert.Close` is a view with the `button` trait and the name "Close" (`label` overrides it). It has the main-thread press feel, and carries the `disabled` and `pressed` flags. With no children it draws `×`. `pressFeel={false}` turns off the press scale and keeps the flag. A disabled close button shows no press, does not close the alert, and is announced as disabled.
+
+## Accessibility
+
+- Lynx has no `role="alert"` or `aria-live`. The root carries no accessibility props of its own, because on iOS an accessible root would hide its text from the reader. The title and description are read as text.
+- `Alert.Icon` is decoration and sits outside the accessibility tree. The severity it paints is already in the words.
+
+## Props
+
+### `Alert.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `boolean` | — | Two-way binding of whether the alert is shown. |
+| `defaultOpen` | `boolean` | `true` | Initial state when uncontrolled. |
+| `color` / `size` | `string` | skin default | The design system's axes. `size` moves the box's padding. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### `Alert.Close`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `disabled` | `boolean` | `false` | No press, no close. Announced disabled. |
+| `label` | `string` | `"Close"` | Accessible name. |
+| `pressFeel` | `boolean` | `true` | `false` turns off the main-thread press scale. The `pressed` flag stays. |
+| `class` | `string` | — | Extra classes. |
+
+`Alert.Icon`, `Alert.Title` and `Alert.Description` take `class` and a default slot.
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `openChange` (`onOpenChange`) | `boolean` | The alert was shown or hidden. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags | Notes |
+|------|---------|--------|-------|-------|
+| `root` | `view` | `open` | — | Unmounted while closed. |
+| `icon` | `view` | — | — | Out of the accessibility tree. |
+| `title` | `text` | — | — | |
+| `description` | `text` | — | — | |
+| `close` | `view` (`button` trait) | — | `disabled`, `pressed` | Draws `×` with no children. |
+
+The web skin lays the alert out on a grid. Lynx has neither grid nor `:has()`, so the root tracks whether an Icon and a Close are rendered and stamps `with-icon` and `with-close` on the title and description (`zx-m-with-icon`, `zx-m-with-close`). The skin reserves the icon's column and the close button's corner from them. These are a rendering detail, not modifiers you set.
+
+Not taken on Lynx: zero's `live` and `finalFocus`, which this platform has nothing to drive, and `asChild`. `focus-visible` on the close button can only be forced for display, through `ForceStates` from `@sigx/lynx-zero/testing`.
+
+## On the daisy skin
+
+The daisy skin's Lynx layout for the alert, which uses the presence stamps above, is in [signalxjs/zero#431](https://github.com/signalxjs/zero/pull/431). It arrives with the next `@sigx/zero-daisyui` pin. With the 0.13.0 pin that `@sigx/lynx-zero-daisyui` 0.34.0 ships, the alert lays out as a plain stack.
+
+## See also
+
+- [Card](/lynx/modules/zero/components/card) — a surface for content that is not a message.
+- [EmptyState](/lynx/modules/zero/components/emptystate) — what stands where content would be.
+- [Alert in `@sigx/zero`](/zero/docs/components/alert/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

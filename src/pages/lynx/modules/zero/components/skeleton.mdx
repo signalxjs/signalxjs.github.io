@@ -1,0 +1,85 @@
+---
+title: "Skeleton"
+description: "Skeleton component for SignalX Lynx — the shape of content that is on its way, with a loading model that defaults to true (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Content"]
+order: 412
+---
+
+# Skeleton
+
+<p class="lede">The shape of what is coming, on zero's `skeleton` anatomy. Its model is `loading`, which defaults to `true`, because a skeleton is rendered when something has not arrived yet. The children stay mounted in both states, so the layout does not jump when the content arrives.</p>
+
+The part and states are the same as the web component's. See [Skeleton in `@sigx/zero`](/zero/docs/components/skeleton/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Skeleton } from '@sigx/lynx-zero';
+```
+
+`Skeleton` is a compound whose only part is `Skeleton.Root`. `<Skeleton>` and `<Skeleton.Root>` are the same component.
+
+## Usage
+
+Wrap the real content, and bind `loading` to whatever says it is not ready:
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Skeleton } from '@sigx/lynx-zero';
+
+export const Headline = component(() => {
+    const state = signal({ pending: true, title: 'Placeholder headline' });
+    return () => (
+        <Skeleton.Root model={() => state.pending}>
+            <text>{state.title}</text>
+        </Skeleton.Root>
+    );
+});
+```
+
+While `loading`, the skin paints a fill over the children and makes their ink transparent. Once loaded it paints nothing, and the content shows as it is. Leave `model` off and pass `defaultLoading` to keep the state inside the component. `loadingChange` fires when it changes.
+
+Lynx `<text>` inherits `color` only when the app turns on CSS inheritance (`enableCSSInheritance`). Without it, text inside a loading skeleton keeps its own ink.
+
+## Accessibility and taps
+
+- Lynx has no `aria-busy`. While loading, the root is one accessible element, announced as busy and named "Loading" (or `label`). That also keeps a reader out of the placeholder content. Once loaded, it steps aside and the content is read as usual.
+- Lynx has no `inert`. The skin's `pointer-events: none` keeps taps off the placeholder content while loading.
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `boolean` | — | Two-way binding of `loading`. |
+| `defaultLoading` | `boolean` | `true` | Initial state when uncontrolled. |
+| `label` | `string` | `"Loading"` | What a reader hears while loading. |
+| `color` / `size` | `string` | skin default | The design system's axes. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `loadingChange` (`onLoadingChange`) | `boolean` | The loading state changed. |
+
+### Slots
+
+| Slot | Description |
+|------|-------------|
+| `default` | The real content, mounted in both states. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Notes |
+|------|---------|--------|-------|
+| `root` | `view` | `loading` \| `loaded` | One accessible element, busy, while loading. |
+
+The skins' `prefers-reduced-motion` stop does not apply on Lynx, which emits no `@media`, so the pulse keeps moving.
+
+## See also
+
+- [Spinner](/lynx/modules/zero/components/spinner) — busy, with no shape to hold.
+- [Avatar](/lynx/modules/zero/components/avatar) — its own fallback while an image loads.
+- [Skeleton in `@sigx/zero`](/zero/docs/components/skeleton/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

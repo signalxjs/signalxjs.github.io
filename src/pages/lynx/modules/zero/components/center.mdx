@@ -8,7 +8,7 @@ order: 105
 
 # Center
 
-<p class="lede">A flex container that centers its children on both axes — `justifyContent` and `alignItems` are both `center`. One of Zero's DS-neutral [layout primitives](/lynx/modules/zero/api#layout-primitives), it carries no class names and resolves `background` through the semantic color contract, so a token like `base-200` or `primary` works under whatever theme is active.</p>
+<p class="lede">A flex container that centers its children on both axes — `justifyContent` and `alignItems` are both `center`. One of Zero's DS-neutral [layout primitives](/lynx/modules/zero/api#layout), it carries no class names and resolves `background` through the semantic color contract, so a token like `base-200` or `primary` works under whatever theme is active.</p>
 
 ## Import
 
@@ -43,7 +43,7 @@ function EmptyState() {
   return (
     <Col flex={1} background="base-100">
       <Center flex={1} background="base-200" borderRadius={12}>
-        <view class="text-base-content">Nothing here yet</view>
+        <text>Nothing here yet</text>
       </Center>
     </Col>
   );
@@ -52,25 +52,24 @@ function EmptyState() {
 
 ## Inside a themed layout
 
-`Center` composes with the other primitives (`Row`, `Col`, `Spacer`) and the theme engine. Here it centers content within a `Col` under an active theme:
+`Center` composes with the other primitives (`Row`, `Col`, `Spacer`). Here it centers content within a `Col` under `ZeroRoot`, so `base-100` and `base-200` resolve against the active theme:
 
 ```tsx
-import { ThemeProvider, StatusBarSync, Col, Row, Center, Spacer } from '@sigx/lynx-zero';
+import { ZeroRoot, Col, Row, Center, Spacer } from '@sigx/lynx-zero';
 
 function App() {
   return (
-    <ThemeProvider initial="brand-light">
-      <StatusBarSync />
+    <ZeroRoot>
       <Col flex={1} gap={16} padding={20} background="base-100">
         <Row gap={12} align="center" justify="space-between">
-          <view class="text-base-content text-lg">Dashboard</view>
+          <text>Dashboard</text>
           <Spacer size={8} />
         </Row>
         <Center flex={1} background="base-200" borderRadius={12}>
-          <view class="text-base-content">Centered content</view>
+          <text>Centered content</text>
         </Center>
       </Col>
-    </ThemeProvider>
+    </ZeroRoot>
   );
 }
 ```
@@ -82,9 +81,11 @@ function App() {
 | `width` | `number \| string` | Container width. |
 | `height` | `number \| string` | Container height. |
 | `flex` | `number` | Flex grow factor; written in long form (`flexGrow` / `flexShrink` / `flexBasis` / `minHeight`) to avoid Lynx flex-collapse. |
-| `background` | `BackgroundValue` | Background fill — a semantic [color token](/lynx/modules/zero/api#colortoken) (e.g. `base-200`, `primary`) or any raw CSS color string. |
+| `background` | `BackgroundValue` | Background fill — a semantic color token (e.g. `base-200`, `primary`) or any raw CSS color string. |
 | `borderRadius` | `number` | Corner radius of the container. |
 | `class` | `string` | Extra CSS classes appended after the computed ones. |
+
+Every style prop also accepts a per-breakpoint object such as `{ initial: 16, expanded: 32 }`, resolved mobile-first against the window's width class. See [responsive props](/lynx/modules/zero/usage#responsive-props).
 
 ### Slots
 
@@ -94,6 +95,6 @@ function App() {
 
 ## See also
 
-- [API reference](/lynx/modules/zero/api#centerprops) — the full `CenterProps` type and every Zero export.
+- [API reference](/lynx/modules/zero/api#layout) — the layout primitives and every Zero export.
 - [Usage](/lynx/modules/zero/usage#layout-primitives) — the layout primitives in context.
 - [`Row`](/lynx/modules/zero/components/row) / [`Col`](/lynx/modules/zero/components/col) / [`Spacer`](/lynx/modules/zero/components/spacer) — the sibling layout primitives.

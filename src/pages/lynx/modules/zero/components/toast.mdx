@@ -1,0 +1,202 @@
+---
+title: "Toast"
+description: "Toast component for SignalX Lynx — a headless toaster store, a viewport in the overlay outlet, presence transitions, actions, promise toasts and composable parts (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Overlays"]
+order: 253
+---
+
+# Toast
+
+<p class="lede">Short messages that appear over the page and leave on their own. A headless store, `createToaster()`, holds the queue, and `Toast.Viewport` renders it into the overlay outlet, pinned to the safe frame. Each toast enters and exits through zero's presence states, and it can carry a color, an action and a work status.</p>
+
+The anatomy is zero's `toast` scope, shared with the web. See [Toast in `@sigx/zero`](/zero/docs/components/toast/) for the contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Toast, createToaster, provideToaster } from '@sigx/lynx-zero';
+```
+
+`Toast` is a compound: `Toast.Viewport`, `Toast.Root`, `Toast.Indicator`, `Toast.Title`, `Toast.Description`, `Toast.Action` and `Toast.Close`. `<Toast>` on its own is the viewport.
+
+## Usage
+
+Create a toaster, render a viewport for it inside `ZeroRoot`, and call `show()` from anywhere. The store is headless, so an app service can toast without a component:
+
+```tsx
+import { component } from '@sigx/lynx';
+import { Button, Toast, ZeroRoot, createToaster } from '@sigx/lynx-zero';
+
+export const toaster = createToaster();
+
+export const App = component(() => {
+    return () => (
+        <ZeroRoot>
+            <Button onPress={() => toaster.show({ title: 'Saved', description: 'Your changes are stored.' })}>
+                <text>Save</text>
+            </Button>
+            <Toast.Viewport placement="top" toaster={toaster} />
+        </ZeroRoot>
+    );
+});
+```
+
+The viewport renders the stock composition for every toast: indicator, title, description, action and close. Instead of the `toaster` prop, you can call `provideToaster(toaster)` in an ancestor's setup. A viewport with neither creates its own store.
+
+### Options
+
+```tsx
+const id = toaster.show({
+    title: 'Message archived',
+    description: 'Moved to Archive.',
+    color: 'success',
+    duration: 6000,
+    action: { label: 'Undo', onPress: () => unarchive() },
+});
+```
+
+`duration` is the time in ms until the toast dismisses itself. The default is 4000, and `0` keeps it until it is dismissed. `color` is the toast's role color, the root's `color` axis. `action` renders an action button before the close button. `show()` returns the toast's id.
+
+### Presence
+
+A toast is created `closed` and flips to `open` a frame later, so the skin's entry transition plays. `dismiss(id)` flips it back to `closed` and removes it once the exit has had time to play. That exit time is `createToaster({ exitDuration })`, 200 ms by default. `remove(id)` drops a toast at once, with no exit.
+
+```tsx
+const toaster = createToaster({ exitDuration: 300 });
+toaster.dismiss(id); // plays the exit, then removes
+toaster.remove(id);  // gone now
+```
+
+### Promise toasts
+
+`toaster.promise()` keeps one toast for the life of a promise. It shows the `loading` stage and stays up while the promise is pending. When the promise settles, the same toast is updated in place with the `success` or `error` stage, and the default duration comes back:
+
+```tsx
+toaster.promise(upload(file), {
+    loading: 'Uploading…',
+    success: (result) => ({ title: 'Uploaded', description: result.name, color: 'success' }),
+    error: (reason) => ({ title: 'Upload failed', description: String(reason), color: 'error' }),
+});
+```
+
+Each stage is a title string or toast options, and `success` and `error` may also be a function of the value or the reason. A rejection is handled here, and so is a stage function that throws: the toast moves to `error`. The call returns the toast's id.
+
+The status (`loading`, `complete` or `error`) is drawn by `Toast.Indicator` as a mark: the skin's ring, tick or cross. The indicator renders nothing while a toast has no status. It is hidden from the reader, because the title says it in words. Lynx has no `:has()`, so while a mark shows, every part of the toast carries the `marked` modifier (`zx-m-marked`), which the skin reads to seat the mark beside the text.
+
+`toaster.update(id, patch)` patches a mounted toast directly: title, description, color, action, status or duration. A new `duration` re-arms its timer from now.
+
+### Composing a toast in place
+
+The parts also render outside any viewport, for a toast you place yourself. Without a `toast` prop, `Toast.Root` is always open:
+
+```tsx
+<Toast.Root color="info">
+    <Toast.Title>Saved</Toast.Title>
+    <Toast.Description>Changes stored.</Toast.Description>
+    <Toast.Action onPress={undo}><text>Undo</text></Toast.Action>
+    <Toast.Close />
+</Toast.Root>
+```
+
+`Toast.Close` renders `×` when it has no children. `Toast.Root`'s `dismiss` event runs when its Close is tapped. To draw a status mark in place, pass `Toast.Root` a `toast` object that has a `status`, and add a `Toast.Indicator`.
+
+## What the platform changes
+
+- **The viewport pins to the safe frame.** It is a full-width strip in the overlay outlet, pinned to the host's top or bottom edge, clear of the status bar and home indicator. It blocks touches only on its own strip, so the rest of the page stays interactive.
+- **New toasts stay on top.** When a toast arrives, the viewport moves itself to the top of the outlet, so a dialog opened after the viewport does not cover incoming toasts.
+- **Press feedback.** `Toast.Action` and `Toast.Close` scale on the main thread when touched and carry the `pressed` flag. Each toast owns its own. See [Press feedback](/lynx/modules/zero/usage#press-feedback).
+- **No swipe.** The anatomy's `swiping` flag is not stamped on Lynx.
+
+## Props
+
+### `Toast.Viewport`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `placement` | `ToastPlacement` | `'bottom'` | `top-start`, `top`, `top-end`, `bottom-start`, `bottom` or `bottom-end`. Stamped on the viewport and every toast. |
+| `size` | `string` | skin default | The `size` axis of every toast in this viewport. |
+| `toaster` | `Toaster` | the provided one | The store to render. |
+| `class` | `string` | — | Extra classes. |
+
+### `Toast.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `toast` | `ToastItem` | — | The toast's data. Omit it to compose an always-open toast in place. |
+| `color` / `size` | `string` | the toast's / the viewport's | Variant axes. Override the toast's `color` and the viewport's `size`. |
+| `class` | `string` | — | Extra classes. |
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `dismiss` (`onDismiss`) | — | Runs when Close is tapped, after the toast's own dismissal. |
+
+### `Toast.Indicator`, `Toast.Title`, `Toast.Description`
+
+`class` and the default slot. The title and description are `<text>` parts. The indicator's children, such as an icon, are your own. The skin draws the mark itself.
+
+### `Toast.Action`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `disabled` | `boolean` | `false` | Ignores taps and shows no press. |
+| `label` | `string` | — | Accessible name. Required when the content is not plain text. |
+| `class` | `string` | — | Extra classes. |
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `press` (`onPress`) | — | The action was tapped. |
+
+### `Toast.Close`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `disabled` | `boolean` | `false` | Ignores taps and shows no press. |
+| `label` | `string` | `"Dismiss"` | Accessible name. |
+| `class` | `string` | — | Extra classes. |
+
+### `createToaster(options?)`
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `exitDuration` | `number` | `200` | ms a dismissed toast stays mounted, `closed`, for its exit transition. |
+
+The returned `Toaster`:
+
+| Method | Description |
+|--------|-------------|
+| `show(options)` | Add a toast. Returns its id. |
+| `update(id, patch)` | Patch a mounted toast. A new `duration` re-arms its timer. |
+| `promise(promise, { loading, success, error })` | One toast for the life of a promise. Returns its id. |
+| `dismiss(id)` | Begin a toast's exit. It is removed once the exit has played. |
+| `remove(id)` | Drop a toast immediately, with no exit. |
+| `toasts()` | The mounted toasts, oldest first, including entering and exiting ones. |
+
+### `ToastOptions`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | `string` | Required. |
+| `description` | `string` | Optional body line. |
+| `duration` | `number` | ms until auto-dismiss. Default 4000. `0` disables the timer. |
+| `color` | `string` | The toast's role color. |
+| `action` | `{ label: string; onPress?: () => void }` | An action button, rendered before the close button. |
+| `status` | `'loading' \| 'complete' \| 'error'` | Work status, drawn by `Toast.Indicator`. `promise()` sets it for you. |
+
+## Anatomy on Lynx
+
+| Part | Element | States | Flags |
+|------|---------|--------|-------|
+| `viewport` | `view` (in the outlet) | — | — (plus `placement`) |
+| `root` | `view` | `open`, `closed` | — (plus `placement`) |
+| `indicator` | `view` (hidden from the reader, only with a status) | `loading`, `complete`, `error` | — |
+| `title` | `text` | — | — |
+| `description` | `text` | — | — |
+| `action` | `view` (`button` trait) | — | `disabled`, `pressed` |
+| `close` | `view` (`button` trait) | — | `disabled`, `pressed` |
+
+## See also
+
+- [Dialog](/lynx/modules/zero/components/dialog) — a message that needs an answer.
+- [Toast in `@sigx/zero`](/zero/docs/components/toast/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

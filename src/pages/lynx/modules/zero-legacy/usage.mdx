@@ -1,0 +1,420 @@
+---
+title: "Usage"
+description: "Using Zero Legacy in a SignalX Lynx app — the pre-contract theme engine, layout primitives, contract types and Tailwind preset in @sigx/lynx-zero-legacy."
+layout: module-docs
+category: "Guides"
+order: 30
+---
+
+# Using Zero Legacy
+
+<p class="lede">The pre-contract foundation that <code>@sigx/lynx-daisyui</code> and <code>@sigx/lynx-heroui</code> build on — the props/token contract, the palette theme engine, layout primitives, style utilities and press-feedback defaults.</p>
+
+> **Frozen.** This package gets no new features. New work targets [`@sigx/lynx-zero`](/lynx/modules/zero/overview), which is built on the zero contract. See [Migrating from the pre-contract package](/lynx/modules/zero/usage#migrating-from-the-pre-contract-package).
+
+## What it is (and is not)
+
+`@sigx/lynx-zero-legacy` holds only what every design-system package shares: the shared props/token contract, the theme engine, the layout primitives, the style utilities and the press-feedback defaults. It ships **no** visual components, **no** component CSS, **no** class-name recipes and **no** theme palettes — those all live in a concrete design system such as [`@sigx/lynx-daisyui`](/lynx/modules/daisyui/overview) or `@sigx/lynx-heroui`.
+
+If you are building an app, you normally import from your chosen DS, which re-exports the pieces of Zero it uses. You reach for `@sigx/lynx-zero-legacy` directly in one of two situations: you are **authoring a new design system** on top of the contract, or you need the **DS-neutral primitives** (layout, theme engine, color helpers) without committing to a DS's chrome.
+
+```bash
+pnpm add @sigx/lynx-zero-legacy
+```
+
+## Layout primitives
+
+`Row`, `Col`, `Center`, `Spacer` and `ScrollView` are DS-neutral flex structure with no class names. They resolve `background` through the color contract, so a semantic token like `base-100` or `primary` works under whatever theme is active.
+
+```tsx
+import { Row, Col, Center, Spacer } from '@sigx/lynx-zero-legacy';
+
+function Toolbar() {
+    return (
+        <Row gap={8} align="center" padding={12} background="base-100" borderRadius={12}>
+            <text>Title</text>
+            <Spacer />
+            <text>Action</text>
+        </Row>
+    );
+}
+
+function Card() {
+    return (
+        <Col gap={4} padding={{ x: 16, y: 12 }} background="base-200">
+            <Center height={120} background="primary" borderRadius={8}>
+                <text>Hero</text>
+            </Center>
+            <text>Body copy</text>
+        </Col>
+    );
+}
+```
+
+`Row` and `Col` share the same prop set: `gap`, `align`, `justify`, `wrap`, `padding`, `margin`, `width`, `height`, `flex`, `background`, `borderRadius` and `class`. `Center` centers its children on both axes. `Spacer` is a fixed box when you pass `size`, or a flexible filler (`flex:1`) when you omit it.
+
+`padding` and `margin` accept a single number or a `{ x, y, top, right, bottom, left }` object. The primitives write flex in long form (`flexGrow` / `flexShrink` / `flexBasis:0` / `minHeight:0`) under the hood, because Lynx expands `flex:1` to `flex:1 1 auto`, which collapses a nested flex chain.
+
+`ScrollView` wraps the native `scroll-view` and defaults to vertical scrolling.
+
+```tsx
+import { ScrollView, Col } from '@sigx/lynx-zero-legacy';
+
+function Feed({ items }: { items: string[] }) {
+    return (
+        <ScrollView direction="vertical" flex={1} showScrollbar={false}>
+            <Col gap={8} padding={16}>
+                {items.map((label) => <text key={label}>{label}</text>)}
+            </Col>
+        </ScrollView>
+    );
+}
+```
+
+`ScrollView` props: `direction` (`'vertical'` default or `'horizontal'`), `height`, `width`, `flex`, `showScrollbar`, `bounces` and `class`.
+
+### Responsive props
+
+Every style prop on `Row`, `Col`, `Center`, `Spacer` and `ScrollView` also accepts a per-breakpoint object, keyed by the [window size classes](/lynx/modules/core/usage#adapting-layout-to-the-window-size) from `@sigx/lynx-core` — `initial` (the `compact` base), `medium`, `expanded`, `large`, `xlarge`:
+
+```tsx
+import { Row, Col } from '@sigx/lynx-zero-legacy';
+
+function Detail() {
+    return (
+        <Row
+            direction={{ initial: 'column', expanded: 'row' }}   // stacked on phones, side by side from 840dp
+            gap={{ initial: 8, large: 16 }}
+            padding={{ initial: 16, expanded: 32 }}
+        >
+            <Col flex={{ expanded: 1 }}>{/* list */}</Col>
+            <Col flex={{ expanded: 2 }}>{/* detail */}</Col>
+        </Row>
+    );
+}
+```
+
+Resolution is **mobile-first**: a key applies at its breakpoint and every wider one, so `{ initial: 16, expanded: 32 }` is 16 on phones and small tablets and 32 from 840dp up. A value that defines nothing at or below the active class resolves to `undefined` and behaves like an omitted prop — `{ expanded: 32 }` adds no padding on a phone, rather than forcing a zero.
+
+`Row` and `Col` take a `direction` prop for the stack-on-phone / side-by-side-on-tablet flip. Prefer it to `{wide ? <Row/> : <Col/>}`: swapping the component type remounts the whole subtree on every rotation, losing child state, while `direction` restyles in place.
+
+Resolution is plain JS off `useWidthClass()` — no Tailwind, class names or CSS pipeline — so it behaves identically under every design system and under none. It has to be: the primitives emit inline styles, and a stylesheet `@media` rule can't override an inline style. Responsive props follow **width only**; branch on height with `useHeightAtLeast()`.
+
+There is no `useResponsive()` hook. To resolve your own values, read the width class once in setup and call `resolveResponsive()` in render:
+
+```tsx
+import { component, useWidthClass } from '@sigx/lynx';
+import { resolveResponsive, type Responsive } from '@sigx/lynx-zero-legacy';
+
+const cols: Responsive<number> = { initial: 1, medium: 2, expanded: 3 };
+
+export const Gallery = component(() => {
+    const cls = useWidthClass();
+    return () => <Grid columns={resolveResponsive(cols, cls.value) ?? 1} />;
+});
+```
+
+## The theme engine
+
+A theme is a named palette plus optional radius and size overrides. The registry starts **empty** — a DS seeds it at module load by calling `registerTheme()`. Insertion order matters: the first registered theme of a variant is the follow-system default for that variant, and the very first registered theme is the last-resort fallback.
+
+`ThemeProvider` puts the active theme's palette — the `--color-*` set, the text ramp and both surface paints — on its host `view` as CSS custom properties, which descendants inherit so the theme paints on the first frame. Mount it once near the root of your app. The palette reaches the host one of two ways, and which one a theme takes is decided per theme:
+
+- **From a generated stylesheet**, for a design system's built-in themes (`ThemeInput.staticCss`). The design system generates real stylesheet rules from the registry data at build time — `.daisy-dark { … }` and, for follow-system use, a `@media (prefers-color-scheme: dark) { .lynx-zero.scheme-dark-daisy-dark { … } }` twin. The host wears the theme name as a class and the CSS engine resolves the palette. While the app follows the OS the provider puts both `scheme-light-<L>` and `scheme-dark-<D>` classes on the host and the engine picks; the media rule is a compound selector, so it deterministically outranks the pinned rule. The painted theme is therefore **the engine's answer about the colour scheme, not the JS thread's** — a stale appearance signal cannot paint a light app on a dark device. Needs a Lynx ≥ 4.0 host and the plugin's `enableCSSRule` (on by default).
+- **Inline**, for everything else: a tenant palette fetched at runtime and passed to `registerTheme()`, an `extendTheme()` derivative, the web target, or a build with `enableCSSRule: false`. Lynx has no runtime stylesheet-injection API, so these themes declare their exact palette as inline custom properties (Lynx ≥ 3.9) and paint on frame one like any built-in. Multi-tenant theming lives entirely on this path and is fully supported.
+
+Nothing in app code chooses between the two: the same `<ThemeProvider>`, `useTheme()`, `themeController` and theme names work either way. The provider reads the `__SIGX_CSS_RULE__` build define to know whether the generated rules exist in this bundle and falls back to inline when they do not.
+
+```tsx
+import { ThemeProvider, StatusBarSync } from '@sigx/lynx-zero-legacy';
+
+function App() {
+    return (
+        <ThemeProvider initial="my-light">
+            <StatusBarSync />
+            {/* app tree */}
+        </ThemeProvider>
+    );
+}
+```
+
+To follow the OS light/dark setting, give the provider a `light` / `dark` pair instead of a pinned `initial`:
+
+```tsx
+<ThemeProvider light="my-light" dark="my-dark">
+    {/* recolors automatically when the OS scheme flips */}
+</ThemeProvider>
+```
+
+The **root** provider (depth 0) binds the global singleton theme state, so headless `themeController` mutations render and the OS bars track it. **Nested** providers are content sub-scopes — they recolor only their own subtree, which is handy for a preview pane or a deliberately inverted section.
+
+### Reading and changing the theme
+
+`useTheme()` returns the nearest provider's controller, falling back to the global one. It never throws.
+
+```tsx
+import { useTheme } from '@sigx/lynx-zero-legacy';
+
+function ThemeToggle() {
+    const theme = useTheme();
+    return (
+        <view bindtap={() => theme.toggle()}>
+            <text>Theme: {theme.name}</text>
+        </view>
+    );
+}
+```
+
+The controller exposes reactive `name`, `followingSystem` and `fontScale`, plus `set(name)`, `toggle()`, `followSystem()` and `setFontScale(scale)`. `set` and `toggle` pin the choice (they stop following the system); `followSystem()` resumes tracking the OS. `fontScale` is orthogonal to the theme name — it survives a toggle or set and re-emits the `--text-*` ramp at `defaultPx * scale`.
+
+For boot code, stores or services where no provider is mounted, use the headless `themeController` directly — it is the same global handle `useTheme()` falls back to:
+
+```tsx
+import { themeController } from '@sigx/lynx-zero-legacy';
+
+// e.g. from a settings store
+themeController.set('my-dark');
+themeController.setFontScale(1.2);
+```
+
+`StatusBarSync` is a side-effect-only component (it renders a zero-size view). It reads the global `themeController.name` and pushes a legible OS status/nav-bar tint via `@sigx/lynx-appearance`. Mount it once inside the root `ThemeProvider`.
+
+### Per-screen theming
+
+`useScreenTheme(name)` pins the global theme while a navigation screen is focused and restores the previous selection (including follow-system) on blur. It is built on `useFocusEffect` from `@sigx/lynx-navigation`, so it is deliberately **not** in the main barrel — import it from the `./screen-theme` subpath so apps without navigation don't pull in that peer.
+
+```tsx
+import { useScreenTheme } from '@sigx/lynx-zero-legacy/screen-theme';
+
+function CheckoutScreen() {
+    useScreenTheme('my-brand-dark'); // active only while this screen is focused
+    return <view>{/* … */}</view>;
+}
+```
+
+## Authoring a design system
+
+A DS package layers concrete components, CSS and palettes on top of Zero. The cardinal rule: DS packages **extend** the contract types, they never redeclare them — drift fails typecheck.
+
+### The props/token contract
+
+The shared prop fragments compose into your component props. A DS button's `color` is `ColorVariant` (plus any DS extras); its `size` **is** `SizeScale`. Note that `variant` (outline / soft / bordered / flat) is intentionally not in the contract — that is DS chrome you add yourself.
+
+```tsx
+import type {
+    WithColor,
+    WithSize,
+    WithDisabled,
+    WithClass,
+    PressEvent,
+} from '@sigx/lynx-zero-legacy';
+
+// A DS button extends the shared fragments and adds its own chrome.
+type ButtonProps =
+    & WithColor       // color?: ColorVariant
+    & WithSize        // size?: SizeScale
+    & WithDisabled    // disabled?: boolean
+    & WithClass       // class?: string
+    & PressEvent;     // onPress
+```
+
+`WithAccessibility` is also available — it mirrors the accessibility passthrough that the `@sigx/lynx-gestures` `Pressable` accepts on its host view. The sigx convention is `onPress` (from `PressEvent`), not `onTap` / `onClick`.
+
+The CSS custom-property **names** are the contract; the **values** come from each DS's registered themes. Theme authors write the variant tokens (`--color-<token>`), the radius tokens (`--radius-selector|field|box`), the size tokens (`--size-selector|field` plus `--size-xs..lg`), the app text ramp (`--text-xs..3xl`), the control-label ramp (`--font-xs..lg`) and `--disabled-opacity`.
+
+### Color tokens
+
+`COLOR_VARIANT_LIST` is the single source of truth — eight semantic variants (`primary`, `secondary`, `accent`, `neutral`, `info`, `success`, `warning`, `error`). Everything else derives from it: `ColorVariant` is the `color` prop vocabulary, `CoreColorToken` adds each variant's `-content` pairing plus the `base-100/200/300/base-content` surfaces, and `SoftColorToken` adds one `*-soft` tint per variant. `ColorToken` is the union of all of them.
+
+`resolveColorToken` maps a known semantic token to `var(--color-<token>)` and passes any raw CSS color string through unchanged. It backs `BackgroundValue` (`ColorToken | (string & {})`), which is what the layout primitives accept for `background`.
+
+```ts
+import { resolveColorToken } from '@sigx/lynx-zero-legacy';
+
+resolveColorToken('primary');      // → 'var(--color-primary)'
+resolveColorToken('base-100');     // → 'var(--color-base-100)'
+resolveColorToken('primary-soft'); // → 'var(--color-primary-soft)'
+resolveColorToken('#3344ff');      // → '#3344ff'  (passed through)
+```
+
+To build a Lynx style object from box-model props, use `resolveBoxStyle` (it resolves `background` through `resolveColorToken` and writes long-form flex), and `resolveSpacing` to expand a `SpacingValue` into per-side `padding` / `margin` keys.
+
+```ts
+import { resolveBoxStyle, resolveSpacing } from '@sigx/lynx-zero-legacy';
+
+const style = resolveBoxStyle({ background: 'primary', borderRadius: 8, padding: { x: 12, y: 8 } });
+const margins = resolveSpacing({ top: 4, bottom: 4 }, 'margin');
+```
+
+### Registering themes
+
+Call `registerTheme()` at module load, before any `ThemeProvider` mounts. It registers (or replaces by name) a theme and completes its `*-soft` palette automatically. Remember insertion order drives the follow-system defaults.
+
+```ts
+import { registerTheme } from '@sigx/lynx-zero-legacy';
+
+registerTheme({
+    name: 'my-light',
+    variant: 'light',
+    pair: 'my-dark',
+    colors: {
+        'primary': '#3b82f6',
+        'primary-content': '#ffffff',
+        'secondary': '#8b5cf6',
+        'secondary-content': '#ffffff',
+        'accent': '#06b6d4',
+        'accent-content': '#ffffff',
+        'neutral': '#374151',
+        'neutral-content': '#ffffff',
+        'info': '#0ea5e9',
+        'info-content': '#ffffff',
+        'success': '#22c55e',
+        'success-content': '#ffffff',
+        'warning': '#f59e0b',
+        'warning-content': '#000000',
+        'error': '#ef4444',
+        'error-content': '#ffffff',
+        'base-100': '#ffffff',
+        'base-200': '#f3f4f6',
+        'base-300': '#e5e7eb',
+        'base-content': '#111827',
+        // *-soft tokens are computed for you at registration.
+    },
+});
+```
+
+The `*-soft` tints are materialized in JS at registration time: each is `mixColors` of the variant color into `base-100` by `softMix` (default `0.16`). This happens in JS because Lynx CSS cannot alpha-compose `var()` colors. Set `softMix` on the theme input to tune the strength. (First paint is already correct — themes ride inline CSS variables now, so the old `staticCss` build-time class is gone.)
+
+To derive a tenant or sub-brand from an existing registered theme, use `extendTheme` and feed the result back to `registerTheme`. It recomputes any soft tints the patch didn't set, and throws if the base name isn't registered.
+
+```ts
+import { extendTheme, registerTheme } from '@sigx/lynx-zero-legacy';
+
+registerTheme(
+    extendTheme('my-light', {
+        name: 'tenant-acme',
+        colors: { primary: '#e11d48', 'primary-content': '#ffffff' },
+    }),
+);
+```
+
+`completeTheme(input)` does the soft-tint completion in isolation (it is idempotent) — DS build scripts run their builtin palettes through it so the build sees the same palette the registry would.
+
+### Theme registry queries
+
+These read-only helpers drive theme pickers and toggles. All are stable functions over the current registry:
+
+- `listThemes()` — every registered theme in insertion order (each a full `Theme`, good for picker swatches).
+- `pickThemeFor(scheme)` — the first registered theme name of a variant.
+- `pairOf(name)` — what `toggle()` flips to (explicit `pair`, else the first theme of the opposite variant).
+- `variantOf(name)`, `colorsOf(name)`, `radiusOf(name)`, `sizesOf(name)` — the variant, completed palette, radius overrides and size overrides of a registered theme (or `undefined`).
+
+```ts
+import { listThemes, pairOf, colorsOf } from '@sigx/lynx-zero-legacy';
+
+const all = listThemes();
+const opposite = pairOf('my-light'); // → 'my-dark'
+const palette = colorsOf('my-light'); // full ThemePalette, or undefined
+```
+
+## Color helpers for native consumers
+
+Some surfaces can't read CSS custom properties at all — native platform inputs, `sigx-richtext`, raw SVG. For those, `useThemeColors()` returns `{ colorOf(token, alpha?) }`, which resolves the active scoped palette to a concrete hex value and is reactive on `theme.name`.
+
+```tsx
+import { useThemeColors } from '@sigx/lynx-zero-legacy';
+
+function NativeField() {
+    const { colorOf } = useThemeColors();
+    return (
+        <input
+            placeholder-color={colorOf('base-content', 0.5)}
+            style={{ color: colorOf('base-content') }}
+        />
+    );
+}
+```
+
+`colorOf` returns `''` while the registry is still empty. The lower-level utilities are also exported: `toHexColor` normalizes `rgb()` / shorthand hex to full `#RRGGBB[AA]`, `withAlpha(hex, alpha)` appends an alpha byte (`#RRGGBBAA`), and `mixColors(color, base, ratio)` is the per-channel sRGB mix that powers soft-tint materialization.
+
+## Press feedback
+
+Lynx has no CSS `:active`, so press feedback comes from `<Pressable>` in [`@sigx/lynx-gestures`](/lynx/modules/gestures/overview), flipping inline transform and opacity. Zero exports the shared default values so a DS's pressables look consistent: `PRESSED_SCALE` (`0.97`) and `PRESSED_OPACITY` (`0.85`).
+
+```tsx
+import { PRESSED_SCALE, PRESSED_OPACITY } from '@sigx/lynx-zero-legacy';
+import { Pressable } from '@sigx/lynx-gestures';
+
+function DsPressable(props: { onPress: () => void }) {
+    return (
+        <Pressable pressedScale={PRESSED_SCALE} pressedOpacity={PRESSED_OPACITY} onPress={props.onPress}>
+            <text>Press me</text>
+        </Pressable>
+    );
+}
+```
+
+## Headless tabs selection
+
+`provideTabsSelection` / `useTabsSelection` are the headless behavior behind every DS `Tabs` / `Tab`. The container provides a selection by calling `provideTabsSelection(getActive, onSelect)` with **getters** into its reactive props, so `isActive()` stays reactive. Each tab injects `useTabsSelection()` to derive its active state and report presses. Outside a container, the injection resolves to an inert no-op selection.
+
+```tsx
+import { provideTabsSelection, useTabsSelection } from '@sigx/lynx-zero-legacy';
+
+// In the DS Tabs container setup — pass getters, not snapshots.
+function MyTabs(props: { value?: string; onChange?: (v: string) => void }) {
+    provideTabsSelection(
+        () => props.value,
+        (v) => props.onChange?.(v),
+    );
+    return <view>{/* slot for <MyTab/> children */}</view>;
+}
+
+// In each DS Tab.
+function MyTab(props: { value: string; label: string }) {
+    const tabs = useTabsSelection();
+    return (
+        <view
+            class={tabs.isActive(props.value) ? 'tab tab-active' : 'tab'}
+            bindtap={() => tabs.select(props.value)}
+        >
+            <text>{props.label}</text>
+        </view>
+    );
+}
+```
+
+`TabsSelection` is the contract: a reactive `isActive(value)` check plus a `select(value)` press reporter that drives the container's `onChange`.
+
+## The Tailwind preset
+
+The preset is **not** re-exported from the main index — import it from the `@sigx/lynx-zero-legacy/preset` subpath. `zeroPreset` re-points Tailwind's colors and font sizes at the contract CSS variables and registers the Lynx layout plugin:
+
+```ts
+// tailwind.config.ts (inside a DS package, or an app using the DS preset)
+import { zeroPreset } from '@sigx/lynx-zero-legacy/preset';
+
+export default {
+    presets: [zeroPreset],
+    content: ['./src/**/*.{ts,tsx}'],
+};
+```
+
+`zeroPreset` is `{ theme: { extend: { colors: contractColors, fontSize: contractFontSizes } }, plugins: [lynxLayoutPlugin] }`. `contractColors` maps every semantic token (including `*-soft`) to `var(--color-*)`; `contractFontSizes` re-points `text-xs..3xl` at the shared `--text-*` ramp. `lynxLayoutPlugin` adds the `.flex-fill` utility — the Lynx-correct "fill remaining space" using long-form flex.
+
+A DS preset composes `zeroPreset` and layers its own extensions; **apps consume the DS preset**, not `zeroPreset` directly. `contractColors`, `contractFontSizes` and `lynxLayoutPlugin` are exported individually from the same subpath if you need to compose them by hand.
+
+## Subpath exports
+
+`@sigx/lynx-zero-legacy` deliberately splits a few things out of the main barrel:
+
+- `.` — the main index (contract types, color helpers, theme engine, layout primitives, press constants, tabs selection).
+- `./screen-theme` — `useScreenTheme`, kept out of the barrel because it statically imports the optional `@sigx/lynx-navigation` peer.
+- `./preset` — `zeroPreset`, `lynxLayoutPlugin`, `contractColors`, `contractFontSizes`.
+- `./styles/tokens.css` — the bundled `.lynx-zero` base class with the structural token defaults.
+
+## See also
+
+- [Overview](/lynx/modules/zero-legacy/overview) — what this package is and how it anchors the DS family.
+- [API reference](/lynx/modules/zero-legacy/api) — every export, signature and type.
+- [DaisyUI](/lynx/modules/daisyui/overview) — a concrete design system built on this contract.

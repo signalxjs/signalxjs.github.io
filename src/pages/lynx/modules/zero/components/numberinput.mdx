@@ -1,0 +1,171 @@
+---
+title: "NumberInput"
+description: "NumberInput component for SignalX Lynx — a spinbutton over the native Lynx input with a number | null model, draft/commit typing, format/parse and long-press stepping (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 304
+---
+
+# NumberInput
+
+<p class="lede">Zero's spinbutton over the native Lynx `<input>`. The model is `number | null`, where `null` is an empty field, not zero. Typing is a draft that commits on blur or on the keyboard's confirm key, and the increment and decrement triggers step on a tap and repeat on a long press.</p>
+
+The parts are the same as the web component's. See [Number Input in `@sigx/zero`](/zero/docs/components/number-input/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { NumberInput } from '@sigx/lynx-zero';
+```
+
+`NumberInput` is a compound with `Root`, `Label`, `Control`, `Input`, `IncrementTrigger` and `DecrementTrigger`. `<NumberInput>` is the same component as `<NumberInput.Root>`. The package also exports `NUMBER_INPUT_SPIN_INTERVAL`, the default repeat rate.
+
+## Usage
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { NumberInput } from '@sigx/lynx-zero';
+
+export const Quantity = component(() => {
+    const state = signal({ qty: 1 as number | null });
+    return () => (
+        <NumberInput.Root model={() => state.qty} min={0} max={99} onValueChange={(v) => save(v)}>
+            <NumberInput.Label>Quantity</NumberInput.Label>
+            <NumberInput.Control>
+                <NumberInput.DecrementTrigger />
+                <NumberInput.Input placeholder="0" />
+                <NumberInput.IncrementTrigger />
+            </NumberInput.Control>
+        </NumberInput.Root>
+    );
+});
+```
+
+`NumberInput.Control` is the painted field box. Put the native `NumberInput.Input` inside it, with the triggers where you want them.
+
+### Typing is a draft
+
+Keystrokes do not reach the model. The draft commits on blur and on the keyboard's confirm key. It is parsed, snapped to the `step` grid anchored at `min`, then clamped into `[min, max]`.
+
+- Empty text commits `null`.
+- Unparseable text, such as a lone `-` or `1e`, reverts to the last committed value.
+- `clampOnBlur={false}` skips the clamp. A committed value outside `[min, max]` then marks the control `invalid`.
+- A trigger commits any pending draft before it steps.
+- Going disabled or read-only in the middle of an edit drops the draft.
+
+`valueChange` fires on every commit.
+
+### Stepping
+
+A tap on a trigger steps once. A long press steps, then repeats every `spinInterval` milliseconds (80 by default) until the touch ends. A trigger is disabled at its bound, and while the root is disabled or read-only. From an empty field, the first step lands on `min`, or on `0` when there is no `min`. A value that is off the grid steps to the next grid value in the direction of travel.
+
+The triggers carry the main-thread press feel and the `pressed` flag. They use `catchtap`, so stepping never opens the keyboard. With no children they draw `+` and `−`, named "Increment" and "Decrement" for the reader. Pass children to replace the glyph and `label` to rename it.
+
+### Format and parse
+
+`format` turns the committed value into the text the field shows, and `parse` reads typed text back. `parse` returns `null` for "not a number". Pass both together, so the field can read its own format:
+
+```tsx
+<NumberInput.Root
+    min={0}
+    step={5}
+    defaultValue={25}
+    format={(v: number) => `${v} %`}
+    parse={(t: string) => {
+        const n = Number(t.replace('%', '').trim());
+        return t.trim() !== '' && Number.isFinite(n) ? n : null;
+    }}
+>
+    <NumberInput.Label>Opacity</NumberInput.Label>
+    <NumberInput.Control>
+        <NumberInput.DecrementTrigger />
+        <NumberInput.Input />
+        <NumberInput.IncrementTrigger />
+    </NumberInput.Control>
+</NumberInput.Root>
+```
+
+### The keyboard
+
+The native field's `type` follows the props:
+
+- `digit` when `min` is `0` or more, since no minus sign is needed.
+- `number` otherwise.
+- `text` when you pass a custom `format`.
+
+Lynx's `digit` and `number` fields run every write through a numeric key filter, including the runtime's own `setValue`. Formatted text such as `25 %` could never show in one. So a formatted NumberInput uses a text field, and the cost is the full keyboard in place of the number pad. That is why `parse` has to read your format back.
+
+The confirm key is always `done`.
+
+### The native input
+
+The visible text rides the `value` attribute. The runtime turns a step, or a commit that reformats the text, into the element's `setValue`, and skips the echo of your own typing, so the caret stays where it is. Keep the input mounted: a remount clears its text.
+
+An unset `placeholder` or `label` is left off the element rather than sent as `undefined`, which iOS would receive as `NSNull`. A read-only NumberInput shows its value on Android too, including a value that changes after mount. That fix is in `@sigx/lynx-runtime` 0.34.0.
+
+### Focus
+
+Native focus stamps `focus-visible` on `control` and `input`. The skin draws the ring on `control`. A tap on `NumberInput.Label` or on the control's box focuses the input through its `focus` UI method. Inside a `Field.Root`, `Field.Label` does too, and the control adopts the Field's flags and size.
+
+## Props
+
+### `NumberInput.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `model` | `number \| null` | — | Two-way binding. `null` is an empty field. |
+| `defaultValue` | `number \| null` | `null` | Initial value when uncontrolled. |
+| `min` / `max` | `number` | — | Bounds. A committed value outside them marks the control `invalid`. |
+| `step` | `number` | `1` | The grid, anchored at `min`. |
+| `clampOnBlur` | `boolean` | `true` | Clamp a typed value into `[min, max]` on commit. |
+| `format` | `(value: number) => string` | `String` | The display text. Setting it switches the native field to `type="text"`. |
+| `parse` | `(text: string) => number \| null` | lenient decimal | How typed text reads back. `null` is "not a number". |
+| `spinInterval` | `number` (ms) | `80` | Repeat rate while a trigger is long-pressed. |
+| `disabled` | `boolean` | `false` | ORed with the Field's and the Fieldset's. |
+| `invalid` | `boolean` | `false` | ORed with the Field's, the Fieldset's and the out-of-range check. |
+| `required` | `boolean` | `false` | ORed with the Field's. |
+| `readonly` | `boolean` | `false` | Announced and focusable, never edited. ORed with the Field's and the Fieldset's. |
+| `color` / `size` | `string` | skin default | The design system's axes. `size` falls back to the Field's. |
+| `label` | `string` | — | The input's accessible name. The visible `NumberInput.Label` is separate. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### Parts
+
+| Part | Props |
+|------|-------|
+| `NumberInput.Label` | `class`. A tap focuses the input. |
+| `NumberInput.Control` | `class`. A tap on it focuses the input. |
+| `NumberInput.Input` | `placeholder`, `class`. |
+| `NumberInput.IncrementTrigger` / `DecrementTrigger` | `label` (default `"Increment"` / `"Decrement"`), `class`, and a slot replacing the glyph. |
+
+### Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `valueChange` (`onValueChange`) | `number \| null` | A commit changed the value. |
+
+## Anatomy on Lynx
+
+| Part | Element | Flags |
+|------|---------|-------|
+| `root` | `view` | `disabled`, `invalid`, `required`, `readonly` |
+| `label` | `text` | `disabled`, `invalid`, `required` |
+| `control` | `view` | `disabled`, `invalid`, `readonly`, `focus-visible` |
+| `input` | native `input` | `disabled`, `invalid`, `required`, `readonly`, `focus-visible` |
+| `increment-trigger` | `view` (`button` trait) | `disabled`, `pressed` |
+| `decrement-trigger` | `view` (`button` trait) | `disabled`, `pressed` |
+
+Not taken on Lynx:
+
+- The `hidden-input` part and `name`. Lynx has no forms.
+- `locale` and `formatOptions`. `Intl` is not guaranteed on Lynx's JavaScript engines, so use `format` and `parse`.
+- `largeStep` and wheel stepping. There is no keyboard or wheel.
+- `asChild` on the triggers.
+
+## See also
+
+- [Slider](/lynx/modules/zero/components/slider) — pick a value along a rail.
+- [Fieldset](/lynx/modules/zero/components/fieldset) — disable or lock a group of controls at once.
+- [Field](/lynx/modules/zero/components/field) — label, description, error and shared flags.
+- [Number Input in `@sigx/zero`](/zero/docs/components/number-input/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

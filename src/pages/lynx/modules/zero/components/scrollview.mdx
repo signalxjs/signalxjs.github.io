@@ -70,6 +70,8 @@ function Carousel({ cards }: { cards: string[] }) {
 | `bounces` | `boolean` | Whether the platform overscroll bounce is enabled. |
 | `class` | `string` | Extra CSS classes appended after the computed ones. |
 
+Every style prop also accepts a per-breakpoint object such as `{ initial: 16, expanded: 32 }`, resolved mobile-first against the window's width class. See [responsive props](/lynx/modules/zero/usage#responsive-props).
+
 ### Slots
 
 | Slot | Description |
@@ -79,5 +81,5 @@ function Carousel({ cards }: { cards: string[] }) {
 ## See also
 
 - [Row](/lynx/modules/zero/components/row) and [Col](/lynx/modules/zero/components/col) — flex containers to lay out the scrolled content.
-- [API reference](/lynx/modules/zero/api) — `ScrollViewProps` and every other Zero export.
+- [API reference](/lynx/modules/zero/api) — every Zero export.
 - [Usage](/lynx/modules/zero/usage) — the layout primitives in context.

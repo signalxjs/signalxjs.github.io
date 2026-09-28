@@ -10,847 +10,541 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 # API reference
 
-<p class="lede">Every export of `@sigx/lynx-zero` <PkgVersion npm="@sigx/lynx-zero" /> — the headless contract, shared style/press/tabs helpers, the theme engine, layout primitives and the Tailwind preset.</p>
-
-`@sigx/lynx-zero` is the foundation a Lynx design system builds on. It owns the shared vocabulary (sizes, semantic colors, tokens, prop fragments, the `press` event), the theme registry and runtime, the headless tabs-selection contract and the layout primitives. A DS (such as `@sigx/lynx-daisyui`) extends these types and re-exports the runtime.
-
-Most exports live on the main barrel. The Tailwind preset is a **subpath-only** export (`@sigx/lynx-zero/preset`), and `useScreenTheme` is exposed from its own subpath (`@sigx/lynx-zero/screen-theme`) because it depends on the optional `@sigx/lynx-navigation` peer.
+<p class="lede">Every export of `@sigx/lynx-zero` <PkgVersion npm="@sigx/lynx-zero" />: the components, the overlay system, axis push-down, press feedback, the theme engine, layout, the zero contract it re-exports, and the `./testing` and `./screen-theme` subpaths.</p>
 
 ## Components
 
-Each component has its own page with usage, props, slots and events — see the [Components](/lynx/modules/zero/components) catalog:
+Each component has its own page with parts, props and events. They are compounds: the root is callable as the component itself (`<Button>` is `<Button.Root>`), and the parts hang off it.
 
-- [**ThemeProvider**](/lynx/modules/zero/components/themeprovider) — applies a theme's CSS vars to a subtree; the root provider binds the global singleton, nested providers are content sub-scopes.
-- [**StatusBarSync**](/lynx/modules/zero/components/statusbarsync) — side-effect-only component that keeps the OS status / navigation bar tint legible against the active global theme.
-- [**Row**](/lynx/modules/zero/components/row) — flex-row container (`flexDirection: row`, overridable per breakpoint with `direction`).
-- [**Col**](/lynx/modules/zero/components/col) — flex-column container (`flexDirection: column`, overridable per breakpoint with `direction`).
-- [**Center**](/lynx/modules/zero/components/center) — flex container centering its children on both axes.
-- [**Spacer**](/lynx/modules/zero/components/spacer) — spacing element: a fixed square of `size`, or `flex: 1` to fill when `size` is omitted.
-- [**ScrollView**](/lynx/modules/zero/components/scrollview) — scrollable container over the Lynx `<scroll-view>`.
+**Actions and disclosure**
+- [**Button**](/lynx/modules/zero/components/button): a pressable action, with `loading` and a spinner part.
+- [**Toggle**](/lynx/modules/zero/components/toggle): a button with one bit of state (`on` / `off`).
+- [**ToggleGroup**](/lynx/modules/zero/components/togglegroup): toggles under one value model, single or `multiple`.
+- [**Tabs**](/lynx/modules/zero/components/tabs): a tab list with panels and a self-positioning indicator.
+- [**Accordion**](/lynx/modules/zero/components/accordion): collapsible sections.
 
-Their prop types and related APIs remain documented below.
+**Overlays** (render in [`ZeroRoot`](/lynx/modules/zero/components/zeroroot)'s outlet)
+- [**Dialog**](/lynx/modules/zero/components/dialog): a modal panel with backdrop, close and cancel parts.
+- [**Popover**](/lynx/modules/zero/components/popover): an anchored popup with light dismiss.
+- [**Toast**](/lynx/modules/zero/components/toast): toasts from a `Toaster` store, in a viewport, with promise toasts.
+
+**Form controls**
+- [**Field**](/lynx/modules/zero/components/field): label, description and error around a control, sharing its flags.
+- [**Fieldset**](/lynx/modules/zero/components/fieldset): groups controls and states `disabled` / `readonly` / `invalid` once.
+- [**Input**](/lynx/modules/zero/components/input): a text field on the native `<input>`, with adornments and triggers.
+- [**Textarea**](/lynx/modules/zero/components/textarea): a multi-line field on the native `<textarea>`, with autosize.
+- [**NumberInput**](/lynx/modules/zero/components/numberinput): a spinbutton with increment and decrement triggers.
+- [**Checkbox**](/lynx/modules/zero/components/checkbox): a boolean box, or one member of a `string[]` model.
+- [**CheckboxGroup**](/lynx/modules/zero/components/checkboxgroup): boxes sharing a `string[]` model, with a tri-state parent box.
+- [**RadioGroup**](/lynx/modules/zero/components/radiogroup): one choice from a set.
+- [**Switch**](/lynx/modules/zero/components/switch): an on/off control.
+- [**Select**](/lynx/modules/zero/components/select): an items-driven picker on zero's collection core.
+- [**Slider**](/lynx/modules/zero/components/slider): a touch-driven range, one or more thumbs.
+
+**Content**
+- [**Card**](/lynx/modules/zero/components/card): a surface with media, header, body and footer bands.
+- [**Alert**](/lynx/modules/zero/components/alert): a dismissable message.
+- [**Badge**](/lynx/modules/zero/components/badge): a standing label with an optional status dot.
+- [**Status**](/lynx/modules/zero/components/status): a presence dot.
+- [**Kbd**](/lynx/modules/zero/components/kbd): a keycap.
+- [**Divider**](/lynx/modules/zero/components/divider): a rule, optionally labelled.
+- [**Stats**](/lynx/modules/zero/components/stats): figures with titles, values and descriptions.
+- [**EmptyState**](/lynx/modules/zero/components/emptystate): an icon, a message and actions for an empty view.
+- [**Avatar**](/lynx/modules/zero/components/avatar): an image with a fallback.
+- [**AvatarGroup**](/lynx/modules/zero/components/avatargroup): overlapping avatars with an overflow count.
+- [**Progress**](/lynx/modules/zero/components/progress): a determinate or indeterminate bar.
+- [**Skeleton**](/lynx/modules/zero/components/skeleton): a loading placeholder that keeps its children mounted.
+- [**Spinner**](/lynx/modules/zero/components/spinner): an indeterminate busy mark.
+- [**Timeline**](/lynx/modules/zero/components/timeline): items with markers, connectors and content.
+
+**Theme and layout**
+- [**ZeroRoot**](/lynx/modules/zero/components/zeroroot): the app wrapper, theme host plus overlay outlet.
+- [**ThemeProvider**](/lynx/modules/zero/components/themeprovider): the theme host alone.
+- [**Row**](/lynx/modules/zero/components/row), [**Col**](/lynx/modules/zero/components/col), [**Center**](/lynx/modules/zero/components/center), [**Spacer**](/lynx/modules/zero/components/spacer), [**ScrollView**](/lynx/modules/zero/components/scrollview): layout primitives.
+
+Every component's props type is exported beside it (`ButtonRootProps`, `DialogRootProps`, `ToastViewportProps`, `SelectRootProps`, …).
 
 ## Entry points
 
 ```ts
-import {
-  // contract + shared helpers
-  resolveColorToken, resolveSpacing, resolveBoxStyle,
-  PRESSED_SCALE, PRESSED_OPACITY,
-  useTabsSelection, provideTabsSelection,
-  // theme engine
-  ThemeProvider, StatusBarSync, themeController, useTheme,
-  registerTheme, extendTheme, listThemes, completeTheme,
-  pickThemeFor, pairOf, variantOf, colorsOf, radiusOf, sizesOf,
-  mixColors, useThemeColors, toHexColor, withAlpha,
-  // layout primitives + responsive props
-  Row, Col, Center, Spacer, ScrollView,
-  resolveResponsive,
-  // axis defaults
-  registerAxisDefaults, resolveVariantAxes,
-} from '@sigx/lynx-zero';
-import type { Responsive, AxisDefaults } from '@sigx/lynx-zero';
-
-// Tailwind preset (subpath only)
-import { zeroPreset, contractColors, contractFontSizes, lynxLayoutPlugin } from '@sigx/lynx-zero/preset';
-
-// screen-theme (subpath only; needs the @sigx/lynx-navigation peer)
+import { /* everything below except testing and screen-theme */ } from '@sigx/lynx-zero';
+import { expectAnatomy, expectClassGrammar, ForceStates, provideForcedFlags } from '@sigx/lynx-zero/testing';
 import { useScreenTheme } from '@sigx/lynx-zero/screen-theme';
 ```
 
-## Contract
+## Overlays
 
-The shared vocabulary that components and themes agree on. These are the single source of truth a DS extends — sizes, semantic colors, the token derivations, the reusable prop fragments and the canonical `press` event. A DS never redeclares these; it imports and layers on top.
-
-### SizeScale
-
-```ts
-type SizeScale = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
-```
-
-Shared component size scale. DS sizes **are** this type (extended, never redeclared).
-
-### COLOR_VARIANT_LIST
-
-```ts
-const COLOR_VARIANT_LIST: readonly [
-  'primary', 'secondary', 'accent', 'neutral',
-  'info', 'success', 'warning', 'error',
-];
-```
-
-Single source of truth for the semantic color vocabulary; `ColorVariant` and every token derivation come from this tuple.
-
-### ColorVariant
-
-```ts
-type ColorVariant = typeof COLOR_VARIANT_LIST[number];
-```
-
-Semantic color names — the shared `color` prop vocabulary. A DS maps each name onto its palette.
-
-### CoreColorToken
-
-```ts
-type CoreColorToken =
-  | ColorVariant
-  | `${ColorVariant}-content`
-  | 'base-100' | 'base-200' | 'base-300' | 'base-content';
-```
-
-Tokens authored by every theme: each variant, its `-content` pairing, and the base surfaces.
-
-### SoftColorToken
-
-```ts
-type SoftColorToken = `${ColorVariant}-soft`;
-```
-
-Tinted-surface tokens, one per variant; materialized in the palette at registration (a `softMix` of the variant color into `base-100`).
-
-### ColorToken
-
-```ts
-type ColorToken = CoreColorToken | SoftColorToken;
-```
-
-The full set of semantic color tokens every registered theme carries, exposed at runtime as `--color-<token>`.
-
-### BackgroundValue
-
-```ts
-type BackgroundValue = ColorToken | (string & {});
-```
-
-A semantic color token (autocompleted) **or** any raw CSS color string.
-
-### WithClass
-
-```ts
-type WithClass = Define.Prop<'class', string, false>;
-```
-
-Prop fragment: arbitrary extra classes, appended after the DS-computed ones.
-
-### WithDisabled
-
-```ts
-type WithDisabled = Define.Prop<'disabled', boolean, false>;
-```
-
-Prop fragment: `disabled` (non-interactive plus DS disabled styling).
-
-### WithColor
-
-```ts
-type WithColor = Define.Prop<'color', ColorVariant, false>;
-```
-
-Prop fragment: the semantic color of the component.
-
-### WithSize
-
-```ts
-type WithSize = Define.Prop<'size', SizeScale, false>;
-```
-
-Prop fragment: component size on the shared scale.
-
-### WithAccessibility
-
-```ts
-type WithAccessibility =
-  & Define.Prop<'accessibility-element', boolean, false>
-  & Define.Prop<'accessibility-label', string, false>
-  & Define.Prop<'accessibility-role', string, false>
-  & Define.Prop<'accessibility-trait', string, false>
-  & Define.Prop<'accessibility-status', string, false>;
-```
-
-Prop fragment: accessibility passthrough mirroring the `@sigx/lynx-gestures` `Pressable` host-view surface.
-
-### PressEvent
-
-```ts
-type PressEvent = Define.Event<'press', void>;
-```
-
-The shared press event. The sigx convention is `onPress` (not `onTap` / `onClick`).
-
-### resolveColorToken
-
-```ts
-function resolveColorToken(value: string): string;
-```
-
-Maps a known semantic token to `var(--color-<token>)`; anything else (hex / rgb / `var(...)`) passes through unchanged.
-
-## Shared styles
-
-Box-model and spacing helpers shared by the layout primitives and DS components. These convert the friendly prop shapes (`SpacingValue`, `BoxProps`) into Lynx-safe long-form style objects.
-
-### SpacingValue
-
-```ts
-type SpacingValue =
-  | number
-  | { x?: number; y?: number; top?: number; right?: number; bottom?: number; left?: number };
-```
-
-Spacing input for padding / margin: a number applies to all sides, or pass a per-axis (`x` / `y`) / per-side object.
-
-### BoxProps
-
-```ts
-interface BoxProps {
-  width?: Responsive<number | string>;
-  height?: Responsive<number | string>;
-  flex?: Responsive<number>;
-  background?: Responsive<BackgroundValue>;
-  borderRadius?: Responsive<number>;
-  padding?: Responsive<SpacingValue>;
-  margin?: Responsive<SpacingValue>;
-}
-```
-
-The box-model props shared by layout primitives and DS components. Every field takes a plain value or a per-breakpoint object ([`Responsive`](#responsive)).
-
-### resolveSpacing
-
-```ts
-function resolveSpacing(
-  value: SpacingValue | undefined,
-  prefix: 'padding' | 'margin',
-): Record<string, number>;
-```
-
-Expands a `SpacingValue` into long-form `{ paddingTop, ... }` / `{ marginTop, ... }` style entries; returns `{}` for `undefined`.
-
-### resolveBoxStyle
-
-```ts
-function resolveBoxStyle(props: BoxProps, cls?: WidthClass): Record<string, unknown>;
-```
-
-Converts `BoxProps` to a Lynx style object: resolves any per-breakpoint values against `cls` (the active width class from `useWidthClass()`, default `'compact'`; [`WidthClass`](/lynx/modules/core/api#window-size-classes) is a type export of `@sigx/lynx-core`, re-exported by `@sigx/lynx`), resolves color tokens and writes long-form flex (`flexGrow` / `flexShrink` / `flexBasis` / `minHeight`) to avoid Lynx flex-collapse.
-
-### Responsive
-
-```ts
-type Responsive<T> = T | {
-  initial?: T;   // the `compact` base case
-  medium?: T;
-  expanded?: T;
-  large?: T;
-  xlarge?: T;
-};
-```
-
-A plain value, or one value per [width class](/lynx/modules/core/api#window-size-classes). Resolution is mobile-first: a key applies at its breakpoint and every wider one. Width only — branch on height explicitly with `useHeightAtLeast()`. An object mixing breakpoint keys with plain keys (`{ initial: 4, top: 8 }`) logs a warning and is treated as a plain value; nest it instead (`{ initial: { top: 4 }, expanded: { top: 8 } }`).
-
-### resolveResponsive
-
-```ts
-function resolveResponsive<T>(value: Responsive<T> | undefined, cls: WidthClass): T | undefined;
-```
-
-Resolves a responsive value against a width class: from `cls`, the first key at or below it that is defined. Returns `undefined` when the object defines nothing at or below `cls` — so `{ expanded: 32 }` contributes nothing on a phone, exactly like an omitted prop, rather than forcing a zero. There is no `useResponsive()` hook; read the singleton class and resolve inline:
+### OverlayHost
 
 ```tsx
-const cls = useWidthClass();                                   // setup
-return () => <Grid columns={resolveResponsive(cols, cls.value) ?? 1} />;
+<OverlayHost>{/* content */}</OverlayHost>
 ```
 
-## Axis defaults
+Provides the overlay registry and renders its content first and the outlet last. `ZeroRoot` renders one inside a `ThemeProvider`. Use it directly only when a theme host already exists.
 
-The design system's declared default axis values (`variant` / `size` / `color` and any custom axis), per anatomy scope. The compiled Lynx CSS has no `:not()` default twins, so an axis a recipe wires only matches when a concrete axis class is stamped — these defaults make sure one always is. A design-system shell package registers them at import; app code never calls these.
-
-### registerAxisDefaults
+### ZeroRootProps
 
 ```ts
-type AxisDefaults = Record<string, string>;   // axis name → default value
-
-function registerAxisDefaults(byScope: Record<string, AxisDefaults>): void;
+type ZeroRootProps = ThemeProviderProps;
 ```
 
-Registers a design system's defaults keyed by anatomy scope, for example `{ button: { variant: 'solid', size: 'md', color: 'primary' } }`. Call it at module load, before first render. Re-registering a scope replaces it; identical values are silent, different values warn — the same semantics as `registerTheme`.
-
-### resolveVariantAxes
+### useOverlayPortal
 
 ```ts
-function resolveVariantAxes(scope: string, axes: VariantAxes): VariantAxes;
-```
+function useOverlayPortal(): OverlayPortal;
 
-Fills a carrier's unset axes from the scope's registered defaults: `explicit prop ?? registered default`. Explicit values always win, and a default for an axis outside `color` / `size` / `variant` lands in the custom `axes` record. With nothing registered for the scope, the input passes through unchanged — unset axes stamp nothing. Every component carrier in `@sigx/lynx-zero` already calls this; you need it only when writing a carrier of your own.
-
-## Shared press
-
-Defaults for the press-feedback affordance. Lynx has no CSS `:active`, so `Pressable` applies these on the main thread.
-
-### PRESSED_SCALE
-
-```ts
-const PRESSED_SCALE = 0.97;
-```
-
-Default press-feedback scale applied by `Pressable` on the main thread.
-
-### PRESSED_OPACITY
-
-```ts
-const PRESSED_OPACITY = 0.85;
-```
-
-Default press-feedback opacity for interactive components.
-
-## Shared tabs selection
-
-The headless tabs-selection contract: a reactive `isActive()` / `select()` pair that a DS `Tabs` container injects into its `Tab`s. Tabs read it through `useTabsSelection`; the container provides it with `provideTabsSelection`.
-
-### TabsSelection
-
-```ts
-interface TabsSelection {
-  isActive(value: string): boolean;
-  select(value: string): void;
+interface OverlayPortal {
+    show(render: () => unknown): void;   // mount (or keep) this overlay's content in the outlet
+    hide(): void;                        // remove it; also runs on unmount
 }
 ```
 
-The headless tabs-selection contract.
+Call in setup. The closure's root must spread `OVERLAY_ROOT_STYLE`. Without an `OverlayHost` above, `show()` warns in development and renders nothing. See [custom overlays](/lynx/modules/zero/usage#custom-overlays).
 
-### useTabsSelection
+### OVERLAY_ROOT_STYLE
 
 ```ts
-const useTabsSelection: () => TabsSelection; // defineInjectable<TabsSelection>(() => NO_SELECTION)
+const OVERLAY_ROOT_STYLE: { readonly pointerEvents: 'auto' };
 ```
 
-Injects the nearest `Tabs` container's selection. Outside any container it resolves to an inert selection — never active, and `select()` is a no-op.
+The outlet's hit-testing contract. The outlet layer is `pointer-events: none` and both Lynx engines inherit the value, so every overlay root spreads this into its inline style to take its own touches.
 
-### provideTabsSelection
+### PortalScope
 
 ```ts
-function provideTabsSelection(
-  getActive: () => string | undefined,
-  onSelect: (value: string) => void,
+type PortalScopeProps =
+    & Define.Prop<'setup', () => void, true>    // runs in PortalScope's setup: re-provide contexts here
+    & Define.Prop<'render', () => unknown, true>;
+```
+
+Re-provides contexts inside a portal closure, so components rendered there resolve the injections they would have in place. Pass stable function identities.
+
+### useOutletFill
+
+```ts
+function useOutletFill(): () => Record<string, string | number>;
+```
+
+An absolute style that covers the outlet, which is the whole window. Spread it on an overlay root that must fill the window: the outlet layer is 0×0, so `top/right/bottom/left: 0` collapses to nothing. Falls back to the four-edge spelling until the window's size is known. Reactive; read it in the portal closure.
+
+### useOverlayInsets
+
+```ts
+function useOverlayInsets(): () => OverlayInsets;
+
+interface OverlayInsets { top: number; right: number; bottom: number; left: number }
+```
+
+The safe frame's insets inside the window, in px: how far `ZeroRoot`'s box sits inside it. All zero until both are measured, or while the frame pokes out of the window (mid-transition). Reactive.
+
+### computeOverlayInsets, containedFrame, fixedOutletRect
+
+```ts
+function computeOverlayInsets(origin: ElementLayout | null, frame: ElementLayout | null): OverlayInsets;
+function containedFrame(origin: ElementLayout | null, frame: ElementLayout | null): ElementLayout | null;
+function fixedOutletRect(size: { width: number; height: number } | null, screen: { width: number; height: number }): ElementLayout | null;
+```
+
+The pure functions behind the outlet. `containedFrame` returns the frame only when it is measured, has a size and lies inside the outlet. `computeOverlayInsets` is `useOverlayInsets` over given rects. `fixedOutletRect` is the outlet's rect: the page root's origin with the layer's size, or the screen's until the layer has one. The outlet is never measured with `boundingClientRect`.
+
+### provideOverlayOrigin
+
+```ts
+function provideOverlayOrigin(
+    read: () => ElementLayout | null,
+    measure?: () => void,
+    frame?: () => ElementLayout | null,
+    fullHeight?: () => number,
 ): void;
 ```
 
-Provides a `TabsSelection` for the subtree. Call it from the DS `Tabs` container setup, passing **getters** into the reactive props so `isActive()` reads stay reactive.
+Provides the outlet's rect, a re-measure function, the safe frame and the no-keyboard height to the overlays below. `OverlayHost` calls it. You need it only when writing a host of your own.
+
+### Dismiss layers
+
+```ts
+interface LynxDismissLayer { dismiss(): void }
+
+function registerDismissLayer(layer: LynxDismissLayer): () => void;   // returns unregister
+function dismissTopLayer(): boolean;                                   // true when a layer took it
+function openLayerCount(): number;
+function clearDismissLayers(): void;                                   // test seam
+```
+
+The innermost-first stack behind light dismiss. An overlay registers a layer while open and calls `dismissTopLayer()` from its outside-tap surface, so the innermost overlay closes first. There is no Escape key on Lynx. A back-button handler can call `dismissTopLayer()` and use the return value.
+
+### Anchored positioning
+
+```ts
+function createAnchorPosition(options?: CreateAnchorPositionOptions): LynxAnchorPosition;
+
+interface CreateAnchorPositionOptions {
+    placement?: LynxPlacement;       // default 'bottom'
+    offset?: number;                 // gap to the anchor, px (default 4)
+    viewportPadding?: number;        // min distance from the edge before flipping, px (default 8)
+    isOpen?: () => boolean;          // measure only while open (default: always)
+}
+
+interface LynxAnchorPosition {
+    anchorRef: MainThreadRef<MainThread.Element | null>;        // main-thread:ref on the anchor
+    floatingRef: MainThreadRef<MainThread.Element | null>;      // main-thread:ref on the popup
+    anchorLayoutChange: (event: LayoutChangeEvent) => void;    // bindlayoutchange on the anchor
+    floatingLayoutChange: (event: LayoutChangeEvent) => void;  // bindlayoutchange on the popup
+    track: () => void;                                         // bind to the dismiss surface's touch events
+    position(): ResolvedPosition | null;
+    style(): Record<string, string | number>;                  // the popup's absolute style
+}
+
+type LynxPlacement =
+    | 'top' | 'top-start' | 'top-end' | 'bottom' | 'bottom-start' | 'bottom-end'
+    | 'left' | 'left-start' | 'left-end' | 'right' | 'right-start' | 'right-end';
+```
+
+Measures the anchor, the popup and the safe frame together, flips to the opposite side when the preferred one overflows, and clamps into the safe frame. Call in setup, and wire both bindings on each element. A navigation transform fires no layout event, so an open popup keeps re-measuring until its anchor holds still, on one shared clock with every other open popup, capped at about two seconds per burst.
+
+The pure placement math is exported too: `computeAnchorPosition(anchor, floating, viewport, options?)`, `computeOutletPosition(anchor, floating, origin, screen, options?)` and `toOutletCoordinates(point, origin)`. Types: `AnchorPositionOptions`, `ResolvedPosition`.
+
+## Toasts
+
+### createToaster, provideToaster
+
+```ts
+function createToaster(options?: ToasterOptions): Toaster;
+function provideToaster(toaster: Toaster): void;
+
+interface ToasterOptions { exitDuration?: number }   // ms a dismissed toast stays for its exit; default 200
+
+interface Toaster {
+    toasts(): ToastItem[];
+    show(options: ToastOptions): number;
+    update(id: number, patch: Partial<ToastOptions>): void;
+    promise<T>(promise: PromiseLike<T>, options: ToastPromiseOptions<T>): number;
+    dismiss(id: number): void;   // play the exit, then remove
+    remove(id: number): void;    // remove now
+}
+```
+
+A toast store you can create headlessly, so a service can toast. `Toast.Viewport` renders a toaster's toasts, from its `toaster` prop or from the nearest `provideToaster`. Types: `ToastItem`, `ToastOptions`, `ToastInput`, `ToastPromiseOptions`, `ToastStatus`, `ToastPlacement`. See [Toast](/lynx/modules/zero/components/toast).
+
+## Axis push-down
+
+```ts
+interface VariantAxes {
+    color?: string;
+    size?: string;
+    variant?: string;
+    axes?: Record<string, string | undefined>;   // custom axes
+    mods?: Record<string, boolean | undefined>;
+    forced?: ForcedFlags;                         // from an enclosing ForceStates
+}
+```
+
+### provideVariantAxes
+
+```ts
+function provideVariantAxes(read: () => VariantAxes): () => VariantAxes;
+```
+
+Provides a carrier's resolved axes to every part below. Pass a reader so prop changes stay reactive. Returns the reader as provided, with any flags an enclosing `ForceStates` forces, so the carrier stamps its own part from it: `const axes = provideVariantAxes(…)`.
+
+### useVariantAxes
+
+```ts
+function useVariantAxes(): () => VariantAxes;
+```
+
+The nearest provider's axes, or `{}` outside any carrier.
+
+### provideCarriedAxes
+
+```ts
+function provideCarriedAxes(
+    anatomy: Anatomy,
+    part: string,
+    own: () => Partial<Record<CarriedAxis, string | undefined>>,
+): () => VariantAxes;
+```
+
+For a part whose anatomy declares it `carries` an axis. Call it in the part's setup in place of `useVariantAxes()`. The part's own value wins; without one, the inherited value passes through. The result is provided to the parts below and returned. Axes the anatomy does not declare for the part are ignored. Throws for an unknown part.
+
+### partAxes
+
+```ts
+function partAxes(a: VariantAxes): Pick<PartBagOptions, 'axes' | 'mods' | 'forced'>;
+```
+
+Flattens axes into `partBag` options: `partBag(anatomy, 'tab', { ...partAxes(axes()), state })`.
+
+### registerAxisDefaults, resolveVariantAxes
+
+```ts
+type AxisDefaults = Record<string, string>;   // axis → default value
+
+function registerAxisDefaults(byScope: Record<string, AxisDefaults>): void;
+function resolveVariantAxes(scope: string, axes: VariantAxes): VariantAxes;
+```
+
+A skin registers its manifest's declared defaults per scope at import: `{ button: { variant: 'solid', size: 'md', color: 'primary' } }`. Re-registering a scope replaces it; different values warn. `resolveVariantAxes` fills a carrier's unset axes from them (`explicit ?? default`). A default for an axis other than `color` / `size` / `variant` lands in `axes`. With nothing registered, the input passes through unchanged.
+
+## The part seams
+
+### partBag
+
+```ts
+function partBag(anatomy: Anatomy, part: string, options?: PartBagOptions): LynxPartProps;
+
+interface PartBagOptions {
+    state?: string;
+    flags?: Record<string, boolean | undefined>;   // disabled, pressed, focus-visible, …
+    axes?: { color?: string; size?: string; variant?: string; [axis: string]: string | undefined };
+    mods?: Record<string, boolean | undefined>;
+    orientation?: 'horizontal' | 'vertical';
+    placement?: string;
+    class?: string;                                 // appended last
+    forced?: ForcedFlags;
+}
+
+interface LynxPartProps {
+    class: string;
+    'data-scope': string;
+    'data-part': string;
+    'data-state'?: string;
+    'data-orientation'?: string;
+    'data-placement'?: string;
+    [attr: string]: unknown;
+}
+```
+
+The spreadable props for one rendered part: the `zx-*` class list and the `data-*` attributes, from one input, so they cannot disagree. Throws for a part the anatomy does not declare, and where zero's `variantAttrs` throws (reserved or malformed axis names).
+
+### partA11y
+
+```ts
+function partA11y(options: PartA11yOptions): Record<string, unknown>;
+
+interface PartA11yOptions {
+    trait?: string;
+    label?: string;
+    checked?: boolean;
+    mixed?: boolean;
+    selected?: boolean;
+    expanded?: boolean;
+    disabled?: boolean;
+    readonly?: boolean;
+}
+```
+
+zero's accessibility guarantees on Lynx's native props: `accessibility-element: true`, `accessibility-trait`, `accessibility-label` and an `accessibility-status` built from the state (`checked`, `mixed`, `selected`, `expanded` / `collapsed`, `disabled`, `read only`). Spread it on the node that owns the tap handler.
+
+## Press feedback
+
+### createPressFeedback
+
+```ts
+function createPressFeedback(options?: LynxPressFeedbackOptions): LynxPressFeedback;
+
+interface LynxPressFeedbackOptions {
+    isDisabled?: () => boolean;           // no press, either tier, while true
+    feel?: boolean | LynxPressFeel;       // true/omitted: default scale; false: flag only
+}
+
+interface LynxPressFeel {
+    scale?: number;     // transform: scale(n) while held; default PRESSED_SCALE, 1 disables it
+    opacity?: number;   // inline opacity while held; unset by default
+}
+
+type LynxPressFeedback =
+    | { pressed(): boolean; readonly mainThread: false; handlers: LynxTier1PressHandlers }
+    | { pressed(): boolean; readonly mainThread: true; handlers: LynxMainThreadPressHandlers };
+```
+
+Spread `handlers` on the pressable element and pass `pressed()` as the part's `pressed` flag. With the worklet transform, `handlers` are main-thread touch worklets that scale the element at touch-down (tier 2) and hand the flag to the background. Without it, they are background touch handlers that drive the flag alone. See [press feedback](/lynx/modules/zero/usage#press-feedback). Types: `LynxTier1PressHandlers`, `LynxMainThreadPressHandlers`, `LynxPressHandlers`, `MainThreadTouch`.
+
+### PRESSED_SCALE, PRESSED_OPACITY
+
+```ts
+const PRESSED_SCALE = 0.97;     // the default tier-2 scale
+const PRESSED_OPACITY = 0.85;   // opt in with feel: { opacity: PRESSED_OPACITY }
+```
 
 ## Theme engine
 
-The theme runtime and registry. `ThemeProvider` applies a theme's CSS vars to a subtree; `themeController` / `useTheme` read and mutate the active theme; the registry functions register, derive and inspect themes; and the color helpers resolve the palette to concrete literals for native widgets that cannot read CSS vars.
+### ThemeProvider, ThemeProviderProps
 
-### ThemeProviderProps
+The theme host. See [ThemeProvider](/lynx/modules/zero/components/themeprovider).
 
-```ts
-type ThemeProviderProps =
-  & Define.Prop<'initial', ThemeName, false>
-  & Define.Prop<'light', ThemeName, false>
-  & Define.Prop<'dark', ThemeName, false>
-  & Define.Prop<'fontScale', number, false>
-  & Define.Prop<'class', string, false>
-  & Define.Prop<'style', Record<string, string | number>, false>
-  & Define.Slot<'default'>;
-```
-
-ThemeProvider props. `initial` pins a theme (ignoring the system); `light` / `dark` are the choices used while following the system; `fontScale` seeds the initial text-scale multiplier.
-
-### StatusBarSyncProps
+### useTheme
 
 ```ts
-type StatusBarSyncProps = Define.Prop<'matchBackground', boolean, false>;
+function useTheme(): ThemeController;
 ```
 
-`matchBackground` is currently a reserved no-op (future Android `base-100` bar background).
+The nearest provider's controller, or `themeController` outside any provider. Never throws.
 
 ### themeController
 
 ```ts
 const themeController: ThemeController;
-```
 
-The global headless theme controller — import and call it from anywhere, with no `ThemeProvider` ancestor required. `useTheme()`'s default returns this, and `StatusBarSync` binds to it.
-
-### useTheme
-
-```ts
-const useTheme: () => ThemeController; // defineInjectable<ThemeController>(() => themeController)
-```
-
-Accesses the active `ThemeController` — the nearest `ThemeProvider`, or the global `themeController` at the root / headless. Never throws.
-
-### ThemeController
-
-```ts
 interface ThemeController {
-  readonly name: ThemeName;
-  readonly followingSystem: boolean;
-  set(name: ThemeName): void;
-  toggle(): void;
-  followSystem(): void;
-  readonly fontScale: number;
-  setFontScale(scale: number): void;
+    readonly name: ThemeName;
+    readonly followingSystem: boolean;
+    readonly fontScale: number;
+    set(next: ThemeName): void;       // pin; stops following the system
+    toggle(): void;                   // flip to the pair; an unpaired theme stays
+    followSystem(): void;
+    setFontScale(scale: number): void;
+}
+
+type ThemeName = string;
+```
+
+The global controller, bound by the root `ThemeProvider`. Callable from anywhere, with no provider mounted.
+
+### makeThemeController, normalizeFontScale
+
+```ts
+function makeThemeController(state: ThemeState): ThemeController;
+function normalizeFontScale(value: unknown, fallback?: number): number;
+
+interface ThemeState { name: ThemeName; following: boolean; fontScale: number }
+```
+
+`makeThemeController` builds a controller over your own state object; a nested `ThemeProvider` uses it. `normalizeFontScale` returns `value` when it is a finite positive number, else `fallback` (default `1`).
+
+### The theme registry
+
+```ts
+function registerTheme(info: ThemeInfo): void;
+function registerThemes(source: ThemeSource): void;
+function listThemes(): ThemeInfo[];
+function getTheme(name: string): ThemeInfo | undefined;
+function pairOf(name: string): string | undefined;
+function pickThemeFor(scheme: 'light' | 'dark'): string | undefined;
+
+interface ThemeInfo {
+    name: string;
+    colorScheme: 'light' | 'dark';
+    pair?: string;                        // what toggle() switches to
+    swatch?: Record<string, string>;      // token → color, for pickers
 }
 ```
 
-Reactive handle over theme selection: read / track `name`, `followingSystem` and `fontScale`; mutate via `set` / `toggle` / `followSystem` / `setFontScale`.
+`@sigx/zero`'s theme registry (`@sigx/zero/theme/registry`), re-exported. It holds theme metadata only; the values are the skin's CSS. A skin seeds it at import. `registerThemes` seeds it from a design system's token declaration (`ThemeSource`). `pickThemeFor` prefers the source's declared default for the scheme, else the first registered theme with that scheme. See [theming on the web](/zero/docs/theming).
 
-### ThemeName
-
-```ts
-type ThemeName = string & {};
-```
-
-The theme class set on the provider host view. A plain string; a DS layers a literal union on top for autocomplete. Multi-class names (e.g. `'daisy-light daisy-rounded'`) are accepted.
-
-### listThemes
+### registerTextRamp, textRampVars
 
 ```ts
-function listThemes(): readonly Theme[];
+function registerTextRamp(values: Record<string, string>): void;
+function textRampVars(fontScale: number): Record<string, string>;
 ```
 
-All registered themes in insertion order (a shallow copy; each entry is a full `Theme`, suitable for swatch rendering). Re-exported via `ThemeProvider`.
-
-### registerTheme
-
-```ts
-function registerTheme(theme: ThemeInput): void;
-```
-
-Registers or replaces (by name) a theme; the palette is completed on the way in (`completeTheme` computes the omitted `*-soft` tints). Call it at module load, before mounting.
-
-### extendTheme
-
-```ts
-function extendTheme(base: string, patch: {
-  name: string;
-  variant?: ThemeVariant;
-  pair?: string;
-  colors?: Partial<ThemePalette>;
-  radius?: ThemeRadius;
-  sizes?: ThemeSizes;
-  softMix?: number;
-}): Theme;
-```
-
-Derives a new full `Theme` from a registered `base`, overriding tokens and recomputing any soft tints the patch did not set. Throws if `base` is not registered. Pass the result to `registerTheme()`. The derived theme **never inherits `staticCss`** — it is a new name with no generated stylesheet rule behind it, so it paints through the inline path.
-
-### pickThemeFor
-
-```ts
-function pickThemeFor(scheme: ThemeVariant): string;
-```
-
-The default theme name for a system color scheme — the first registered theme of that variant, else the first of any, else `''`.
-
-### pairOf
-
-```ts
-function pairOf(name: string): string;
-```
-
-Resolves a theme's paired theme (used by `toggle()`) — follows the declared `pair`, else the first of the opposite variant; returns the input unchanged if it is not registered.
-
-### variantOf
-
-```ts
-function variantOf(name: string | undefined): ThemeVariant | undefined;
-```
-
-The variant of a registered theme, or `undefined` if it is not registered.
-
-### colorsOf
-
-```ts
-function colorsOf(name: string | undefined): ThemePalette | undefined;
-```
-
-The full, completed color palette of a registered theme, or `undefined`.
-
-### radiusOf
-
-```ts
-function radiusOf(name: string | undefined): ThemeRadius | undefined;
-```
-
-The roundness overrides of a registered theme, if any.
-
-### sizesOf
-
-```ts
-function sizesOf(name: string | undefined): ThemeSizes | undefined;
-```
-
-The base size-unit overrides of a registered theme, if any.
-
-### completeTheme
-
-```ts
-function completeTheme(input: ThemeInput): Theme;
-```
-
-Completes a theme's palette: computes any omitted `*-soft` token as `softMix` of the variant color into `base-100` (in JS). Idempotent; explicit softs are kept.
-
-### ThemeInput
-
-```ts
-interface ThemeInput {
-  name: string;
-  variant: ThemeVariant;
-  colors: ThemePaletteInput;
-  pair?: string;
-  radius?: ThemeRadius;
-  sizes?: ThemeSizes;
-  softMix?: number;
-  staticCss?: boolean;
-}
-```
-
-What a theme author writes: core tokens required, `*-soft` optional. `softMix` defaults to `0.16`.
-
-`staticCss` declares that the design system generated a stylesheet rule for this theme from the same registry data at build time — a `.theme-name { --color-*: …; background-color: …; color: … }` rule plus its `@media (prefers-color-scheme: …)` twin under `.lynx-zero.scheme-<variant>-<theme-name>`. `ThemeProvider` then lets the CSS engine resolve the palette instead of declaring it inline; `hasStaticCss(name)` reads the flag. Leave it unset for anything registered at runtime — a tenant palette fetched from a backend, or a theme derived with `extendTheme()`. Claiming `staticCss` for a theme whose CSS does not exist leaves the app with **no** palette at all.
-
-### ThemePaletteInput
-
-```ts
-type ThemePaletteInput =
-  & Record<CoreColorToken, string>
-  & Partial<Record<SoftColorToken, string>>;
-```
-
-The author-side palette: every core token required, the `*-soft` tints optional.
-
-### Theme
-
-```ts
-interface Theme extends Omit<ThemeInput, 'colors'> {
-  colors: ThemePalette;
-}
-```
-
-A registered theme — the same shape as `ThemeInput`, with the palette completed (no holes).
-
-### ThemePalette
-
-```ts
-type ThemePalette = Record<ColorToken, string>;
-```
-
-The full registered color palette — every semantic token including `*-soft`. This is what `colorsOf()` returns.
-
-### ThemeRadius
-
-```ts
-interface ThemeRadius {
-  selector?: string;
-  field?: string;
-  box?: string;
-}
-```
-
-Roundness token overrides, emitted as `--radius-selector` / `--radius-field` / `--radius-box`.
-
-### ThemeSizes
-
-```ts
-interface ThemeSizes {
-  selector?: string;
-  field?: string;
-}
-```
-
-Base size-unit overrides, emitted as `--size-selector` / `--size-field`; component dimensions are integer multiples.
-
-### ThemeVariant
-
-```ts
-type ThemeVariant = 'light' | 'dark';
-```
-
-The theme variant — drives follow-system selection and status-bar tint.
-
-### mixColors
-
-```ts
-function mixColors(color: string, base: string, ratio: number): string;
-```
-
-Mixes `ratio` of `color` into `base` (linear sRGB per-channel, like `color-mix` in srgb) and returns a hex string. Returns `base` unchanged if either input is unparseable or `ratio` is non-finite. Accepts `#rgb` / `#rrggbb` / `#rrggbbaa` / `rgb()` / `rgba()`.
-
-### useThemeColors
-
-```ts
-function useThemeColors(): ThemeColors;
-```
-
-Resolves the active, scoped theme palette to concrete color literals for consumers that cannot read CSS vars (native inputs, richtext, SVG). Reactive via `useTheme()`. Platform: iOS and Android.
-
-### ThemeColors
-
-```ts
-interface ThemeColors {
-  colorOf(token: ColorToken, alpha?: number): string;
-}
-```
-
-`colorOf(token, alpha?)` returns the active palette value normalized to hex, with an optional `alpha` (0–1) appended as `#RRGGBBAA`. Returns `''` when no theme is registered.
-
-### toHexColor
-
-```ts
-function toHexColor(color: string): string;
-```
-
-Normalizes an engine-safe palette color (`#RGB` / `#RGBA` / `rgb()` / `rgba()`) to full-form hex (`#RRGGBB` / `#RRGGBBAA`); unknown notations pass through.
-
-### withAlpha
-
-```ts
-function withAlpha(hex: string, alpha: number): string;
-```
-
-Appends an alpha channel (0–1) to a hex color, producing `#RRGGBBAA`. Non-hex / non-`#RRGGBB`-coercible input passes through; a non-finite `alpha` is treated as opaque.
+A skin registers its unscaled `--text-*` ramp (`{ sm: '14px', … }`). `textRampVars` returns the ramp at a scale as `--text-<key>` declarations, which the provider sets inline; it is empty at scale 1. Only `px` values scale.
 
 ### useScreenTheme
 
 ```ts
-// from '@sigx/lynx-zero/screen-theme'
+// @sigx/lynx-zero/screen-theme
 function useScreenTheme(name: ThemeName): void;
 ```
 
-Pins the **global** theme while a navigation screen is focused, and restores it on blur (including resuming follow-system). Built on `useFocusEffect` from `@sigx/lynx-navigation` (an optional peer). Not exported from the barrel — import it from `@sigx/lynx-zero/screen-theme`.
+Pins the global theme while a navigation screen is focused, and restores the previous choice on blur. Call it inside a component rendered as a route by `@sigx/lynx-navigation`, the optional peer.
 
-## Layout primitives
+## Layout
 
-Flexbox containers and a spacer, built on Lynx views, that consume the shared box-model / spacing helpers. Each accepts `class` for arbitrary extra utilities.
+`Row`, `Col`, `Center`, `Spacer` and `ScrollView` have their own pages. The helpers:
 
-### RowProps
-
-```ts
-type FlexDirection = 'row' | 'column';
-
-type RowProps =
-  & Define.Prop<'direction', Responsive<FlexDirection>, false>
-  & Define.Prop<'gap', Responsive<number>, false>
-  & Define.Prop<'align', Responsive<'flex-start' | 'center' | 'flex-end' | 'stretch' | 'baseline'>, false>
-  & Define.Prop<'justify', Responsive<'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around' | 'space-evenly'>, false>
-  & Define.Prop<'wrap', Responsive<boolean>, false>
-  & Define.Prop<'padding', Responsive<SpacingValue>, false>
-  & Define.Prop<'margin', Responsive<SpacingValue>, false>
-  & Define.Prop<'width', Responsive<number | string>, false>
-  & Define.Prop<'height', Responsive<number | string>, false>
-  & Define.Prop<'flex', Responsive<number>, false>
-  & Define.Prop<'background', Responsive<BackgroundValue>, false>
-  & Define.Prop<'borderRadius', Responsive<number>, false>
-  & Define.Prop<'class', string, false>
-  & Define.Slot<'default'>;
-```
-
-Row props. Every style prop takes a plain value or a per-breakpoint [`Responsive`](#responsive) object. `direction` overrides the main axis (`<Row>` defaults to `'row'`), so `direction={{ initial: 'column', expanded: 'row' }}` flips the layout in place instead of remounting the subtree.
-
-### ColProps
+### resolveResponsive, Responsive
 
 ```ts
-type ColProps = /* identical shape to RowProps */;
+type Responsive<T> = T | { initial?: T; medium?: T; expanded?: T; large?: T; xlarge?: T };
+
+function resolveResponsive<T>(value: Responsive<T> | undefined, cls: WidthClass): T | undefined;
 ```
 
-Col props — identical shape to `RowProps`; `direction` defaults to `'column'`.
+Resolves a per-breakpoint value against a width class, mobile-first: the value at the first key at or below `cls` that is defined, else `undefined`. Read the class with `useWidthClass()` from `@sigx/lynx`.
 
-### CenterProps
+### resolveBoxStyle, resolveSpacing
 
 ```ts
-type CenterProps =
-  & Define.Prop<'width', Responsive<number | string>, false>
-  & Define.Prop<'height', Responsive<number | string>, false>
-  & Define.Prop<'flex', Responsive<number>, false>
-  & Define.Prop<'background', Responsive<BackgroundValue>, false>
-  & Define.Prop<'borderRadius', Responsive<number>, false>
-  & Define.Prop<'class', string, false>
-  & Define.Slot<'default'>;
+type SpacingValue = number | { x?: number; y?: number; top?: number; right?: number; bottom?: number; left?: number };
+
+interface BoxProps {
+    width?: Responsive<number | string>;
+    height?: Responsive<number | string>;
+    flex?: Responsive<number>;
+    background?: Responsive<BackgroundValue>;
+    borderRadius?: Responsive<number>;
+    padding?: Responsive<SpacingValue>;
+    margin?: Responsive<SpacingValue>;
+}
+
+function resolveBoxStyle(props: BoxProps, cls?: WidthClass): Record<string, unknown>;   // cls defaults to 'compact'
+function resolveSpacing(value: SpacingValue | undefined, prefix: 'padding' | 'margin'): Record<string, number>;
 ```
 
-Center props.
+The style helpers behind the layout primitives. `resolveBoxStyle` writes flex in long form and resolves `background` with `resolveColorToken`. `resolveSpacing` expands a spacing value into per-side keys (`paddingTop`, …).
 
-### SpacerProps
+## The zero contract (re-exported)
+
+`@sigx/lynx-zero` re-exports `@sigx/zero/contract/core` whole, so an app or a part of your own imports the contract from one place. The main groups:
+
+| Group | Exports |
+|---|---|
+| Class grammar | `partClass`, `stateClass`, `flagClass`, `axisClass`, `modClass`, `orientationClass`, `placementClass`, `layoutClass`, `themeClass`, `HOST_CLASS`, `CLASS_GRAMMAR_VERSION` |
+| Anatomy | `defineAnatomy`, `defaultPropOf`, `changeEventOf`; types `Anatomy`, `PartSpec`, `CarriedAxis`, `ModelSpec`, … |
+| Attributes | `dataAttr`, `stateAttr`, `variantAttrs`, `htmlAttrs`, `MOD_ATTR_PREFIX`, `RESERVED_AXES`, `RESERVED_DATA_ATTRS`, `VARIANT_AXES` |
+| Vocabularies | `FLAG_VOCABULARY`, `STATE_VOCABULARY`, `STATE_NAMES`, `STATE_SYNONYMS`, `PLACEMENT_VOCABULARY`, `SIZE_SCALE_LIST`, `RECOMMENDED_ROLE_LIST`, `BASE_SURFACE_TOKEN_LIST` |
+| Tokens | `resolveColorToken`, `tokenProperty`, `token`, `cssVar`, `defaultSwatch`, `TOKEN_CATEGORIES`, `TOKEN_KEY_PATTERN`, `AXIS_VALUE_PATTERN`, `ROLE_NAME_PATTERN`, `TEXT_FIXED_PREFIX`, `CSS_COLOR_KEYWORDS`; types `SizeScale`, `ColorValue`, `BackgroundValue`, … |
+| Layout vocabulary | `layoutAttrs`, `layoutAttrSpec`, `isLayoutValue`, `parseLayoutAttr`, `LAYOUT_VOCABULARY`, `LAYOUT_ATTR_NAMES`, `LAYOUT_ATTR_PREFIX`, `BASE_BREAKPOINT_KEY`, `SPACE_STEPS` |
+
+`resolveColorToken(value)` maps a bare token name (`'primary'`, `'base-100'`) to `var(--color-<name>)` and `--x` to `var(--x)`, and passes literal colors and CSS keywords through. A named CSS color like `'red'` resolves as a token name, so write literals as `#f00` or `rgb()`.
+
+The `Responsive` type exported here is the layout primitives' size-class one above, not the contract's.
+
+See the web [API reference](/zero/docs/api) and [the anatomy contract](/zero/docs/anatomy-contract) for these in full.
+
+## Behaviors (re-exported)
+
+From `@sigx/zero/behaviors/core`, the platform-neutral behaviors: `createControllableState`, `createId`, `useIdGenerator`, `createListController` (in registration-order mode on Lynx), `moveHighlight`, `createCollection`, `defaultItemKey`, `defaultItemLabel`, `segmentBy`, `provideFieldContext`, `useFieldContext` and `zeroPlugin`, with their types (`ControllableState`, `Collection`, `FieldContext`, `ListController`, …). See [behaviors](/zero/docs/behaviors).
+
+## Testing (`@sigx/lynx-zero/testing`)
+
+### expectAnatomy
 
 ```ts
-type SpacerProps =
-  & Define.Prop<'size', Responsive<number>, false>
-  & Define.Prop<'class', string, false>;
-```
+function expectAnatomy(root: ConformanceNode, anatomy: Anatomy, options?: LynxExpectAnatomyOptions): void;
 
-Spacer props (no default slot).
-
-### ScrollViewProps
-
-```ts
-type ScrollViewProps =
-  & Define.Prop<'direction', Responsive<'vertical' | 'horizontal'>, false>
-  & Define.Prop<'height', Responsive<number | string>, false>
-  & Define.Prop<'width', Responsive<number | string>, false>
-  & Define.Prop<'flex', Responsive<number>, false>
-  & Define.Prop<'showScrollbar', boolean, false>
-  & Define.Prop<'bounces', boolean, false>
-  & Define.Prop<'class', string, false>
-  & Define.Slot<'default'>;
-```
-
-ScrollView props.
-
-## Preset
-
-The Tailwind layer that wires the semantic tokens, the `--text-*` ramp and the Lynx-correct fill utility into your config. These are **subpath-only** exports — import them from `@sigx/lynx-zero/preset`, not the main barrel.
-
-### zeroPreset
-
-```ts
-// from '@sigx/lynx-zero/preset'
-const zeroPreset: Partial<Config>; // tailwindcss Config
-```
-
-The `@sigx/lynx-zero` Tailwind preset: composes the semantic color tokens, the `--text-*` font-size ramp and the `.flex-fill` utility. Subpath export only.
-
-### contractColors
-
-```ts
-// from '@sigx/lynx-zero/preset'
-const contractColors: Record<string, string>;
-```
-
-Every semantic color token (including `*-soft`) mapped to `var(--color-*)`; merged into Tailwind `theme.extend.colors`. Subpath export only.
-
-### contractFontSizes
-
-```ts
-// from '@sigx/lynx-zero/preset'
-const contractFontSizes: Record<string, string>;
-```
-
-Re-points the Tailwind `text-xs` … `text-3xl` sizes to the shared `--text-*` ramp; merged via `theme.extend.fontSize`. Subpath export only.
-
-### lynxLayoutPlugin
-
-```ts
-// from '@sigx/lynx-zero/preset'
-const lynxLayoutPlugin: ReturnType<typeof plugin>; // tailwindcss plugin
-```
-
-A Tailwind plugin shipping `.flex-fill` — the Lynx-correct long-form "fill remaining space" utility (`flexGrow` / `flexShrink` 1, `flexBasis` 0, `minHeight` 0). Subpath export only.
-
-## Examples
-
-A headless theme registered at module load, then applied around a layout built from the primitives:
-
-```tsx
-import { registerTheme } from '@sigx/lynx-zero';
-
-registerTheme({
-  name: 'brand-light',
-  variant: 'light',
-  pair: 'brand-dark',
-  colors: {
-    primary: '#4f46e5',
-    'primary-content': '#ffffff',
-    secondary: '#0ea5e9',
-    'secondary-content': '#ffffff',
-    accent: '#f59e0b',
-    'accent-content': '#1a1a1a',
-    neutral: '#374151',
-    'neutral-content': '#ffffff',
-    info: '#0284c7',
-    'info-content': '#ffffff',
-    success: '#16a34a',
-    'success-content': '#ffffff',
-    warning: '#d97706',
-    'warning-content': '#1a1a1a',
-    error: '#dc2626',
-    'error-content': '#ffffff',
-    'base-100': '#ffffff',
-    'base-200': '#f3f4f6',
-    'base-300': '#e5e7eb',
-    'base-content': '#1f2937',
-  },
-});
-```
-
-```tsx
-import { ThemeProvider, StatusBarSync, Col, Row, Center, Spacer } from '@sigx/lynx-zero';
-
-function App() {
-  return (
-    <ThemeProvider initial="brand-light">
-      <StatusBarSync />
-      <Col flex={1} gap={16} padding={20} background="base-100">
-        <Row gap={12} align="center" justify="space-between">
-          <view class="text-base-content text-lg">Dashboard</view>
-          <Spacer size={8} />
-        </Row>
-        <Center flex={1} background="base-200" borderRadius={12}>
-          <view class="text-base-content">Centered content</view>
-        </Center>
-      </Col>
-    </ThemeProvider>
-  );
+interface LynxExpectAnatomyOptions extends ExpectAnatomyOptions {
+    portaled?: readonly string[];   // parts the outlet hosts, re-parented onto their declared parent
 }
 ```
 
-Reading and mutating the active theme via the controller (toggling between a theme and its pair):
+zero's anatomy oracle over a rendered tree (the `container` from `@sigx/lynx-testing`'s `render()`). A stamped `data-color` / `data-size` / `data-variant` on a non-carrier part is checked against its nearest provider: the carrier, or a nearer part that `carries` the axis. Throws a plain `Error`.
 
-```tsx
-import { useTheme } from '@sigx/lynx-zero';
-import { Row } from '@sigx/lynx-zero';
-
-function ThemeToggle() {
-  const theme = useTheme();
-  return (
-    <Row gap={8} align="center">
-      <view class="text-base-content">Theme: {theme.name}</view>
-      <view bindtap={() => theme.toggle()} class="text-primary">Toggle</view>
-    </Row>
-  );
-}
-```
-
-Resolving palette tokens to concrete hex for a native widget that cannot read CSS vars:
-
-```tsx
-import { useThemeColors } from '@sigx/lynx-zero';
-
-function SwatchColors() {
-  const colors = useThemeColors();
-  const primary = colors.colorOf('primary');
-  const faintPrimary = colors.colorOf('primary', 0.12); // #RRGGBBAA
-  return <view style={{ backgroundColor: faintPrimary }}>{primary}</view>;
-}
-```
-
-Per-screen theme pinning (requires the optional `@sigx/lynx-navigation` peer):
-
-```tsx
-import { useScreenTheme } from '@sigx/lynx-zero/screen-theme';
-
-function SettingsScreen() {
-  useScreenTheme('brand-dark'); // pinned while focused, restored on blur
-  return <view class="text-base-content">Settings</view>;
-}
-```
-
-Wiring the preset into a Tailwind config:
+### expectClassGrammar
 
 ```ts
-import type { Config } from 'tailwindcss';
-import { zeroPreset } from '@sigx/lynx-zero/preset';
-
-const config: Partial<Config> = {
-  presets: [zeroPreset],
-};
-
-export default config;
+function expectClassGrammar(root: ConformanceNode, anatomy: Anatomy, options?: { axes?: readonly string[] }): void;
 ```
+
+Recomputes each part's `zx-*` classes from its `data-*` attributes and asserts the class list matches exactly. Classes outside `zx-` pass. Throws when no part of the scope rendered.
+
+### ForceStates
+
+```ts
+type ForceStatesProps =
+    & Define.Prop<'flags', Readonly<Record<string, boolean>>, true>   // false forces a flag off
+    & Define.Prop<'parts', readonly string[], false>                  // narrow to these parts
+    & Define.Slot<'default'>;
+```
+
+Forces interaction flags onto every zero part below, for display and screenshots. See [forcing states](/lynx/modules/zero/usage#forcing-states-for-display). `provideForcedFlags(read)` is its runtime half, and `ForcedFlags` is `{ flags, parts? }`.
+
+`ConformanceNode` is the structural node shape the oracles read (`props`, `children`, `parent`, `_class`); `@sigx/lynx-testing`'s nodes satisfy it.
 
 ## See also
 
-- [Overview](/lynx/modules/zero/overview) — what Zero is and how a DS builds on it.
-- [Installation](/lynx/modules/zero/installation) — package setup and the Tailwind preset.
-- [Usage](/lynx/modules/zero/usage) — setup and task-based guides.
+- [Usage](/lynx/modules/zero/usage): the guides behind these exports.
+- [Components](/lynx/modules/zero/components): every component, by category.
+- [`@sigx/lynx-zero-legacy` API](/lynx/modules/zero-legacy/api): the pre-contract package.

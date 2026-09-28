@@ -1,0 +1,113 @@
+---
+title: "Field"
+description: "Field component for SignalX Lynx — a label, description and error around a form control, with flags and size the control adopts (@sigx/lynx-zero)."
+layout: module-docs
+category: ["Components", "Form controls"]
+order: 301
+---
+
+# Field
+
+<p class="lede">The wiring hub for a labelled form control, on zero's `field` anatomy and zero's own `FieldContext`. A control inside a Field adopts its `disabled`, `invalid`, `required` and `readonly` flags and, when it sets no size of its own, its `size`. A tap on `Field.Label` focuses the control.</p>
+
+The parts are the same as the web component's. See [Field in `@sigx/zero`](/zero/docs/components/field/) for the shared contract. This page covers what is different on Lynx.
+
+## Import
+
+```tsx
+import { Field } from '@sigx/lynx-zero';
+```
+
+`Field` is a compound with `Root`, `Label`, `Description` and `Error`. `<Field>` is the same component as `<Field.Root>`.
+
+## Usage
+
+```tsx
+import { component, signal } from '@sigx/lynx';
+import { Field, Input } from '@sigx/lynx-zero';
+
+export const EmailField = component(() => {
+    const form = signal({ email: '', error: '' });
+    return () => (
+        <Field.Root invalid={!!form.error} required size="sm">
+            <Field.Label>Email</Field.Label>
+            <Input.Root model={() => form.email} type="email">
+                <Input.Control>
+                    <Input.Input placeholder="you@example.com" />
+                </Input.Control>
+            </Input.Root>
+            {form.error
+                ? <Field.Error>{form.error}</Field.Error>
+                : <Field.Description>We never share it.</Field.Description>}
+        </Field.Root>
+    );
+});
+```
+
+`Field.Label`, `Field.Description` and `Field.Error` render as `<text>`, so pass them strings.
+
+### What adopts the Field
+
+These `@sigx/lynx-zero` controls read the Field's flags, each ORed with the control's own prop:
+
+- [Input](/lynx/modules/zero/components/input), [Textarea](/lynx/modules/zero/components/textarea) and [NumberInput](/lynx/modules/zero/components/numberinput), which also take the Field's `size` when they set none, and register for label taps.
+- [Checkbox](/lynx/modules/zero/components/checkbox), [CheckboxGroup](/lynx/modules/zero/components/checkboxgroup) and [RadioGroup](/lynx/modules/zero/components/radiogroup), which also take the Field's `size` when they set none.
+- [Switch](/lynx/modules/zero/components/switch) and [Slider](/lynx/modules/zero/components/slider), for `disabled`, `invalid` and `readonly`.
+- [Button](/lynx/modules/zero/components/button), [Select](/lynx/modules/zero/components/select), [Toggle](/lynx/modules/zero/components/toggle) and [ToggleGroup](/lynx/modules/zero/components/togglegroup), each for the flags it has.
+
+A Field also takes the flags of an enclosing [Fieldset](/lynx/modules/zero/components/fieldset): a Field inside a disabled fieldset is disabled, and so is its control.
+
+### Label taps
+
+Lynx has no `<label for>`. A text field registers itself with the Field when it mounts, and a tap on `Field.Label` focuses the first control that registered, through the native field's `focus` UI method. A disabled Field ignores the tap. This works for `Input`, `Textarea` and `NumberInput`.
+
+`visuallyHidden` keeps the label for a screen reader but takes it off screen. On Lynx that is a 1px transparent absolute box that takes no taps.
+
+### Errors
+
+Lynx has no constraint validation: no forms and no `ValidityState`. `invalid` is yours to set, and a `Field.Error` renders whenever it is mounted. Mount one while there is an error to say, as in the example above. `Field.Error` carries the Field's `invalid` flag.
+
+## Props
+
+### `Field.Root`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `disabled` | `boolean` | `false` | Adopted by every control inside. ORed with an enclosing Fieldset's. |
+| `invalid` | `boolean` | `false` | Adopted by every control inside. ORed with an enclosing Fieldset's. |
+| `required` | `boolean` | `false` | Adopted by the controls that take it. |
+| `readonly` | `boolean` | `false` | Announced, never edited. ORed with an enclosing Fieldset's. |
+| `color` | `string` | skin default | Accents the label. |
+| `size` | `string` | skin default | The whole field's size. A control without its own renders this one. |
+| `class` | `string` | — | Extra classes, appended after the computed ones. |
+
+### `Field.Label`
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `visuallyHidden` | `boolean` | `false` | Keep it for the reader, off screen. Stamps `data-visually-hidden`. |
+| `class` | `string` | — | Extra classes. |
+
+`Field.Description` and `Field.Error` take `class` and a default slot.
+
+## Anatomy on Lynx
+
+| Part | Element | Flags | Notes |
+|------|---------|-------|-------|
+| `root` | `view` | `disabled`, `invalid`, `required`, `readonly` | Carries the axes. |
+| `label` | `text` | `disabled`, `invalid`, `required` | A tap focuses the first registered control. |
+| `description` | `text` | — | |
+| `error` | `text` | `invalid` | Rendered whenever it is mounted. |
+
+Not taken on Lynx:
+
+- `validate` and `validateOn`, and `Field.Error`'s `match`. There is no constraint validation to drive them.
+- `aria-describedby`. The ids are still minted on the context, but nothing on Lynx resolves an id reference.
+- The required-label asterisk. The web skin draws it with an `::after` pseudo-element, which Lynx does not have, so `required` reaches the label only as its flag class.
+
+## See also
+
+- [Fieldset](/lynx/modules/zero/components/fieldset) — flags for a group of fields.
+- [Input](/lynx/modules/zero/components/input) and [Textarea](/lynx/modules/zero/components/textarea) — the text fields a Field usually wraps.
+- [Field in `@sigx/zero`](/zero/docs/components/field/) — the shared anatomy and the web component.
+- [API reference](/lynx/modules/zero/api) — every export, signature and type.

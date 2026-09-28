@@ -7,7 +7,7 @@ export default Page;
 
 export const meta = {
     title: "Zero",
-    description: "Headless design-system foundation — the Zero module for SignalX Lynx (@sigx/lynx-zero).",
+    description: "The zero contract on Lynx — the Zero module for SignalX Lynx (@sigx/lynx-zero).",
     layout: 'default',
     sidebar: false,
 };
