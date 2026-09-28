@@ -165,6 +165,8 @@ src/main.tsx  src/main.thread.tsx  src/App.tsx  src/lynx-env.d.ts
 assets/icon.png  assets/splash.png  assets/adaptive-foreground.png
 ```
 
+The app starts on the Lynx release line your CLI was released against, with `@sigx/lynx` and every `@sigx/lynx-*` package on one caret range, so it can declare a typed, per-variant [`env`](/lynx/modules/cli/app-environment) in `signalx.config.ts` from the start.
+
 `--styling tailwind` and `--styling daisyui` add `tailwind.config.ts`, `postcss.config.js` and `src/styles.css`; daisyUI also adds [`@sigx/lynx-daisyui`](/lynx/modules/daisyui/overview) and wraps the app in its `ThemeProvider`. With `--pm pnpm`, a `pnpm-workspace.yaml` allows the `esbuild` and `sharp` install scripts (see [below](#versions-and-install-scripts)).
 
 | Script | Runs |
@@ -227,6 +229,8 @@ An extra that your kind, render mode or target cannot take is an error, not a si
 ## Versions and install scripts
 
 Generated projects pin the matched `sigx` / `@sigx/*` set that your CLI was released against — never `latest` — so a fresh project's peer graph resolves to a single copy of `@sigx/reactivity` under strict peer deps. Third-party dependencies (`vite`, `express`, `tailwindcss`, …) keep their own caret ranges. The current CLI is <PkgVersion npm="@sigx/cli" />.
+
+**TypeScript.** Web, SSR, SSG and terminal projects scaffold on TypeScript 7 (`typescript ^7.0.2`, the native `tsc`), and their `typecheck` script runs it. Lynx projects stay on TypeScript 6 (`^6.0.3`): the Lynx build tool, `@lynx-js/rspeedy`, declares a `typescript` peer range of `5.1.6 - 6.0.x` and loads `lynx.config.ts` through the TypeScript JS API, which TypeScript 7 doesn't ship. Keep a Lynx app on TypeScript 6 until the templates move.
 
 Some projects need dependencies to run their install scripts: `esbuild` for SSG and terminal projects, and `esbuild` plus `sharp` for Lynx apps. With pnpm they ship a `pnpm-workspace.yaml` declaring them under both spellings — `allowBuilds` for pnpm 11, `onlyBuiltDependencies` for pnpm 10. Without it pnpm skips the scripts, and pnpm 11 fails the install outright (`ERR_PNPM_IGNORED_BUILDS`).
 

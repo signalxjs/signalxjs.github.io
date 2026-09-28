@@ -22,7 +22,7 @@ export const VERSIONS: Record<string, string> = {
     "@sigx/actors-ws": "0.9.2",
     "@sigx/args": "0.12.0",
     "@sigx/cache": "0.15.6",
-    "@sigx/cli": "0.13.0",
+    "@sigx/cli": "0.14.0",
     "@sigx/cloudflare": "0.15.6",
     "@sigx/daisyui": "0.12.1",
     "@sigx/i18n": "0.3.4",
