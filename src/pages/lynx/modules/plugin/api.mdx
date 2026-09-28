@@ -71,7 +71,36 @@ A `Promise<void>` that resolves once the entries and template plugin are registe
 
 **Platform**: build-time, both iOS and Android.
 
+### appEnv
+
+Reads the [app environment](/lynx/modules/cli/app-environment) (the `env` block of `signalx.config.ts`, with the active `--variant` merged in) from inside `lynx.config.ts`. App code reads the same values as `env` from `@sigx/lynx`.
+
+```ts
+export declare function appEnv<T extends object = Record<string, unknown>>(): T
+```
+
+**Returns** the resolved env as a plain object, or `{}` when the build wasn't started by the `sigx` CLI (a bare `rspeedy` run). The type parameter is not checked; it just types the result.
+
+```ts
+// lynx.config.ts
+import { defineConfig } from '@lynx-js/rspeedy';
+import { appEnv, pluginSigxLynx } from '@sigx/lynx-plugin';
+
+const { apiBaseUrl } = appEnv<{ apiBaseUrl: string }>();
+
+export default defineConfig({
+  plugins: [pluginSigxLynx()],
+  server: { proxy: { '/api': apiBaseUrl } },
+});
+```
+
+**Platform**: build-time (Node).
+
 ## Constants
+
+### BUILD_MARKER_FILE
+
+`'.sigx-build.json'`: the name of the build marker the plugin writes next to the Lynx bundle after a production build. It records the variant, a sha256 of the baked app env, the OTA channel and the build time. `sigx updates:publish` reads it to refuse a bundle built for a different variant; see [`env` and OTA updates](/lynx/modules/cli/app-environment#env-and-ota-updates). The marker is never embedded in the app or published.
 
 ### LAYERS
 
@@ -154,6 +183,8 @@ The plugin folds these boolean literals into every bundle. They are declared in 
 | `__MAIN_THREAD__` / `__BACKGROUND__` | which thread's bundle this is |
 | `__DEV_BUILD__` | `true` in a development build (`NODE_ENV !== 'production'`), `false` in a release build |
 | `__SIGX_CSS_RULE__` | whether `@media` / `@supports` rules reach this bundle's binary — `false` on the web target and under `enableCSSRule: false` |
+
+The plugin also bakes two values that app code reads through `@sigx/lynx` rather than as globals: `__SIGX_VARIANT__` (read via [`variant`](/lynx/modules/cli/build-variants#reading-the-active-variant-at-runtime)) and `__SIGX_APP_ENV__` (read via [`env`](/lynx/modules/cli/app-environment#reading-it-in-the-app)). Both come from the `sigx` CLI, so a bundle built with bare `rspeedy` gets `''` and `{}`.
 
 **Use `__DEV_BUILD__`, not `__DEV__`.** The bare `__DEV__` expands to a `process.env` expression that **throws in the Lynx background runtime**. `__DEV_BUILD__` is resolved in Node at build time, so it both works at runtime and tree-shakes out of a release bundle. Its typical use is refusing to present a measurement taken from a development build: main-thread costs there are inflated by orders of magnitude (upstream's `setStyleProperty` copies a 256-entry array per call under `__DEV__`), so any perf number from a dev build is meaningless.
 

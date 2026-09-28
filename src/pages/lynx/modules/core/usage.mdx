@@ -269,7 +269,7 @@ export const Shell = component(() => {
 });
 ```
 
-Use `useWidthClass()` / `useHeightClass()` when you want the bucket name itself, and `widthClassOf(dp)` / `heightClassOf(dp)` to bucket a number you already have. Inside a `'main thread'` worklet, use `useWidthClassMT()` / `useHeightClassMT()`, or compare `useScreenMT().width` against a `Breakpoint` directly.
+Use `useWidthClass()` / `useHeightClass()` when you want the bucket name itself, and `widthClassOf(dp)` / `heightClassOf(dp)` to bucket a number you already have. Inside a `'main thread'` worklet, use `useWidthClassMT()` / `useHeightClassMT()`, or compare `useScreenMT().width` against a `Breakpoint` directly. The `*MT` reads are `'main thread'` functions themselves, so call them only from worklet code; `widthClassOf` / `heightClassOf` are plain functions and cannot be called from a worklet.
 
 Three things to get right:
 

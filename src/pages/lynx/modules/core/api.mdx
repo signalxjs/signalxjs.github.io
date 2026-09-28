@@ -284,7 +284,9 @@ The coarse read for code that only branches portrait/landscape and should not re
 export function useScreenMT(): ScreenMetrics
 ```
 
-Synchronous screen metrics for `'main thread'` worklet bodies. Reads the global directly with no subscription, so a gesture handler measures against the *current* viewport on every invocation.
+Synchronous screen metrics for `'main thread'` worklet bodies. Reads the global directly with no subscription, so a gesture handler measures against the *current* viewport on every invocation. Resolves `__globalProps.screen`, then `SystemInfo`, then typical-phone constants.
+
+`useScreenMT` is itself a `'main thread'` function. Call it from worklet code only: in an app bundle its background-thread binding is a worklet reference, not a callable function. A worklet can capture and call it because a `'main thread'` function crosses to the main thread as a callable worklet reference — see [calling helpers from a worklet](/lynx/modules/runtime-main/usage#calling-helpers-from-a-worklet).
 
 ### readGlobalScreen
 
@@ -426,6 +428,8 @@ export function useHeightClassMT(): HeightClass
 
 Synchronous bucket for `'main thread'` worklet bodies, read against the current viewport on every invocation. There is no `useWidthAtLeastMT` — a worklet already has the number, so write `useScreenMT().width >= Breakpoint.WIDTH_EXPANDED`.
 
+Both are `'main thread'` functions, like `useScreenMT`: call them from worklet code only. For the same reason they compute the bucket inline rather than calling `widthClassOf` / `heightClassOf` — those are plain functions, so a worklet cannot call them.
+
 ### widthClassOf / heightClassOf
 
 ```ts
@@ -434,6 +438,28 @@ export function heightClassOf(height: number): HeightClass
 ```
 
 Pure bucket functions, for code that already holds a width or height.
+
+## App environment
+
+### env
+
+The typed `env` block of the app's `signalx.config.ts`, with the active `--variant`'s overrides merged in. It is baked into the bundle at build time (OTA bundles included) and deep-frozen. App code imports it from the umbrella; module authors can import it from `@sigx/lynx-core`.
+
+```ts
+import { env } from '@sigx/lynx'; // or '@sigx/lynx-core'
+
+const res = await fetch(`${env.apiBaseUrl}/me`);
+```
+
+```ts
+declare const env: Readonly<SigxAppEnv>;
+```
+
+- `{}` when the app declares no `env`, or where the build didn't bake one in (tests, bare `rspeedy`).
+- Typed by the global `SigxAppEnv` interface, which the app extends once with `EnvOf<typeof config>` in `src/sigx-env.d.ts`.
+- Everything in it ships inside the app, so never put secrets in it.
+
+See [App environment](/lynx/modules/cli/app-environment) for declaring, typing and overriding it per variant.
 
 ## Platform
 

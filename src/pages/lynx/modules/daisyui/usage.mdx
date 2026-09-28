@@ -153,11 +153,11 @@ export const Settings = component(() => {
 
 ## Native navigation chrome
 
-The `Nav*` components theme the primitives from the optional `@sigx/lynx-navigation` peer. Install that package to use them.
+The `Nav*` components theme the primitives from the optional `@sigx/lynx-navigation` peer. Install that package, then import them from the `@sigx/lynx-daisyui/navigation` subpath — the root entry does not export them.
 
 ```tsx
 import { Tabs } from '@sigx/lynx-navigation';
-import { NavTabBar, NavHeader } from '@sigx/lynx-daisyui';
+import { NavTabBar, NavHeader } from '@sigx/lynx-daisyui/navigation';
 
 // Bottom tab bar reads the surrounding <Tabs> navigator
 export const Shell = component(() => {

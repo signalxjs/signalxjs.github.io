@@ -44,20 +44,32 @@ export default defineLynxConfig({
 | `release` | `boolean` | Treat the variant as a release build (default `false`). A non-release variant defaults `ios.codeSignStyle` to `'Automatic'` and gets an auto icon badge. |
 | `iconBadge` | `string \| false` | Label overlaid on the launcher icon. Defaults to the trimmed `nameSuffix` (or variant name) for non-release variants; set a string to customize, or `false` to disable. |
 
-Any other field (a different `icon`, an extra `infoPlist` key, a per-variant `googleMapsApiKey`, …) is deep-merged onto the base config — a non-control field replaces the base value wholesale.
+Any other field (a different `icon`, an extra `infoPlist` key, a per-variant `googleMapsApiKey`, …) is deep-merged onto the base config: nested objects merge key by key, while scalars and arrays replace the base value wholesale.
+
+That includes `env`, the typed build-time settings your JS reads at runtime (backend URL, feature flags, public keys). A variant overrides only the keys that differ:
+
+```ts
+env: { apiBaseUrl: 'https://api.example.com', features: { newCheckout: false } },
+variants: {
+    staging: { idSuffix: '.staging', env: { apiBaseUrl: 'https://staging.example.com' } },
+},
+```
+
+See [App environment](/lynx/modules/cli/app-environment) for typing it, `.env` files and the full override rules.
 
 ## Selecting a variant
 
-Pass `--variant <name>` to `prebuild`, `build`, `run:android`, `run:ios` or `dev` (or set the `SIGX_VARIANT` env var). No flag builds the base/production identity:
+Pass `--variant <name>` to `prebuild`, `build`, `dev`, `run:android`, `run:ios`, `run:web`, `build:web` or `updates:publish` (or set the `SIGX_VARIANT` env var). No flag builds the base/production identity:
 
 ```bash
 sigx prebuild --variant dev          # render android-dev/ + ios-dev/
 sigx run:android --variant dev       # build, install and launch the dev variant
 sigx build --variant staging         # production bundle for the staging identity
 SIGX_VARIANT=pr sigx run:ios         # env-var equivalent
+sigx updates:publish --variant staging  # OTA-publish a staging build to staging's channel
 ```
 
-The selected variant is deep-merged onto the base; the app id and display name are auto-suffixed; iOS signing for non-release variants defaults to Automatic (so a dev build installs on a physical device via a free personal team); the OTA update channel auto-binds to the variant; and the native project renders into its own `android-<name>/` / `ios-<name>/` output dir. Base builds (no flag) are byte-for-byte unchanged.
+The selected variant is deep-merged onto the base; the app id and display name are auto-suffixed; iOS signing for non-release variants defaults to Automatic (so a dev build installs on a physical device via a free personal team); the OTA update channel auto-binds to the variant name unless the base or the variant sets `updates.defaultChannel`; the variant's [`env`](/lynx/modules/cli/app-environment) is merged and baked into the bundle; and the native project renders into its own `android-<name>/` / `ios-<name>/` output dir. Base builds (no flag) are byte-for-byte unchanged.
 
 ## Reading the active variant at runtime
 
@@ -76,7 +88,12 @@ const EnvBadge = component(() => () => (
 - `isVariant(name?)` — `true` when a variant is active; with an argument, `true` only for that name.
 - `isBaseBuild()` — `true` for the base build (no `--variant`) — the identity that ships to the store. This reflects the variant, not Debug/Release: a release-mode build of a variant still reports `false`.
 
+## Publishing OTA updates per variant
+
+Every build records the variant it was built for in `dist/.sigx-build.json`. `sigx updates:publish` refuses to publish a bundle built for one variant under another, so a staging build can't reach the production channel by accident. See [App environment → `env` and OTA updates](/lynx/modules/cli/app-environment#env-and-ota-updates).
+
 ## See also
 
+- [App environment](/lynx/modules/cli/app-environment): typed per-variant `env`, `.env` files and secrets.
 - [Usage](/lynx/modules/cli/usage) — the full command surface and config reference.
 - [API reference](/lynx/modules/cli/api) — every command and flag.

@@ -66,13 +66,15 @@ Only `info` and `create` ship inside `@sigx/cli`. The rest are contributed by pl
 | `sigx prebuild` | `@sigx/lynx-cli` | Generate native iOS/Android project files |
 | `sigx run:android` | `@sigx/lynx-cli` | Build & launch on Android |
 | `sigx run:ios` | `@sigx/lynx-cli` | Build & launch on iOS |
+| `sigx run:web` | `@sigx/lynx-cli` | Build & serve a Lynx app in the browser |
 | `sigx doctor` | `@sigx/lynx-cli` | Verify the Lynx toolchain |
+| `sigx upgrade` | `@sigx/lynx-cli` | Move the `@sigx/lynx-*` family and its core packages to one release |
 
 A plugin's commands only register when its `detect(cwd)` check returns true for your project, so installing a plugin does not pollute your command list in unrelated projects.
 
 ## Lynx native toolchain
 
-If you scaffold a Lynx project (or `sigx info` detects a Lynx config), the platform commands additionally rely on the native toolchain — rspeedy, the Android SDK (`ANDROID_HOME` / `ANDROID_SDK_ROOT`), a JDK, ADB, and on macOS Xcode and CocoaPods. Run `sigx info` to probe what is installed; `sigx doctor` (from `@sigx/lynx-cli`) verifies the toolchain in more detail.
+If you scaffold a Lynx project (or `sigx info` detects a Lynx config), the platform commands additionally rely on Node.js 22+ and the native toolchain — rspeedy, the Android SDK, JDK 17–26, ADB, and on macOS Xcode and CocoaPods. `@sigx/lynx-cli` finds the SDK in Android Studio's default location without `ANDROID_HOME`, and falls back to Android Studio's bundled JDK when `JAVA_HOME` is out of range. Run `sigx info` to probe what is installed; `sigx doctor` (from `@sigx/lynx-cli`) verifies the toolchain in more detail and prints a `fix:` line for each problem. See the [Lynx installation guide](/lynx/docs/installation).
 
 ## Next steps
 

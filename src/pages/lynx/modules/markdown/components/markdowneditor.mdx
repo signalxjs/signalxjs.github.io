@@ -58,7 +58,7 @@ These keys reach the core through the field's `bindboundarykey` event. On a nati
 
 ## Toolbar
 
-Pass `toolbar` (`true` or `'bottom'` below the content, `'top'` above) to mount the built-in [`EditorToolbar`](/lynx/modules/markdown/components/editortoolbar) over the core's `defaultToolbarItems` plus plugin items. `toolbarItems` replaces the base items and `renderToolbarItem` skins each button; `@sigx/lynx-daisyui` ships `daisyToolbarItem` for that.
+Pass `toolbar` (`true` or `'bottom'` below the content, `'top'` above) to mount the built-in [`EditorToolbar`](/lynx/modules/markdown/components/editortoolbar) over the core's `defaultToolbarItems` plus plugin items. `toolbarItems` replaces the base items and `renderToolbarItem` skins each button; `@sigx/lynx-daisyui/markdown` ships `daisyToolbarItem` for that.
 
 ```tsx
 <MarkdownEditor value={draft.value} onChange={save} toolbar="bottom" />
@@ -84,7 +84,7 @@ function Composer() {
 
 ## Suggestions
 
-By default a [`SuggestionPopup`](/lynx/modules/markdown/components/suggestionpopup) opens inside the block the trigger session belongs to. Style it with the optional `suggestionPopup` prop — surface, border, active and text colours plus `width`, `maxHeight`, `placement` and `class`. Every field is optional: any colour you omit auto-tints from the editor's `textColor`, so the popup matches a dark or light field without configuration. (daisyUI wires concrete theme colours through `useMarkdownEditorTheme().suggestionPopup`.) Per-row content is the plugin's `renderItem`.
+By default a [`SuggestionPopup`](/lynx/modules/markdown/components/suggestionpopup) opens inside the block the trigger session belongs to. Style it with the optional `suggestionPopup` prop — surface, border, active and text colours plus `width`, `maxHeight`, `placement` and `class`. Every field is optional: any colour you omit auto-tints from the editor's `textColor`, so the popup matches a dark or light field without configuration. (daisyUI wires concrete theme colours through `useMarkdownEditorTheme().suggestionPopup` from `@sigx/lynx-daisyui/markdown`.) Per-row content is the plugin's `renderItem`.
 
 To draw the list yourself — docked above the keyboard in a chat composer, say — pass `suggestions="none"` and `renderSuggestions`:
 

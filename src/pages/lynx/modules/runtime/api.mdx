@@ -295,7 +295,7 @@ return () => (
 
 **The rule.** Layout events give you size and a "something moved, re-measure" signal. Screen-space geometry comes from here, and feeds **only** the flip/clamp decision — keep the surface positioned relative to its container so it rides along with the transform between measurements.
 
-**Cost.** The measurement is an async UI-method call on the main thread, so the rect lands a frame or two after `measure()`, and `rect.value` is `null` until the first one arrives. Measure eagerly (when the surface is about to open), not in a render path, and render against the layout frame as the first-paint fallback.
+**Cost.** The measurement is an async UI-method call on the main thread, so the rect lands a frame or two after `measure()`, and `rect.value` is `null` until the first one arrives. Measure eagerly (when the surface is about to open), not in a render path, and render against the layout frame as the first-paint fallback. A measurement equal to the current rect is not re-published, so `rect.value` keeps its identity and nothing reading it re-runs when you re-measure a box that held still — calling `measure()` from a chatty signal costs no bridge event unless the rect actually moved. A failed measurement keeps the last good rect.
 
 `measureViewportRect(el, apply)` is the direct form, for main-thread handlers that already hold the element — a tap that opens a menu. On Android, `androidEnableTransformProps` is what makes the result transform-aware; iOS reports post-transform geometry either way.
 

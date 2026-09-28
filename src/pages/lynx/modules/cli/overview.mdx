@@ -10,15 +10,17 @@ import { PkgVersion } from '@/components/PkgVersion';
 
 # CLI Plugin
 
-<p class="lede">dev / build / prebuild / doctor / run:android / run:ios / run:web, plus the autolinker for native modules.</p>
+<p class="lede">dev / build / prebuild / doctor / run:android / run:ios / run:web / upgrade, plus the autolinker for native modules.</p>
 
 <p class="mod-meta-row"><strong>46k</strong> weekly <span class="mmr-dot" /> <PkgVersion npm="@sigx/lynx-cli" /> <span class="mmr-dot" /> iOS · Android <span class="mmr-dot" /> MIT</p>
 
 ## Installation
 
 ```bash
-pnpm add @sigx/lynx-cli
+pnpm add -D @sigx/cli @sigx/lynx-cli
 ```
+
+A scaffolded Lynx app (`npm create @sigx@latest my-app -- --kind lynx`) already has both. The plugin needs Node.js 22+ and `@sigx/cli` 0.12 or later.
 
 ## About
 

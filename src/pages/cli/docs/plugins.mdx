@@ -27,7 +27,15 @@ When the CLI runs, it scans the current project's `package.json` `dependencies` 
 - **`plugin`** is a path, relative to the dependency's package root, to a module that **default-exports** a `SigxPlugin`. The CLI dynamically imports that module, takes its default export, calls `detect(cwd)`, and registers the plugin's commands only if `detect` returns `true`.
 - **`requires`** (optional) is the semver range of `@sigx/cli` your plugin's contract needs — `^x.y.z`, `>=x.y.z`, or an exact version. If the running `sigx` binary is older than your range, the plugin still loads (best effort) but the CLI prints a prominent warning telling the user to update. Declare `"requires": ">=0.4.0"` for any plugin written against the `@sigx/args` arg contract described below — that is the floor where it landed.
 
-Discovery inspects the current working directory's `package.json` and `node_modules`. All discovery failures are swallowed silently, so a broken plugin never crashes the CLI.
+Discovery inspects the current working directory's `package.json` and `node_modules`. A broken plugin never crashes the CLI. A dependency whose `sigx-cli.plugin` module fails to import is skipped with a warning, so its commands don't just vanish as `Unknown command`:
+
+```text
+[sigx] WARN: Could not load the sigx plugin from my-sigx-plugin — its commands are unavailable.
+<the import error>
+hint: …
+```
+
+A hint follows for errors the message alone doesn't explain: a missing export (usually `@sigx` packages at mismatched versions) or a missing module (dependencies not installed). A command that throws one of these errors gets the same hint. Other discovery failures, such as an unreadable `package.json`, are skipped silently.
 
 ## Defining a plugin
 
@@ -251,7 +259,7 @@ Once installed, run `npx sigx <your-command>` in a project where your `detect` r
 If two plugins register a command with the same name, the last one discovered wins, and the CLI logs a warning via `logger.warn`:
 
 ```text
-[sigx] WARN Plugin "X" overrides command "Y"
+[sigx] WARN: Plugin "X" overrides command "Y"
 ```
 
 ## See also

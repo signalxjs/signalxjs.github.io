@@ -92,6 +92,25 @@ Code splitting on Lynx works differently from the web and from upstream Lynx, an
 - Setting your own `output.assetPrefix` hosts the chunks remotely instead. The generated app shells fall back to http(s) for chunk URLs that aren't local.
 - sigx does **not** use Lynx lazy bundles (`lynx.loadLazyBundle`). `@lynx-js/template-webpack-plugin` still writes an encoded template per dynamic import under `dist/lazy-bundle/`; those files are inert, are not embedded, and can be ignored.
 
+## Reading the app env in `lynx.config.ts`
+
+The typed `env` from `signalx.config.ts` (see [App environment](/lynx/modules/cli/app-environment)) is baked into the bundle by this plugin. To use the same values in the rspeedy config, such as a dev-server proxy target, call `appEnv()`:
+
+```ts
+// lynx.config.ts
+import { defineConfig } from '@lynx-js/rspeedy';
+import { appEnv, pluginSigxLynx } from '@sigx/lynx-plugin';
+
+const { apiBaseUrl } = appEnv<{ apiBaseUrl: string }>();
+
+export default defineConfig({
+  plugins: [pluginSigxLynx()],
+  server: { proxy: { '/api': apiBaseUrl } },
+});
+```
+
+`@sigx/lynx-cli` passes the resolved env to the build, so run it through `sigx build` / `sigx dev`. Under bare `rspeedy`, `appEnv()` and the app's `env` are both `{}`.
+
 ## Keep the `@lynx-js/*` build plugins in step
 
 `@lynx-js/template-webpack-plugin` (the encoder) and `@lynx-js/css-extract-webpack-plugin` release in lockstep and **must be upgraded together**. The encoder's `beforeEncode` / `beforeEmit` hook payloads replaced `entryNames` with `chunkGroups` at 0.14, so a css-extract too old for the encoder in use fails with `args.entryNames is not iterable`. It fails **only in `sigx dev`** — the offending hook sits behind an HMR check, so release builds stay green and hide the mismatch.

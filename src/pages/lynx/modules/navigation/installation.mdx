@@ -16,6 +16,14 @@ order: 20
 pnpm add @sigx/lynx-navigation
 ```
 
+`@sigx/lynx-navigation` has five required peers. Install any you don't already have:
+
+```bash
+pnpm add @sigx/lynx @sigx/lynx-icons @sigx/lynx-motion @sigx/lynx-sheet @sigx/lynx-linking
+```
+
+`@sigx/lynx-linking` supplies URL parsing, the Android hardware back button and deep-link wiring, so it is required even if you don't route deep links.
+
 ## Native setup
 
 Rebuild your development client after installing:

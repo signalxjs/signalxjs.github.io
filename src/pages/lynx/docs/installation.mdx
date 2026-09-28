@@ -12,34 +12,53 @@ order: 20
 
 ## Prerequisites
 
-- Node.js 20.19+ (or 22.12+)
-- For iOS: Xcode + an iOS simulator
-- For Android: Android Studio + an emulator
+- **Node.js 22+**
+- **Android:** [Android Studio](https://developer.android.com/studio). It installs the Android SDK and an emulator, and bundles a JDK.
+  - Android builds need **JDK 17–26** (the JDK 25 LTS and JDK 26 build directly). If `JAVA_HOME` or `java` on your `PATH` points at a JDK outside that range, sigx builds with Android Studio's bundled JDK instead and says so in one line.
+  - You don't need to set `ANDROID_HOME`: the SDK is found in Android Studio's default location, including `%LOCALAPPDATA%\Android\Sdk` on Windows. Set `ANDROID_HOME` (or `ANDROID_SDK_ROOT`) only if you installed the SDK somewhere else.
+- **iOS (macOS only):** Xcode 15+, CocoaPods and an iOS simulator.
+
+You don't need both platforms. Android works on Windows, macOS and Linux; iOS needs a Mac.
 
 ## New project
 
 ```bash
-npm create @sigx@latest my-app -- --kind lynx --pm pnpm
+npm create @sigx@latest my-app -- --kind lynx --styling daisyui --install
 cd my-app
-pnpm install
+npx sigx doctor
+npm run run:android
 ```
+
+That scaffolds a Lynx app with [daisyUI](/lynx/modules/daisyui/overview) components and installs its dependencies. `sigx doctor` checks your toolchain, and `run:android` builds, installs and launches the app. See [Your first app](/lynx/docs/your-first-app) for what happens next.
+
+Run it without flags to use the wizard instead, and pick **Mobile app** at *How do you want to start?* for the same Lynx + daisyUI project. For plain styles or Tailwind, choose **Customize** and then **Native mobile (Lynx)**. `npm create @sigx -- --help` lists every option; the full reference is [Creating a Project](/cli/docs/create).
+
+With pnpm, yarn or bun, pass `--pm` (for example `--pm pnpm`). The printed next steps use that package manager's spelling (`pnpm exec sigx doctor`, `pnpm run:android`, …).
 
 ## Existing project
 
 ```bash
 pnpm add @sigx/lynx @sigx/lynx-plugin
-pnpm add -D @sigx/lynx-cli
+pnpm add -D @sigx/cli @sigx/lynx-cli
 ```
 
-The CLI plugin registers the `dev`, `build`, `prebuild`, `doctor` and `run:ios` / `run:android` commands; the build plugin splits your source into the background + main-thread bundles Lynx requires.
+The CLI plugin registers the `dev`, `build`, `prebuild`, `doctor`, `run:ios` / `run:android` / `run:web` and `upgrade` commands; the build plugin splits your source into the background + main-thread bundles Lynx requires.
+
+### Version requirements
+
+`@sigx/lynx` runs on **sigx core 1.x**: its `@sigx/reactivity` and `@sigx/runtime-core` dependencies are `^1.0.0`, and `@sigx/lynx-cli` depends on `@sigx/cli` `^0.12`. Packages that sit next to it have matching lines: `@sigx/terminal` `^0.13`, `@sigx/richtext` and `@sigx/richtext-markdown` `^0.4`, and `@sigx/zero` / `@sigx/zero-daisyui` `0.4.0`.
+
+All `@sigx/lynx-*` packages are versioned in lockstep. Keep them on one version with `npx sigx upgrade`, which also moves `@sigx/runtime-core`, `@sigx/reactivity`, `@sigx/cli` and the `@lynx-js/*` build packages to the ranges the target release declares. See [Keeping the module family in sync](/lynx/modules/cli/usage#keeping-the-module-family-in-sync).
 
 ## Verify the toolchain
 
 ```bash
-sigx doctor
+npx sigx doctor
 ```
 
-`doctor` checks your native toolchains and reports anything missing.
+`doctor` checks Node, your package manager, the Android SDK, JDK, ADB and emulators, Xcode and CocoaPods, and whether your `@sigx` package versions match each other. Every problem comes with a `fix:` line telling you what to do. It exits non-zero when something blocks development, so you can also run it in CI.
+
+If something still goes wrong, see [Troubleshooting](/lynx/docs/troubleshooting).
 
 ## Next steps
 

@@ -116,6 +116,31 @@ const sv = useSafeAreaSharedValues();
 
 For a synchronous read of the current insets from inside a `'main thread'`-marked worklet body — with no signal subscription — use `useSafeAreaInsetsMT`, which re-reads on each invocation.
 
+## Following insets without a provider
+
+A library that needs the insets — the keyboard height, for example — can't assume the app mounts a `SafeAreaProvider`. Read the current value with `readGlobalSafeArea()` and follow changes with `subscribeSafeArea`, which listens on the same native channel the provider uses:
+
+```tsx
+import { component, onMounted, onUnmounted, signal } from '@sigx/lynx';
+import { readGlobalSafeArea, subscribeSafeArea } from '@sigx/lynx-safe-area';
+
+export const KeyboardSpacer = component(() => {
+  const keyboard = signal(readGlobalSafeArea().keyboard);
+  let unsubscribe: (() => void) | undefined;
+
+  onMounted(() => {
+    unsubscribe = subscribeSafeArea((raw) => {
+      if (typeof raw.keyboard === 'number') keyboard.value = raw.keyboard;
+    });
+  });
+  onUnmounted(() => unsubscribe?.());
+
+  return () => <view style={{ height: `${keyboard.value}px` }} />;
+});
+```
+
+The callback receives the raw payload, so any key the platform omitted is absent — check before you use it. `subscribeSafeArea` returns an unsubscribe function; call it when you stop listening, here in `onUnmounted`.
+
 ## Notes
 
 - All inset values are dp/pt logical pixels, not raw device pixels.

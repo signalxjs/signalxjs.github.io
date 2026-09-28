@@ -119,6 +119,19 @@ export function readGlobalSafeArea(): EdgeInsets
 
 - **Returns** — the current `EdgeInsets`, or `ZERO_INSETS` if unavailable (cold start, non-Lynx host, SSR/web preview). Non-numeric or non-finite values coerce to `0`.
 
+### subscribeSafeArea
+
+Provider-free subscription to the live insets: the same `safeAreaChanged` channel `SafeAreaProvider` listens on, for code that must follow the insets (the keyboard height, say) without requiring the app to mount a provider. Background thread.
+
+```ts
+export function subscribeSafeArea(cb: (raw: RawSafeAreaProps) => void): () => void
+```
+
+- **`cb`** — called with each republished payload as a [`RawSafeAreaProps`](#rawsafeareaprops). Keys the platform omitted are absent, not zero — fill them from [`readGlobalSafeArea()`](#readglobalsafearea) or your last value. A payload arriving as a JSON string is parsed first; one with no finite numeric inset key is dropped. An exception thrown by `cb` is caught and logged, so it cannot stop delivery to other listeners.
+- **Returns** — an idempotent unsubscribe function, usable directly as an effect cleanup. Off-device (no native emitter) the subscription is a no-op.
+
+It delivers changes only; read the current value first with `readGlobalSafeArea()`. Requires the native safe-area publisher, which `sigx prebuild` links with this package.
+
 ## Constants
 
 ### useSafeAreaContext
