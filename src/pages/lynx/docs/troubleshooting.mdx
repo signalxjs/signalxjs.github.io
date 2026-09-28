@@ -1,0 +1,124 @@
+---
+title: Troubleshooting
+description: "Fix common SignalX Lynx setup and build problems: the JDK and Android SDK, Gradle failures, emulators, out-of-storage installs and mismatched @sigx packages."
+layout: docs
+category: Getting Started
+order: 45
+---
+
+# Troubleshooting
+
+<p class="lede">Most first-run problems are a toolchain gap or packages at mismatched versions. Start with <code>sigx doctor</code>, then find your symptom below.</p>
+
+## Start with `sigx doctor`
+
+```bash
+npx sigx doctor
+```
+
+`doctor` checks:
+
+- **Runtime:** Node.js (22+) and your package manager.
+- **Android:** the SDK, the JDK, ADB and your emulators.
+- **iOS:** Xcode and CocoaPods (macOS only).
+- **Lynx:** rspeedy, whether your `@sigx/lynx-*` packages are all on one version, whether your `@sigx/runtime-core`, `@sigx/reactivity` and `@sigx/cli` match them, and your `signalx.config.ts` / `lynx.config.ts`.
+
+Every problem gets a `fix:` line with the next step. `doctor` exits non-zero when an error blocks development, so you can run it in CI too.
+
+## Android builds
+
+### The build fails
+
+A failed Android build reports `Android build failed:` followed by Gradle's own reason. For known causes it adds the fix:
+
+| Cause | Fix |
+| --- | --- |
+| JDK out of range | Point `JAVA_HOME` at Android Studio's bundled JDK or another JDK 17–26 |
+| SDK not found | Install the SDK through Android Studio, or set `ANDROID_HOME` |
+| SDK licenses not accepted | Run `sdkmanager --licenses`, or open Android Studio's SDK Manager |
+| NDK missing | Android Studio → SDK Manager → SDK Tools → **NDK (Side by side)** |
+| No device connected | Start an emulator or plug in a phone with USB debugging on |
+| Signature mismatch | `adb uninstall <application id>`, then re-run |
+| Device out of storage | See [Install fails with "not enough space"](#install-fails-with-not-enough-space) |
+| Out of memory | Close other heavy apps, or raise `org.gradle.jvmargs` (`-Xmx`) in `android/gradle.properties` |
+| Network | Check your connection or proxy; the first build downloads a few hundred MB |
+
+Re-run with `--verbose` to see the full Gradle output:
+
+```bash
+npx sigx run:android --verbose
+```
+
+### Which JDK is used
+
+Android builds need **JDK 17–26**. sigx looks at `JAVA_HOME`, then `java` on your `PATH`. If neither is in range (for example Java 8, or a JDK newer than 26), it builds with Android Studio's bundled JDK instead and says so in one line. `sigx doctor` shows which JDK it will use. To silence the note, point `JAVA_HOME` at a JDK in range.
+
+### The Android SDK isn't found
+
+You don't need `ANDROID_HOME` if the SDK is in Android Studio's default location, including `%LOCALAPPDATA%\Android\Sdk` on Windows. The same lookup finds `adb` and the emulator. If you installed the SDK somewhere else, set `ANDROID_HOME` (or `ANDROID_SDK_ROOT`) to that folder. Android Studio → Settings → Android SDK shows the path.
+
+### `run:android` with nothing connected
+
+`run:android` boots your most recently used emulator. If you have none, it tells you how to create one: Android Studio → Device Manager → Create Virtual Device. You can also use a phone with USB debugging on.
+
+### Install fails with "not enough space"
+
+An install that fails with `Requested internal only, but not enough space` (or `INSTALL_FAILED_INSUFFICIENT_STORAGE`) means the **device's** storage is full, not your computer's disk. An emulator has a fixed-size virtual disk, 2–6 GB by default, however much space the host has.
+
+- Wipe the emulator: Device Manager → ⋮ → **Wipe Data**.
+- Or give it more room: Device Manager → Edit → Advanced Settings → raise **Internal Storage** (for example to 8 GB), then cold boot.
+
+Debug installs from `run:android` and the `sigx dev` dashboard package only the connected device's ABI, as Android Studio does. That keeps the debug APK at about a third of its size with all four ABIs. If the connected devices have different CPU architectures, the APK carries every ABI. Set `SIGX_ANDROID_ALL_ABIS=1` to always build the full APK:
+
+```bash
+SIGX_ANDROID_ALL_ABIS=1 npx sigx run:android
+```
+
+## Packages out of step
+
+A command stops with:
+
+```text
+Your installed @sigx packages are out of step with each other:
+  • @sigx/runtime-core 0.7.0 is installed, but @sigx/lynx-core@0.34.0 needs ^1.0.0
+
+Fix: update them together —
+  npx sigx upgrade
+```
+
+Older CLIs showed only a bare module error such as `does not provide an export named 'declareLiveClient'`. Both mean your app's `@sigx/runtime-core`, `@sigx/reactivity` or `@sigx/cli` doesn't match the installed `@sigx/lynx-*` packages. This is common in apps created with an older `npm create @sigx`. Fix it with:
+
+```bash
+npx sigx upgrade
+```
+
+`upgrade` moves every `@sigx/lynx-*` package, the core packages they build on, the `sigx` CLI and the `@lynx-js/*` build tooling together. See [Keeping the module family in sync](/lynx/modules/cli/usage#keeping-the-module-family-in-sync).
+
+Don't use `npm install --force` or `--legacy-peer-deps` to get past a peer-dependency error. They install mismatched peers and cause exactly this problem.
+
+## "Unknown command" or "Could not load the sigx plugin"
+
+The Lynx commands (`dev`, `run:android`, …) come from the `@sigx/lynx-cli` plugin. If the plugin fails to load, the CLI prints `Could not load the sigx plugin from @sigx/lynx-cli — its commands are unavailable.`, the underlying error and a hint. A missing module usually means dependencies aren't installed; run your package manager's install. A missing export usually means mismatched versions; run `npx sigx upgrade`.
+
+## pnpm: `ERR_PNPM_IGNORED_BUILDS`
+
+Lynx apps need the install scripts of `esbuild` and `sharp`. Apps scaffolded with `@sigx/cli` 0.13 or later and `--pm pnpm` include a `pnpm-workspace.yaml` that allows them. In an older app, add one:
+
+```yaml
+allowBuilds:
+  esbuild: true
+  sharp: true
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+```
+
+## iOS on a physical device
+
+A device build needs a signing team. Set your Apple Team ID for the command rather than committing it:
+
+```bash
+SIGX_IOS_DEVELOPMENT_TEAM=AB12CD34EF npx sigx run:ios --device "My iPhone"
+```
+
+The [CLI usage guide](/lynx/modules/cli/usage#building-and-running-on-a-device) covers device builds and signing.

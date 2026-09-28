@@ -13,8 +13,10 @@ order: 142
 ## Import
 
 ```tsx
-import { NavDrawer } from '@sigx/lynx-daisyui';
+import { NavDrawer } from '@sigx/lynx-daisyui/navigation';
 ```
+
+`NavDrawer` lives on the `@sigx/lynx-daisyui/navigation` subpath, not the package root, and needs the `@sigx/lynx-navigation` peer installed (`pnpm add @sigx/lynx-navigation`).
 
 ## Overview
 
@@ -50,7 +52,8 @@ Place `NavDrawer` inside `NavigationRoot`, render your menu in the `sidebar` slo
 
 ```tsx
 import { component } from '@sigx/lynx';
-import { NavDrawer, Button, Col, Text } from '@sigx/lynx-daisyui';
+import { NavDrawer } from '@sigx/lynx-daisyui/navigation';
+import { Button, Col, Text } from '@sigx/lynx-daisyui';
 import { NavigationRoot, Stack, useDrawer } from '@sigx/lynx-navigation';
 
 const Menu = component(() => {
@@ -92,7 +95,8 @@ Slide the panel in from the right, widen it, and paint it with a daisy surface t
 
 ```tsx
 import { component } from '@sigx/lynx';
-import { NavDrawer, Col, Text } from '@sigx/lynx-daisyui';
+import { NavDrawer } from '@sigx/lynx-daisyui/navigation';
+import { Col, Text } from '@sigx/lynx-daisyui';
 import { NavigationRoot, Stack } from '@sigx/lynx-navigation';
 
 const Sidebar = component(() => () => (
@@ -127,7 +131,8 @@ Use `initialOpen` to render the drawer already open (handy for split-view layout
 
 ```tsx
 import { component } from '@sigx/lynx';
-import { NavDrawer, Col, Text } from '@sigx/lynx-daisyui';
+import { NavDrawer } from '@sigx/lynx-daisyui/navigation';
+import { Col, Text } from '@sigx/lynx-daisyui';
 import { NavigationRoot, Stack } from '@sigx/lynx-navigation';
 
 const Sidebar = component(() => () => (

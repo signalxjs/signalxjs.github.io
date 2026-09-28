@@ -13,8 +13,10 @@ order: 140
 ## Import
 
 ```tsx
-import { NavTabBar } from '@sigx/lynx-daisyui';
+import { NavTabBar } from '@sigx/lynx-daisyui/navigation';
 ```
+
+`NavTabBar` lives on the `@sigx/lynx-daisyui/navigation` subpath, not the package root, and needs the `@sigx/lynx-navigation` peer installed (`pnpm add @sigx/lynx-navigation`).
 
 ## Overview
 
@@ -64,7 +66,7 @@ Drop the bar inside `<Tabs>` from `@sigx/lynx-navigation`. It reads the register
 ```tsx
 import { component } from '@sigx/lynx';
 import { Tabs } from '@sigx/lynx-navigation';
-import { NavTabBar } from '@sigx/lynx-daisyui';
+import { NavTabBar } from '@sigx/lynx-daisyui/navigation';
 
 const App = component(() => {
     return () => (
@@ -103,7 +105,7 @@ Pass `items` and control the highlight with `activeId`. Track the active tab in 
 
 ```tsx
 import { component } from '@sigx/lynx';
-import { NavTabBar } from '@sigx/lynx-daisyui';
+import { NavTabBar } from '@sigx/lynx-daisyui/navigation';
 
 const Bar = component(({ signal }) => {
     const state = signal({ active: 'home' });
@@ -130,7 +132,7 @@ The default is a bottom bar with a top separator on a `base-200` surface. Use `p
 
 ```tsx
 import { component } from '@sigx/lynx';
-import { NavTabBar } from '@sigx/lynx-daisyui';
+import { NavTabBar } from '@sigx/lynx-daisyui/navigation';
 
 const TopBar = component(({ signal }) => {
     const state = signal({ active: 'feed' });
@@ -160,7 +162,7 @@ Provide `renderTab` to replace the default icon + label button entirely. You rec
 ```tsx
 import { component } from '@sigx/lynx';
 import { Pressable } from '@sigx/lynx-gestures';
-import { NavTabBar } from '@sigx/lynx-daisyui';
+import { NavTabBar } from '@sigx/lynx-daisyui/navigation';
 
 const CustomBar = component(({ signal }) => {
     const state = signal({ active: 'home' });

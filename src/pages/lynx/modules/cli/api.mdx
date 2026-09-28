@@ -20,16 +20,21 @@ These are the real user-facing API for most apps. They are registered by the plu
 | --- | --- |
 | `dev` | `--port <n>` (8788), `--host`, `--ios`, `--android`, `--all`, `--last`, `--variant <name>`, `--verbose`, `--no-device-logs` |
 | `build` | `--analyze`, `--variant <name>` |
-| `prebuild` | `--android`, `--ios` (default both), `--clean`, `--variant <name>` |
+| `prebuild` | `--android`, `--ios` (default both), `--clean`, `--embed-bundle`, `--variant <name>` |
 | `run:android` | `--release`, `--variant <name>`, `--verbose` |
 | `run:ios` | `--release`, `--variant <name>`, `--simulator <name>`, `--device <name｜udid>`, `--verbose` (macOS only) |
-| `doctor` | — |
+| `run:web` | `--port <n>` (8900), `--no-open`, `--no-watch`, `--host`, `--variant <name>` |
+| `build:web` | `--out <dir>` (`dist/web`), `--base <path>`, `--coi`, `--variant <name>` |
+| `updates:publish` | `--bundle <path>`, `--out <dir>`, `--channel <name>`, `--mandatory`, `--runtime-version <v>`, `--notes <text>`, `--allow-async-chunks`, `--variant <name>`, `--skip-build-check` |
+| `doctor` | — (exits non-zero on errors) |
 | `add` | positional `@sigx/lynx-*` names, `--caret`, `--force` |
 | `remove` | positional `@sigx/lynx-*` names |
 | `outdated` | `--tag <dist-tag>` |
 | `upgrade` | `--to <version｜dist-tag>`, `--dry-run`, `--caret`, `--force` |
 
-`--variant <name>` (or the `SIGX_VARIANT` env var) selects a build variant from the `variants` map — see [Build variants](/lynx/modules/cli/build-variants). See the [Usage guide](/lynx/modules/cli/usage) for command behavior and examples.
+`--variant <name>` (or the `SIGX_VARIANT` env var) selects a build variant from the `variants` map — see [Build variants](/lynx/modules/cli/build-variants). Every command that builds or publishes the JS bundle takes it: `dev`, `build`, `prebuild`, `run:android`, `run:ios`, `run:web`, `build:web` and `updates:publish`. It selects the variant's config and its [app environment](/lynx/modules/cli/app-environment), which is baked into the bundle. For `updates:publish`, it also selects the variant's `updates.defaultChannel` and must match the variant the bundle was built for (`dist/.sigx-build.json`); see [OTA publishing](/lynx/modules/updates-publisher/usage). See the [Usage guide](/lynx/modules/cli/usage) for command behavior and examples.
+
+`dev`, `build`, `run:*` and `build:web` first check that your `@sigx/runtime-core`, `@sigx/reactivity` and `@sigx/cli` match the installed `@sigx/lynx-*` packages, and stop with the mismatches and `npx sigx upgrade` as the fix when they don't. `upgrade` moves those packages and the `@lynx-js/*` build tooling along with the `@sigx/lynx-*` family.
 
 ## Config functions
 
@@ -145,10 +150,10 @@ Start the rspeedy dev server: probes for a free port (default `8788`), prints a 
 ### runDoctor
 
 ```ts
-export async function runDoctor(cwd: string, logger: Logger): Promise<void>
+export async function runDoctor(cwd: string, logger: Logger, hostVersion?: string): Promise<{ errors: number; warnings: number }>
 ```
 
-Print an environment health report: Node, package manager, Android SDK / JDK / ADB, iOS Xcode / CocoaPods, and connected devices. The `Logger` type comes from `@sigx/cli` and is not exported by this package.
+Print an environment health report: Node (22+), package manager, Android SDK / JDK (17–26) / ADB / emulators, iOS Xcode / CocoaPods, and the Lynx checks (rspeedy, `@sigx/lynx-*` lockstep, core and host version compatibility, project config). Each problem carries a `fix:` line. Returns the error and warning counts; `sigx doctor` sets a non-zero exit code when `errors > 0`. `hostVersion` is the running `@sigx/cli` version, used for the host compatibility check. The `Logger` type comes from `@sigx/cli` and is not exported by this package.
 
 ## QR function
 
@@ -204,7 +209,7 @@ export function listAndroidDevices(): AndroidDevice[]
 export function isAdbAvailable(): boolean
 ```
 
-**Android.** Whether an `adb` binary can be resolved (probes `ANDROID_HOME/platform-tools` and `PATH`).
+**Android.** Whether an `adb` binary can be resolved (probes the SDK's `platform-tools` — from `ANDROID_HOME` / `ANDROID_SDK_ROOT` or Android Studio's default SDK location — and `PATH`).
 
 ### isLynxGoInstalled
 
@@ -232,7 +237,8 @@ export default definePlugin({
     detect: isLynxProject,
     commands: {
         dev, build, doctor, outdated, upgrade, add, remove,
-        prebuild, 'run:android', 'run:ios',
+        'updates:publish', prebuild, 'run:android', 'run:ios',
+        'run:web', 'build:web',
     },
 })
 ```

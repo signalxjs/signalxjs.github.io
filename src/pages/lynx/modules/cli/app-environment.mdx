@@ -1,0 +1,320 @@
+---
+title: "App environment"
+description: "CLI Plugin — typed, per-variant build-time settings (API URLs, feature flags, public keys) with env in signalx.config.ts"
+layout: module-docs
+category: "Guides"
+order: 36
+---
+
+# App environment
+
+<p class="lede">Put the settings that change between environments — the backend URL, feature flags, public SDK keys — in one typed <code>env</code> block in <code>signalx.config.ts</code>. Each <a href="/lynx/modules/cli/build-variants">build variant</a> overrides only what differs, and the result is baked into the JS bundle, OTA bundles included.</p>
+
+## Declaring `env`
+
+`env` sits next to the rest of your app config. Values are plain JSON:
+
+```ts
+// signalx.config.ts
+import { defineLynxConfig, readEnv, requireEnv } from '@sigx/lynx-cli/config';
+
+export default defineLynxConfig({
+    name: 'My App',
+    env: {
+        apiBaseUrl: 'https://api.example.com',
+        features: { newCheckout: false, chat: true },
+        sentryDsn: requireEnv('SENTRY_DSN'),   // from CI, or .env.local
+        mapsKey: readEnv('MAPS_KEY') ?? '',    // optional
+    },
+    variants: {
+        dev:     { idSuffix: '.dev', env: { apiBaseUrl: 'http://localhost:8787' } },
+        staging: { idSuffix: '.staging', env: { apiBaseUrl: 'https://staging.example.com', features: { newCheckout: true } } },
+    },
+});
+```
+
+Every command resolves the config for the variant you pick, and the resulting `env` goes into the bundle:
+
+```bash
+sigx run:android                    # base env
+sigx run:android --variant dev      # apiBaseUrl → http://localhost:8787
+sigx build --variant staging        # apiBaseUrl → staging, features.newCheckout → true
+```
+
+`--variant` (or the `SIGX_VARIANT` environment variable) is accepted by `dev`, `build`, `run:android`, `run:ios`, `run:web`, `build:web`, `prebuild --embed-bundle` and `updates:publish`. Leave it out and you get the base config.
+
+## Reading it in the app
+
+Import `env` from `@sigx/lynx`:
+
+```tsx
+import { component, env } from '@sigx/lynx';
+
+export async function fetchMe() {
+    const res = await fetch(`${env.apiBaseUrl}/me`);
+    return res.json();
+}
+
+export const CheckoutButton = component(() => () =>
+    env.features.newCheckout ? <NewCheckout /> : <LegacyCheckout />,
+);
+```
+
+- `env` is **deep-frozen**, so assigning to it fails.
+- It is `{}` when the config declares no `env`, or when the code runs where the build didn't bake one in (a unit test, for example).
+- Module authors who depend on `@sigx/lynx-core` rather than the umbrella can import it from there.
+
+### Reading it in `lynx.config.ts`
+
+The rspeedy config runs in Node, so it can't import the app's `env`. Use `appEnv()` from `@sigx/lynx-plugin`, which returns the same resolved object:
+
+```ts
+// lynx.config.ts
+import { defineConfig } from '@lynx-js/rspeedy';
+import { appEnv, pluginSigxLynx } from '@sigx/lynx-plugin';
+
+const { apiBaseUrl } = appEnv<{ apiBaseUrl: string }>();
+
+export default defineConfig({
+    plugins: [pluginSigxLynx()],
+    server: { proxy: { '/api': apiBaseUrl } },
+});
+```
+
+`appEnv()` returns `{}` unless the build was started by the `sigx` CLI, which hands the resolved env to the build. So run builds through `sigx build` / `sigx dev`, not bare `rspeedy`. That also applies to the bundle itself: a bare `rspeedy build` bakes in an empty `env`.
+
+## Typing `env`
+
+Out of the box `env` is typed as an empty interface. Add one declaration file to the app and it takes the shape of your config:
+
+```ts
+// src/sigx-env.d.ts
+import type config from '../signalx.config';
+import type { EnvOf } from '@sigx/lynx-cli/config';
+
+declare global {
+    interface SigxAppEnv extends EnvOf<typeof config> {}
+}
+export {};
+```
+
+`EnvOf` widens literal types, so `apiBaseUrl: 'https://api.example.com'` is typed `string` rather than that one URL, and every variant's value fits the same type. `env.apiBaseUrl` is now a `string`, `env.features.newCheckout` a `boolean`, and a typo like `env.apiBaseURL` is a compile error.
+
+> **Keep `process` out of the config.** This file makes the app's type-check import `signalx.config.ts`. If the config reads `process.env.X` directly, the app needs Node's types (`@types/node`) just to compile. Read variables with `readEnv()` / `requireEnv()` instead (see [below](#env-files-and-ci-variables)).
+
+## How overrides work
+
+A value can come from three places. From lowest to highest precedence:
+
+1. **The base `env`** in `signalx.config.ts`.
+2. **The variant's `env`**: `variants.<name>.env`, and any variant it `extends`.
+3. **Environment variables**, but only where the config reads them with `readEnv()` / `requireEnv()`. They don't override keys on their own.
+
+### Variants deep-merge onto the base
+
+A variant's `env` is deep-merged onto the base `env`, following the same rules as the rest of a [variant override](/lynx/modules/cli/build-variants#declaring-variants):
+
+| In the variant | Result |
+|---|---|
+| a key it doesn't mention | keeps the base value |
+| a plain object | merges key by key: `features: { newCheckout: true }` leaves `features.chat` alone |
+| a scalar (string, number, boolean) | replaces the base value |
+| an array | **replaces** the whole base array; arrays aren't merged element by element |
+| `null` | replaces the base value with `null` |
+
+Given the config above, `--variant staging` resolves to:
+
+```json
+{
+    "apiBaseUrl": "https://staging.example.com",
+    "features": { "newCheckout": true, "chat": true },
+    "sentryDsn": "…",
+    "mapsKey": "…"
+}
+```
+
+**Variants can only override keys the base declares.** A variant's `env` is typed as a deep-partial of the base `env`, so a misspelt key (`apiBaseURL`) is a type error, not a value that silently never arrives. If a value only exists in some environments, declare it in the base with a default (`''`, `false`, `null`) and override it where needed.
+
+### `extends` chains
+
+A variant that `extends` another applies the whole chain in order, from the variant furthest down to the one you asked for. Each step deep-merges onto the result of the one before:
+
+```ts
+variants: {
+    dev: { env: { apiBaseUrl: 'http://localhost:8787', features: { chat: false } } },
+    pr:  { extends: 'dev', env: { features: { newCheckout: true } } },
+},
+```
+
+`--variant pr` gives `apiBaseUrl: 'http://localhost:8787'` (from `dev`) and `features: { newCheckout: true, chat: false }` (the base, then `dev`, then `pr`).
+
+### `.env` files and CI variables
+
+Before `signalx.config.ts` is evaluated, the CLI loads these files from the project root, later files winning:
+
+| File | Loaded | Commit it? |
+|---|---|---|
+| `.env` | always | yes, for shared, non-secret defaults |
+| `.env.local` | always | **no**: your machine's values |
+| `.env.<variant>` | only with `--variant <variant>` | yes |
+| `.env.<variant>.local` | only with `--variant <variant>` | **no** |
+
+**A variable that is already set in the real environment always wins** over every file, so a CI secret beats whatever a committed `.env` says.
+
+Only the requested variant's files load. `--variant pr` reads `.env.pr` and `.env.pr.local`, not `.env.dev`, even when `pr` extends `dev`.
+
+The files only set environment variables. Nothing reaches `env` until the config reads it:
+
+```ts
+import { defineLynxConfig, readEnv, requireEnv } from '@sigx/lynx-cli/config';
+
+export default defineLynxConfig({
+    name: 'My App',
+    env: {
+        // required: fails the build with a clear message when unset or empty
+        sentryDsn: requireEnv('SENTRY_DSN'),
+        // optional: undefined when unset or empty, so give it a fallback
+        mapsKey: readEnv('MAPS_KEY') ?? '',
+        // an env var can also stand in for a committed default
+        apiBaseUrl: readEnv('API_BASE_URL') ?? 'https://api.example.com',
+    },
+});
+```
+
+- **`readEnv(name)`** returns the variable, or `undefined` when it is unset or empty.
+- **`requireEnv(name)`** returns the variable, or throws: *Missing environment variable SENTRY_DSN (read by signalx.config.ts). Set it in CI, or locally in .env.local (git-ignored).*
+
+Because the files load before the config is evaluated, a base-level `readEnv()` already sees the variant's files. `API_BASE_URL=…` in `.env.staging` changes `apiBaseUrl` for `--variant staging` with no `variants.staging.env` entry at all.
+
+That gives two ways to vary a value per variant, and they combine. A literal in `variants.<name>.env` is merged **after** the base is evaluated, so it beats whatever the base read from a file:
+
+```ts
+env: { apiBaseUrl: readEnv('API_BASE_URL') ?? 'https://api.example.com' },
+variants: {
+    staging: { env: { apiBaseUrl: 'https://staging.example.com' } },  // wins over API_BASE_URL
+},
+```
+
+Use variant `env` for values that belong in git, and `.env` files or CI variables for values that don't. For one value, pick one mechanism: when both are in play for the same key, the variant literal takes it and the environment variable is ignored.
+
+### Values must be JSON
+
+`env` is serialized into the bundle, so every value must survive `JSON.stringify` unchanged: strings, finite numbers, booleans, `null`, arrays and plain objects. Resolving the config fails on anything else and names the key path:
+
+```
+[@sigx/lynx-cli] signalx.config.ts: env.sentryDsn is undefined — app env values must be JSON
+(string, number, boolean, null, arrays, plain objects) (an unset process.env variable? Use
+requireEnv() or a fallback like `?? ''`).
+```
+
+The usual culprit is `undefined` from an unset variable. `Date`s, functions, class instances, `NaN` and `Infinity` are rejected the same way.
+
+## What belongs in `env`, and what doesn't
+
+**Everything in `env` ships inside the app.** Anyone who installs it can pull the bundle apart and read every value. `env` is for configuration, not for secrets. Sort each value into a tier:
+
+| Value | Where it goes |
+|---|---|
+| Public config: API URLs, feature flags | `env`, committed |
+| Public but not for git: publishable keys, DSNs | `env` via `requireEnv()` / `readEnv()`, set in `.env.local` (git-ignored) or as a CI variable |
+| Real secrets: API secret keys, signing keys | **Never in the app.** Keep them on your backend and have the app call it. |
+| Per-user tokens | Secure storage at runtime, with [`@sigx/lynx-secure-storage`](/lynx/modules/secure-storage/overview) |
+
+Git-ignore the `.local` files (`.env.local`, `.env.*.local`). That keeps values out of the repository, but it does **not** keep them out of the app. A value in `.env.local` still ships, just like a committed one.
+
+### The secret-looking-key warning
+
+When the config resolves, the CLI warns about any `env` key whose name contains `secret`, `password`, `passwd`, `private` or `token` (case-insensitive, at any depth):
+
+```
+⚠ signalx.config.ts: env.stripeSecretKey looks like a secret. Everything in `env` is baked into the
+app bundle and readable by anyone who has the app — keep real secrets on your backend. If this value
+is meant to be public, add its key to `envAllow`.
+```
+
+If the value really is public, for example a publishable token, list the key name in `envAllow` to silence the warning:
+
+```ts
+export default defineLynxConfig({
+    name: 'My App',
+    env: { mapbox: { publicToken: requireEnv('MAPBOX_PUBLIC_TOKEN') } },
+    envAllow: ['publicToken'],
+});
+```
+
+`envAllow` matches the **leaf key name**, not the path, so `'publicToken'` covers `env.mapbox.publicToken` and any other key with that name.
+
+## `env` and OTA updates
+
+`env` lives in the JS bundle, not the native project, so:
+
+- **An OTA update carries its own `env`.** Publishing a bundle built with a changed flag changes the flag on devices that take the update, with no store release. Native identity (app id, name, icons) still needs a new binary.
+- **Changing `env` needs a rebuild.** It is fixed when the bundle is built. After editing `signalx.config.ts` or a `.env` file, rebuild, or restart `sigx dev`.
+
+Because `env` travels with the bundle, the OTA publish step checks that you aren't sending one variant's bundle, and so its `env`, to another variant's channel. Each build writes `dist/.sigx-build.json` with the variant it was built for and a hash of its `env`. `sigx updates:publish` reads it:
+
+```bash
+sigx build --variant staging
+sigx updates:publish                      # ✖ dist was built for variant 'staging'
+sigx updates:publish --variant staging    # ✓ publishes to staging's updates.defaultChannel
+```
+
+| Situation | Result |
+|---|---|
+| The bundle was built for a different variant than `--variant` (or than the base, with no flag) | **error**: rebuild, or publish with the matching `--variant` |
+| `dist/.sigx-build.json` is missing | **error**: rebuild, or pass `--skip-build-check` |
+| The variant matches, but the `env` resolved now differs from the one baked in | **warning**: publishing continues |
+
+The `env` mismatch warning is expected when the publish job lacks an environment variable that the build job had, such as `SENTRY_DSN` set only on the build step. The bundle keeps the `env` it was built with, which is what ships. If the jobs *should* agree, a changed config or `.env` since the build, rebuild before publishing.
+
+The marker is never embedded in the app or uploaded. [`publishUpdate()`](/lynx/modules/updates-publisher/usage) from `@sigx/lynx-updates-publisher` doesn't run this check; the check belongs to the `sigx updates:publish` command.
+
+With `--variant`, the channel is the variant-merged `updates.defaultChannel`. When neither the base `updates` block nor the variant chain sets one, it defaults to the variant name (see [Build variants](/lynx/modules/cli/build-variants#selecting-a-variant)). A `defaultChannel` in the base carries over to every variant that doesn't override it, so set it per variant if you publish variants to their own channels. An explicit `--channel` always wins.
+
+## Recipes
+
+### Local backend in dev, real ones everywhere else
+
+```ts
+env: { apiBaseUrl: 'https://api.example.com' },
+variants: {
+    dev:     { idSuffix: '.dev', env: { apiBaseUrl: 'http://10.0.2.2:8787' } },  // Android emulator → host
+    staging: { idSuffix: '.staging', env: { apiBaseUrl: 'https://staging.example.com' } },
+},
+```
+
+### Feature flags per variant
+
+```ts
+env: { features: { newCheckout: false, debugMenu: false } },
+variants: {
+    dev:     { env: { features: { debugMenu: true } } },
+    staging: { env: { features: { newCheckout: true } } },
+},
+```
+
+```tsx
+import { env, isBaseBuild } from '@sigx/lynx';
+
+const showDebugMenu = env.features.debugMenu && !isBaseBuild();
+```
+
+### A key from CI, a different one locally
+
+```ts
+env: { sentryDsn: requireEnv('SENTRY_DSN') },
+```
+
+```bash
+# .env.local — git-ignored; your development DSN
+SENTRY_DSN=https://dev-key@o0.ingest.sentry.io/1
+```
+
+In CI, set `SENTRY_DSN` as a pipeline variable. It beats any `.env` file, and the build fails fast if it is missing.
+
+## See also
+
+- [Build variants](/lynx/modules/cli/build-variants): app identity per variant, and `variant` / `isVariant()` at runtime.
+- [OTA updates](/lynx/modules/updates/usage#publishing-an-update): publishing and the static manifest.
+- [Secure storage](/lynx/modules/secure-storage/overview): where per-user tokens belong.
+- [API reference](/lynx/modules/cli/api): every command and flag.

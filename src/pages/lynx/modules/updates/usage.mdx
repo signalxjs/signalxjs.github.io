@@ -45,6 +45,17 @@ sigx updates:publish        # writes updates-dist/production/{manifest.json, upd
 
 An OTA payload carries only `main.lynx.bundle`, so if the build emitted async `import()` chunks `updates:publish` **refuses** rather than ship an update that can't load them. Either build without code-splitting, or host the chunks yourself (set `output.assetPrefix` to their URL) and pass `--allow-async-chunks` to publish anyway. See [Code splitting](/lynx/modules/cli/usage#code-splitting).
 
+### Publishing a build variant
+
+With [build variants](/lynx/modules/cli/build-variants), publish with the same `--variant` you built with. The update goes to that variant's `updates.defaultChannel`:
+
+```bash
+sigx build --variant staging
+sigx updates:publish --variant staging
+```
+
+Each build records its variant in `dist/.sigx-build.json`, and `updates:publish` refuses a bundle built for a different variant than the one you publish for, so a staging bundle (and its [app env](/lynx/modules/cli/app-environment)) can't reach production users by accident. A missing marker is also an error: rebuild, or pass `--skip-build-check`. If the env baked into the bundle differs from what the config resolves to now, it publishes with a warning. See [`env` and OTA updates](/lynx/modules/cli/app-environment#env-and-ota-updates).
+
 ## Publishing from CI
 
 CI pipelines can publish a bundle programmatically with `@sigx/lynx-updates-publisher` instead of shelling out to the CLI and scraping stdout. `publishUpdate()` is the dependency-light core of `sigx updates:publish` — only Node built-ins — so a release job can import it without the CLI's build toolchain. It is also re-exported from `@sigx/lynx-cli`.

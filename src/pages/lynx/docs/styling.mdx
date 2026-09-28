@@ -24,7 +24,7 @@ Both flow to the main thread as ops over SignalX's background-to-main bridge, no
 Write properties as camelCase JS keys. Numeric values are auto-suffixed with `px` by the runtime, so you rarely write units by hand:
 
 ```tsx
-import { component } from 'sigx';
+import { component } from '@sigx/lynx';
 // view/text are global JSX intrinsics — importing @sigx/lynx augments JSX
 // so the lowercase tags are typed; there are no View/Text components to import.
 
@@ -163,7 +163,7 @@ Two authoring constraints remain — they concern the CSS engine's colour handli
 Mount one root provider near the top of your app and pick a starting theme:
 
 ```tsx
-import { component } from 'sigx';
+import { component } from '@sigx/lynx';
 import { ThemeProvider } from '@sigx/lynx-daisyui';
 
 export const App = component(() => {
@@ -182,7 +182,7 @@ export const App = component(() => {
 Read and drive the active theme with the `useTheme` hook, which returns a reactive controller:
 
 ```tsx
-import { component } from 'sigx';
+import { component } from '@sigx/lynx';
 import { Pressable } from '@sigx/lynx-gestures';
 import { useTheme } from '@sigx/lynx-daisyui';
 // text is a global JSX intrinsic — no import needed.
@@ -252,7 +252,7 @@ Then use `initial="acme-dark"` on your provider. To build a theme from scratch, 
 Some native surfaces — text inputs, rich-text, SVG fills — can't read CSS variables. `useThemeColors` resolves the active palette to concrete hex values for those cases:
 
 ```tsx
-import { component } from 'sigx';
+import { component } from '@sigx/lynx';
 import { useThemeColors } from '@sigx/lynx-zero';
 // text is a global JSX intrinsic — no import needed.
 

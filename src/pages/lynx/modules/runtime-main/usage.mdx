@@ -105,6 +105,31 @@ async function scrollToTop(ref: MainThreadRef) {
 
 `invoke` returns a `Promise`, so it can be awaited; the synchronous accessors return immediately from the live PAPI handle.
 
+## Calling helpers from a worklet
+
+A worklet reaches the module-level bindings it names through a capture that crosses from the background thread to the main thread as JSON. Only some values survive that trip:
+
+- **A `'main thread'` function** crosses as a worklet reference that the main-thread runtime makes callable. A worklet can call it.
+- **A plain function is dropped.** Calling it on the main thread throws `TypeError: not a function`.
+- **A method called on a captured object is dropped too.** The capture copies only the members the worklet touches, so `ALLOWED.indexOf(x)` ships `indexOf` as a captured function and throws the same way. Spell the check out instead.
+- **Plain data** (numbers, strings, arrays and objects of those) is copied — into each worklet separately, so a plain object is not shared state between two worklets.
+
+So a helper a worklet calls must itself carry the `'main thread'` directive:
+
+```tsx
+function clamp(v: number, lo: number, hi: number) {
+  'main thread';
+  return Math.min(hi, Math.max(lo, v));
+}
+
+function onUpdate(ref: MainThreadRef, x: number) {
+  'main thread';
+  ref.current?.setStyleProperty('opacity', `${clamp(x / 200, 0, 1)}`);
+}
+```
+
+The reverse holds as well: a `'main thread'` function is a worklet reference on the background thread, so call it from worklet code only. `useScreenMT`, `useWidthClassMT` and `useHeightClassMT` from [`@sigx/lynx-core`](/lynx/modules/core/api#usescreenmt) follow this rule.
+
 ## Notes
 
 - Object-prototype rebuild (PrimJS): when a `runOnMainThread` call carries captured values, the runtime rebuilds the payload with real object prototypes before handing it to the upstream worklet runtime. PrimJS's `JSON.parse` yields null-prototype objects that its `WeakRef` rejects, which would otherwise make captured animations silently no-op. This is handled for you; it is the reason captured worklet payloads work at all.

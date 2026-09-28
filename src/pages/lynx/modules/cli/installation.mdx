@@ -10,19 +10,37 @@ order: 20
 
 <p class="lede">Add `@sigx/lynx-cli` to your project.</p>
 
+## Requirements
+
+- Node.js 22+
+- `@sigx/cli` 0.12 or later, which provides the `sigx` binary the plugin registers its commands with
+- For Android builds, JDK 17–26 and the Android SDK; for iOS, macOS with Xcode 15+ and CocoaPods. See [Installation](/lynx/docs/installation#prerequisites) in the Lynx guide.
+
 ## Install the package
 
 ```bash
-pnpm add @sigx/lynx-cli
+pnpm add -D @sigx/cli @sigx/lynx-cli
 ```
+
+A Lynx app scaffolded with `npm create @sigx@latest my-app -- --kind lynx` already has both.
 
 ## Native setup
 
-Rebuild your development client after installing:
+Generate the native projects:
 
 ```bash
 sigx prebuild
 ```
+
+Scaffolded apps also have this as the `native:prebuild` script (`npm run native:prebuild`). Apps created before `@sigx/cli` 0.13 named it `prebuild`, which npm also ran before every `npm run build`; rename it to `native:prebuild`.
+
+## Check the toolchain
+
+```bash
+npx sigx doctor
+```
+
+Every problem gets a `fix:` line, and `doctor` exits non-zero on errors. See [Troubleshooting](/lynx/docs/troubleshooting).
 
 ## Verify
 

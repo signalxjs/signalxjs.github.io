@@ -88,7 +88,7 @@ export default defineLynxConfig({
 Notes:
 
 - Installed `@sigx/lynx-*` modules are **autolinked automatically** — you only list a module in `modules` when you need to pass it native config or restrict it to one platform. Use `excludeModules` to opt out of one.
-- The config file is evaluated at prebuild time, so you can read `process.env` for secrets like `android.googleMapsApiKey`.
+- The config file is evaluated at prebuild time, so it can read environment variables for keys like `android.googleMapsApiKey`. Use `readEnv()` / `requireEnv()` from `@sigx/lynx-cli/config` rather than `process.env`; they also see your `.env` files. See [App environment](/lynx/modules/cli/app-environment).
 - Sensible defaults are applied for everything you omit: `version` `1.0.0`, `buildNumber` `1`, `orientation` `portrait`, both platforms, Android `minSdk` 24 / `targetSdk` 35, iOS `deploymentTarget` `15.0`, `supportsTablet` `true`. Missing icon or splash images fall back to bundled placeholders.
 - When `applicationId` / `bundleIdentifier` are omitted, run and dev commands fall back to `com.sigx.<name>` (lowercased, non-alphanumerics stripped).
 - **App icons take appearance variants.** `ios.icon` accepts a `{ light, dark, tinted }` set for iOS's standard / dark / tinted home-screen modes (a string is shorthand for `light`). Android's `adaptiveIcon` takes `foreground` + `backgroundColor` + an optional `monochrome` layer (themed icons), and `notificationIcon` / `notificationColor` style the status-bar notification glyph. `splash` likewise takes a `dark` variant.
@@ -264,8 +264,14 @@ sigx build --analyze                   # production bundle + size summary
 Platform notes:
 
 - `run:ios` (and any iOS build) is **macOS only** and errors elsewhere.
-- Android needs the Android SDK + JDK + Gradle; `adb` is resolved from `ANDROID_HOME/platform-tools` and `PATH`. iOS needs Xcode, CocoaPods and `xcrun`/`devicectl`.
-- Run `sigx doctor` first to confirm your toolchain: it reports Node, your package manager, the Android SDK/JDK/ADB, iOS Xcode/CocoaPods and connected devices.
+- Android needs the Android SDK and **JDK 17–26**; Gradle comes with the generated project. When `JAVA_HOME` or `java` on `PATH` is outside that range, sigx builds with Android Studio's bundled JDK instead and says so in one line.
+- The SDK, `adb` and the emulator are found through `ANDROID_HOME` / `ANDROID_SDK_ROOT`, or in Android Studio's default SDK location when neither is set (including `%LOCALAPPDATA%\Android\Sdk` on Windows). `adb` is also looked up on `PATH`.
+- iOS needs Xcode, CocoaPods and `xcrun`/`devicectl`. A physical device also needs a signing team: set `SIGX_IOS_DEVELOPMENT_TEAM` to your Apple Team ID for the command.
+- `run:android` with nothing connected boots your most recently used emulator, or says how to create one.
+- Debug installs (from `run:android` and the `sigx dev` dashboard) build only the connected device's ABI, as Android Studio does, so the debug APK is about a third of its all-ABI size. If the connected devices differ in CPU architecture, the APK carries every ABI; `SIGX_ANDROID_ALL_ABIS=1` always builds the full APK.
+- A failed Android build reports `Android build failed:` with Gradle's reason and, for known causes, the fix. Add `--verbose` for the full Gradle output. See [Troubleshooting](/lynx/docs/troubleshooting).
+
+Run `sigx doctor` first to confirm your toolchain. It checks Node (22+), your package manager, the Android SDK, JDK, ADB and emulators, Xcode and CocoaPods, and whether your `@sigx/lynx-*`, core and `@sigx/cli` versions match. Every problem gets a `fix:` line, and it exits non-zero on errors, so it also works as a CI gate.
 
 ## Code splitting
 
@@ -306,6 +312,7 @@ sigx run:web --port 9000     # custom port
 sigx run:web --no-open       # don't auto-open a browser
 sigx run:web --no-watch      # build and serve once, no live reload
 sigx run:web --host          # expose on the LAN
+sigx run:web --variant dev   # bake in the dev variant's config and env
 ```
 
 It serves three things over one cross-origin-isolated HTTP server: a generated `<lynx-view>` host page, the upstream `@lynx-js/web-core` browser engine, and your app's own `dist/` bundle. Enable the web target by adding it to your build environments:
@@ -335,6 +342,7 @@ Two things to know about the web target:
 ```bash
 sigx build:web
 sigx build:web --coi     # also emit the COI service-worker shim
+sigx build:web --variant staging
 ```
 
 ```
@@ -368,6 +376,10 @@ sigx upgrade --dry-run            # preview without writing
 ```
 
 `outdated` exits non-zero on lockstep drift, and on an available update for the default `latest` check. `upgrade` writes exact pins by default (`--caret` for caret ranges) and refuses to run on a dirty git tree unless you pass `--force`.
+
+`upgrade` moves more than the `@sigx/lynx-*` packages. It also sets `@sigx/runtime-core`, `@sigx/reactivity`, the `@sigx/cli` host and the `@lynx-js/*` build packages to the ranges the target release declares, so the whole set lands together.
+
+`dev`, `build` and the `run:*` commands check this before they start. If your core packages or `@sigx/cli` don't match the installed `@sigx/lynx-*` packages, they stop with `Your installed @sigx packages are out of step with each other`, list the mismatches and suggest `npx sigx upgrade`. Don't reach for `npm install --force` or `--legacy-peer-deps`: they install mismatched peers.
 
 ## How commands declare their flags
 

@@ -12,6 +12,16 @@ order: 40
 
 All components and types in this reference come from the main barrel unless noted. The Tailwind preset and the stylesheet are **subpath-only** exports — import them from `@sigx/lynx-daisyui/preset` and `@sigx/lynx-daisyui/styles`, not the barrel.
 
+The skins for optional peers are subpath-only too, so importing the root never makes an optional peer resolve:
+
+| Subpath | Exports | Needs |
+|---|---|---|
+| `@sigx/lynx-daisyui/navigation` | `NavTabBar`, `NavHeader`, `NavDrawer` and their prop types | `@sigx/lynx-navigation` |
+| `@sigx/lynx-daisyui/markdown` | `markdownComponents`, `useMarkdownEditorTheme`, `EditorToolbar`, `daisyToolbarItem`, `EditorToolbarProps`, `MarkdownEditorThemeColors` | `@sigx/lynx-markdown` |
+| `@sigx/lynx-daisyui/emoji` | `emojiClasses`, `emojiClassesBottomTabs`, `EmojiPickerSheet`, `EmojiPickerSheetProps` | `@sigx/lynx-emoji`, plus `@sigx/lynx-sheet` for `EmojiPickerSheet` |
+
+> **Migrating from 0.31 or earlier:** these symbols used to be exported from the root `@sigx/lynx-daisyui`. From 0.32.0 the root no longer exports them — change the import to the subpath in the table above. Nothing else about them changed.
+
 Importing anything from this package seeds the six built-in themes and declaration-merges a `variant` prop onto `@sigx/lynx-icons`' `Icon`.
 
 ## Entry points
@@ -20,6 +30,11 @@ Importing anything from this package seeds the six built-in themes and declarati
 import { /* components, types, theme API */ } from '@sigx/lynx-daisyui';
 import { daisyuiPreset } from '@sigx/lynx-daisyui/preset';
 import '@sigx/lynx-daisyui/styles';
+
+// Optional-peer skins — install the peer first
+import { NavTabBar, NavHeader, NavDrawer } from '@sigx/lynx-daisyui/navigation'; // + @sigx/lynx-navigation
+import { markdownComponents, EditorToolbar } from '@sigx/lynx-daisyui/markdown';  // + @sigx/lynx-markdown
+import { EmojiPickerSheet, emojiClasses } from '@sigx/lynx-daisyui/emoji';        // + @sigx/lynx-emoji, @sigx/lynx-sheet
 ```
 
 ## Components
@@ -188,7 +203,7 @@ Generic tab strip (not navigation-driven), compound with `Tabs.Tab`. Container-d
 const NavTabBar: Component<NavTabBarProps>;
 ```
 
-DaisyUI-themed bottom/top tab bar for `@sigx/lynx-navigation`. Reads the surrounding `<Tabs>` navigator, or runs standalone via explicit `items` + `activeId`. Mode (navigator vs standalone) is fixed at mount based on the presence of `items`; without `items` it requires a `<Tabs>` ancestor and throws otherwise. `position` defaults to `bottom`, `background` to `base-200`, `bordered` to `true`. Emits `select` with the tab name. Requires the optional `@sigx/lynx-navigation` peer. Platform: iOS and Android.
+DaisyUI-themed bottom/top tab bar for `@sigx/lynx-navigation`. Reads the surrounding `<Tabs>` navigator, or runs standalone via explicit `items` + `activeId`. Mode (navigator vs standalone) is fixed at mount based on the presence of `items`; without `items` it requires a `<Tabs>` ancestor and throws otherwise. `position` defaults to `bottom`, `background` to `base-200`, `bordered` to `true`. Emits `select` with the tab name. Import from `@sigx/lynx-daisyui/navigation`; requires the optional `@sigx/lynx-navigation` peer. Platform: iOS and Android.
 
 ### NavHeader
 
@@ -196,7 +211,7 @@ DaisyUI-themed bottom/top tab bar for `@sigx/lynx-navigation`. Reads the surroun
 const NavHeader: Component<NavHeaderProps>;
 ```
 
-DaisyUI-themed header bar for a `@sigx/lynx-navigation` `<Stack>`. Reads the screen chrome for title/back/slots and renders a centered title with a back button when navigation can go back. `background` defaults to `base-200`, `bordered` to `true`. `backIcon` renders the back chevron from an `IconSpec`; `renderBack` fully overrides it. Requires the optional `@sigx/lynx-navigation` peer. Platform: iOS and Android.
+DaisyUI-themed header bar for a `@sigx/lynx-navigation` `<Stack>`. Reads the screen chrome for title/back/slots and renders a centered title with a back button when navigation can go back. `background` defaults to `base-200`, `bordered` to `true`. `backIcon` renders the back chevron from an `IconSpec`; `renderBack` fully overrides it. Import from `@sigx/lynx-daisyui/navigation`; requires the optional `@sigx/lynx-navigation` peer. Platform: iOS and Android.
 
 ### NavDrawer
 
@@ -204,7 +219,7 @@ DaisyUI-themed header bar for a `@sigx/lynx-navigation` `<Stack>`. Reads the scr
 const NavDrawer: Component<NavDrawerProps>;
 ```
 
-DaisyUI-themed off-canvas drawer for `@sigx/lynx-navigation`. Wraps the primitive `<Drawer>` and drives a slide + fade transition via `@sigx/lynx-motion`. `side` defaults to `left`, `background` to `base-100`, `bordered`/`backdrop` to `true`, `width` to `280`. Daisy tokens are applied as `bg-<token>` classes; raw CSS colors are applied inline. The `sidebar` slot is the menu, the `default` slot is the main content. Requires the optional `@sigx/lynx-navigation` peer. Platform: iOS and Android.
+DaisyUI-themed off-canvas drawer for `@sigx/lynx-navigation`. Wraps the primitive `<Drawer>` and drives a slide + fade transition via `@sigx/lynx-motion`. `side` defaults to `left`, `background` to `base-100`, `bordered`/`backdrop` to `true`, `width` to `280`. Daisy tokens are applied as `bg-<token>` classes; raw CSS colors are applied inline. The `sidebar` slot is the menu, the `default` slot is the main content. Import from `@sigx/lynx-daisyui/navigation`; requires the optional `@sigx/lynx-navigation` peer. Platform: iOS and Android.
 
 ### SwiperIndicator
 
@@ -260,7 +275,7 @@ Heading. `level` 1–6 maps to text-size/weight utilities and is always `text-ba
 const EditorToolbar: Component<EditorToolbarProps>;
 ```
 
-DaisyUI-skinned markdown editor toolbar. Wraps `@sigx/lynx-markdown/editor`'s generic `EditorToolbar` with `daisyToolbarItem`. Use standalone or via `MarkdownEditor`. Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
+DaisyUI-skinned markdown editor toolbar. Wraps `@sigx/lynx-markdown/editor`'s generic `EditorToolbar` with `daisyToolbarItem`. Use standalone or via `MarkdownEditor`. Import from `@sigx/lynx-daisyui/markdown`; requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
 
 ### EmojiPickerSheet
 
@@ -268,7 +283,7 @@ DaisyUI-skinned markdown editor toolbar. Wraps `@sigx/lynx-markdown/editor`'s ge
 const EmojiPickerSheet: Component<EmojiPickerSheetProps>;
 ```
 
-DaisyUI-themed bottom-sheet emoji picker. Wraps `@sigx/lynx-emoji`'s `SheetPicker` with `emojiClasses` and a `base-100` sheet surface. `open` is required; `data` is optional under an `<EmojiProvider>`; `classes` merge over the daisy skin. Emits `pick`. Requires the optional `@sigx/lynx-emoji` peer. Platform: iOS and Android.
+DaisyUI-themed bottom-sheet emoji picker. Wraps `@sigx/lynx-emoji`'s `SheetPicker` with `emojiClasses` and a `base-100` sheet surface. `open` is required; `data` is optional under an `<EmojiProvider>`; `classes` merge over the daisy skin. Emits `pick`. Import from `@sigx/lynx-daisyui/emoji`; requires the optional `@sigx/lynx-emoji` and `@sigx/lynx-sheet` peers. Platform: iOS and Android.
 
 ## Layout primitives (re-exported)
 
@@ -436,7 +451,7 @@ Historical alias for `resolveColorToken`.
 function useMarkdownEditorTheme(): MarkdownEditorThemeColors;
 ```
 
-Reactively resolves the active theme to concrete hex color props for `@sigx/lynx-markdown`'s `MarkdownEditor` (the native rich-text widget cannot read CSS vars or oklch). Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
+Reactively resolves the active theme to concrete hex color props for `@sigx/lynx-markdown`'s `MarkdownEditor` (the native rich-text widget cannot read CSS vars or oklch). Import from `@sigx/lynx-daisyui/markdown`; requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
 
 ## Constants
 
@@ -446,7 +461,7 @@ Reactively resolves the active theme to concrete hex color props for `@sigx/lynx
 const markdownComponents: LynxMarkdownComponents;
 ```
 
-DaisyUI render mapping for `@sigx/lynx-markdown`'s `<MarkdownView components={...}>` (headings to `Heading`, text to `Text`, layout to `Col`/`Row`, themed surfaces), keyed by the mdast slot names (`heading`, `emphasis`, `delete`, `inlineCode`, `text`, `html`, …). Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
+DaisyUI render mapping for `@sigx/lynx-markdown`'s `<MarkdownView components={...}>` (headings to `Heading`, text to `Text`, layout to `Col`/`Row`, themed surfaces), keyed by the mdast slot names (`heading`, `emphasis`, `delete`, `inlineCode`, `text`, `html`, …). Import from `@sigx/lynx-daisyui/markdown`; requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
 
 ### daisyToolbarItem
 
@@ -454,7 +469,7 @@ DaisyUI render mapping for `@sigx/lynx-markdown`'s `<MarkdownView components={..
 const daisyToolbarItem: ToolbarRenderItem; // (item, active, run, enabled) => JSX
 ```
 
-DaisyUI item renderer for `MarkdownEditor`'s `renderToolbarItem`; renders a square ghost/primary `Button` per toolbar item, disabled when the item is not enabled. Requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
+DaisyUI item renderer for `MarkdownEditor`'s `renderToolbarItem`; renders a square ghost/primary `Button` per toolbar item, disabled when the item is not enabled. Import from `@sigx/lynx-daisyui/markdown`; requires the optional `@sigx/lynx-markdown` peer. Platform: iOS and Android.
 
 ### emojiClasses
 
@@ -462,7 +477,15 @@ DaisyUI item renderer for `MarkdownEditor`'s `renderToolbarItem`; renders a squa
 const emojiClasses: EmojiSlotClasses;
 ```
 
-DaisyUI slot-to-class mapping for `@sigx/lynx-emoji` pickers (pass to a picker's `classes` prop). Requires the optional `@sigx/lynx-emoji` peer. Platform: iOS and Android.
+DaisyUI slot-to-class mapping for `@sigx/lynx-emoji` pickers (pass to a picker's `classes` prop). Import from `@sigx/lynx-daisyui/emoji`; requires the optional `@sigx/lynx-emoji` peer. Platform: iOS and Android.
+
+### emojiClassesBottomTabs
+
+```ts
+const emojiClassesBottomTabs: EmojiSlotClasses;
+```
+
+`emojiClasses` for a picker with `tabPlacement="bottom"`: the tab bar gets its divider on the top edge and an opaque `bg-base-100`, so it paints over the grid rows it overlaps. A module-level constant, so `classes` keeps a stable identity across renders. Import from `@sigx/lynx-daisyui/emoji`; requires the optional `@sigx/lynx-emoji` peer. Platform: iOS and Android.
 
 ### DaisyLynxPreset
 

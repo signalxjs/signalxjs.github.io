@@ -13,8 +13,10 @@ order: 141
 ## Import
 
 ```tsx
-import { NavHeader } from '@sigx/lynx-daisyui';
+import { NavHeader } from '@sigx/lynx-daisyui/navigation';
 ```
+
+`NavHeader` lives on the `@sigx/lynx-daisyui/navigation` subpath, not the package root, and needs the `@sigx/lynx-navigation` peer installed (`pnpm add @sigx/lynx-navigation`).
 
 `NavHeader` pairs with `<Stack>` from `@sigx/lynx-navigation`. It reads the focused screen's options and slot fills via `useScreenChrome()`, then applies daisy theming: a `base-200` surface, a bottom separator, and a horizontal layout with a centred title flanked by left/right zones of equal minimum width.
 
@@ -22,7 +24,7 @@ It takes no children and no title prop of its own — the title and the header a
 
 ```tsx
 import { Stack } from '@sigx/lynx-navigation';
-import { NavHeader } from '@sigx/lynx-daisyui';
+import { NavHeader } from '@sigx/lynx-daisyui/navigation';
 
 <Stack initialRoute="home">
     <NavHeader />
@@ -50,7 +52,7 @@ A header with default styling — a `base-200` surface and a bottom border. The 
 
 ```tsx
 import { Stack, Screen } from '@sigx/lynx-navigation';
-import { NavHeader } from '@sigx/lynx-daisyui';
+import { NavHeader } from '@sigx/lynx-daisyui/navigation';
 
 <Stack initialRoute="home">
     <NavHeader />
@@ -63,7 +65,7 @@ Use `background` to change the surface color and `bordered={false}` to drop the 
 
 ```tsx
 import { Stack } from '@sigx/lynx-navigation';
-import { NavHeader } from '@sigx/lynx-daisyui';
+import { NavHeader } from '@sigx/lynx-daisyui/navigation';
 
 <Stack initialRoute="home">
     <NavHeader background="base-100" bordered={false} />
@@ -72,7 +74,7 @@ import { NavHeader } from '@sigx/lynx-daisyui';
 
 ```tsx
 import { Stack } from '@sigx/lynx-navigation';
-import { NavHeader } from '@sigx/lynx-daisyui';
+import { NavHeader } from '@sigx/lynx-daisyui/navigation';
 
 // Transparent header that floats over the screen content
 <Stack initialRoute="home">
@@ -86,7 +88,7 @@ Provide `backIcon` to swap the default "‹ Back" text for a themed chevron icon
 
 ```tsx
 import { Stack } from '@sigx/lynx-navigation';
-import { NavHeader } from '@sigx/lynx-daisyui';
+import { NavHeader } from '@sigx/lynx-daisyui/navigation';
 
 <Stack initialRoute="detail">
     <NavHeader backIcon={{ set: 'lucide', name: 'chevron-left' }} />
@@ -98,7 +100,8 @@ For complete control over the back affordance, use `renderBack`. It receives a `
 ```tsx
 import { Stack } from '@sigx/lynx-navigation';
 import { Pressable } from '@sigx/lynx-gestures';
-import { NavHeader, Text } from '@sigx/lynx-daisyui';
+import { NavHeader } from '@sigx/lynx-daisyui/navigation';
+import { Text } from '@sigx/lynx-daisyui';
 
 <Stack initialRoute="detail">
     <NavHeader

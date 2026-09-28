@@ -103,7 +103,7 @@ Wires the Android hardware / system back button to the active navigator. Idempot
 function useLinkingNav(opts: UseLinkingNavOptions = {}): void
 ```
 
-Bridges `@sigx/lynx-linking` URL events (cold-start `getInitialURL` plus warm-start `'url'` events) into the navigator via `parseHref`. Call once inside a `NavigationRoot` subtree. Requires the optional `@sigx/lynx-linking` peer.
+Bridges `@sigx/lynx-linking` URL events (cold-start `getInitialURL` plus warm-start `'url'` events) into the navigator via `parseHref`. Call once inside a `NavigationRoot` subtree. The cold-start URL replaces the initial route unless `replaceInitial` is `false`; warm URLs are pushed. A `url` event carrying the link routed last is dropped while the entry that link left on top is still current, so a cold-start link delivered as both the initial URL and an event (iOS) opens its screen once. The check applies to the default dispatch only — with `onURL` set, every delivery reaches the handler. Uses the `@sigx/lynx-linking` peer (required).
 
 ### useIsFocused
 

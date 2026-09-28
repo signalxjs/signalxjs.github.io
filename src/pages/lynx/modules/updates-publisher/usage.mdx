@@ -81,6 +81,7 @@ Publishing appends or replaces the entry for each `(platform, runtimeVersion)` p
 
 - **Dependency-light**: only Node built-ins, so it adds no build toolchain to a CI job. Install it as a dev dependency.
 - **Same function, two entry points**: `publishUpdate` is also re-exported from `@sigx/lynx-cli` (which backs `sigx updates:publish`).
+- **No variant check here**: `sigx updates:publish` refuses a bundle built for a different [build variant](/lynx/modules/cli/build-variants) than the one you publish for, by reading `dist/.sigx-build.json`. `publishUpdate()` doesn't read that marker, so when you call it directly, pass the channel that matches the build yourself. See [`env` and OTA updates](/lynx/modules/cli/app-environment#env-and-ota-updates).
 - **Self-healing manifest**: republishing normalizes the existing `manifest.json`, dropping any malformed entry so the channel never breaks on a stray bad record.
 
 ## See also

@@ -149,6 +149,24 @@ Deep links require host configuration beyond installing the package:
 
 Use `Linking.isAvailable()` to check at runtime whether the native bridge module is registered in the current build.
 
+## iOS: forward scene deep links
+
+The generated iOS app is a SwiftUI scene app. A scene app never receives `application(_:open:)` or a launch-options URL — the scene gets the URL instead. The `App.swift` that `sigx prebuild` writes forwards both scene callbacks to the package hooks, so cold and warm deep links, and Universal Links, reach `@sigx/lynx-linking`:
+
+```swift
+WindowGroup {
+    ContentView(devUrl: Self.getDevUrl())
+        .onOpenURL { url in
+            _ = GeneratedAppDelegateHooks.openURL(url, options: [:])
+        }
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            GeneratedAppDelegateHooks.continueUserActivity(activity)
+        }
+}
+```
+
+Without these two modifiers, `getInitialURL()` returns `null` and no `url` event fires on iOS. `App.swift` is a managed file: `sigx prebuild` with `@sigx/lynx-cli` 0.33.0 or later rewrites it from the template, so an existing `ios/` project picks up the forwarding on its next prebuild. If you maintain `ios/<AppName>/App.swift` by hand and don't let prebuild refresh it, add the two modifiers to the `ContentView` inside your `WindowGroup` as shown.
+
 ## See also
 
 - [Installation](/lynx/modules/linking/installation) — package and native setup.

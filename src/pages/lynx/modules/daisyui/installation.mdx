@@ -16,6 +16,20 @@ order: 20
 pnpm add @sigx/lynx-daisyui
 ```
 
+## Optional peers
+
+The navigation, markdown and emoji skins each depend on an optional peer, so they live on their own subpath instead of the package root. Install the peer for the subpath you use:
+
+| Import from | Install |
+|---|---|
+| `@sigx/lynx-daisyui/navigation` (`NavTabBar`, `NavHeader`, `NavDrawer`) | `pnpm add @sigx/lynx-navigation` |
+| `@sigx/lynx-daisyui/markdown` (`markdownComponents`, `useMarkdownEditorTheme`, `EditorToolbar`, `daisyToolbarItem`) | `pnpm add @sigx/lynx-markdown` |
+| `@sigx/lynx-daisyui/emoji` (`emojiClasses`, `emojiClassesBottomTabs`, `EmojiPickerSheet`) | `pnpm add @sigx/lynx-emoji` — plus `@sigx/lynx-sheet` for `EmojiPickerSheet` |
+
+The root `@sigx/lynx-daisyui` entry imports none of them.
+
+> **Upgrading from 0.31 or earlier:** these symbols moved off the package root in 0.32.0. An import such as `import { NavHeader } from '@sigx/lynx-daisyui'` now fails — import from the subpath in the table instead.
+
 ## Native setup
 
 Rebuild your development client after installing:

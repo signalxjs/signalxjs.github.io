@@ -24,7 +24,7 @@ The fastest way to a new project is `sigx create`. You can run it without instal
 npm create @sigx@latest
 ```
 
-This walks you through the wizard — a name, then **Quick start** (a Tailwind SPA with routing and tests) or **Customize** (kind → rendering and deploy target → styling → extras), then your package manager and whether to install dependencies and initialize git. It writes the project into `./<name>` and prints the next steps.
+This walks you through the wizard — a name, then **Quick start** (a Tailwind SPA with routing and tests), **Mobile app** (an iOS and Android app with Lynx and daisyUI) or **Customize** (kind → rendering and deploy target → styling → extras), then your package manager and whether to install dependencies and initialize git. It writes the project into `./<name>` and prints the next steps.
 
 To skip the prompts and scaffold headlessly, pass flags:
 
@@ -34,7 +34,7 @@ npx sigx create my-app --kind ssr --styling tailwind --install -y
 
 Headless runs never install dependencies or initialize git unless `--install` / `--git` ask for it, which keeps them safe in CI — drop `--install` and run the install yourself.
 
-`--kind` takes `spa`, `ssr`, `ssg`, `terminal` or `lynx`. See [Creating a Project](/cli/docs/create) for the full flag surface, the deploy targets and render modes for SSR, and what each kind generates.
+`--kind` takes `spa`, `ssr`, `ssg`, `terminal` or `lynx`. `npm create @sigx@latest -- --help` prints every option. See [Creating a Project](/cli/docs/create) for the full flag surface, the deploy targets and render modes for SSR, and what each kind generates.
 
 ## Installing into a project
 
@@ -77,7 +77,7 @@ Scripts differ by kind:
 - **`ssr`** runs `node server.mjs` for `dev` and builds with `vite build --app`; `start` runs the production server. Every deploy target shares that dev workflow.
 - **`ssg`** maps `dev`, `build` and `preview` to `sigx dev` / `sigx build` / `sigx preview`.
 - **`terminal`** runs `sigx-terminal-dev src/main.tsx` for `dev` (HMR) and `tsx src/main.tsx` for `start`.
-- **`lynx`** maps `dev` and `build` to `sigx dev` / `sigx build`, plus `sigx doctor` and `sigx prebuild`, and has no `preview`.
+- **`lynx`** maps `dev` and `build` to `sigx dev` / `sigx build`, and adds `doctor`, `native:prebuild` (`sigx prebuild`) and `run:android` / `run:ios` / `run:web`. It has no `preview`. Start with `npx sigx doctor`, then `npm run run:android`; see [Installation](/lynx/docs/installation) in the Lynx guide.
 
 Where a project uses `sigx` commands, those resolve to commands contributed by the corresponding plugin packages.
 

@@ -36,6 +36,7 @@ sigx create                                   # the wizard
 sigx create my-app --preset quick --install --git -y
 sigx create my-app --kind ssr --render resume --target cloudflare -y
 sigx create --list                            # everything this build can generate
+npm create @sigx@latest -- --help             # the options, without scaffolding
 ```
 
 `--type basic|ssr|ssg|terminal|lynx` is a deprecated alias of `--kind`, with `basic` meaning `spa`.
@@ -48,7 +49,7 @@ sigx create --list                            # everything this build can genera
 
 - Generated projects pin the matched `sigx` / `@sigx/*` set the CLI was released against — never `latest` — so the peer graph resolves to a single copy of `@sigx/reactivity`. The current CLI is <PkgVersion npm="@sigx/cli" />.
 - If the target directory is inside a pnpm workspace (a `pnpm-workspace.yaml` is found by walking up the tree), `@sigx/*` dependencies in the generated `package.json` are rewritten to `workspace:*`.
-- SSG and terminal projects ship their own `pnpm-workspace.yaml` allowing `esbuild` to run its install script (`allowBuilds` for pnpm 11, `onlyBuiltDependencies` for pnpm 10) — pnpm 11 fails the install otherwise.
+- With pnpm, SSG and terminal projects ship their own `pnpm-workspace.yaml` allowing `esbuild` to run its install script, and Lynx apps allow `esbuild` and `sharp` (`allowBuilds` for pnpm 11, `onlyBuiltDependencies` for pnpm 10) — pnpm 11 fails the install otherwise.
 - Every project gets a `README.md` and a `.gitignore`, with commands spelled for the chosen package manager.
 - The terminal prompt kit (`@sigx/terminal`) is lazy-loaded, so it is only pulled in when you actually run `create` interactively.
 
@@ -106,6 +107,8 @@ Generates native iOS/Android project files. Provided by `@sigx/lynx-cli`.
 sigx prebuild
 ```
 
+Scaffolded Lynx apps run it as the `native:prebuild` script. Apps created before `@sigx/cli` 0.13 named it `prebuild`, which npm also ran before every `npm run build`; rename it to `native:prebuild`.
+
 ### sigx run:android
 
 Builds and launches the app on an Android device or emulator. Provided by `@sigx/lynx-cli`.
@@ -122,18 +125,36 @@ Builds and launches the app on iOS. Provided by `@sigx/lynx-cli`.
 sigx run:ios
 ```
 
+### sigx run:web
+
+Builds a Lynx app for the browser and serves it with live reload. Provided by `@sigx/lynx-cli`.
+
+```bash
+sigx run:web
+```
+
 ### sigx doctor
 
-Verifies the Lynx toolchain (rspeedy, ADB, Xcode, JDK). Provided by `@sigx/lynx-cli`.
+Verifies the Lynx toolchain: Node, the Android SDK, JDK, ADB and emulators, Xcode and CocoaPods, rspeedy, and whether your `@sigx` package versions match. Every problem gets a `fix:` line, and it exits non-zero on errors. Provided by `@sigx/lynx-cli`.
 
 ```bash
 sigx doctor
 ```
+
+### sigx upgrade
+
+Moves every `@sigx/lynx-*` package to one release, together with the `@sigx/runtime-core`, `@sigx/reactivity`, `@sigx/cli` and `@lynx-js/*` ranges that release declares. Provided by `@sigx/lynx-cli`.
+
+```bash
+sigx upgrade
+```
+
+The Lynx commands' flags are in the [`@sigx/lynx-cli` reference](/lynx/modules/cli/api#cli-commands).
 
 ## Command resolution & conflicts
 
 The CLI builds its command list by starting with the core `info` and `create` commands, then registering each discovered plugin command. On a name collision the **last plugin wins**, and a warning is logged:
 
 ```text
-[sigx] WARN Plugin "X" overrides command "Y"
+[sigx] WARN: Plugin "X" overrides command "Y"
 ```
