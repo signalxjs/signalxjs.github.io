@@ -121,19 +121,25 @@ For a synchronous read of the current insets from inside a `'main thread'`-marke
 A library that needs the insets — the keyboard height, for example — can't assume the app mounts a `SafeAreaProvider`. Read the current value with `readGlobalSafeArea()` and follow changes with `subscribeSafeArea`, which listens on the same native channel the provider uses:
 
 ```tsx
-import { onMounted, signal } from '@sigx/lynx';
+import { component, onMounted, onUnmounted, signal } from '@sigx/lynx';
 import { readGlobalSafeArea, subscribeSafeArea } from '@sigx/lynx-safe-area';
 
-const keyboard = signal(readGlobalSafeArea().keyboard);
+export const KeyboardSpacer = component(() => {
+  const keyboard = signal(readGlobalSafeArea().keyboard);
+  let unsubscribe: (() => void) | undefined;
 
-onMounted(() =>
-  subscribeSafeArea((raw) => {
-    if (typeof raw.keyboard === 'number') keyboard.value = raw.keyboard;
-  }),
-);
+  onMounted(() => {
+    unsubscribe = subscribeSafeArea((raw) => {
+      if (typeof raw.keyboard === 'number') keyboard.value = raw.keyboard;
+    });
+  });
+  onUnmounted(() => unsubscribe?.());
+
+  return () => <view style={{ height: `${keyboard.value}px` }} />;
+});
 ```
 
-The callback receives the raw payload, so any key the platform omitted is absent — check before you use it. The returned unsubscribe doubles as the effect cleanup.
+The callback receives the raw payload, so any key the platform omitted is absent — check before you use it. `subscribeSafeArea` returns an unsubscribe function; call it when you stop listening, here in `onUnmounted`.
 
 ## Notes
 

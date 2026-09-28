@@ -98,6 +98,8 @@ declare global {
 export {};
 ```
 
+Keep this in its own file rather than adding it to the scaffold's `src/lynx-env.d.ts`. That file is a global script holding only the `/// <reference types="@sigx/lynx/client" />` line, while this one has to be a module (the `import type` and `export {}`) for `declare global` to work.
+
 `EnvOf` widens literal types, so `apiBaseUrl: 'https://api.example.com'` is typed `string` rather than that one URL, and every variant's value fits the same type. `env.apiBaseUrl` is now a `string`, `env.features.newCheckout` a `boolean`, and a typo like `env.apiBaseURL` is a compile error.
 
 > **Keep `process` out of the config.** This file makes the app's type-check import `signalx.config.ts`. If the config reads `process.env.X` directly, the app needs Node's types (`@types/node`) just to compile. Read variables with `readEnv()` / `requireEnv()` instead (see [below](#env-files-and-ci-variables)).
